@@ -240,8 +240,20 @@ public class CombatResolver {
                 .build());
 
         } else {
-            // Hit
+            // Hit — check whether a partial block softened it
+            boolean wasPartialBlocked = defender.getTimeline() != null
+                && defender.getTimeline().hasActivePartialBlockAt(tick);
+
             defender.applyDamage(result.getFinalDamage());
+
+            if (wasPartialBlocked) {
+                events.add(CombatEvent.of(CombatEvent.Type.MOVE_PARTIAL_BLOCK)
+                    .source(attacker).target(defender).move(move)
+                    .message(defender.getCharacter().getName()
+                             + " partially blocked " + move.getName() + "! (damage halved)")
+                    .build());
+            }
+
             events.add(CombatEvent.of(CombatEvent.Type.DAMAGE_DEALT)
                 .source(attacker).target(defender).move(move)
                 .intValue(result.getFinalDamage())

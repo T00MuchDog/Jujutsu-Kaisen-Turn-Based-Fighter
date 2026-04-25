@@ -9,22 +9,28 @@ import java.util.Map;
 /**
  * Plain data object (DTO) for serialising/deserialising a Move to/from JSON.
  *
- * All fields are public for Jackson compatibility — this is deliberately a
- * simple data bag, not a domain object. The domain Move is immutable and
- * built via Move.Builder; MoveData is the mutable JSON representation.
+ * ID: 6-digit zero-padded integer string, auto-assigned by MoveRepository.
  *
- * JSON file path: data/moves/<id>.json  OR  data/moves/all_moves.json
+ * Category is derived at runtime from the tags list — it is not stored separately.
+ * Tags is the canonical representation; MoveCategory is computed via MoveCategory.fromTags().
+ *
+ * requiredTechniqueId has been replaced by requiredTechniqueName (plain string, e.g. "Shrine").
+ * Technique IDs live in TechniqueRepository and are resolved separately.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class MoveData {
 
-    public String  id;
-    public String  name;
-    public String  description;
+    public String id;           // 6-digit auto-assigned, e.g. "000003"
+    public String name;
+    public String description;
 
-    /** MoveCategory enum name, e.g. "PHYSICAL", "INNATE_TECHNIQUE" */
-    public String  category;
+    /**
+     * List of MoveTag enum names applied to this move.
+     * e.g. ["PHYSICAL", "ATTACK"]  or  ["INNATE_TECHNIQUE", "ATTACK", "CURSED_ENERGY"]
+     * The MoveCategory is derived from this set at conversion time.
+     */
+    public List<String> tags;
 
     public int     basePower;
     public double  baseAccuracy   = 1.0;
@@ -54,8 +60,12 @@ public class MoveData {
     /** Prerequisite stats: {"strength": 80, "speed": 60, ...} */
     public Map<String, Integer> prerequisites;
 
-    /** Required innate technique id, e.g. "SHRINE". Null if none. */
-    public String  requiredTechniqueId;
+    /**
+     * Human-readable technique name this move requires (e.g. "Shrine", "Blood Manipulation").
+     * Null means no technique restriction.
+     * The numeric technique ID is resolved via TechniqueRepository at load time.
+     */
+    public String  requiredTechniqueName;
 
     public boolean isGuaranteedMove = false;
 
@@ -73,14 +83,57 @@ public class MoveData {
     }
 
     // -------------------------------------------------------------------------
+    // Derive MoveCategory from tags
+    // -------------------------------------------------------------------------
+
+    /**
+     * Resolve the MoveCategory from the stored tags list.
+     * Tags that don't map to MoveCategory slots (ATTACK, UTILITY, DEFENSIVE) are
+     * used for BF eligibility and filtering but don't change the power formula.
+     */
+    public MoveCategory derivedCategory() {
+        if (tags == null || tags.isEmpty()) return MoveCategory.UTILITY;
+
+        boolean hasPhysical    = tags.contains("PHYSICAL");
+        boolean hasInnate      = tags.contains("INNATE_TECHNIQUE");
+        boolean hasNonInnate   = tags.contains("NON_INNATE_TECHNIQUE");
+        boolean hasCe          = tags.contains("CURSED_ENERGY");
+        boolean hasDefensive   = tags.contains("DEFENSIVE");
+        boolean hasUtility     = tags.contains("UTILITY");
+
+        if (hasDefensive) return MoveCategory.DEFENSIVE;
+        if (hasUtility)   return MoveCategory.UTILITY;
+
+        // Triple hybrids
+        if (hasPhysical && hasInnate && hasNonInnate)
+            return MoveCategory.PHYSICAL_INNATE_NON_INNATE_TECHNIQUE;
+
+        // Double hybrids
+        if (hasPhysical && hasInnate)    return MoveCategory.PHYSICAL_INNATE_TECHNIQUE;
+        if (hasPhysical && hasNonInnate) return MoveCategory.PHYSICAL_NON_INNATE_TECHNIQUE;
+        if (hasPhysical && hasCe)        return MoveCategory.PHYSICAL_CURSED_ENERGY;
+        if (hasInnate   && hasNonInnate) return MoveCategory.INNATE_NON_INNATE_TECHNIQUE;
+
+        // Pure
+        if (hasInnate)    return MoveCategory.INNATE_TECHNIQUE;
+        if (hasNonInnate) return MoveCategory.NON_INNATE_TECHNIQUE;
+        if (hasPhysical)  return MoveCategory.PHYSICAL;
+
+        // CE-only moves are not supported standalone; treat as UTILITY
+        return MoveCategory.UTILITY;
+    }
+
+    // -------------------------------------------------------------------------
     // Conversion: MoveData → Move (domain object)
     // -------------------------------------------------------------------------
 
     public Move toMove() {
+        MoveCategory cat = derivedCategory();
+
         Move.Builder b = new Move.Builder(id)
             .name(name)
             .description(description != null ? description : "")
-            .category(MoveCategory.valueOf(category))
+            .category(cat)
             .basePower(basePower)
             .baseAccuracy(baseAccuracy)
             .neverMiss(neverMiss)
@@ -89,11 +142,11 @@ public class MoveData {
             .baseCeCost(baseCeCost)
             .minCeCost(minCeCost)
             .maxCeCost(maxCeCost)
-            .interruptType(InterruptType.valueOf(interruptType))
-            .defenseType(DefenseType.valueOf(defenseType))
+            .interruptType(InterruptType.valueOf(interruptType != null ? interruptType : "NONE"))
+            .defenseType(DefenseType.valueOf(defenseType != null ? defenseType : "NONE"))
             .defenseBuffDuration(defenseBuffDuration)
             .defenseBuffAmount(defenseBuffAmount)
-            .requiredTechniqueId(requiredTechniqueId)
+            .requiredTechniqueId(requiredTechniqueName) // still stored as requiredTechniqueId in Move domain
             .guaranteedMove(isGuaranteedMove);
 
         if (prerequisites != null)  b.prerequisites(prerequisites);
@@ -106,7 +159,8 @@ public class MoveData {
     private static List<StatusEffect> toStatusEffects(List<StatusEffectData> dtos) {
         if (dtos == null) return List.of();
         return dtos.stream()
-            .map(d -> new StatusEffect(StatusEffectType.valueOf(d.type), d.durationRounds, d.magnitude))
+            .filter(d -> d.type != null && !d.type.isBlank())
+            .map(d -> new StatusEffect(StatusEffectType.valueOf(d.type.toUpperCase()), d.durationRounds, d.magnitude))
             .toList();
     }
 
@@ -119,7 +173,20 @@ public class MoveData {
         d.id                  = move.getId();
         d.name                = move.getName();
         d.description         = move.getDescription();
-        d.category            = move.getCategory().name();
+
+        // Build tags list from category + other flags
+        List<String> tagList = new java.util.ArrayList<>();
+        MoveCategory cat = move.getCategory();
+        // Expand category back to constituent tags
+        cat.getTags().forEach(t -> tagList.add(t.name()));
+        // Add ATTACK if it's a damaging move (non-defensive, non-utility with basePower > 0)
+        if (move.getBasePower() > 0
+                && cat != MoveCategory.DEFENSIVE
+                && cat != MoveCategory.UTILITY) {
+            tagList.add("ATTACK");
+        }
+        d.tags = tagList;
+
         d.basePower           = move.getBasePower();
         d.baseAccuracy        = move.getBaseAccuracy();
         d.neverMiss           = move.isNeverMiss();
@@ -132,25 +199,26 @@ public class MoveData {
         d.defenseType         = move.getDefenseType().name();
         d.defenseBuffDuration = move.getDefenseBuffDuration();
         d.defenseBuffAmount   = move.getDefenseBuffAmount();
-        d.requiredTechniqueId = move.getRequiredTechniqueId();
+        d.requiredTechniqueName = move.getRequiredTechniqueId(); // domain still uses id field
         d.isGuaranteedMove    = move.isGuaranteedMove();
-        d.prerequisites       = move.getPrerequisites().isEmpty() ? null : move.getPrerequisites();
+        d.prerequisites       = move.getPrerequisites().isEmpty() ? null
+                                    : new java.util.LinkedHashMap<>(move.getPrerequisites());
 
         if (!move.getOnHitEffects().isEmpty()) {
             d.onHitEffects = move.getOnHitEffects().stream().map(e -> {
                 StatusEffectData sd = new StatusEffectData();
-                sd.type            = e.getType().name();
-                sd.durationRounds  = e.getDurationRounds();
-                sd.magnitude       = e.getMagnitude();
+                sd.type           = e.getType().name();
+                sd.durationRounds = e.getDurationRounds();
+                sd.magnitude      = e.getMagnitude();
                 return sd;
             }).toList();
         }
         if (!move.getSelfEffects().isEmpty()) {
             d.selfEffects = move.getSelfEffects().stream().map(e -> {
                 StatusEffectData sd = new StatusEffectData();
-                sd.type            = e.getType().name();
-                sd.durationRounds  = e.getDurationRounds();
-                sd.magnitude       = e.getMagnitude();
+                sd.type           = e.getType().name();
+                sd.durationRounds = e.getDurationRounds();
+                sd.magnitude      = e.getMagnitude();
                 return sd;
             }).toList();
         }

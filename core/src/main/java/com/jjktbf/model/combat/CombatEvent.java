@@ -20,6 +20,7 @@ public class CombatEvent {
         MOVE_FIRED,         // move unleashed — attack resolved
         MOVE_MISSED,
         MOVE_BLOCKED,       // full block negated the damage
+        MOVE_PARTIAL_BLOCK, // partial block halved incoming damage
         MOVE_KNOCKED_OUT,   // interrupt removed this block
 
         // Damage
