@@ -85,9 +85,13 @@ public final class DamageCalculator {
         }
 
         // --- 2. Check full block ---
-        if (defender.getTimeline() != null && defender.getTimeline().hasActiveFullBlockAt(currentTick)) {
+        Timeline defTimeline = defender.getTimeline();
+        if (defTimeline != null && defTimeline.hasActiveFullBlockAt(currentTick)) {
             return DamageResult.blocked(move);
         }
+
+        // --- 2b. Check partial block (halves pre-defense damage) ---
+        boolean partialBlock = defTimeline != null && defTimeline.hasActivePartialBlockAt(currentTick);
 
         // --- 3. Power ---
         int power   = PowerCalculator.compute(move.getCategory(), acs);
@@ -98,9 +102,11 @@ public final class DamageCalculator {
 
         // --- 5. Damage formula ---
         // damage = basePower × (power / defense) × DAMAGE_SCALE × roll
-        double randomRoll = ROLL_MIN + (1.0 - ROLL_MIN) * rng.nextDouble();
+        // If a partial block is active, the effective incoming damage is halved first.
+        double randomRoll     = ROLL_MIN + (1.0 - ROLL_MIN) * rng.nextDouble();
+        double partialFactor  = partialBlock ? 0.5 : 1.0;
         int rawDamage = (int) Math.round(
-            move.getBasePower() * ((double) power / defense) * DAMAGE_SCALE * randomRoll
+            move.getBasePower() * ((double) power / defense) * DAMAGE_SCALE * randomRoll * partialFactor
         );
         rawDamage = Math.max(1, rawDamage); // always deal at least 1 damage on a hit
 

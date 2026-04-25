@@ -114,6 +114,22 @@ public class Timeline {
     }
 
     /**
+     * Check if a PARTIAL_BLOCK defensive move is covering the given tick.
+     * When active, incoming damage is halved before the normal defense calculation.
+     */
+    public boolean hasActivePartialBlockAt(int tick) {
+        for (MoveBlock b : blocks) {
+            if (!b.isKnockedOut()
+                && b.getMove().getDefenseType() == DefenseType.PARTIAL_BLOCK
+                && tick >= b.getStartTick()
+                && tick <= b.getEndTick()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * The total AP consumed by all blocks (including knocked-out ones — AP is spent).
      */
     public int totalApUsed() {

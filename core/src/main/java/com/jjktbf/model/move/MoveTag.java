@@ -65,7 +65,14 @@ public enum MoveTag {
      */
     NON_INNATE_TECHNIQUE,
 
-    /** Utility / defensive / status move — does not deal direct damage. */
+    /**
+     * General attack tag — marks the move as an offensive action.
+     * Applied in addition to PHYSICAL / CURSED_ENERGY / INNATE_TECHNIQUE etc.
+     * Used for filtering, AI logic, and future mechanics.
+     */
+    ATTACK,
+
+    /** Utility / status move — does not deal direct damage. */
     UTILITY,
 
     /** Defensive move that reduces or blocks incoming damage. */

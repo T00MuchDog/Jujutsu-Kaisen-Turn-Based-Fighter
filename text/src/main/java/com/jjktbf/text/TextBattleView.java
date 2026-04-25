@@ -147,7 +147,8 @@ TextBattleView implements BattleView {
                 case BLACK_FLASH      -> "  ★★★ ";
                 case BATTLE_OVER      -> "  !!! ";
                 case MOVE_MISSED      -> "  ··  ";
-                case MOVE_BLOCKED     -> "  ▓▓  ";
+                case MOVE_BLOCKED        -> "  ▓▓  ";
+                case MOVE_PARTIAL_BLOCK  -> "  ▒▒  ";
                 case DAMAGE_DEALT     -> "  ►   ";
                 case CE_DEPLETED      -> "  ▼▼▼ ";
                 case MOVE_KNOCKED_OUT -> "  ✗   ";
@@ -379,10 +380,27 @@ TextBattleView implements BattleView {
         return "█".repeat(filled) + "░".repeat(width - filled);
     }
 
-    /** Clear terminal (works on most Unix/Mac terminals). */
+    /**
+     * Clear the terminal output.
+     *
+     * Strategy:
+     *  1. Try the ANSI escape sequence — works in macOS Terminal, iTerm2, most real TTYs.
+     *  2. If ANSI is not supported (IntelliJ console, Windows cmd without VT mode),
+     *     fall back to printing 50 blank lines, which pushes old content off-screen.
+     *
+     * To force fallback mode (e.g. when running in IntelliJ), set the system property:
+     *   -Djjk.noAnsi=true
+     */
+    private static final boolean USE_ANSI = !Boolean.getBoolean("jjk.noAnsi");
+
     private static void clearScreen() {
-        System.out.print("\033[H\033[2J");
-        System.out.flush();
+        if (USE_ANSI) {
+            System.out.print("\033[H\033[2J");
+            System.out.flush();
+        } else {
+            // Fallback: blank lines push old output above the visible area
+            for (int i = 0; i < 50; i++) System.out.println();
+        }
     }
 
     private static void pause(long millis) {
