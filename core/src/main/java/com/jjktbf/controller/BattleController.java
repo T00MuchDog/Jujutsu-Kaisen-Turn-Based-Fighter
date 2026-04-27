@@ -72,14 +72,14 @@ public class BattleController {
         view.displayRoundStart(state);
 
         // --- Player move selection ---
-        int playerApBar = player.getCharacter().getCombatStats().getMaxApBar();
+        int playerApBar = player.getEffectiveCombatStats().getMaxApBar();
         Timeline playerTimeline = new Timeline(playerApBar);
         player.setTimeline(playerTimeline);
 
         List<Move> playerMoves = view.promptMoveSelection(player, enemy);
         for (Move move : playerMoves) {
             int cost = CeEfficiencyCalculator.computeActualCost(
-                move, player.getCharacter().getBaseStats().getCursedEnergyEfficiency()
+                move, player.getEffectiveStats().getCursedEnergyEfficiency()
             );
             MoveBlock block = playerTimeline.addMove(move, cost);
             if (block == null) {
@@ -88,14 +88,14 @@ public class BattleController {
         }
 
         // --- Enemy AI move selection ---
-        int enemyApBar = enemy.getCharacter().getCombatStats().getMaxApBar();
+        int enemyApBar = enemy.getEffectiveCombatStats().getMaxApBar();
         Timeline enemyTimeline = new Timeline(enemyApBar);
         enemy.setTimeline(enemyTimeline);
 
         List<Move> enemyMoves = selectAiMoves(enemy, player);
         for (Move move : enemyMoves) {
             int cost = CeEfficiencyCalculator.computeActualCost(
-                move, enemy.getCharacter().getBaseStats().getCursedEnergyEfficiency()
+                move, enemy.getEffectiveStats().getCursedEnergyEfficiency()
             );
             enemyTimeline.addMove(move, cost);
         }
@@ -134,7 +134,7 @@ public class BattleController {
      */
     private List<Move> selectAiMoves(BattleCombatant ai, BattleCombatant opponent) {
         List<Move> selected  = new java.util.ArrayList<>();
-        int        remainAp  = ai.getCharacter().getCombatStats().getMaxApBar();
+        int        remainAp  = ai.getEffectiveCombatStats().getMaxApBar();
         int        currentCe = ai.getCurrentCe();
 
         // Sort moves by base power descending, then pick greedily
@@ -145,7 +145,7 @@ public class BattleController {
             if (move.getApCost() > remainAp) continue;
 
             int ceCost = CeEfficiencyCalculator.computeActualCost(
-                move, ai.getCharacter().getBaseStats().getCursedEnergyEfficiency()
+                move, ai.getEffectiveStats().getCursedEnergyEfficiency()
             );
             if (ceCost > currentCe) continue;
 

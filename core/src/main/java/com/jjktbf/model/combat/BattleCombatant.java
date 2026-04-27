@@ -1,7 +1,11 @@
 package com.jjktbf.model.combat;
 
-import com.jjktbf.model.character.Character;
+import com.jjktbf.model.character.Ability;
+import com.jjktbf.model.character.AbilityApplicator;
+import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.CombatStats;
+// Explicit import to avoid ambiguity with java.lang.Character
+import com.jjktbf.model.character.Character;
 import com.jjktbf.model.move.StatusEffect;
 import com.jjktbf.model.move.StatusEffectType;
 
@@ -13,17 +17,40 @@ import java.util.List;
  * Mutable battle-time wrapper around an immutable Character.
  *
  * Tracks all state that changes during a fight:
- *  - Current HP and CE pool
+ *  - Current HP and CE pool (derived from ability-modified stats)
  *  - Active status effects
  *  - Black Flash State (BFS) and escalation counter
  *  - Defense buff from active defensive moves
  *  - The current round's planned action queue (timeline)
+ *  - Ability flags (non-stat effects from passive abilities)
+ *
+ * On construction, AbilityApplicator runs over the character's abilities
+ * and produces an ability-modified copy of CharacterStats. All combat
+ * calculations use those modified stats rather than the raw base stats.
  *
  * The underlying Character is never mutated.
  */
 public class BattleCombatant {
 
     private final Character character;
+
+    /**
+     * Ability-modified stats. Used for all combat calculations instead of
+     * character.getBaseStats(). Produced by AbilityApplicator at construction.
+     */
+    private final CharacterStats effectiveStats;
+
+    /**
+     * Ability-derived combat stats (computed from effectiveStats).
+     * Used for HP, AP bar, slot counts, etc.
+     */
+    private final CombatStats effectiveCombatStats;
+
+    /**
+     * Non-stat ability effects (CE cost overrides, accuracy bonus, etc.).
+     * Applied during combat resolution by CombatResolver / DamageCalculator.
+     */
+    private final AbilityApplicator.AbilityFlags abilityFlags;
 
     // --- Mutable battle state ---
     private int currentHp;
@@ -68,9 +95,28 @@ public class BattleCombatant {
     // -------------------------------------------------------------------------
 
     public BattleCombatant(Character character) {
-        this.character               = character;
-        this.currentHp               = character.getCombatStats().getMaxHp();
-        this.currentCe               = character.getCombatStats().getMaxCursedEnergy();
+        this(character, List.of());
+    }
+
+    /**
+     * Full constructor — applies the given list of abilities before computing
+     * effective stats. Use this when the character's AbilityRepository has
+     * been loaded.
+     */
+    public BattleCombatant(Character character, List<Ability> abilities) {
+        this.character = character;
+
+        // Apply passive ability effects to produce modified stats + flags
+        AbilityApplicator.ApplicationResult result =
+            AbilityApplicator.apply(character.getBaseStats(), abilities);
+
+        this.effectiveStats      = result.modifiedStats;
+        this.effectiveCombatStats= new CombatStats(effectiveStats);
+        this.abilityFlags        = result.flags;
+
+        // HP and CE derived from effective (ability-modified) stats
+        this.currentHp               = effectiveCombatStats.getMaxHp();
+        this.currentCe               = effectiveCombatStats.getMaxCursedEnergy();
         this.activeEffects           = new ArrayList<>();
         this.inBlackFlashState       = false;
         this.consecutiveBfsHits      = 0;
@@ -91,7 +137,7 @@ public class BattleCombatant {
     }
 
     public void restoreHp(int amount) {
-        currentHp = Math.min(character.getCombatStats().getMaxHp(), currentHp + amount);
+        currentHp = Math.min(effectiveCombatStats.getMaxHp(), currentHp + amount);
     }
 
     public boolean isDefeated() {
@@ -113,12 +159,12 @@ public class BattleCombatant {
     }
 
     public void restoreCe(int amount) {
-        currentCe = Math.min(character.getCombatStats().getMaxCursedEnergy(), currentCe + amount);
+        currentCe = Math.min(effectiveCombatStats.getMaxCursedEnergy(), currentCe + amount);
     }
 
     /** Restore a fraction of the max CE pool (used by Black Flash proc). */
     public void restoreCeFraction(double fraction) {
-        int amount = (int) Math.round(character.getCombatStats().getMaxCursedEnergy() * fraction);
+        int amount = (int) Math.round(effectiveCombatStats.getMaxCursedEnergy() * fraction);
         restoreCe(amount);
     }
 
@@ -175,11 +221,11 @@ public class BattleCombatant {
      * Returns escalating BFS chance based on consecutive hits if in BFS.
      */
     public double getCurrentBfChance() {
-        if (!inBlackFlashState) {
-            return CombatStats.BF_BASE_CHANCE;
-        }
-        int[] index = { Math.min(consecutiveBfsHits, CombatStats.BFS_BF_CHANCES.length - 1) };
-        return CombatStats.BFS_BF_CHANCES[index[0]];
+        double base = inBlackFlashState
+            ? CombatStats.BFS_BF_CHANCES[Math.min(consecutiveBfsHits, CombatStats.BFS_BF_CHANCES.length - 1)]
+            : CombatStats.BF_BASE_CHANCE;
+        // Add ability BF bonus, cap at 1.0
+        return Math.min(1.0, base + abilityFlags.bfChanceBonus);
     }
 
     // -------------------------------------------------------------------------
@@ -281,30 +327,35 @@ public class BattleCombatant {
     // Convenience accessors
     // -------------------------------------------------------------------------
 
-    public Character getCharacter()     { return character; }
-    public int getCurrentHp()           { return currentHp; }
-    public int getCurrentCe()           { return currentCe; }
-    public boolean isInBlackFlashState(){ return inBlackFlashState; }
-    public int getConsecutiveBfsHits()  { return consecutiveBfsHits; }
+    public Character getCharacter()                        { return character; }
+    public CharacterStats getEffectiveStats()              { return effectiveStats; }
+    public CombatStats getEffectiveCombatStats()           { return effectiveCombatStats; }
+    public AbilityApplicator.AbilityFlags getAbilityFlags(){ return abilityFlags; }
+    public int getCurrentHp()                             { return currentHp; }
+    public int getCurrentCe()                             { return currentCe; }
+    public boolean isInBlackFlashState()                  { return inBlackFlashState; }
+    public int getConsecutiveBfsHits()                    { return consecutiveBfsHits; }
 
     /**
      * Compute this combatant's current defense value (dynamic — depends on current CE).
+     * Uses effective stats (ability-modified) and applies the defense multiplier flag.
      */
     public int computeCurrentDefense(int currentTick) {
         int baseDefense = CombatStats.computeDefense(
-            character.getBaseStats(),
+            effectiveStats,
             currentCe,
-            character.getCombatStats().getMaxCursedEnergy()
+            effectiveCombatStats.getMaxCursedEnergy()
         );
-        return baseDefense + getDefenseBuffAt(currentTick);
+        int buffed = baseDefense + getDefenseBuffAt(currentTick);
+        return (int) Math.round(buffed * abilityFlags.defenseMultiplier);
     }
 
     @Override
     public String toString() {
         return String.format("%s  HP:%d/%d  CE:%d/%d  BFS:%s",
             character.getName(),
-            currentHp, character.getCombatStats().getMaxHp(),
-            currentCe, character.getCombatStats().getMaxCursedEnergy(),
+            currentHp, effectiveCombatStats.getMaxHp(),
+            currentCe, effectiveCombatStats.getMaxCursedEnergy(),
             inBlackFlashState ? "ACTIVE(x" + consecutiveBfsHits + ")" : "off"
         );
     }

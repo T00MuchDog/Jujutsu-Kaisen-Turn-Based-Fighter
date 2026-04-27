@@ -52,20 +52,10 @@ public class CharacterData {
     public List<String> moveIds;
 
     /**
-     * Passive abilities — stub descriptors only (name + description).
+     * 6-digit ability IDs from AbilityRepository.
+     * Resolved to Ability domain objects at load time via toCharacter().
      */
-    public List<AbilityData> abilities;
-
-    // -------------------------------------------------------------------------
-    // Ability sub-DTO
-    // -------------------------------------------------------------------------
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class AbilityData {
-        public String name;
-        public String description;
-    }
+    public List<String> abilityIds;
 
     // -------------------------------------------------------------------------
     // Derived helpers
