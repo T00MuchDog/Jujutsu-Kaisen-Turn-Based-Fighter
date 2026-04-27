@@ -84,7 +84,7 @@ public class MoveEditorMain {
         System.out.println("   V  View move details");
         System.out.println("   N  New move");
         System.out.println("   E  Edit move");
-        System.out.println("   D  Delete move  (IDs resequence automatically)");
+        System.out.println("   D  Delete move");
         System.out.println("   Q  Quit");
         System.out.println("  ──────────────────────────────────────────────────────────");
     }

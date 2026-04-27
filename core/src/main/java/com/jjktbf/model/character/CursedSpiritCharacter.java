@@ -5,8 +5,9 @@ import com.jjktbf.model.move.Move;
 import java.util.List;
 
 /**
- * A concrete Character subclass for cursed spirits.
- * Cursed spirits may or may not have an innate technique.
+ * Placeholder for future Cursed Spirit character type.
+ * Currently routes through SORCERER type — will be updated when CharacterType
+ * expands to include CURSED_SPIRIT.
  */
 public class CursedSpiritCharacter extends Character {
 
@@ -14,9 +15,9 @@ public class CursedSpiritCharacter extends Character {
         String         id,
         String         name,
         CharacterStats baseStats,
-        String         innateTechniqueId,
+        String         innateTechniqueName,
         List<Move>     knownMoves
     ) {
-        super(id, name, CharacterType.CURSED_SPIRIT, baseStats, innateTechniqueId, knownMoves);
+        super(id, name, CharacterType.SORCERER, baseStats, innateTechniqueName, knownMoves);
     }
 }

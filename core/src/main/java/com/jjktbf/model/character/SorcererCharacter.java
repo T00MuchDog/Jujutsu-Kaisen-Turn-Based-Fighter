@@ -5,22 +5,23 @@ import com.jjktbf.model.move.Move;
 import java.util.List;
 
 /**
- * A concrete Character subclass for jujutsu sorcerers.
- * Covers both SORCERER_INNATE and SORCERER_NON_INNATE types.
+ * The single concrete Character subclass for all playable characters.
  *
- * Future subclasses (CursedSpiritCharacter, BossCharacter, etc.) follow
- * the same pattern — extend Character, pass the appropriate CharacterType.
+ * All characters are Sorcerers. Whether a sorcerer has an innate technique is
+ * determined by the innateTechniqueName parameter (null = no innate technique).
+ *
+ * Additional character types (Cursed Spirit, Human, Boss) will be added as
+ * separate subclasses in a future pass.
  */
 public class SorcererCharacter extends Character {
 
     public SorcererCharacter(
         String         id,
         String         name,
-        CharacterType  type,
         CharacterStats baseStats,
-        String         innateTechniqueId,
+        String         innateTechniqueName,
         List<Move>     knownMoves
     ) {
-        super(id, name, type, baseStats, innateTechniqueId, knownMoves);
+        super(id, name, CharacterType.SORCERER, baseStats, innateTechniqueName, knownMoves);
     }
 }

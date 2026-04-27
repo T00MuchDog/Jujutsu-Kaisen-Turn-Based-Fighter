@@ -13,29 +13,34 @@ import java.util.*;
  *  - Immutable base stats (CharacterStats)
  *  - Derived combat stats (CombatStats), computed on construction
  *  - The character's move pool
- *  - Innate technique identifier (null if none)
+ *  - Innate technique name (null if none, e.g. "Shrine", "Blood Manipulation")
  *
- * Does NOT hold mutable battle state — that lives in BattleCombatant (a wrapper
- * used by the combat engine during a fight). This keeps the character definition
- * clean and reusable across multiple encounters.
+ * Does NOT hold mutable battle state — that lives in BattleCombatant.
+ *
+ * Technique gating:
+ *   Moves with a requiredTechniqueName are only accessible to characters whose
+ *   innateTechniqueName matches (case-insensitive). Characters with no innate
+ *   technique (innateTechniqueName == null) cannot use any technique-restricted move.
  */
 public abstract class Character extends Entity {
 
-    private final CharacterStats    baseStats;
-    private final CombatStats       combatStats;
-    private final CharacterType     type;
+    private final CharacterStats baseStats;
+    private final CombatStats    combatStats;
+    private final CharacterType  type;
 
     /**
-     * Identifier of this character's innate cursed technique, e.g. "BLOOD_MANIPULATION".
+     * The human-readable name of this character's innate cursed technique.
+     * e.g. "Shrine", "Blood Manipulation", "Infinite Void".
      * Null if the character has no innate technique.
+     * Matched case-insensitively against Move.requiredTechniqueId.
      */
-    private final String innateTechiqueId;
+    private final String innateTechniqueName;
 
     /**
      * The full pool of moves this character knows.
      * Guaranteed moves (Basic Punch, Basic Block) are always present.
-     * All other moves have been validated against this character's stat prerequisites
-     * and slot budget at construction time.
+     * All other moves are validated against stat prerequisites, technique
+     * possession, and slot budget at construction time.
      */
     private final List<Move> knownMoves;
 
@@ -44,23 +49,23 @@ public abstract class Character extends Entity {
     // -------------------------------------------------------------------------
 
     protected Character(
-        String          id,
-        String          name,
-        CharacterType   type,
-        CharacterStats  baseStats,
-        String          innateTechniqueId,
-        List<Move>      knownMoves
+        String         id,
+        String         name,
+        CharacterType  type,
+        CharacterStats baseStats,
+        String         innateTechniqueName,
+        List<Move>     knownMoves
     ) {
         super(id, name);
         Objects.requireNonNull(type,      "CharacterType cannot be null");
         Objects.requireNonNull(baseStats, "CharacterStats cannot be null");
 
-        this.type              = type;
-        this.baseStats         = baseStats;
-        this.combatStats       = new CombatStats(baseStats);
-        this.innateTechiqueId  = innateTechniqueId;
-        this.knownMoves        = Collections.unmodifiableList(
-            validateAndBuildMoveList(knownMoves, baseStats, combatStats, innateTechniqueId, type)
+        this.type               = type;
+        this.baseStats          = baseStats;
+        this.combatStats        = new CombatStats(baseStats);
+        this.innateTechniqueName = innateTechniqueName;
+        this.knownMoves         = Collections.unmodifiableList(
+            validateAndBuildMoveList(knownMoves, baseStats, combatStats, innateTechniqueName)
         );
     }
 
@@ -68,28 +73,15 @@ public abstract class Character extends Entity {
     // Move validation
     // -------------------------------------------------------------------------
 
-    /**
-     * Validates each move against:
-     *  1. Prerequisite stats
-     *  2. Technique restriction (requiredTechniqueId)
-     *  3. CharacterType capability (e.g. HUMAN cannot use CE moves)
-     *  4. Slot budget per category
-     *
-     * Guaranteed moves bypass slot counting.
-     * Throws IllegalArgumentException if any move fails validation.
-     */
     private static List<Move> validateAndBuildMoveList(
         List<Move>     moves,
         CharacterStats cs,
         CombatStats    combatStats,
-        String         innateTechniqueId,
-        CharacterType  type
+        String         innateTechniqueName
     ) {
         if (moves == null) return List.of();
 
-        // Track slot consumption per category
         Map<MoveCategory, Integer> slotUsed = new EnumMap<>(MoveCategory.class);
-
         List<Move> validated = new ArrayList<>();
 
         for (Move move : moves) {
@@ -98,33 +90,32 @@ public abstract class Character extends Entity {
                 continue;
             }
 
-            // --- Prerequisite stats check ---
+            // --- 1. Prerequisite stats ---
             for (Map.Entry<String, Integer> prereq : move.getPrerequisites().entrySet()) {
-                int characterStatValue = getStatByName(cs, prereq.getKey());
-                if (characterStatValue < prereq.getValue()) {
+                int actual = getStatByName(cs, prereq.getKey());
+                if (actual < prereq.getValue()) {
                     throw new IllegalArgumentException(
                         "Character does not meet prerequisite for move '" + move.getName()
                         + "': needs " + prereq.getKey() + " >= " + prereq.getValue()
-                        + " but has " + characterStatValue
+                        + " but has " + actual
                     );
                 }
             }
 
-            // --- Technique restriction check ---
+            // --- 2. Technique restriction ---
+            // Move.getRequiredTechniqueId() stores the technique name (renamed field, same slot)
             if (move.getRequiredTechniqueId() != null) {
-                if (!move.getRequiredTechniqueId().equals(innateTechniqueId)) {
+                if (innateTechniqueName == null
+                    || !move.getRequiredTechniqueId().equalsIgnoreCase(innateTechniqueName)) {
                     throw new IllegalArgumentException(
                         "Character does not possess required technique '"
-                        + move.getRequiredTechniqueId() + "' for move '" + move.getName() + "'"
+                        + move.getRequiredTechniqueId()
+                        + "' for move '" + move.getName() + "'"
                     );
                 }
             }
 
-            // --- CharacterType capability check ---
-            validateTypeCaps(move, type);
-
-            // --- Slot budget check ---
-            // DEFENSIVE and UTILITY moves are not slot-gated — any character can equip them.
+            // --- 3. Slot budget (DEFENSIVE and UTILITY are free — not slot-gated) ---
             MoveCategory cat = move.getCategory();
             if (cat != MoveCategory.DEFENSIVE && cat != MoveCategory.UTILITY) {
                 int used      = slotUsed.getOrDefault(cat, 0);
@@ -144,58 +135,32 @@ public abstract class Character extends Entity {
         return validated;
     }
 
-    private static void validateTypeCaps(Move move, CharacterType type) {
-        MoveCategory cat = move.getCategory();
-        if (type == CharacterType.HUMAN) {
-            boolean hasCeComponent =
-                cat == MoveCategory.INNATE_TECHNIQUE
-                || cat == MoveCategory.NON_INNATE_TECHNIQUE
-                || cat == MoveCategory.PHYSICAL_CURSED_ENERGY
-                || cat == MoveCategory.PHYSICAL_INNATE_TECHNIQUE
-                || cat == MoveCategory.PHYSICAL_NON_INNATE_TECHNIQUE
-                || cat == MoveCategory.INNATE_NON_INNATE_TECHNIQUE
-                || cat == MoveCategory.PHYSICAL_INNATE_NON_INNATE_TECHNIQUE;
-            if (hasCeComponent) {
-                throw new IllegalArgumentException(
-                    "HUMAN characters cannot use CE-tagged moves. Move: " + move.getName()
-                );
-            }
-        }
-    }
-
     private static int getSlotCount(CombatStats combatStats, CharacterStats cs, MoveCategory cat) {
         return switch (cat) {
-            case PHYSICAL -> combatStats.getPhysicalMoveSlots();
-            case INNATE_TECHNIQUE -> combatStats.getCursedTechniqueSlots();
+            case PHYSICAL             -> combatStats.getPhysicalMoveSlots();
+            case INNATE_TECHNIQUE     -> combatStats.getCursedTechniqueSlots();
             case NON_INNATE_TECHNIQUE -> combatStats.getJujutsuTechniqueSlots();
-            default -> combatStats.hybridSlots(cs, cat);
+            default                   -> combatStats.hybridSlots(cs, cat);
         };
     }
 
-    private static int getStatByName(CharacterStats cs, String statName) {
-        return switch (statName.toLowerCase()) {
-            case "vitality"               -> cs.getVitality();
-            case "strength"               -> cs.getStrength();
-            case "durability"             -> cs.getDurability();
-            case "speed"                  -> cs.getSpeed();
-            case "cursedenergyreserves"   -> cs.getCursedEnergyReserves();
-            case "cursedenergyefficiency" -> cs.getCursedEnergyEfficiency();
-            case "cursedenergyoutput"     -> cs.getCursedEnergyOutput();
-            case "jujutsuskill"           -> cs.getJujutsuSkill();
-            case "combatability"          -> cs.getCombatAbility();
-            case "cursedtechniquemastery" -> cs.getCursedTechniqueMastery();
-            default -> throw new IllegalArgumentException("Unknown stat name: " + statName);
-        };
+    /** Package-accessible and public delegate — routes through CharacterStats.getByName(). */
+    public static int getStatByName(CharacterStats cs, String statName) {
+        return cs.getByName(statName);
     }
 
     // -------------------------------------------------------------------------
     // Accessors
     // -------------------------------------------------------------------------
 
-    public CharacterStats   getBaseStats()          { return baseStats; }
-    public CombatStats      getCombatStats()         { return combatStats; }
-    public CharacterType    getType()                { return type; }
-    public String           getInnateTechniqueId()   { return innateTechiqueId; }
-    public List<Move>       getKnownMoves()          { return knownMoves; }
-    public boolean          hasInnateTechnique()     { return innateTechiqueId != null; }
+    public CharacterStats  getBaseStats()           { return baseStats; }
+    public CombatStats     getCombatStats()          { return combatStats; }
+    public CharacterType   getType()                 { return type; }
+    public String          getInnateTechniqueName()  { return innateTechniqueName; }
+    public List<Move>      getKnownMoves()           { return knownMoves; }
+    public boolean         hasInnateTechnique()      { return innateTechniqueName != null; }
+
+    /** @deprecated Use getInnateTechniqueName(). Kept for any callers using the old name. */
+    @Deprecated
+    public String          getInnateTechniqueId()    { return innateTechniqueName; }
 }
