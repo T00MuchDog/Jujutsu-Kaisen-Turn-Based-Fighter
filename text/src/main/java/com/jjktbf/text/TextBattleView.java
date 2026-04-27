@@ -52,7 +52,7 @@ TextBattleView implements BattleView {
     @Override
     public List<Move> promptMoveSelection(BattleCombatant combatant, BattleCombatant opponent) {
         List<Move> queue    = new ArrayList<>();
-        int remainingAp     = combatant.getCharacter().getCombatStats().getMaxApBar();
+        int remainingAp     = combatant.getEffectiveCombatStats().getMaxApBar();
         int projectedCe     = combatant.getCurrentCe(); // tracks CE after queued moves
 
         while (true) {
@@ -282,9 +282,9 @@ TextBattleView implements BattleView {
      * @param projectedCe  CE to display (may differ from actual during planning — shows post-queue CE)
      */
     private void printCombatantStatus(BattleCombatant c, int projectedCe) {
-        int maxHp = c.getCharacter().getCombatStats().getMaxHp();
-        int maxCe = c.getCharacter().getCombatStats().getMaxCursedEnergy();
-        int apBar = c.getCharacter().getCombatStats().getMaxApBar();
+        int maxHp = c.getEffectiveCombatStats().getMaxHp();
+        int maxCe = c.getEffectiveCombatStats().getMaxCursedEnergy();
+        int apBar = c.getEffectiveCombatStats().getMaxApBar();
 
         System.out.printf("  %-24s%s%n",
             c.getCharacter().getName(),
@@ -312,8 +312,8 @@ TextBattleView implements BattleView {
     private void printCombatantStatusLine(BattleCombatant c) {
         System.out.printf("  %-20s  HP:%d/%d  CE:%d/%d%s%n",
             c.getCharacter().getName(),
-            c.getCurrentHp(), c.getCharacter().getCombatStats().getMaxHp(),
-            c.getCurrentCe(), c.getCharacter().getCombatStats().getMaxCursedEnergy(),
+            c.getCurrentHp(), c.getEffectiveCombatStats().getMaxHp(),
+            c.getCurrentCe(), c.getEffectiveCombatStats().getMaxCursedEnergy(),
             c.isInBlackFlashState() ? "  ★BFS" : "");
     }
 

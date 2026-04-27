@@ -36,8 +36,9 @@ public class CharacterEditorMain {
     // Constants
     // -------------------------------------------------------------------------
 
-    private static final String CHAR_DATA_DIR = "data/characters";
-    private static final String MOVE_DATA_DIR = "data/moves";
+    private static final String CHAR_DATA_DIR    = "data/characters";
+    private static final String MOVE_DATA_DIR    = "data/moves";
+    private static final String ABILITY_DATA_DIR = "data/abilities";
 
     /** Base point-buy budget for characters WITH an innate technique. */
     private static final int POINT_BUY_BUDGET        = 1000;
@@ -67,13 +68,15 @@ public class CharacterEditorMain {
     // Fields
     // -------------------------------------------------------------------------
 
-    private final Scanner             sc        = new Scanner(System.in);
+    private final Scanner             sc           = new Scanner(System.in);
     private final CharacterRepository charRepo;
     private final MoveRepository      moveRepo;
+    private final AbilityRepository   abilityRepo;
 
     public CharacterEditorMain() {
-        this.charRepo = new CharacterRepository(CHAR_DATA_DIR);
-        this.moveRepo = new MoveRepository(MOVE_DATA_DIR);
+        this.charRepo    = new CharacterRepository(CHAR_DATA_DIR);
+        this.moveRepo    = new MoveRepository(MOVE_DATA_DIR);
+        this.abilityRepo = new AbilityRepository(ABILITY_DATA_DIR);
     }
 
     public static void main(String[] args) {
@@ -87,6 +90,7 @@ public class CharacterEditorMain {
     private void run() {
         try {
             moveRepo.load();
+            abilityRepo.load();
             charRepo.load();
         } catch (IOException e) {
             System.out.println("[ERROR] Could not load data: " + e.getMessage());
@@ -116,9 +120,10 @@ public class CharacterEditorMain {
         System.out.println("║           JJK CHARACTER EDITOR  v1.0                    ║");
         System.out.printf ("║  Characters: %-43s║%n", charRepo.getDataFile().getPath());
         System.out.printf ("║  Moves:      %-43s║%n", moveRepo.getDataFile().getPath());
+        System.out.printf ("║  Abilities:  %-43s║%n", abilityRepo.getDataFile().getPath());
         System.out.println("╚══════════════════════════════════════════════════════════╝");
-        System.out.printf ("  %d characters  |  %d moves loaded.%n%n",
-            charRepo.size(), moveRepo.size());
+        System.out.printf ("  %d characters  |  %d moves  |  %d abilities loaded.%n%n",
+            charRepo.size(), moveRepo.size(), abilityRepo.size());
     }
 
     private void printMainMenu() {
@@ -211,13 +216,14 @@ public class CharacterEditorMain {
         }
 
         System.out.println("  ├────────────────────────────────────────────────────────────┤");
-        System.out.println("  │  ABILITIES                                                 │");
-        if (cd.abilities != null && !cd.abilities.isEmpty()) {
-            for (CharacterData.AbilityData ab : cd.abilities) {
-                System.out.printf("  │    %-56s│%n", truncate(ab.name + ": " + ab.description, 56));
+        int abilityCount = cd.abilityIds != null ? cd.abilityIds.size() : 0;
+        System.out.printf("  │  ABILITIES  (%d assigned)%n", abilityCount);
+        if (cd.abilityIds != null && !cd.abilityIds.isEmpty()) {
+            for (String abilityId : cd.abilityIds) {
+                System.out.printf("  │  %-58s│%n", formatAbilityEntry(abilityId));
             }
         } else {
-            System.out.printf("  │  %-58s│%n", "[none — ability system coming soon]");
+            System.out.printf("  │  %-58s│%n", "[none assigned]");
         }
         System.out.println("  └────────────────────────────────────────────────────────────┘");
     }
@@ -346,12 +352,9 @@ public class CharacterEditorMain {
         System.out.println();
         fillMoves(cd);
 
-        // ── Abilities (placeholder) ───────────────────────────────────────────
+        // ── Ability assignment ────────────────────────────────────────────────
         System.out.println();
-        sep("Abilities  [placeholder — system coming soon]");
-        System.out.println("  Abilities will be configurable in a future update.");
-        System.out.print("  Press ENTER to continue: ");
-        sc.nextLine();
+        fillAbilities(cd);
     }
 
     // =========================================================================
@@ -602,6 +605,96 @@ public class CharacterEditorMain {
         }
 
         return eligible;
+    }
+
+    // =========================================================================
+    // Ability assignment
+    // =========================================================================
+
+    private void fillAbilities(CharacterData cd) {
+        sep("Ability Assignment");
+
+        if (cd.abilityIds == null) cd.abilityIds = new ArrayList<>();
+        List<String> assignedIds = new ArrayList<>(cd.abilityIds);
+
+        System.out.println("  Abilities are global — browse and assign by ID.");
+        System.out.println("  Some abilities have source requirements (e.g. technique, stat threshold).");
+        System.out.println("  Currently assigned: " + formatAbilityIdList(assignedIds));
+        System.out.println("  Enter 0 to finish, R to reset.");
+        System.out.println();
+
+        while (true) {
+            List<AbilityData> eligible = getEligibleAbilities(cd, assignedIds);
+
+            if (eligible.isEmpty() && abilityRepo.size() == 0) {
+                System.out.println("  No abilities in the repository yet. Use the Ability Editor to create some.");
+                break;
+            }
+
+            printEligibleAbilityList(eligible);
+            System.out.printf("  Assigned: %s%n", formatAbilityIdList(assignedIds));
+            System.out.print("  > Add ability (#), 0 to finish, R to reset: ");
+            String input = sc.nextLine().trim().toUpperCase();
+
+            if (input.equals("0")) break;
+            if (input.equals("R")) { assignedIds.clear(); System.out.println("  Ability list cleared."); continue; }
+
+            try {
+                int idx = Integer.parseInt(input) - 1;
+                if (idx < 0 || idx >= eligible.size()) { System.out.println("  Invalid number."); continue; }
+                AbilityData chosen = eligible.get(idx);
+                assignedIds.add(chosen.id);
+                System.out.println("  Added: " + chosen.name);
+            } catch (NumberFormatException e) {
+                System.out.println("  Enter a number or 0.");
+            }
+        }
+
+        cd.abilityIds = assignedIds;
+        System.out.printf("  %d abilities assigned.%n", assignedIds.size());
+    }
+
+    /**
+     * Return all abilities NOT already assigned to this character.
+     * No hard eligibility gating here — source requirements are informational
+     * (the designer sees them and decides). The engine enforces them at runtime.
+     */
+    private List<AbilityData> getEligibleAbilities(CharacterData cd, List<String> assignedIds) {
+        List<AbilityData> eligible = new ArrayList<>();
+        for (AbilityData ad : abilityRepo.getAll()) {
+            if (!assignedIds.contains(ad.id)) eligible.add(ad);
+        }
+        return eligible;
+    }
+
+    private void printEligibleAbilityList(List<AbilityData> abilities) {
+        if (abilities.isEmpty()) {
+            System.out.println("  [All abilities already assigned or none exist]");
+            return;
+        }
+        System.out.printf("  %-4s %-8s %-24s %-10s %-20s%n", "#", "ID", "Name", "Category", "Source");
+        System.out.println("  " + "─".repeat(72));
+        for (int i = 0; i < abilities.size(); i++) {
+            AbilityData ad = abilities.get(i);
+            String src = ad.sourceType != null ? ad.sourceType : "?";
+            if (ad.sourceValue != null) src += "(" + truncate(ad.sourceValue, 12) + ")";
+            System.out.printf("  %-4d %-8s %-24s %-10s %-20s%n",
+                i + 1, ad.id, truncate(ad.name, 24), ad.category, truncate(src, 20));
+        }
+    }
+
+    private String formatAbilityEntry(String abilityId) {
+        return abilityRepo.findById(abilityId)
+            .map(ad -> abilityId + " " + truncate(ad.name, 40)
+                + " [" + (ad.category != null ? ad.category : "?") + "]")
+            .orElse(abilityId + " [missing]");
+    }
+
+    private String formatAbilityIdList(List<String> ids) {
+        if (ids == null || ids.isEmpty()) return "[none]";
+        return ids.stream()
+            .map(id -> abilityRepo.findById(id).map(ad -> ad.name).orElse(id))
+            .collect(Collectors.joining(" | "));
     }
 
     private Map<MoveCategory, Integer> countSlotUsage(
