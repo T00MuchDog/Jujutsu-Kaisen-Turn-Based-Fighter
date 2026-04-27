@@ -6,54 +6,47 @@ import java.util.List;
  * Applies passive ability effects to produce modified character stats and
  * a set of non-stat flags for use by BattleCombatant.
  *
- * Called once at BattleCombatant construction. Two outputs:
+ * Called once at BattleCombatant construction.
  *
- *   1. A modified copy of CharacterStats — all STAT_ADD / STAT_MULTIPLY /
- *      STAT_SET_MAX / STAT_SET_VALUE effects are baked in here.
+ * Two outputs:
+ *   1. A modified CharacterStats (using the unclamped constructor so abilities
+ *      can push stats to 0 or beyond normal game bounds).
+ *   2. An AbilityFlags object for all non-stat runtime effects.
  *
- *   2. An AbilityFlags object — collects all non-stat effects that can't
- *      be expressed as a stat value (CE cost overrides, move grants,
- *      auto status effects, CE per round drain, etc.).
+ * Processing order per stat:
+ *   STAT_SET_MIN (→ 0) / STAT_SET_VALUE → overrides
+ *   STAT_ADD                             → additive
+ *   STAT_MULTIPLY / STAT_DIVIDE          → multiplicative (product of all)
  *
- * Active / triggered ability effects are registered separately by
- * BattleState when the fight begins; they are NOT handled here.
+ * Active / triggered effects are NOT applied here — they are registered
+ * as event listeners by BattleState.
  *
- * STAT_BONUS_POINTS is editor-only and is ignored at runtime.
+ * STAT_BONUS_POINTS is editor/creator-only and is silently ignored at runtime.
  */
 public final class AbilityApplicator {
 
     private AbilityApplicator() {}
 
-    /**
-     * Process all passive effects from the given ability list.
-     *
-     * @param baseStats  the character's original CharacterStats
-     * @param abilities  all abilities (PASSIVE and ACTIVE — only PASSIVE stat effects applied here)
-     * @return           an ApplicationResult containing modified stats and flags
-     */
     public static ApplicationResult apply(CharacterStats baseStats, List<Ability> abilities) {
-        // Mutable accumulators for stat modifications
-        int vitality               = baseStats.getVitality();
-        int strength               = baseStats.getStrength();
-        int durability             = baseStats.getDurability();
-        int speed                  = baseStats.getSpeed();
-        int ceReserves             = baseStats.getCursedEnergyReserves();
-        int ceEfficiency           = baseStats.getCursedEnergyEfficiency();
-        int ceOutput               = baseStats.getCursedEnergyOutput();
-        int jujutsuSkill           = baseStats.getJujutsuSkill();
-        int combatAbility          = baseStats.getCombatAbility();
-        int ctMastery              = baseStats.getCursedTechniqueMastery();
 
-        // Multipliers — applied after all additive mods
-        double vitMul  = 1.0, strMul = 1.0, durMul = 1.0, spdMul = 1.0;
-        double ceResMul= 1.0, ceEffMul=1.0, ceOutMul=1.0;
-        double jsMul   = 1.0, caMul  = 1.0, ctmMul  = 1.0;
+        // Start from base values (can go to 0 via STAT_SET_MIN)
+        int vit  = baseStats.getVitality();
+        int str  = baseStats.getStrength();
+        int dur  = baseStats.getDurability();
+        int spd  = baseStats.getSpeed();
+        int ceR  = baseStats.getCursedEnergyReserves();
+        int ceEf = baseStats.getCursedEnergyEfficiency();
+        int ceO  = baseStats.getCursedEnergyOutput();
+        int js   = baseStats.getJujutsuSkill();
+        int ca   = baseStats.getCombatAbility();
+        int ctm  = baseStats.getCursedTechniqueMastery();
+
+        // Multipliers (product of all STAT_MULTIPLY / divided by STAT_DIVIDE)
+        double vitM=1, strM=1, durM=1, spdM=1, ceRM=1, ceEfM=1, ceOM=1, jsM=1, caM=1, ctmM=1;
 
         AbilityFlags flags = new AbilityFlags();
 
         for (Ability ability : abilities) {
-            // Only apply passive stat effects at construction time
-            // (Active effects are registered as event listeners by BattleState)
             for (AbilityEffectData eff : ability.getEffects()) {
                 AbilityEffectType type;
                 try {
@@ -65,179 +58,212 @@ public final class AbilityApplicator {
 
                 switch (type) {
 
-                    // ── Stat additive ───────────────────────────────────────
-                    case STAT_ADD -> {
-                        int amt = eff.intValue != null ? eff.intValue : 0;
-                        switch (normStat(eff.stat)) {
-                            case "vitality"               -> vitality       += amt;
-                            case "strength"               -> strength       += amt;
-                            case "durability"             -> durability     += amt;
-                            case "speed"                  -> speed          += amt;
-                            case "cursedenergyreserves"   -> ceReserves     += amt;
-                            case "cursedenergyefficiency" -> ceEfficiency   += amt;
-                            case "cursedenergyoutput"     -> ceOutput       += amt;
-                            case "jujutsuskill"           -> jujutsuSkill   += amt;
-                            case "combatability"          -> combatAbility  += amt;
-                            case "cursedtechniquemastery" -> ctMastery      += amt;
-                            default -> System.err.println("[WARN] Unknown stat: " + eff.stat);
+                    // ── Override (set) — applied before add/multiply ─────────
+                    case STAT_SET_MIN -> {
+                        switch (norm(eff.stat)) {
+                            case "vitality"               -> vit  = 0;
+                            case "strength"               -> str  = 0;
+                            case "durability"             -> dur  = 0;
+                            case "speed"                  -> spd  = 0;
+                            case "cursedenergyreserves"   -> ceR  = 0;
+                            case "cursedenergyefficiency" -> ceEf = 0;
+                            case "cursedenergyoutput"     -> ceO  = 0;
+                            case "jujutsuskill"           -> js   = 0;
+                            case "combatability"          -> ca   = 0;
+                            case "cursedtechniquemastery" -> ctm  = 0;
+                            default -> warn(eff.stat);
+                        }
+                    }
+                    case STAT_SET_VALUE -> {
+                        int v = eff.intValue != null ? eff.intValue : 0;
+                        switch (norm(eff.stat)) {
+                            case "vitality"               -> vit  = v;
+                            case "strength"               -> str  = v;
+                            case "durability"             -> dur  = v;
+                            case "speed"                  -> spd  = v;
+                            case "cursedenergyreserves"   -> ceR  = v;
+                            case "cursedenergyefficiency" -> ceEf = v;
+                            case "cursedenergyoutput"     -> ceO  = v;
+                            case "jujutsuskill"           -> js   = v;
+                            case "combatability"          -> ca   = v;
+                            case "cursedtechniquemastery" -> ctm  = v;
+                            default -> warn(eff.stat);
                         }
                     }
 
-                    // ── Stat multiply ────────────────────────────────────────
+                    // ── Additive ─────────────────────────────────────────────
+                    case STAT_ADD -> {
+                        int a = eff.intValue != null ? eff.intValue : 0;
+                        switch (norm(eff.stat)) {
+                            case "vitality"               -> vit  += a;
+                            case "strength"               -> str  += a;
+                            case "durability"             -> dur  += a;
+                            case "speed"                  -> spd  += a;
+                            case "cursedenergyreserves"   -> ceR  += a;
+                            case "cursedenergyefficiency" -> ceEf += a;
+                            case "cursedenergyoutput"     -> ceO  += a;
+                            case "jujutsuskill"           -> js   += a;
+                            case "combatability"          -> ca   += a;
+                            case "cursedtechniquemastery" -> ctm  += a;
+                            default -> warn(eff.stat);
+                        }
+                    }
+
+                    // ── Multiplicative ───────────────────────────────────────
                     case STAT_MULTIPLY -> {
                         double f = eff.doubleValue != null ? eff.doubleValue : 1.0;
-                        switch (normStat(eff.stat)) {
-                            case "vitality"               -> vitMul    *= f;
-                            case "strength"               -> strMul    *= f;
-                            case "durability"             -> durMul    *= f;
-                            case "speed"                  -> spdMul    *= f;
-                            case "cursedenergyreserves"   -> ceResMul  *= f;
-                            case "cursedenergyefficiency" -> ceEffMul  *= f;
-                            case "cursedenergyoutput"     -> ceOutMul  *= f;
-                            case "jujutsuskill"           -> jsMul     *= f;
-                            case "combatability"          -> caMul     *= f;
-                            case "cursedtechniquemastery" -> ctmMul    *= f;
-                            default -> System.err.println("[WARN] Unknown stat: " + eff.stat);
+                        switch (norm(eff.stat)) {
+                            case "vitality"               -> vitM  *= f;
+                            case "strength"               -> strM  *= f;
+                            case "durability"             -> durM  *= f;
+                            case "speed"                  -> spdM  *= f;
+                            case "cursedenergyreserves"   -> ceRM  *= f;
+                            case "cursedenergyefficiency" -> ceEfM *= f;
+                            case "cursedenergyoutput"     -> ceOM  *= f;
+                            case "jujutsuskill"           -> jsM   *= f;
+                            case "combatability"          -> caM   *= f;
+                            case "cursedtechniquemastery" -> ctmM  *= f;
+                            default -> warn(eff.stat);
+                        }
+                    }
+                    case STAT_DIVIDE -> {
+                        double d = eff.doubleValue != null && eff.doubleValue != 0 ? eff.doubleValue : 1.0;
+                        switch (norm(eff.stat)) {
+                            case "vitality"               -> vitM  /= d;
+                            case "strength"               -> strM  /= d;
+                            case "durability"             -> durM  /= d;
+                            case "speed"                  -> spdM  /= d;
+                            case "cursedenergyreserves"   -> ceRM  /= d;
+                            case "cursedenergyefficiency" -> ceEfM /= d;
+                            case "cursedenergyoutput"     -> ceOM  /= d;
+                            case "jujutsuskill"           -> jsM   /= d;
+                            case "combatability"          -> caM   /= d;
+                            case "cursedtechniquemastery" -> ctmM  /= d;
+                            default -> warn(eff.stat);
                         }
                     }
 
-                    // ── Stat set max ─────────────────────────────────────────
-                    case STAT_SET_MAX -> {
-                        switch (normStat(eff.stat)) {
-                            case "vitality"               -> vitality       = CharacterStats.MAX_STAT;
-                            case "strength"               -> strength       = CharacterStats.MAX_STAT;
-                            case "durability"             -> durability     = CharacterStats.MAX_STAT;
-                            case "speed"                  -> speed          = CharacterStats.MAX_STAT;
-                            case "cursedenergyreserves"   -> ceReserves     = CharacterStats.MAX_STAT;
-                            case "cursedenergyefficiency" -> ceEfficiency   = CharacterStats.MAX_STAT;
-                            case "cursedenergyoutput"     -> ceOutput       = CharacterStats.MAX_STAT;
-                            case "jujutsuskill"           -> jujutsuSkill   = CharacterStats.MAX_STAT;
-                            case "combatability"          -> combatAbility  = CharacterStats.MAX_STAT;
-                            case "cursedtechniquemastery" -> ctMastery      = CharacterStats.MAX_STAT;
-                            default -> System.err.println("[WARN] Unknown stat: " + eff.stat);
-                        }
-                    }
+                    // ── Non-stat → flags ─────────────────────────────────────
+                    case CE_COST_TO_MINIMUM      -> flags.ceCostToMinimum = true;
+                    case CE_COST_MULTIPLY        -> flags.ceCostMultiplier *= nvl(eff.doubleValue, 1.0);
 
-                    // ── Stat set value ────────────────────────────────────────
-                    case STAT_SET_VALUE -> {
-                        int v = eff.intValue != null ? eff.intValue : CharacterStats.BASELINE;
-                        v = Math.max(CharacterStats.MIN_STAT, Math.min(CharacterStats.MAX_STAT, v));
-                        switch (normStat(eff.stat)) {
-                            case "vitality"               -> vitality       = v;
-                            case "strength"               -> strength       = v;
-                            case "durability"             -> durability     = v;
-                            case "speed"                  -> speed          = v;
-                            case "cursedenergyreserves"   -> ceReserves     = v;
-                            case "cursedenergyefficiency" -> ceEfficiency   = v;
-                            case "cursedenergyoutput"     -> ceOutput       = v;
-                            case "jujutsuskill"           -> jujutsuSkill   = v;
-                            case "combatability"          -> combatAbility  = v;
-                            case "cursedtechniquemastery" -> ctMastery      = v;
-                            default -> System.err.println("[WARN] Unknown stat: " + eff.stat);
-                        }
-                    }
+                    case MOVE_ACCURACY_ADD       -> flags.accuracyBonus   += nvl(eff.intValue, 0);
+                    case MOVE_ACCURACY_MULTIPLY  -> flags.accuracyMultiplier *= nvl(eff.doubleValue, 1.0);
 
-                    // ── Non-stat effects → flags ──────────────────────────────
-                    case CE_COST_TO_MINIMUM -> flags.ceCostToMinimum    = true;
-                    case CE_COST_MULTIPLY   -> {
-                        double f = eff.doubleValue != null ? eff.doubleValue : 1.0;
-                        flags.ceCostMultiplier *= f;
+                    case OPPONENT_ACCURACY_ADD   -> flags.opponentAccuracyBonus += nvl(eff.intValue, 0);
+                    case OPPONENT_ACCURACY_MULTIPLY -> flags.opponentAccuracyMultiplier *= nvl(eff.doubleValue, 1.0);
+
+                    case DAMAGE_MULTIPLY         -> flags.damageMultiplier *= nvl(eff.doubleValue, 1.0);
+                    case BF_CHANCE_ADD           -> flags.bfChanceBonus   += nvl(eff.doubleValue, 0.0);
+                    case MODIFY_DEFENSE          -> flags.defenseMultiplier *= nvl(eff.doubleValue, 1.0);
+                    case MODIFY_AP_BAR           -> flags.apBarBonus       += nvl(eff.intValue, 0);
+                    case COST_CE_PER_ROUND       -> flags.ceCostPerRound   += nvl(eff.intValue, 0);
+
+                    case GRANT_MOVE -> {
+                        if (eff.moveId != null) flags.grantedMoveIds.add(eff.moveId);
                     }
-                    case MOVE_ACCURACY_ADD  -> flags.accuracyBonus     += eff.intValue  != null ? eff.intValue  : 0;
-                    case DAMAGE_MULTIPLY    -> flags.damageMultiplier   *= eff.doubleValue != null ? eff.doubleValue : 1.0;
-                    case BF_CHANCE_ADD      -> flags.bfChanceBonus     += eff.doubleValue != null ? eff.doubleValue : 0.0;
-                    case MODIFY_DEFENSE     -> flags.defenseMultiplier *= eff.doubleValue != null ? eff.doubleValue : 1.0;
-                    case MODIFY_AP_BAR      -> flags.apBarBonus        += eff.intValue  != null ? eff.intValue  : 0;
-                    case COST_CE_PER_ROUND  -> flags.ceCostPerRound    += eff.intValue  != null ? eff.intValue  : 0;
-                    case GRANT_MOVE         -> { if (eff.moveId != null) flags.grantedMoveIds.add(eff.moveId); }
-                    case BLOCK_MOVE_TAG     -> { if (eff.moveTag != null) flags.blockedMoveTags.add(eff.moveTag); }
-                    case AUTO_STATUS_APPLY  -> flags.autoStatusEffects.add(eff);
-                    case UNLOCK_TECHNIQUE   -> { /* handled at character load time in CharacterData */ }
-                    case STAT_BONUS_POINTS  -> { /* editor-only, no runtime effect */ }
+                    case LOCK_MOVE_TAG -> {
+                        if (eff.moveTag != null) flags.lockedMoveTags.add(eff.moveTag);
+                    }
+                    case AUTO_STATUS_APPLY -> flags.autoStatusEffects.add(eff);
+
+                    case UNLOCK_TECHNIQUE  -> { /* handled at CharacterData.toCharacter() */ }
+                    case STAT_BONUS_POINTS -> { /* editor/creator-only — no runtime effect */ }
                 }
             }
         }
 
-        // Apply multipliers and clamp
-        CharacterStats modified = new CharacterStats.Builder()
-            .vitality              (clamp((int) Math.round(vitality    * vitMul)))
-            .strength              (clamp((int) Math.round(strength    * strMul)))
-            .durability            (clamp((int) Math.round(durability  * durMul)))
-            .speed                 (clamp((int) Math.round(speed       * spdMul)))
-            .cursedEnergyReserves  (clamp((int) Math.round(ceReserves  * ceResMul)))
-            .cursedEnergyEfficiency(clamp((int) Math.round(ceEfficiency* ceEffMul)))
-            .cursedEnergyOutput    (clamp((int) Math.round(ceOutput    * ceOutMul)))
-            .jujutsuSkill          (clamp((int) Math.round(jujutsuSkill* jsMul)))
-            .combatAbility         (clamp((int) Math.round(combatAbility* caMul)))
-            .cursedTechniqueMastery(clamp((int) Math.round(ctMastery   * ctmMul)))
-            .build();
+        // Apply multipliers — use unclamped constructor so 0 is valid
+        CharacterStats modified = new CharacterStats(
+            noNeg((int) Math.round(vit  * vitM)),
+            noNeg((int) Math.round(str  * strM)),
+            noNeg((int) Math.round(dur  * durM)),
+            noNeg((int) Math.round(spd  * spdM)),
+            noNeg((int) Math.round(ceR  * ceRM)),
+            noNeg((int) Math.round(ceEf * ceEfM)),
+            noNeg((int) Math.round(ceO  * ceOM)),
+            noNeg((int) Math.round(js   * jsM)),
+            noNeg((int) Math.round(ca   * caM)),
+            noNeg((int) Math.round(ctm  * ctmM))
+        );
 
         return new ApplicationResult(modified, flags);
     }
 
-    private static int clamp(int v) {
-        return Math.max(CharacterStats.MIN_STAT, Math.min(CharacterStats.MAX_STAT, v));
-    }
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static String normStat(String stat) {
-        return stat != null ? stat.toLowerCase().replace("_", "").replace(" ", "") : "";
+    private static String norm(String s) {
+        return s != null ? s.toLowerCase().replace("_","").replace(" ","") : "";
     }
+    private static void warn(String stat) {
+        System.err.println("[WARN] AbilityApplicator: unknown stat '" + stat + "'");
+    }
+    private static int    nvl(Integer v, int    def) { return v != null ? v : def; }
+    private static double nvl(Double  v, double def) { return v != null ? v : def; }
+    private static int    noNeg(int v)               { return Math.max(0, v); }
 
-    // -------------------------------------------------------------------------
+    // =========================================================================
     // Result types
-    // -------------------------------------------------------------------------
+    // =========================================================================
 
-    /** The combined output of ability application. */
     public static class ApplicationResult {
         public final CharacterStats modifiedStats;
         public final AbilityFlags   flags;
-
         public ApplicationResult(CharacterStats modifiedStats, AbilityFlags flags) {
             this.modifiedStats = modifiedStats;
             this.flags         = flags;
         }
     }
 
-    /** All non-stat effects that BattleCombatant needs to track at runtime. */
+    /** All non-stat ability effects tracked at runtime by BattleCombatant. */
     public static class AbilityFlags {
-        /** If true, all CE costs are forced to their move-defined minimum. */
-        public boolean ceCostToMinimum  = false;
 
-        /** Global CE cost multiplier (product of all CE_COST_MULTIPLY effects). */
-        public double  ceCostMultiplier = 1.0;
+        // CE
+        public boolean ceCostToMinimum   = false;
+        public double  ceCostMultiplier   = 1.0;
+        public int     ceCostPerRound     = 0;
 
-        /** Flat accuracy bonus added to every move's hit roll. */
-        public int     accuracyBonus    = 0;
+        // Own accuracy
+        public int     accuracyBonus      = 0;
+        public double  accuracyMultiplier = 1.0;
 
-        /** Global damage multiplier (product of all DAMAGE_MULTIPLY effects). */
-        public double  damageMultiplier = 1.0;
+        // Opponent accuracy modifiers (applied to the opponent's hit chance)
+        public int     opponentAccuracyBonus      = 0;
+        public double  opponentAccuracyMultiplier = 1.0;
 
-        /** Bonus added to the Black Flash proc chance. */
-        public double  bfChanceBonus    = 0.0;
+        // Damage / defense
+        public double  damageMultiplier   = 1.0;
+        public double  defenseMultiplier  = 1.0;
 
-        /** Global defense multiplier. */
-        public double  defenseMultiplier= 1.0;
+        // Black Flash
+        public double  bfChanceBonus      = 0.0;
 
-        /** Flat AP bar size bonus. */
-        public int     apBarBonus       = 0;
+        // AP bar
+        public int     apBarBonus         = 0;
 
-        /** CE drained from the character at the start of each round. */
-        public int     ceCostPerRound   = 0;
-
-        /** Move IDs granted outside the slot system. */
+        // Moves
         public final java.util.List<String>            grantedMoveIds    = new java.util.ArrayList<>();
 
-        /** Move tags the character is forbidden from using. */
-        public final java.util.List<String>            blockedMoveTags   = new java.util.ArrayList<>();
+        /**
+         * Move tags that are locked by this character's abilities.
+         * PASSIVE: blocks the tag in the character creator move assignment and
+         *          prevents queuing those moves during combat planning.
+         * ACTIVE/TRIGGERED: the engine removes those blocks from the opponent's
+         *          timeline when the ability fires.
+         */
+        public final java.util.List<String>            lockedMoveTags    = new java.util.ArrayList<>();
 
-        /** AUTO_STATUS_APPLY effect entries to resolve during combat. */
+        // Status automation
         public final java.util.List<AbilityEffectData> autoStatusEffects = new java.util.ArrayList<>();
 
         public boolean hasAnyEffect() {
-            return ceCostToMinimum || ceCostMultiplier != 1.0 || accuracyBonus != 0
-                || damageMultiplier != 1.0 || bfChanceBonus != 0.0 || defenseMultiplier != 1.0
-                || apBarBonus != 0 || ceCostPerRound != 0
-                || !grantedMoveIds.isEmpty() || !blockedMoveTags.isEmpty() || !autoStatusEffects.isEmpty();
+            return ceCostToMinimum || ceCostMultiplier != 1.0
+                || accuracyBonus != 0 || accuracyMultiplier != 1.0
+                || opponentAccuracyBonus != 0 || opponentAccuracyMultiplier != 1.0
+                || damageMultiplier != 1.0 || defenseMultiplier != 1.0
+                || bfChanceBonus != 0.0 || apBarBonus != 0 || ceCostPerRound != 0
+                || !grantedMoveIds.isEmpty() || !lockedMoveTags.isEmpty()
+                || !autoStatusEffects.isEmpty();
         }
     }
 }

@@ -255,9 +255,10 @@ public class MoveEditorMain {
         // ── AP timeline ───────────────────────────────────────────────────────
         System.out.println();
         sep("AP Timeline");
-        md.apCost       = promptIntUnbounded("AP Cost (min 1)", md.apCost, 1);
-        md.unleashPoint = promptInt("Unleash Point (1–" + md.apCost + ")",
-                                    md.unleashPoint > 0 ? md.unleashPoint : 1, 1, md.apCost);
+        md.apCost       = promptIntUnbounded("AP Cost (no minimum enforced in editor)", md.apCost, 0);
+        md.unleashPoint = promptInt("Unleash Point (1–" + Math.max(md.apCost, 1) + ")",
+                                    md.unleashPoint > 0 ? md.unleashPoint : 1,
+                                    1, Math.max(md.apCost, 1));
 
         // ── Damage ────────────────────────────────────────────────────────────
         System.out.println();

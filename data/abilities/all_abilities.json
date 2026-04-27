@@ -23,8 +23,8 @@
   "triggerThreshold" : 0,
   "active" : false,
   "queued" : false,
-  "passive" : true,
-  "triggered" : false
+  "triggered" : false,
+  "passive" : true
 }, {
   "id" : "000001",
   "name" : "Infinity",
@@ -45,6 +45,51 @@
   "triggerThreshold" : 0,
   "active" : false,
   "queued" : false,
-  "passive" : true,
-  "triggered" : false
+  "triggered" : false,
+  "passive" : true
+}, {
+  "id" : "000002",
+  "name" : "Heavenly Restriction",
+  "flavourText" : "a rare, involuntary binding vow placed upon a Jujutsu Kaisen sorcerer at birth, restricting their cursed energy in exchange for extraordinary physical prowess",
+  "mechanicText" : "Reduces all CURSED_ENERGY Stats to 0. MAXIMISE VITALITY, DURABILITY, SPEED. can only learn PHYSICAL Moves. Grants PRECOG ability. grants INVISIBLE ability.",
+  "category" : "PASSIVE",
+  "sourceType" : "CHARACTER",
+  "effects" : [ {
+    "type" : "STAT_SET_MAX",
+    "stat" : "vitality"
+  }, {
+    "type" : "STAT_SET_MAX",
+    "stat" : "strength"
+  }, {
+    "type" : "STAT_SET_MAX",
+    "stat" : "durability"
+  }, {
+    "type" : "STAT_SET_MAX",
+    "stat" : "speed"
+  }, {
+    "type" : "STAT_MULTIPLY",
+    "stat" : "cursedEnergyReserves",
+    "doubleValue" : 0.0
+  }, {
+    "type" : "STAT_MULTIPLY",
+    "stat" : "cursedEnergyEfficiency",
+    "doubleValue" : 0.0
+  }, {
+    "type" : "STAT_MULTIPLY",
+    "stat" : "cursedEnergyOutput",
+    "doubleValue" : 0.0
+  }, {
+    "type" : "STAT_MULTIPLY",
+    "stat" : "jujutsuSkill",
+    "doubleValue" : 0.0
+  }, {
+    "type" : "STAT_MULTIPLY",
+    "stat" : "cursedTechniqueMastery",
+    "doubleValue" : 0.0
+  } ],
+  "triggerThreshold" : 0,
+  "active" : false,
+  "queued" : false,
+  "triggered" : false,
+  "passive" : true
 } ]
