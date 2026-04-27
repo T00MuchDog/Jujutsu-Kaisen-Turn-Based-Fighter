@@ -99,6 +99,27 @@ public class CharacterStats {
     public int getCombatAbility()          { return combatAbility; }
     public int getCursedTechniqueMastery() { return cursedTechniqueMastery; }
 
+    /**
+     * Look up a stat by its lowercase key name.
+     * Accepts both camelCase and flat lowercase (no underscores/spaces).
+     * Used by the move prerequisite system and the character editor.
+     */
+    public int getByName(String statName) {
+        return switch (statName.toLowerCase().replace(" ", "").replace("_", "")) {
+            case "vitality"                              -> vitality;
+            case "strength"                              -> strength;
+            case "durability"                            -> durability;
+            case "speed"                                 -> speed;
+            case "cursedenergyreserves", "cereserves"    -> cursedEnergyReserves;
+            case "cursedenergyefficiency", "ceefficiency"-> cursedEnergyEfficiency;
+            case "cursedenergyoutput", "ceoutput"        -> cursedEnergyOutput;
+            case "jujutsuskill"                          -> jujutsuSkill;
+            case "combatability"                         -> combatAbility;
+            case "cursedtechniquemastery", "ctmastery"   -> cursedTechniqueMastery;
+            default -> throw new IllegalArgumentException("Unknown stat name: " + statName);
+        };
+    }
+
     // -------------------------------------------------------------------------
     // Builder
     // -------------------------------------------------------------------------
