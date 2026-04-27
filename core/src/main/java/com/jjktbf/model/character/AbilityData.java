@@ -29,6 +29,8 @@ import java.util.List;
  *   TECHNIQUE      — requires possessing a named innate technique
  *   MOVE           — requires knowing a specific move (by ID)
  *   STAT_THRESHOLD — requires a stat to be at or above a threshold ("strength>=200")
+ *   ABILITY        — granted by possessing another specific ability (by ID or name)
+ *                    e.g. "Precog" is granted by having "Heavenly Restriction"
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -58,6 +60,7 @@ public class AbilityData {
      *   TECHNIQUE      → technique name (e.g. "Limitless")
      *   MOVE           → move ID (e.g. "000005")
      *   STAT_THRESHOLD → "stat>=value" (e.g. "cursedTechniqueMastery>=200")
+     *   ABILITY        → ability ID or ability name (e.g. "000003" or "Heavenly Restriction")
      *   CHARACTER      → null
      */
     public String sourceValue;

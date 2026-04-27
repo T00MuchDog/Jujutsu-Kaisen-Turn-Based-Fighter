@@ -35,27 +35,31 @@ public class AbilityEditorMain {
     private static final String ABILITY_DATA_DIR = "data/abilities";
     private static final String MOVE_DATA_DIR    = "data/moves";
 
-    // ── Static metadata for the 17 effect primitives ─────────────────────────
+    // ── Effect primitive labels — must stay in same order as AbilityEffectType.values() ──
 
     /** Human-readable label for each effect type shown in the picker menu. */
     private static final String[] EFFECT_LABELS = {
-        "STAT_ADD             — add flat amount to a stat",
-        "STAT_MULTIPLY        — multiply a stat by a factor",
-        "STAT_SET_MAX         — set a stat to its maximum (300)",
-        "STAT_SET_VALUE       — set a stat to a specific value",
-        "STAT_BONUS_POINTS    — grant extra point-buy budget (editor only, no combat effect)",
-        "CE_COST_TO_MINIMUM   — force CE costs to their move minimum",
-        "CE_COST_MULTIPLY     — multiply CE costs by a factor",
-        "MOVE_ACCURACY_ADD    — add flat accuracy bonus to moves",
-        "DAMAGE_MULTIPLY      — multiply damage dealt by moves",
-        "GRANT_MOVE           — grant a move outside the slot system",
-        "BF_CHANCE_ADD        — add to Black Flash proc chance",
-        "UNLOCK_TECHNIQUE     — grant an innate technique by name",
-        "MODIFY_DEFENSE       — multiply defense value",
-        "MODIFY_AP_BAR        — add to AP bar size",
-        "AUTO_STATUS_APPLY    — automatically apply a status effect",
-        "BLOCK_MOVE_TAG       — forbid using moves with a specific tag",
-        "COST_CE_PER_ROUND    — drain CE at the start of each round"
+        "STAT_ADD                  — add flat amount to a stat (negative = downside)",
+        "STAT_MULTIPLY             — multiply a stat by a factor (< 1.0 = reduction)",
+        "STAT_DIVIDE               — divide a stat by a factor",
+        "STAT_SET_VALUE            — set a stat to any specific value (0 = N/A)",
+        "STAT_SET_MIN              — set a stat to 0 / N/A",
+        "STAT_BONUS_POINTS         — grant extra point-buy budget (creator only)",
+        "CE_COST_TO_MINIMUM        — force CE costs to their move minimum",
+        "CE_COST_MULTIPLY          — multiply CE costs (0.5 = half, 2.0 = double)",
+        "MOVE_ACCURACY_ADD         — add accuracy bonus/penalty to own moves",
+        "MOVE_ACCURACY_MULTIPLY    — multiply own accuracy (0.5 = half)",
+        "OPPONENT_ACCURACY_ADD     — add accuracy bonus/penalty to opponent moves",
+        "OPPONENT_ACCURACY_MULTIPLY— multiply opponent accuracy (0.5 = half)",
+        "DAMAGE_MULTIPLY           — multiply damage dealt",
+        "GRANT_MOVE                — grant a move outside the slot system",
+        "BF_CHANCE_ADD             — add to Black Flash proc chance (negative ok)",
+        "UNLOCK_TECHNIQUE          — grant an innate technique by name",
+        "MODIFY_DEFENSE            — multiply defense value",
+        "MODIFY_AP_BAR             — add to AP bar size (negative ok)",
+        "AUTO_STATUS_APPLY         — automatically apply a status effect",
+        "LOCK_MOVE_TAG             — lock out moves with a tag (passive=perm, active=temp)",
+        "COST_CE_PER_ROUND         — drain CE at the start of each round"
     };
 
     private static final AbilityEffectType[] EFFECT_TYPES = AbilityEffectType.values();
@@ -324,10 +328,11 @@ public class AbilityEditorMain {
         System.out.println("   2  TECHNIQUE      — requires possessing a named technique");
         System.out.println("   3  MOVE           — requires knowing a specific move (by ID)");
         System.out.println("   4  STAT_THRESHOLD — requires a stat to be at or above a value");
+        System.out.println("   5  ABILITY        — granted by possessing another specific ability");
         ad.sourceType = pickFromList(
             "Source type",
             ad.sourceType,
-            new String[]{"CHARACTER", "TECHNIQUE", "MOVE", "STAT_THRESHOLD"}
+            new String[]{"CHARACTER", "TECHNIQUE", "MOVE", "STAT_THRESHOLD", "ABILITY"}
         );
 
         switch (ad.sourceType) {
@@ -343,6 +348,12 @@ public class AbilityEditorMain {
             case "STAT_THRESHOLD" -> {
                 System.out.println("  Format: statname>=value  e.g.  cursedTechniqueMastery>=200");
                 ad.sourceValue = promptWithDefault("Stat threshold", ad.sourceValue);
+            }
+            case "ABILITY" -> {
+                System.out.println("  Enter the ability ID or name that grants this ability.");
+                System.out.println("  Example: '000003' or 'Heavenly Restriction'");
+                abilityRepo.getAll().forEach(a -> System.out.printf("    %s  %s%n", a.id, a.name));
+                ad.sourceValue = promptWithDefault("Ability ID or name", ad.sourceValue);
             }
             default -> ad.sourceValue = null; // CHARACTER — no source value
         }
@@ -522,6 +533,7 @@ public class AbilityEditorMain {
         AbilityEffectData e = new AbilityEffectData();
         e.type = type.name();
 
+        // Note: editors are NOT bound by game stat limits — no min/max enforced here.
         switch (type) {
 
             case STAT_ADD -> {
@@ -532,17 +544,21 @@ public class AbilityEditorMain {
                 e.stat        = pickStat("Which stat to multiply");
                 e.doubleValue = promptDouble("Multiplier (e.g. 1.5 = +50%, 0.8 = -20%)", 1.0);
             }
-            case STAT_SET_MAX -> {
-                e.stat = pickStat("Which stat to set to maximum (300)");
+            case STAT_DIVIDE -> {
+                e.stat        = pickStat("Which stat to divide");
+                e.doubleValue = promptDouble("Divisor (e.g. 2.0 = halve the stat)", 2.0);
             }
             case STAT_SET_VALUE -> {
                 e.stat     = pickStat("Which stat to set");
-                e.intValue = promptInt("Value to set (10–300)", 80,
-                    CharacterStats.MIN_STAT, CharacterStats.MAX_STAT);
+                e.intValue = promptIntUnbounded("Value to set (any integer; 0 = N/A)", 0);
+            }
+            case STAT_SET_MIN -> {
+                e.stat = pickStat("Which stat to set to 0 (N/A)");
+                System.out.println("  This forces the stat to 0, displaying as N/A in-game.");
             }
             case STAT_BONUS_POINTS -> {
-                System.out.println("  Editor-only: grants extra point-buy budget. No combat effect.");
-                e.intValue = promptInt("Bonus points to grant", 80, 1, 9999);
+                System.out.println("  Creator-only: grants extra point-buy budget. No combat effect.");
+                e.intValue = promptIntUnbounded("Bonus points to grant", 80);
             }
             case CE_COST_TO_MINIMUM -> {
                 System.out.println("  Apply to ALL moves, or a specific move tag?");
@@ -550,15 +566,31 @@ public class AbilityEditorMain {
             }
             case CE_COST_MULTIPLY -> {
                 e.moveTag     = pickMoveTagOrAll();
-                e.doubleValue = promptDouble("Cost multiplier (e.g. 0.5 halves CE costs)", 0.5);
+                e.doubleValue = promptDouble(
+                    "Cost multiplier (0.5 = half cost, 2.0 = double cost)", 0.5);
             }
             case MOVE_ACCURACY_ADD -> {
                 e.moveTag  = pickMoveTagOrAll();
-                e.intValue = promptIntUnbounded("Accuracy bonus (flat, can be negative)", 0);
+                e.intValue = promptIntUnbounded("Flat accuracy bonus/penalty to OWN moves", 0);
+            }
+            case MOVE_ACCURACY_MULTIPLY -> {
+                e.moveTag     = pickMoveTagOrAll();
+                e.doubleValue = promptDouble(
+                    "Multiplier for OWN accuracy (0.5 = half, 2.0 = double)", 1.0);
+            }
+            case OPPONENT_ACCURACY_ADD -> {
+                e.moveTag  = pickMoveTagOrAll();
+                e.intValue = promptIntUnbounded(
+                    "Flat accuracy bonus/penalty to OPPONENT moves (negative = debuff)", 0);
+            }
+            case OPPONENT_ACCURACY_MULTIPLY -> {
+                e.moveTag     = pickMoveTagOrAll();
+                e.doubleValue = promptDouble(
+                    "Multiplier for OPPONENT accuracy (0.5 = half their accuracy)", 1.0);
             }
             case DAMAGE_MULTIPLY -> {
                 e.moveTag     = pickMoveTagOrAll();
-                e.doubleValue = promptDouble("Damage multiplier (e.g. 1.2 = +20% damage)", 1.2);
+                e.doubleValue = promptDouble("Damage multiplier (1.2 = +20%, 0.8 = -20%)", 1.2);
             }
             case GRANT_MOVE -> {
                 System.out.println("  Select a move to grant unconditionally:");
@@ -568,17 +600,17 @@ public class AbilityEditorMain {
             }
             case BF_CHANCE_ADD -> {
                 e.doubleValue = promptDouble(
-                    "Black Flash chance to add as a fraction (e.g. 0.05 = +5%)", 0.05);
+                    "Black Flash chance to add (0.05 = +5%; negative reduces BF chance)", 0.05);
             }
             case UNLOCK_TECHNIQUE -> {
                 System.out.println("  Enter the technique name to unlock (e.g. Limitless, Shrine).");
                 e.stringValue = promptNonEmpty("Technique name", null);
             }
             case MODIFY_DEFENSE -> {
-                e.doubleValue = promptDouble("Defense multiplier (e.g. 1.3 = +30% defense)", 1.3);
+                e.doubleValue = promptDouble("Defense multiplier (1.3 = +30%, 0.5 = halve)", 1.3);
             }
             case MODIFY_AP_BAR -> {
-                e.intValue = promptIntUnbounded("AP bar addition (flat, can be negative)", 0);
+                e.intValue = promptIntUnbounded("AP bar change (positive = larger, negative = smaller)", 0);
             }
             case AUTO_STATUS_APPLY -> {
                 System.out.println("  Select status effect type:");
@@ -588,18 +620,14 @@ public class AbilityEditorMain {
                 String statusInput = prompt("  Select (#): ").trim();
                 try {
                     int si = Integer.parseInt(statusInput) - 1;
-                    if (si >= 0 && si < STATUS_EFFECT_NAMES.length) {
-                        e.stringValue = STATUS_EFFECT_NAMES[si];
-                    }
+                    e.stringValue = (si >= 0 && si < STATUS_EFFECT_NAMES.length)
+                        ? STATUS_EFFECT_NAMES[si] : "BARRIER";
                 } catch (NumberFormatException ex) {
                     System.out.println("  Invalid — defaulting to BARRIER.");
                     e.stringValue = "BARRIER";
                 }
-
                 System.out.println("  Target:  1=SELF  2=ENEMY");
-                String tgt = prompt("  Target [1]: ").trim();
-                e.target = "2".equals(tgt) ? "ENEMY" : "SELF";
-
+                e.target = "2".equals(prompt("  Target [1]: ").trim()) ? "ENEMY" : "SELF";
                 System.out.println("  Timing:  1=FIGHT_START  2=ROUND_START  3=ON_HIT");
                 String tim = prompt("  Timing [2]: ").trim();
                 e.timing = switch (tim) {
@@ -608,12 +636,15 @@ public class AbilityEditorMain {
                     default  -> "ROUND_START";
                 };
             }
-            case BLOCK_MOVE_TAG -> {
-                System.out.println("  Which move tag to block?");
+            case LOCK_MOVE_TAG -> {
+                System.out.println("  Which move tag to lock out?");
+                System.out.println("  PASSIVE: prevents using/learning moves with this tag.");
+                System.out.println("  ACTIVE/TRIGGERED: temporarily removes those blocks from the timeline.");
                 e.moveTag = pickMoveTag();
             }
             case COST_CE_PER_ROUND -> {
-                e.intValue = promptInt("CE drained per round (positive integer)", 15, 1, 9999);
+                e.intValue = promptIntUnbounded(
+                    "CE drained per round (positive = drain, negative = restore)", 15);
             }
         }
 

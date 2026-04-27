@@ -3,127 +3,157 @@ package com.jjktbf.model.character;
 /**
  * The finite vocabulary of mechanical effects an ability can apply.
  *
- * Every ability, no matter how narratively unique, reduces to one or more
- * of these 17 primitives. New primitives require a code change; new
- * abilities only require a data change.
+ * Every ability reduces to one or more of these primitives.
+ * New primitives require a code change; new abilities only require a data change.
  *
- * Parameter field names used in AbilityEffectData per type:
+ * Design rules:
+ *  - Negative intValue / doubleValue is allowed and represents downsides.
+ *  - Division is represented as STAT_DIVIDE (divides by doubleValue).
+ *  - No hard stat floor/ceiling is enforced by the engine — abilities can push
+ *    stats to 0 or beyond normal game limits.
+ *  - STAT_SET_MIN sets a stat to 0 (displayed as N/A in the UI).
  *
- *  STAT_ADD             stat, intValue
- *  STAT_MULTIPLY        stat, doubleValue
- *  STAT_SET_MAX         stat
- *  STAT_SET_VALUE       stat, intValue
- *  STAT_BONUS_POINTS    intValue            (editor-only: expands point-buy budget)
- *  CE_COST_TO_MINIMUM   moveTag (null = all tags)
- *  CE_COST_MULTIPLY     moveTag (null = all), doubleValue
- *  MOVE_ACCURACY_ADD    moveTag (null = all), intValue
- *  DAMAGE_MULTIPLY      moveTag (null = all), doubleValue
- *  GRANT_MOVE           moveId
- *  BF_CHANCE_ADD        doubleValue         (e.g. 0.05 = +5%)
- *  UNLOCK_TECHNIQUE     stringValue         (technique name to unlock)
- *  MODIFY_DEFENSE       doubleValue         (multiplicative)
- *  MODIFY_AP_BAR        intValue
- *  AUTO_STATUS_APPLY    stringValue (StatusEffectType name), target, timing
- *  BLOCK_MOVE_TAG       moveTag
- *  COST_CE_PER_ROUND    intValue
+ * Parameter field usage per type (see AbilityEffectData for field names):
+ *
+ *  STAT_ADD                  stat, intValue         (negative = downside)
+ *  STAT_MULTIPLY             stat, doubleValue       (< 1.0 = reduction, > 1.0 = boost)
+ *  STAT_DIVIDE               stat, doubleValue       (divides stat; 2.0 = halve)
+ *  STAT_SET_VALUE            stat, intValue          (any integer, 0 = N/A)
+ *  STAT_SET_MIN              stat                    (forces stat to 0 / N/A)
+ *  STAT_BONUS_POINTS         intValue                (editor-only, no runtime effect)
+ *  CE_COST_TO_MINIMUM        moveTag (null = all)
+ *  CE_COST_MULTIPLY          moveTag (null = all), doubleValue
+ *  MOVE_ACCURACY_ADD         moveTag (null = all), intValue      (negative = penalty)
+ *  MOVE_ACCURACY_MULTIPLY    moveTag (null = all), doubleValue   (own accuracy multiplier)
+ *  OPPONENT_ACCURACY_ADD     moveTag (null = all), intValue      (modifies opponent's accuracy)
+ *  OPPONENT_ACCURACY_MULTIPLY moveTag (null = all), doubleValue  (multiplies opponent's accuracy)
+ *  DAMAGE_MULTIPLY           moveTag (null = all), doubleValue
+ *  GRANT_MOVE                moveId
+ *  BF_CHANCE_ADD             doubleValue             (negative = reduces BF chance)
+ *  UNLOCK_TECHNIQUE          stringValue             (technique name)
+ *  MODIFY_DEFENSE            doubleValue             (multiplicative)
+ *  MODIFY_AP_BAR             intValue                (negative = shrinks AP bar)
+ *  AUTO_STATUS_APPLY         stringValue, target, timing
+ *  LOCK_MOVE_TAG             moveTag
+ *    Passive: prevents character from using/learning moves with this tag.
+ *    Active:  temporarily removes those moves from the timeline this round.
+ *  COST_CE_PER_ROUND         intValue
  */
 public enum AbilityEffectType {
 
     // ── Stat modifiers ────────────────────────────────────────────────────────
 
-    /** Add a flat integer amount to a stat. Can be negative. */
+    /** Add a flat integer to a stat. Negative values are valid (downside abilities). */
     STAT_ADD,
 
-    /** Multiply a stat by a factor. Applied after all additive mods. */
+    /** Multiply a stat by a factor. Applied after all additive mods. < 1.0 reduces it. */
     STAT_MULTIPLY,
 
-    /** Set a stat to its maximum allowed value (300). */
-    STAT_SET_MAX,
+    /** Divide a stat by a factor. Equivalent to STAT_MULTIPLY with 1/factor. */
+    STAT_DIVIDE,
 
-    /** Set a stat to a specific integer value, ignoring current value. */
+    /** Set a stat to any specific integer value (0 = N/A in the UI, no floor enforced). */
     STAT_SET_VALUE,
 
     /**
-     * Grant bonus points to the point-buy budget in the character editor.
-     * Has NO runtime combat effect — editor-only.
-     * Example: Six Eyes grants +80 pts to compensate for being unable to
-     * spend points normally (since it sets CE Efficiency to max automatically).
+     * Set a stat to 0, displaying it as N/A.
+     * Useful for abilities that completely remove a capability
+     * (e.g. an ability that removes all cursed energy from a character).
+     */
+    STAT_SET_MIN,
+
+    /**
+     * Grant bonus points to the point-buy budget in the character creator.
+     * Has NO runtime combat effect — editor/creator only.
      */
     STAT_BONUS_POINTS,
 
     // ── CE cost modifiers ─────────────────────────────────────────────────────
 
-    /**
-     * Force all CE costs (or a specific move tag's costs) to their minimum value.
-     * moveTag null = applies to every CE-bearing move.
-     */
+    /** Force CE costs to their move minimum. moveTag null = all moves. */
     CE_COST_TO_MINIMUM,
 
-    /**
-     * Multiply CE costs by a factor.
-     * e.g. 0.5 halves CE costs, 2.0 doubles them.
-     * moveTag null = applies to all CE-bearing moves.
-     */
+    /** Multiply CE costs. < 1.0 reduces cost, > 1.0 increases cost. */
     CE_COST_MULTIPLY,
 
-    // ── Move modifiers ────────────────────────────────────────────────────────
+    // ── Move accuracy modifiers ───────────────────────────────────────────────
 
-    /** Add a flat bonus to the accuracy roll for moves. moveTag null = all moves. */
+    /** Add a flat bonus/penalty to this character's accuracy on moves. */
     MOVE_ACCURACY_ADD,
+
+    /** Multiply this character's accuracy on moves by a factor. */
+    MOVE_ACCURACY_MULTIPLY,
+
+    /**
+     * Add a flat bonus/penalty to the OPPONENT's accuracy.
+     * Negative intValue reduces opponent accuracy (e.g. Infinity makes attacks miss).
+     */
+    OPPONENT_ACCURACY_ADD,
+
+    /**
+     * Multiply the OPPONENT's accuracy by a factor.
+     * 0.5 = opponent has half accuracy. Applied on top of additive changes.
+     */
+    OPPONENT_ACCURACY_MULTIPLY,
+
+    // ── Damage modifiers ──────────────────────────────────────────────────────
 
     /** Multiply damage dealt by moves. moveTag null = all damaging moves. */
     DAMAGE_MULTIPLY,
 
-    /**
-     * Add a specific move to the character's known moves outside the slot system.
-     * Used for abilities that grant signature moves unconditionally.
-     */
+    // ── Move grants ───────────────────────────────────────────────────────────
+
+    /** Add a specific move to the character's known moves outside the slot system. */
     GRANT_MOVE,
 
     // ── Black Flash modifiers ─────────────────────────────────────────────────
 
-    /** Add a flat amount to the Black Flash proc chance (as a fraction, e.g. 0.05). */
+    /** Add to Black Flash proc chance (as a fraction). Negative = reduces BF chance. */
     BF_CHANCE_ADD,
 
     // ── Unlock / grant ────────────────────────────────────────────────────────
 
-    /**
-     * Grant the character an innate cursed technique by name.
-     * Overrides any existing innateTechniqueName.
-     * Example: Six Eyes unlocks "Limitless".
-     */
+    /** Grant an innate cursed technique by name. Overrides any existing technique. */
     UNLOCK_TECHNIQUE,
 
     // ── Defensive modifiers ───────────────────────────────────────────────────
 
-    /** Multiply the character's effective Defense stat by a factor. */
+    /** Multiply the character's effective Defense value. */
     MODIFY_DEFENSE,
 
     // ── AP bar modifiers ──────────────────────────────────────────────────────
 
-    /** Add a flat integer to the AP bar size. */
+    /** Add a flat amount to the AP bar size. Negative shrinks it. */
     MODIFY_AP_BAR,
 
     // ── Status effect automation ──────────────────────────────────────────────
 
     /**
-     * Automatically apply a status effect under specific conditions.
+     * Automatically apply a status effect.
      * Parameters: stringValue = StatusEffectType name,
      *             target = SELF or ENEMY,
-     *             timing = ROUND_START, FIGHT_START, or ON_HIT.
+     *             timing = FIGHT_START, ROUND_START, or ON_HIT.
      */
     AUTO_STATUS_APPLY,
 
-    // ── Restrictions ──────────────────────────────────────────────────────────
+    // ── Move tag locking ──────────────────────────────────────────────────────
 
-    /** Prevent the character from queuing moves with the specified move tag. */
-    BLOCK_MOVE_TAG,
+    /**
+     * Lock out moves with the specified tag.
+     *
+     * PASSIVE: prevents the character from using (and in the character creator,
+     *          learning) moves with this tag. Stored in AbilityFlags.lockedMoveTags.
+     *
+     * ACTIVE / TRIGGERED: temporarily removes queued blocks with this tag from
+     *          the opponent's AP timeline for the current round.
+     *          Stored in AbilityFlags.lockedMoveTags (combat engine reads it).
+     *
+     * Distinct from BLOCK_MOVE_TAG (which was the old name — this replaces it).
+     */
+    LOCK_MOVE_TAG,
 
     // ── Sustained costs ───────────────────────────────────────────────────────
 
-    /**
-     * Drain a fixed amount of CE at the start of each round.
-     * Models the sustained cost of always-active techniques (e.g. Infinity).
-     */
+    /** Drain CE at the start of each round. Models sustained technique costs. */
     COST_CE_PER_ROUND
 }

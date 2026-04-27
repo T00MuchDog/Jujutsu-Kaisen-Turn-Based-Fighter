@@ -362,7 +362,9 @@ public class CharacterEditorMain {
     // =========================================================================
 
     private void fillStatsManual(CharacterData cd, boolean hasInnate) {
-        sep("Stats  (range " + STAT_MIN + "–" + STAT_MAX + ", baseline " + STAT_BASELINE + ")");
+        sep("Stats  (editor mode — no limits enforced)");
+        System.out.println("  Baseline: " + STAT_BASELINE + "  |  Game-rule range: " + STAT_MIN + "–" + STAT_MAX
+            + "  |  Editor: any value, including 0 (N/A)");
         if (!hasInnate) {
             System.out.println("  Note: Cursed Technique Mastery is N/A (locked at " + STAT_BASELINE + ").");
         }
@@ -379,7 +381,8 @@ public class CharacterEditorMain {
             }
 
             int current = getStatField(cd, key);
-            int value   = promptStatWithPreview(label, current, cd, key, STAT_MIN, STAT_MAX);
+            // Editor mode: no min/max enforced — use uncapped promptStatWithPreview
+            int value   = promptStatWithPreviewUncapped(label, current, cd, key);
             setStatField(cd, key, value);
         }
     }
@@ -774,6 +777,7 @@ public class CharacterEditorMain {
     // Stat preview helpers
     // =========================================================================
 
+    /** Stat prompt with game-rule bounds enforced. Used by the point-buy creator. */
     private int promptStatWithPreview(String label, int current, CharacterData cd,
                                       String key, int min, int max) {
         while (true) {
@@ -788,7 +792,33 @@ public class CharacterEditorMain {
                     System.out.printf("  Must be between %d and %d.%n", min, max);
                     continue;
                 }
-                // Temporarily set to show preview
+                setStatField(cd, key, v);
+                printStatPreviewForKey(key, v, cd);
+                return v;
+            } catch (NumberFormatException e) {
+                System.out.println("  Enter a whole number.");
+            }
+        }
+    }
+
+    /**
+     * Stat prompt with NO bounds enforced.
+     * Used by the character editor (Manual mode and Edit mode).
+     * Values below 0 are rejected (no stat can be negative); 0 = N/A is allowed.
+     */
+    private int promptStatWithPreviewUncapped(String label, int current, CharacterData cd, String key) {
+        while (true) {
+            String input = prompt("  " + label + " [" + current + "] (0 = N/A, no upper limit): ").trim();
+            if (input.isBlank()) {
+                printStatPreviewForKey(key, current, cd);
+                return current;
+            }
+            try {
+                int v = Integer.parseInt(input);
+                if (v < 0) {
+                    System.out.println("  Stats cannot be negative. Enter 0 for N/A.");
+                    continue;
+                }
                 setStatField(cd, key, v);
                 printStatPreviewForKey(key, v, cd);
                 return v;

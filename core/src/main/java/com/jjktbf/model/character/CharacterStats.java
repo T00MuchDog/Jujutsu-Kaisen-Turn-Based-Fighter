@@ -68,19 +68,43 @@ public class CharacterStats {
     // -------------------------------------------------------------------------
 
     private CharacterStats(Builder builder) {
-        this.vitality               = clamp(builder.vitality);
-        this.strength               = clamp(builder.strength);
-        this.durability             = clamp(builder.durability);
-        this.speed                  = clamp(builder.speed);
-        this.cursedEnergyReserves   = clamp(builder.cursedEnergyReserves);
-        this.cursedEnergyEfficiency = clamp(builder.cursedEnergyEfficiency);
-        this.cursedEnergyOutput     = clamp(builder.cursedEnergyOutput);
-        this.jujutsuSkill           = clamp(builder.jujutsuSkill);
-        this.combatAbility          = clamp(builder.combatAbility);
-        this.cursedTechniqueMastery = clamp(builder.cursedTechniqueMastery);
+        this.vitality               = clampGameRules(builder.vitality);
+        this.strength               = clampGameRules(builder.strength);
+        this.durability             = clampGameRules(builder.durability);
+        this.speed                  = clampGameRules(builder.speed);
+        this.cursedEnergyReserves   = clampGameRules(builder.cursedEnergyReserves);
+        this.cursedEnergyEfficiency = clampGameRules(builder.cursedEnergyEfficiency);
+        this.cursedEnergyOutput     = clampGameRules(builder.cursedEnergyOutput);
+        this.jujutsuSkill           = clampGameRules(builder.jujutsuSkill);
+        this.combatAbility          = clampGameRules(builder.combatAbility);
+        this.cursedTechniqueMastery = clampGameRules(builder.cursedTechniqueMastery);
     }
 
-    private static int clamp(int value) {
+    /**
+     * Unclamped constructor used by AbilityApplicator when ability effects push
+     * stats outside normal game bounds (e.g. STAT_SET_MIN → 0).
+     * Values are only constrained to be non-negative (no stat can be below 0).
+     */
+    CharacterStats(int vit, int str, int dur, int spd,
+                   int ceRes, int ceEff, int ceOut,
+                   int js, int ca, int ctm) {
+        this.vitality               = Math.max(0, vit);
+        this.strength               = Math.max(0, str);
+        this.durability             = Math.max(0, dur);
+        this.speed                  = Math.max(0, spd);
+        this.cursedEnergyReserves   = Math.max(0, ceRes);
+        this.cursedEnergyEfficiency = Math.max(0, ceEff);
+        this.cursedEnergyOutput     = Math.max(0, ceOut);
+        this.jujutsuSkill           = Math.max(0, js);
+        this.combatAbility          = Math.max(0, ca);
+        this.cursedTechniqueMastery = Math.max(0, ctm);
+    }
+
+    /**
+     * Game-rules clamp: enforces MIN_STAT–MAX_STAT.
+     * Used by the normal Builder (character creator / editor).
+     */
+    private static int clampGameRules(int value) {
         return Math.max(MIN_STAT, Math.min(MAX_STAT, value));
     }
 

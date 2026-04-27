@@ -2,6 +2,8 @@ package com.jjktbf.model.character;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+// Used by statSetMax convenience method
+import static com.jjktbf.model.character.CharacterStats.MAX_STAT;
 
 /**
  * DTO representing one effect primitive within an ability.
@@ -82,9 +84,19 @@ public class AbilityEffectData {
         return e;
     }
 
+    /** Sets a stat to its maximum allowed value (300) via STAT_SET_VALUE. */
     public static AbilityEffectData statSetMax(String stat) {
         AbilityEffectData e = new AbilityEffectData();
-        e.type = AbilityEffectType.STAT_SET_MAX.name();
+        e.type     = AbilityEffectType.STAT_SET_VALUE.name();
+        e.stat     = stat;
+        e.intValue = MAX_STAT; // 300
+        return e;
+    }
+
+    /** Sets a stat to 0 (N/A) via STAT_SET_MIN. */
+    public static AbilityEffectData statSetMin(String stat) {
+        AbilityEffectData e = new AbilityEffectData();
+        e.type = AbilityEffectType.STAT_SET_MIN.name();
         e.stat = stat;
         return e;
     }
