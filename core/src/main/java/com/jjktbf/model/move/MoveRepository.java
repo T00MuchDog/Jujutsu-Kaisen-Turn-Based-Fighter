@@ -131,7 +131,9 @@ public class MoveRepository {
      * Append a new move. The id field is ignored — a fresh sequential ID is assigned.
      */
     public void add(MoveData md) {
-        md.id = nextId();
+        if (md.id == null || md.id.isBlank()) {
+            md.id = nextId();  // assign BEFORE add
+        }
         store.add(md);
     }
 

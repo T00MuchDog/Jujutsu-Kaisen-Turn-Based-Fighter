@@ -86,6 +86,8 @@ public class MoveEditorMain {
         System.out.println("   E  Edit move");
         System.out.println("   D  Delete move");
         System.out.println("   Q  Quit");
+        System.out.println();
+
         System.out.println("  ──────────────────────────────────────────────────────────");
     }
 

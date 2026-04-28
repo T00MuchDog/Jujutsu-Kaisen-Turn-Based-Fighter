@@ -744,6 +744,8 @@ public class CharacterEditorMain {
     private void validateAndAdd(CharacterData cd) {
         String err = validateCharacterData(cd);
         if (err != null) { System.out.println("  [VALIDATION ERROR] " + err); return; }
+        // Assign ID before add (works even when repository was empty)
+        if (cd.id == null || cd.id.isBlank()) { cd.id = charRepo.nextId(); }
         charRepo.add(cd);
         persistNow();
         System.out.println("  Saved as ID: " + cd.id + "  —  " + cd.name);
