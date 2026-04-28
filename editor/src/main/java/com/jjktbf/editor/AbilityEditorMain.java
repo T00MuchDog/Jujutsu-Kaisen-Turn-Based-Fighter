@@ -658,6 +658,8 @@ public class AbilityEditorMain {
     private void validateAndAdd(AbilityData ad) {
         String err = validate(ad);
         if (err != null) { System.out.println("  [VALIDATION ERROR] " + err); return; }
+        // Assign ID before add (works even when repository was empty)
+        if (ad.id == null || ad.id.isBlank()) { ad.id = abilityRepo.nextId(); }
         abilityRepo.add(ad);
         persistNow();
         System.out.println("  Saved as ID: " + ad.id + "  —  " + ad.name);
