@@ -87,7 +87,6 @@ public class MoveEditorMain {
         System.out.println("   D  Delete move");
         System.out.println("   Q  Quit");
         System.out.println();
-
         System.out.println("  ──────────────────────────────────────────────────────────");
     }
 
@@ -480,6 +479,9 @@ public class MoveEditorMain {
     // =========================================================================
 
     private void validateAndAdd(MoveData md) {
+        if (md.id == null || md.id.isBlank()) {
+            md.id = repo.nextId();  // assign BEFORE validation
+        }
         try {
             md.toMove();
         } catch (Exception e) {
