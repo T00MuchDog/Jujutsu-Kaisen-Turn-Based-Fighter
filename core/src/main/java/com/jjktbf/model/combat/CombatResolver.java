@@ -240,13 +240,13 @@ public class CombatResolver {
                 .build());
 
         } else {
-            // Hit — check whether a partial block softened it
-            boolean wasPartialBlocked = defender.getTimeline() != null
-                && defender.getTimeline().hasActivePartialBlockAt(tick);
+            // Hit — check whether a block softened it
+            boolean wasBlocked = defender.getTimeline() != null
+                && defender.getTimeline().hasActiveBlockAt(tick);
 
             defender.applyDamage(result.getFinalDamage());
 
-            if (wasPartialBlocked) {
+            if (wasBlocked) {
                 events.add(CombatEvent.of(CombatEvent.Type.MOVE_PARTIAL_BLOCK)
                     .source(attacker).target(defender).move(move)
                     .message(defender.getCharacter().getName()
@@ -312,12 +312,13 @@ public class CombatResolver {
                              + " raises their defense by " + move.getDefenseBuffAmount() + "!")
                     .build());
             }
-            case FULL_BLOCK -> {
-                // Full block is already tracked via Timeline.hasActiveFullBlockAt()
-                // Just emit an event so the view can show it
+            case BLOCK -> {
+                // Block is tracked via Timeline.hasActiveBlockAt()
+                // Apply the block's damage reduction % to incoming attacks
                 events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                     .source(combatant).move(move)
-                    .message(combatant.getCharacter().getName() + " braces for a full block!")
+                    .message(combatant.getCharacter().getName()
+                             + " raises their block! (" + move.getBlockDamageReduction() + "% damage reduction)")
                     .build());
             }
             case NONE -> {}
@@ -401,7 +402,7 @@ public class CombatResolver {
         for (BattleCombatant combatant : new BattleCombatant[]{ state.getPlayerCombatant(), state.getEnemyCombatant() }) {
             combatant.tickStatusEffects();
             combatant.clearDefenseBuff();
-            combatant.clearFullBlock();
+            combatant.clearBlock();
 
             boolean wasBfs = combatant.isInBlackFlashState();
             combatant.tickBfsExpiry(round);

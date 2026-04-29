@@ -155,6 +155,17 @@ public class MoveEditorMain {
                 printField("Def Buff Amt", md.defenseBuffAmount);
             printField("Def Buff Dur", md.defenseBuffDuration == -1
                                         ? "full round" : md.defenseBuffDuration + " ticks");
+            if ("BLOCK".equals(md.defenseType)) {
+                if (md.blockDuration == -1)
+                    printField("Block Duration", "end of round");
+                else if (md.blockDuration == 0)
+                    printField("Block Duration", "uses AP cost");
+                else
+                    printField("Block Duration", md.blockDuration + " ticks");
+                if (md.blockAffectedTags != null)
+                    printField("Block Tags", md.blockAffectedTags.toString());
+                printField("Block Reduction", md.blockDamageReduction + "%");
+            }
         }
         try {
             boolean bf = md.derivedCategory().isBlackFlashEligible();
@@ -303,16 +314,36 @@ public class MoveEditorMain {
         // ── Defensive ─────────────────────────────────────────────────────────
         System.out.println();
         sep("Defense Type");
-        System.out.println("  Options: NONE  STAT_BUFF  FULL_BLOCK  PARTIAL_BLOCK");
+        System.out.println("  Options: NONE  STAT_BUFF  BLOCK");
+        System.out.println("  STAT_BUFF: raises Defense stat for a duration.");
+        System.out.println("  BLOCK:    damage-reducing block with configurable duration, tags, reduction %.");
         md.defenseType = promptEnum("Defense Type", md.defenseType, DefenseType.class);
         if (!"NONE".equals(md.defenseType)) {
             if ("STAT_BUFF".equals(md.defenseType)) {
                 md.defenseBuffAmount   = promptIntUnbounded("Defense Buff Amount", md.defenseBuffAmount, 0);
                 md.defenseBuffDuration = promptInt("Duration (-1 = full round)",
                                                     md.defenseBuffDuration, -1, 99999);
-            } else {
-                // FULL_BLOCK / PARTIAL_BLOCK: no buff amount
-                md.defenseBuffAmount   = 0;
+                // Clear block fields
+                md.blockDuration = 0;
+                md.blockAffectedTags = null;
+                md.blockDamageReduction = 100;
+            } else if ("BLOCK".equals(md.defenseType)) {
+                System.out.println();
+                sep("Block Settings");
+                md.blockDuration = promptInt(
+                    "Duration in AP ticks (0 = use move's AP cost, -1 = end of round)",
+                    md.blockDuration, -1, 99999);
+                String tagsInput = promptWithDefault(
+                    "Affected tags (comma-separated: PHYSICAL, CURSED_ENERGY, INNATE_TECHNIQUE, NON_INNATE_TECHNIQUE)",
+                    md.blockAffectedTags != null ? String.join(", ", md.blockAffectedTags) : "");
+                md.blockAffectedTags = tagsInput.isBlank() ? null
+                    : java.util.Arrays.asList(tagsInput.split(",")).stream()
+                        .map(String::trim).filter(s -> !s.isBlank()).toList();
+                md.blockDamageReduction = promptInt(
+                    "Damage reduction % (100 = full block, 50 = half damage)",
+                    md.blockDamageReduction, 0, 100);
+                // Clear stat buff fields
+                md.defenseBuffAmount = 0;
                 md.defenseBuffDuration = -1;
             }
         }
