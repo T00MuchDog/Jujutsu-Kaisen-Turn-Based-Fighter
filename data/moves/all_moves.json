@@ -1,1 +1,37 @@
-[ ]
+[ {
+  "id" : "000000",
+  "name" : "Basic Strike",
+  "description" : "A basic physical attack",
+  "tags" : [ "PHYSICAL", "ATTACK" ],
+  "basePower" : 25,
+  "baseAccuracy" : 0.9,
+  "neverMiss" : false,
+  "apCost" : 15,
+  "unleashPoint" : 6,
+  "baseCeCost" : 0,
+  "minCeCost" : 0,
+  "maxCeCost" : 0,
+  "interruptType" : "NONE",
+  "defenseType" : "NONE",
+  "defenseBuffDuration" : -1,
+  "defenseBuffAmount" : 0,
+  "isGuaranteedMove" : false
+}, {
+  "id" : "000001",
+  "name" : "Block",
+  "description" : "A simple block that reduces damage taken from physical attacks",
+  "tags" : [ "PHYSICAL", "DEFENSIVE" ],
+  "basePower" : 0,
+  "baseAccuracy" : 1.0,
+  "neverMiss" : true,
+  "apCost" : 10,
+  "unleashPoint" : 3,
+  "baseCeCost" : 0,
+  "minCeCost" : 0,
+  "maxCeCost" : 0,
+  "interruptType" : "NONE",
+  "defenseType" : "PARTIAL_BLOCK",
+  "defenseBuffDuration" : -1,
+  "defenseBuffAmount" : 0,
+  "isGuaranteedMove" : false
+} ]
