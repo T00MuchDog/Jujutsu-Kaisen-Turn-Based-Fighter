@@ -247,7 +247,7 @@ public final class CoreMoves {
             .apCost(20)
             .unleashPoint(1)
             .baseCeCost(0).minCeCost(0).maxCeCost(0)
-            .defenseType(DefenseType.FULL_BLOCK)
+            .defenseType(DefenseType.BLOCK)
             .prerequisites(java.util.Map.of("combatability", 70, "durability", 70))
             .build();
     }

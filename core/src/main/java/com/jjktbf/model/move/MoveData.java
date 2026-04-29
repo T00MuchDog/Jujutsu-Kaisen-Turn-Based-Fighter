@@ -51,6 +51,14 @@ public class MoveData {
     public int     defenseBuffDuration = -1;
     public int     defenseBuffAmount   = 0;
 
+    /** Block-specific fields (used when defenseType = BLOCK) */
+    /** Duration in AP ticks. 0 = use move's apCost. -1 = end of round (until character's next turn) */
+    public int     blockDuration = 0;
+    /** Tags this block affects. Null = all damage types. Otherwise only damage with these tags is affected. */
+    public List<String> blockAffectedTags;
+    /** Percentage of damage reduced (0-100). 100 = full block, <100 = partial. */
+    public int     blockDamageReduction = 100;
+
     /** List of on-hit StatusEffect descriptors */
     public List<StatusEffectData> onHitEffects;
 
@@ -146,6 +154,9 @@ public class MoveData {
             .defenseType(DefenseType.valueOf(defenseType != null ? defenseType : "NONE"))
             .defenseBuffDuration(defenseBuffDuration)
             .defenseBuffAmount(defenseBuffAmount)
+            .blockDuration(blockDuration)
+            .blockAffectedTags(blockAffectedTags)
+            .blockDamageReduction(blockDamageReduction)
             .requiredTechniqueId(requiredTechniqueName) // still stored as requiredTechniqueId in Move domain
             .guaranteedMove(isGuaranteedMove);
 

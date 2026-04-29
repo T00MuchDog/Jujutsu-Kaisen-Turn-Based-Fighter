@@ -16,22 +16,12 @@ public enum DefenseType {
     STAT_BUFF,
 
     /**
-     * Full damage block.
-     * If the action counter is still on this move's block when an incoming
-     * attack is unleashed (i.e. the attack's unleash point has not yet been
-     * reached), all damage from that attack is negated.
-     *
-     * This creates the mind-game layer: if the attacker's move fires before
-     * this block resolves, the block does nothing.
+     * Active damage-blocking move.
+     * Has duration (AP ticks), affected tags, and damage reduction %.
+     * Incoming attacks are reduced if they unleash within the block's duration window.
+     * The block activates at its unleash point and lasts for blockDuration ticks.
+     * If blockDuration = 0, uses the move's apCost as the duration.
+     * If blockDuration = -1, lasts until end of round.
      */
-    FULL_BLOCK,
-
-    /**
-     * Partial block.
-     * If active when an attack fires, incoming damage is halved BEFORE
-     * the normal defense calculation is applied.
-     * Less reliable than FULL_BLOCK but costs less AP and is still useful
-     * even if the attacker fires first.
-     */
-    PARTIAL_BLOCK
+    BLOCK
 }

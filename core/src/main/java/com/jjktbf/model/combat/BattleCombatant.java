@@ -77,15 +77,16 @@ public class BattleCombatant {
     /** AP tick in the current round at which the defense buff expires. -1 = lasts the round. */
     private int defenseBuffExpiresAtTick;
 
-    // --- Full-block tracker ---
+    // --- Block tracker ---
     /**
-     * If the combatant has an active FULL_BLOCK move in the current timeline,
-     * this stores the AP range [start, unleashPoint] of that block.
-     * The block is "active" (protective) while the counter is still on it.
-     * Set to -1/-1 when no full block is queued.
+     * If the combatant has an active BLOCK move in the current timeline,
+     * this stores the AP range [start, end] of that block.
+     * The block is "active" (protective) while the counter is within this range.
+     * Set to -1/-1 when no block is queued.
      */
-    private int fullBlockStartTick;
-    private int fullBlockEndTick;
+    private int blockStartTick;
+    private int blockEndTick;
+    private int blockDamageReduction = 100;
 
     // --- Round's action timeline ---
     private Timeline timeline;
@@ -123,8 +124,9 @@ public class BattleCombatant {
         this.bfsExpiresAfterRound    = -1;
         this.defenseBuffActive       = 0;
         this.defenseBuffExpiresAtTick = -1;
-        this.fullBlockStartTick      = -1;
-        this.fullBlockEndTick        = -1;
+        this.blockStartTick        = -1;
+        this.blockEndTick          = -1;
+        this.blockDamageReduction = 100;
         this.timeline                = null;
     }
 
@@ -250,28 +252,32 @@ public class BattleCombatant {
     }
 
     // -------------------------------------------------------------------------
-    // Full block
+    // Block
     // -------------------------------------------------------------------------
 
-    public void setFullBlock(int startTick, int endTick) {
-        this.fullBlockStartTick = startTick;
-        this.fullBlockEndTick   = endTick;
+    public void setBlock(int startTick, int endTick, int damageReduction) {
+        this.blockStartTick = startTick;
+        this.blockEndTick   = endTick;
+        this.blockDamageReduction = damageReduction;
     }
 
-    public void clearFullBlock() {
-        fullBlockStartTick = -1;
-        fullBlockEndTick   = -1;
+    public void clearBlock() {
+        blockStartTick = -1;
+        blockEndTick   = -1;
+        blockDamageReduction = 100;
     }
 
     /**
-     * Returns true if the action counter is currently within this combatant's full-block range,
-     * meaning an incoming attack would be fully negated.
+     * Returns true if the action counter is currently within this combatant's block range,
+     * meaning an incoming attack would be reduced by blockDamageReduction %.
      */
-    public boolean isFullBlockActiveAt(int currentTick) {
-        return fullBlockStartTick != -1
-            && currentTick >= fullBlockStartTick
-            && currentTick <= fullBlockEndTick;
+    public boolean isBlockActiveAt(int currentTick) {
+        return blockStartTick != -1
+            && currentTick >= blockStartTick
+            && currentTick <= blockEndTick;
     }
+
+    public int getBlockDamageReduction() { return blockDamageReduction; }
 
     // -------------------------------------------------------------------------
     // Status effects

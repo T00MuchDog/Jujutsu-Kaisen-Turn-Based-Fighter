@@ -104,7 +104,7 @@ public class Timeline {
     public boolean hasActiveFullBlockAt(int tick) {
         for (MoveBlock b : blocks) {
             if (!b.isKnockedOut()
-                && b.getMove().getDefenseType() == DefenseType.FULL_BLOCK
+                && b.getMove().getDefenseType() == DefenseType.BLOCK
                 && tick >= b.getStartTick()
                 && tick <= b.getEndTick()) {
                 return true;
@@ -114,13 +114,13 @@ public class Timeline {
     }
 
     /**
-     * Check if a PARTIAL_BLOCK defensive move is covering the given tick.
-     * When active, incoming damage is halved before the normal defense calculation.
+     * Check if a BLOCK defensive move is covering the given tick.
+     * When active, applies blockDamageReduction to incoming damage.
      */
-    public boolean hasActivePartialBlockAt(int tick) {
+    public boolean hasActiveBlockAt(int tick) {
         for (MoveBlock b : blocks) {
             if (!b.isKnockedOut()
-                && b.getMove().getDefenseType() == DefenseType.PARTIAL_BLOCK
+                && b.getMove().getDefenseType() == DefenseType.BLOCK
                 && tick >= b.getStartTick()
                 && tick <= b.getEndTick()) {
                 return true;
