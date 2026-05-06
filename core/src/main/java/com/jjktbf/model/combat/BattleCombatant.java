@@ -71,12 +71,6 @@ public class BattleCombatant {
     /** Round number on which BFS expires (inclusive). -1 if not in BFS. */
     private int bfsExpiresAfterRound;
 
-    // --- Dynamic defense modifier (from STAT_BUFF defensive moves) ---
-    /** Extra defense added by an active defensive buff. 0 if none. */
-    private int defenseBuffActive;
-    /** AP tick in the current round at which the defense buff expires. -1 = lasts the round. */
-    private int defenseBuffExpiresAtTick;
-
     // --- Block tracker ---
     /**
      * If the combatant has an active BLOCK move in the current timeline,
@@ -120,14 +114,12 @@ public class BattleCombatant {
         this.currentCe               = effectiveCombatStats.getMaxCursedEnergy();
         this.activeEffects           = new ArrayList<>();
         this.inBlackFlashState       = false;
-        this.consecutiveBfsHits      = 0;
-        this.bfsExpiresAfterRound    = -1;
-        this.defenseBuffActive       = 0;
-        this.defenseBuffExpiresAtTick = -1;
-        this.blockStartTick        = -1;
-        this.blockEndTick          = -1;
+        this.consecutiveBfsHits   = 0;
+        this.bfsExpiresAfterRound = -1;
+        this.blockStartTick       = -1;
+        this.blockEndTick         = -1;
         this.blockDamageReduction = 100;
-        this.timeline                = null;
+        this.timeline             = null;
     }
 
     // -------------------------------------------------------------------------
@@ -231,27 +223,6 @@ public class BattleCombatant {
     }
 
     // -------------------------------------------------------------------------
-    // Defense buff
-    // -------------------------------------------------------------------------
-
-    public void applyDefenseBuff(int amount, int expiresAtTick) {
-        this.defenseBuffActive        = amount;
-        this.defenseBuffExpiresAtTick = expiresAtTick;
-    }
-
-    public int getDefenseBuffAt(int currentTick) {
-        if (defenseBuffExpiresAtTick == -1 || currentTick <= defenseBuffExpiresAtTick) {
-            return defenseBuffActive;
-        }
-        return 0;
-    }
-
-    public void clearDefenseBuff() {
-        defenseBuffActive        = 0;
-        defenseBuffExpiresAtTick = -1;
-    }
-
-    // -------------------------------------------------------------------------
     // Block
     // -------------------------------------------------------------------------
 
@@ -352,8 +323,7 @@ public class BattleCombatant {
             currentCe,
             effectiveCombatStats.getMaxCursedEnergy()
         );
-        int buffed = baseDefense + getDefenseBuffAt(currentTick);
-        return (int) Math.round(buffed * abilityFlags.defenseMultiplier);
+        return (int) Math.round(baseDefense * abilityFlags.defenseMultiplier);
     }
 
     @Override

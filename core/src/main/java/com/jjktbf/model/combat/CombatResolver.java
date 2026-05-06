@@ -300,25 +300,20 @@ public class CombatResolver {
 
     private void resolveDefensiveMove(BattleCombatant combatant, Move move, int tick, List<CombatEvent> events) {
         switch (move.getDefenseType()) {
-            case STAT_BUFF -> {
-                int expiresAt = (move.getDefenseBuffDuration() == -1)
-                    ? Integer.MAX_VALUE
-                    : tick + move.getDefenseBuffDuration();
-                combatant.applyDefenseBuff(move.getDefenseBuffAmount(), expiresAt);
-                events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
-                    .source(combatant).move(move)
-                    .intValue(move.getDefenseBuffAmount())
-                    .message(combatant.getCharacter().getName()
-                             + " raises their defense by " + move.getDefenseBuffAmount() + "!")
-                    .build());
-            }
             case BLOCK -> {
                 // Block is tracked via Timeline.hasActiveBlockAt()
-                // Apply the block's damage reduction % to incoming attacks
                 events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                     .source(combatant).move(move)
                     .message(combatant.getCharacter().getName()
                              + " raises their block! (" + move.getBlockDamageReduction() + "% damage reduction)")
+                    .build());
+            }
+            case FLAT_BLOCK -> {
+                // Flat block is tracked via Timeline.hasActiveBlockAt() (same window logic)
+                events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
+                    .source(combatant).move(move)
+                    .message(combatant.getCharacter().getName()
+                             + " raises their block! (-" + move.getBlockFlatReduction() + " flat damage reduction)")
                     .build());
             }
             case NONE -> {}
@@ -401,7 +396,6 @@ public class CombatResolver {
 
         for (BattleCombatant combatant : new BattleCombatant[]{ state.getPlayerCombatant(), state.getEnemyCombatant() }) {
             combatant.tickStatusEffects();
-            combatant.clearDefenseBuff();
             combatant.clearBlock();
 
             boolean wasBfs = combatant.isInBlackFlashState();

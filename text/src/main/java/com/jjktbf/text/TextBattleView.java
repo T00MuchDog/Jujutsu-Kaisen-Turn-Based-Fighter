@@ -243,8 +243,10 @@ TextBattleView implements BattleView {
         }
         if (move.isDefensive()) {
             System.out.printf("  │  Defense    : %-41s│%n", move.getDefenseType());
-            if (move.getDefenseBuffAmount() > 0) {
-                System.out.printf("  │  Def Buff   : +%-40s│%n", move.getDefenseBuffAmount());
+            if (move.getDefenseType() == com.jjktbf.model.move.DefenseType.BLOCK) {
+                System.out.printf("  │  Block      : -%d%%%-38s│%n", move.getBlockDamageReduction(), "");
+            } else if (move.getDefenseType() == com.jjktbf.model.move.DefenseType.FLAT_BLOCK) {
+                System.out.printf("  │  Flat Block : -%d dmg%-36s│%n", move.getBlockFlatReduction(), "");
             }
         }
         if (move.isBlackFlashEligible()) {

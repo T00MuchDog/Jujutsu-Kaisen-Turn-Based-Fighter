@@ -39,7 +39,7 @@ public final class CoreMoves {
     public static Move basicBlock() {
         return new Move.Builder("BASIC_BLOCK")
             .name("Basic Block")
-            .description("Raises guard. Provides a moderate defense buff for the rest of the round.")
+            .description("Raises guard. Blocks incoming physical and CE attacks for the duration of the block.")
             .category(MoveCategory.DEFENSIVE)
             .basePower(0)
             .baseAccuracy(1.0)
@@ -50,9 +50,9 @@ public final class CoreMoves {
             .minCeCost(0)
             .maxCeCost(0)
             .interruptType(InterruptType.NONE)
-            .defenseType(DefenseType.STAT_BUFF)
-            .defenseBuffDuration(-1)  // lasts the rest of the round
-            .defenseBuffAmount(15)    // PLACEHOLDER: +15 to defense stat
+            .defenseType(DefenseType.BLOCK)
+            .blockDuration(0)         // lasts for the move's full AP cost (8 ticks)
+            .blockDamageReduction(100)
             .guaranteedMove(true)
             .build();
     }
@@ -221,16 +221,16 @@ public final class CoreMoves {
     public static Move cursedEnergyArmor() {
         return new Move.Builder("CE_ARMOR")
             .name("Cursed Energy Armor")
-            .description("Coat the body in cursed energy. Greatly increases defense for the full round.")
+            .description("Coat the body in cursed energy. Reduces all incoming damage for the full round.")
             .category(MoveCategory.DEFENSIVE)
             .basePower(0)
             .neverMiss(true)
             .apCost(12)
             .unleashPoint(1)          // instant activation
             .baseCeCost(25).minCeCost(12).maxCeCost(45)
-            .defenseType(DefenseType.STAT_BUFF)
-            .defenseBuffDuration(-1)  // entire round
-            .defenseBuffAmount(30)    // PLACEHOLDER
+            .defenseType(DefenseType.BLOCK)
+            .blockDuration(-1)        // lasts the entire round
+            .blockDamageReduction(50) // PLACEHOLDER: 50% damage reduction
             .prerequisites(java.util.Map.of("jujutsuskill", 60, "cursedenergyreserves", 60))
             .build();
     }
