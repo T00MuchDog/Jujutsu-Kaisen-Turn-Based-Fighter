@@ -93,26 +93,17 @@ public class Move {
     /** Defensive behavior, if any. */
     private final DefenseType defenseType;
 
-    /**
-     * If STAT_BUFF: how many AP ticks the defense enhancement lasts after unleash.
-     * -1 = lasts the rest of the round.
-     */
-    private final int defenseBuffDuration;
-
-    /**
-     * Magnitude of a STAT_BUFF defense move — added directly to the Defense value.
-     * 0 if not a defense buff.
-     */
-    private final int defenseBuffAmount;
-
-    /** Block duration in AP ticks. 0 = use move's apCost. -1 = end of round. */
+    /** Duration in AP ticks. 0 = use move's apCost. -1 = end of round. Applies to BLOCK and FLAT_BLOCK. */
     private final int blockDuration;
 
-    /** Tags this block affects. Null = all damage types. */
+    /** Tags this block affects. Null = all damage types. Applies to BLOCK and FLAT_BLOCK. */
     private final List<String> blockAffectedTags;
 
-    /** Percentage of damage reduced (0-100). 100 = full block. */
+    /** Percentage of damage reduced (0-100). 100 = full block. Used by BLOCK. */
     private final int blockDamageReduction;
+
+    /** Flat damage subtracted from incoming damage. Used by FLAT_BLOCK. */
+    private final int blockFlatReduction;
 
     /** Status effects this move applies on hit (may be empty). */
     private final List<StatusEffect> onHitEffects;
@@ -153,14 +144,13 @@ public class Move {
         this.baseCeCost          = b.baseCeCost;
         this.minCeCost           = b.minCeCost;
         this.maxCeCost           = b.maxCeCost;
-        this.interruptType       = b.interruptType;
-        this.defenseType         = b.defenseType;
-        this.defenseBuffDuration = b.defenseBuffDuration;
-        this.defenseBuffAmount   = b.defenseBuffAmount;
-        this.blockDuration       = b.blockDuration;
-        this.blockAffectedTags   = b.blockAffectedTags != null
+        this.interruptType        = b.interruptType;
+        this.defenseType          = b.defenseType;
+        this.blockDuration        = b.blockDuration;
+        this.blockAffectedTags    = b.blockAffectedTags != null
             ? Collections.unmodifiableList(b.blockAffectedTags) : null;
         this.blockDamageReduction = b.blockDamageReduction;
+        this.blockFlatReduction   = b.blockFlatReduction;
         this.onHitEffects        = Collections.unmodifiableList(b.onHitEffects);
         this.selfEffects         = Collections.unmodifiableList(b.selfEffects);
         this.prerequisites       = Collections.unmodifiableMap(b.prerequisites);
@@ -186,11 +176,10 @@ public class Move {
     public int getMaxCeCost()                     { return maxCeCost; }
     public InterruptType getInterruptType()       { return interruptType; }
     public DefenseType getDefenseType()           { return defenseType; }
-    public int getDefenseBuffDuration()           { return defenseBuffDuration; }
-    public int getDefenseBuffAmount()             { return defenseBuffAmount; }
-    public int getBlockDuration()              { return blockDuration; }
+    public int getBlockDuration()                 { return blockDuration; }
     public List<String> getBlockAffectedTags()    { return blockAffectedTags; }
     public int getBlockDamageReduction()          { return blockDamageReduction; }
+    public int getBlockFlatReduction()            { return blockFlatReduction; }
     public List<StatusEffect> getOnHitEffects()   { return onHitEffects; }
     public List<StatusEffect> getSelfEffects()    { return selfEffects; }
     public java.util.Map<String, Integer> getPrerequisites() { return prerequisites; }
@@ -232,12 +221,11 @@ public class Move {
         private int minCeCost                = 0;
         private int maxCeCost                = 0;
         private InterruptType interruptType  = InterruptType.NONE;
-        private DefenseType defenseType      = DefenseType.NONE;
-        private int defenseBuffDuration      = -1;
-        private int defenseBuffAmount        = 0;
-        private int blockDuration          = 0;
+        private DefenseType defenseType        = DefenseType.NONE;
+        private int blockDuration              = 0;
         private List<String> blockAffectedTags = null;
-        private int blockDamageReduction  = 100;
+        private int blockDamageReduction       = 100;
+        private int blockFlatReduction         = 0;
         private List<StatusEffect> onHitEffects = List.of();
         private List<StatusEffect> selfEffects  = List.of();
         private java.util.Map<String, Integer> prerequisites = java.util.Map.of();
@@ -259,11 +247,10 @@ public class Move {
         public Builder maxCeCost(int v)                    { this.maxCeCost = v; return this; }
         public Builder interruptType(InterruptType v)      { this.interruptType = v; return this; }
         public Builder defenseType(DefenseType v)          { this.defenseType = v; return this; }
-        public Builder defenseBuffDuration(int v)          { this.defenseBuffDuration = v; return this; }
-        public Builder defenseBuffAmount(int v)            { this.defenseBuffAmount = v; return this; }
         public Builder blockDuration(int v)                { this.blockDuration = v; return this; }
         public Builder blockAffectedTags(List<String> v)   { this.blockAffectedTags = v; return this; }
-        public Builder blockDamageReduction(int v)          { this.blockDamageReduction = v; return this; }
+        public Builder blockDamageReduction(int v)         { this.blockDamageReduction = v; return this; }
+        public Builder blockFlatReduction(int v)           { this.blockFlatReduction = v; return this; }
         public Builder onHitEffects(List<StatusEffect> v)  { this.onHitEffects = v; return this; }
         public Builder selfEffects(List<StatusEffect> v)   { this.selfEffects = v; return this; }
         public Builder prerequisites(java.util.Map<String, Integer> v) { this.prerequisites = v; return this; }

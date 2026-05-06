@@ -97,13 +97,13 @@ public class Timeline {
     }
 
     /**
-     * Check if a BLOCK defensive move is covering the given tick.
-     * When active, applies blockDamageReduction to incoming damage.
+     * Check if a BLOCK or FLAT_BLOCK defensive move is covering the given tick.
      */
     public boolean hasActiveBlockAt(int tick) {
         for (MoveBlock b : blocks) {
+            DefenseType dt = b.getMove().getDefenseType();
             if (!b.isKnockedOut()
-                && b.getMove().getDefenseType() == DefenseType.BLOCK
+                && (dt == DefenseType.BLOCK || dt == DefenseType.FLAT_BLOCK)
                 && tick >= b.getStartTick()
                 && tick <= b.getEndTick()) {
                 return true;

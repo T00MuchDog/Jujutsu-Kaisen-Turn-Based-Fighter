@@ -48,16 +48,16 @@ public class MoveData {
 
     /** DefenseType enum name */
     public String  defenseType    = "NONE";
-    public int     defenseBuffDuration = -1;
-    public int     defenseBuffAmount   = 0;
 
-    /** Block-specific fields (used when defenseType = BLOCK) */
-    /** Duration in AP ticks. 0 = use move's apCost. -1 = end of round (until character's next turn) */
+    /** Block-specific fields (used when defenseType = BLOCK or FLAT_BLOCK) */
+    /** Duration in AP ticks. 0 = use move's apCost. -1 = end of round. */
     public int     blockDuration = 0;
-    /** Tags this block affects. Null = all damage types. Otherwise only damage with these tags is affected. */
+    /** Tags this block affects. Null = all damage types. */
     public List<String> blockAffectedTags;
-    /** Percentage of damage reduced (0-100). 100 = full block, <100 = partial. */
+    /** BLOCK only: percentage of damage reduced (0-100). 100 = full block. */
     public int     blockDamageReduction = 100;
+    /** FLAT_BLOCK only: flat damage amount subtracted from incoming attacks. */
+    public int     blockFlatReduction = 0;
 
     /** List of on-hit StatusEffect descriptors */
     public List<StatusEffectData> onHitEffects;
@@ -152,11 +152,10 @@ public class MoveData {
             .maxCeCost(maxCeCost)
             .interruptType(InterruptType.valueOf(interruptType != null ? interruptType : "NONE"))
             .defenseType(DefenseType.valueOf(defenseType != null ? defenseType : "NONE"))
-            .defenseBuffDuration(defenseBuffDuration)
-            .defenseBuffAmount(defenseBuffAmount)
             .blockDuration(blockDuration)
             .blockAffectedTags(blockAffectedTags)
             .blockDamageReduction(blockDamageReduction)
+            .blockFlatReduction(blockFlatReduction)
             .requiredTechniqueId(requiredTechniqueName) // still stored as requiredTechniqueId in Move domain
             .guaranteedMove(isGuaranteedMove);
 
@@ -206,10 +205,13 @@ public class MoveData {
         d.baseCeCost          = move.getBaseCeCost();
         d.minCeCost           = move.getMinCeCost();
         d.maxCeCost           = move.getMaxCeCost();
-        d.interruptType       = move.getInterruptType().name();
-        d.defenseType         = move.getDefenseType().name();
-        d.defenseBuffDuration = move.getDefenseBuffDuration();
-        d.defenseBuffAmount   = move.getDefenseBuffAmount();
+        d.interruptType         = move.getInterruptType().name();
+        d.defenseType           = move.getDefenseType().name();
+        d.blockDuration         = move.getBlockDuration();
+        d.blockAffectedTags     = move.getBlockAffectedTags() != null
+                                    ? new java.util.ArrayList<>(move.getBlockAffectedTags()) : null;
+        d.blockDamageReduction  = move.getBlockDamageReduction();
+        d.blockFlatReduction    = move.getBlockFlatReduction();
         d.requiredTechniqueName = move.getRequiredTechniqueId(); // domain still uses id field
         d.isGuaranteedMove    = move.isGuaranteedMove();
         d.prerequisites       = move.getPrerequisites().isEmpty() ? null

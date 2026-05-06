@@ -159,7 +159,7 @@ public class MoveEditorMain {
         }
         printField("Interrupt",      md.interruptType);
         printField("Defense Type",   md.defenseType);
-        if ("BLOCK".equals(md.defenseType)) {
+        if ("BLOCK".equals(md.defenseType) || "FLAT_BLOCK".equals(md.defenseType)) {
             if (md.blockDuration == -1)
                 printField("Block Duration", "end of round");
             else if (md.blockDuration == 0)
@@ -168,7 +168,10 @@ public class MoveEditorMain {
                 printField("Block Duration", md.blockDuration + " ticks");
             if (md.blockAffectedTags != null)
                 printField("Block Tags", md.blockAffectedTags.toString());
-            printField("Block Reduction", md.blockDamageReduction + "%");
+            if ("BLOCK".equals(md.defenseType))
+                printField("Block Reduction", md.blockDamageReduction + "%");
+            else
+                printField("Flat Reduction", "-" + md.blockFlatReduction + " dmg");
         }
         try {
             boolean bf = md.derivedCategory().isBlackFlashEligible();
@@ -324,33 +327,39 @@ public class MoveEditorMain {
         // ── Defensive ─────────────────────────────────────────────────────────
         System.out.println();
         sep("Defense Type");
-        System.out.println("  Options: NONE  BLOCK");
+        System.out.println("  Options: NONE  BLOCK  FLAT_BLOCK");
+        System.out.println("  BLOCK:      reduces incoming damage by a % (0–100).");
+        System.out.println("  FLAT_BLOCK: reduces incoming damage by a flat amount.");
         md.defenseType = promptEnum("Defense Type", md.defenseType, DefenseType.class);
-        if ("BLOCK".equals(md.defenseType)) {
+        if ("BLOCK".equals(md.defenseType) || "FLAT_BLOCK".equals(md.defenseType)) {
             System.out.println();
             sep("Block Settings");
             md.blockDuration = promptInt(
                 "Duration in AP ticks (0 = use move's AP cost, -1 = end of round)",
                 md.blockDuration, -1, 99999);
             String tagsInput = promptWithDefault(
-                "Affected tags (comma-separated: PHYSICAL, CURSED_ENERGY, INNATE_TECHNIQUE, NON_INNATE_TECHNIQUE)",
+                "Affected tags (comma-separated: PHYSICAL, CURSED_ENERGY, INNATE_TECHNIQUE, NON_INNATE_TECHNIQUE; blank = all)",
                 md.blockAffectedTags != null ? String.join(", ", md.blockAffectedTags) : "");
             md.blockAffectedTags = tagsInput.isBlank() ? null
                 : java.util.Arrays.asList(tagsInput.split(",")).stream()
                     .map(String::trim).filter(s -> !s.isBlank()).toList();
-            md.blockDamageReduction = promptInt(
-                "Damage reduction % (100 = full block, 50 = half damage)",
-                md.blockDamageReduction, 0, 100);
-            // Clear stat buff fields
-            md.defenseBuffAmount = 0;
-            md.defenseBuffDuration = -1;
+            if ("BLOCK".equals(md.defenseType)) {
+                md.blockDamageReduction = promptInt(
+                    "Damage reduction % (100 = full block, 50 = half damage)",
+                    md.blockDamageReduction, 0, 100);
+                md.blockFlatReduction = 0;
+            } else {
+                md.blockFlatReduction = promptIntUnbounded(
+                    "Flat damage reduction (e.g. 30 = subtract 30 from incoming damage)",
+                    md.blockFlatReduction, 0);
+                md.blockDamageReduction = 100;
+            }
         } else {
             md.defenseType = "NONE";
-            md.defenseBuffAmount = 0;
-            md.defenseBuffDuration = -1;
             md.blockDuration = 0;
             md.blockAffectedTags = null;
             md.blockDamageReduction = 100;
+            md.blockFlatReduction = 0;
         }
 
         // ── Technique restriction ──────────────────────────────────────────────
