@@ -84,11 +84,14 @@ public class AbilityEditorMain {
 
     // ── Fields ────────────────────────────────────────────────────────────────
 
-    private final Scanner           sc          = new Scanner(System.in);
+    private final Scanner           sc;
+    private final EditorIO          io;
     private final AbilityRepository abilityRepo;
     private final MoveRepository    moveRepo;
 
     public AbilityEditorMain() {
+        this.sc          = new Scanner(System.in);
+        this.io          = new EditorIO(sc);
         this.abilityRepo = new AbilityRepository(ABILITY_DATA_DIR);
         this.moveRepo    = new MoveRepository(MOVE_DATA_DIR);
     }
@@ -699,72 +702,25 @@ public class AbilityEditorMain {
     }
 
     // =========================================================================
-    // Prompt helpers
+    // Prompt helpers — delegates to EditorIO
     // =========================================================================
 
-    private String prompt(String label) {
-        System.out.print(label);
-        return sc.nextLine();
-    }
-
-    private String promptNonEmpty(String label, String current) {
-        while (true) {
-            String display = (current != null && !current.isBlank()) ? " [" + current + "]" : "";
-            String input   = prompt("  " + label + display + ": ").trim();
-            if (!input.isBlank()) return input;
-            if (current != null && !current.isBlank()) return current;
-            System.out.println("  Value cannot be empty.");
-        }
-    }
-
-    private String promptWithDefault(String label, String current) {
-        String display = (current != null && !current.isBlank()) ? " [" + current + "]" : " [blank]";
-        String input   = prompt("  " + label + display + ": ").trim();
-        return input.isBlank() ? (current != null ? current : "") : input;
-    }
+    private String prompt(String label)                              { return io.prompt(label); }
+    private String promptNonEmpty(String label, String cur)          { return io.promptNonEmpty(label, cur); }
+    private String promptWithDefault(String label, String cur)       { return io.promptWithDefault(label, cur); }
+    private int    promptInt(String label, int cur, int min, int max){ return io.promptInt(label, cur, min, max); }
+    private int    promptIntUnbounded(String label, int cur)         { return io.promptIntUnbounded(label, cur); }
+    private double promptDouble(String label, double cur)            { return io.promptDouble(label, cur); }
 
     /**
      * Multi-line prompt — the user types their text on one line.
-     * Long texts are fine; the terminal wraps them.
      * ENTER with no input keeps the existing value.
      */
     private String promptMultiline(String label, String current) {
         System.out.println("  (Type on one line, ENTER to keep existing)");
-        String display = (current != null && !current.isBlank()) ? " [" + truncate(current, 40) + "]" : "";
-        String input   = prompt("  " + label + display + ": ").trim();
+        String display = (current != null && !current.isBlank()) ? " [" + EditorIO.truncate(current, 40) + "]" : "";
+        String input   = io.prompt("  " + label + display + ": ").trim();
         return input.isBlank() ? (current != null ? current : "") : input;
-    }
-
-    private int promptInt(String label, int current, int min, int max) {
-        while (true) {
-            String input = prompt("  " + label + " [" + current + "]: ").trim();
-            if (input.isBlank()) return current;
-            try {
-                int v = Integer.parseInt(input);
-                if (v >= min && v <= max) return v;
-                System.out.printf("  Must be %d–%d.%n", min, max);
-            } catch (NumberFormatException e) {
-                System.out.println("  Enter a whole number.");
-            }
-        }
-    }
-
-    private int promptIntUnbounded(String label, int current) {
-        while (true) {
-            String input = prompt("  " + label + " [" + current + "]: ").trim();
-            if (input.isBlank()) return current;
-            try { return Integer.parseInt(input); }
-            catch (NumberFormatException e) { System.out.println("  Enter a whole number."); }
-        }
-    }
-
-    private double promptDouble(String label, double current) {
-        while (true) {
-            String input = prompt("  " + label + " [" + current + "]: ").trim();
-            if (input.isBlank()) return current;
-            try { return Double.parseDouble(input); }
-            catch (NumberFormatException e) { System.out.println("  Enter a decimal number."); }
-        }
     }
 
     /** Pick from a fixed list — user enters a number. Returns one of the options. */
@@ -857,12 +813,10 @@ public class AbilityEditorMain {
     }
 
     // =========================================================================
-    // Display helpers
+    // Display helpers — delegates to EditorIO
     // =========================================================================
 
-    private void sep(String title) {
-        System.out.println("  ─── " + title + " " + "─".repeat(Math.max(0, 50 - title.length())));
-    }
+    private void sep(String title) { io.sep(title); }
 
     private void printWrapped(String text) {
         if (text == null || text.isBlank()) {
@@ -922,8 +876,5 @@ public class AbilityEditorMain {
         return s;
     }
 
-    private static String truncate(String s, int max) {
-        if (s == null) return "";
-        return s.length() <= max ? s : s.substring(0, max - 1) + "…";
-    }
+    private static String truncate(String s, int max) { return EditorIO.truncate(s, max); }
 }

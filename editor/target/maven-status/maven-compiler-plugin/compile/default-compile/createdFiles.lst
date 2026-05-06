@@ -1,5 +1,9 @@
-com/jjktbf/editor/CharacterEditorMain.class
 com/jjktbf/editor/AbilityEditorMain$1.class
-com/jjktbf/editor/MoveEditorMain.class
 com/jjktbf/editor/AbilityEditorMain.class
-com/jjktbf/editor/CharacterEditorMain$1.class
+com/jjktbf/editor/CharacterEditorMain.class
+com/jjktbf/editor/StatEntryFlow.class
+com/jjktbf/editor/AbilityAssignmentFlow.class
+com/jjktbf/editor/MoveAssignmentFlow.class
+com/jjktbf/editor/StatEntryFlow$1.class
+com/jjktbf/editor/MoveEditorMain.class
+com/jjktbf/editor/EditorIO.class

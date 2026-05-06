@@ -15,23 +15,28 @@
   "defenseType" : "NONE",
   "defenseBuffDuration" : -1,
   "defenseBuffAmount" : 0,
-  "isGuaranteedMove" : false
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "isGuaranteedMove" : true
 }, {
   "id" : "000001",
-  "name" : "Block",
-  "description" : "A simple block that reduces damage taken from physical attacks",
+  "name" : "Basic Block",
+  "description" : "A simple guard against physical blows",
   "tags" : [ "PHYSICAL", "DEFENSIVE" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "apCost" : 10,
   "unleashPoint" : 3,
   "baseCeCost" : 0,
   "minCeCost" : 0,
   "maxCeCost" : 0,
   "interruptType" : "NONE",
-  "defenseType" : "PARTIAL_BLOCK",
+  "defenseType" : "BLOCK",
   "defenseBuffDuration" : -1,
   "defenseBuffAmount" : 0,
-  "isGuaranteedMove" : false
+  "blockDuration" : 0,
+  "blockAffectedTags" : [ "physical" ],
+  "blockDamageReduction" : 50,
+  "isGuaranteedMove" : true
 } ]

@@ -32,10 +32,13 @@ public class MoveEditorMain {
         "POWER_UP", "DEFENSE_UP", "FOCUS", "SPEED_UP", "MARKED", "AP_DRAIN", "BARRIER"
     );
 
-    private final Scanner        sc   = new Scanner(System.in);
+    private final Scanner        sc;
+    private final EditorIO       io;
     private final MoveRepository repo;
 
     public MoveEditorMain() {
+        this.sc   = new Scanner(System.in);
+        this.io   = new EditorIO(sc);
         this.repo = new MoveRepository(DATA_DIR);
     }
 
@@ -140,9 +143,15 @@ public class MoveEditorMain {
         printField("Tags",           tagStr + catName);
         printField("AP Cost",        md.apCost);
         printField("Unleash Point",  md.unleashPoint + " of " + md.apCost);
-        printField("Base Power",     md.basePower == 0 ? "N/A" : md.basePower);
-        printField("Base Accuracy",  md.neverMiss ? "Cannot miss"
-                                     : String.format("%.0f%%", md.baseAccuracy * 100));
+        boolean isAttack = md.tags != null && md.tags.contains("ATTACK");
+        if (isAttack) {
+            printField("Base Power",     md.basePower);
+            printField("Base Accuracy", md.neverMiss ? "Cannot miss"
+                                         : String.format("%.0f%%", md.baseAccuracy * 100));
+        } else {
+            printField("Base Power",     "N/A");
+            printField("Base Accuracy", "N/A");
+        }
         printField("CE Cost (base)", md.baseCeCost == 0 ? "N/A" : md.baseCeCost);
         if (md.baseCeCost > 0) {
             printField("CE Cost (min)", md.minCeCost);
@@ -150,28 +159,22 @@ public class MoveEditorMain {
         }
         printField("Interrupt",      md.interruptType);
         printField("Defense Type",   md.defenseType);
-        if (!"NONE".equals(md.defenseType)) {
-            if (md.defenseBuffAmount > 0)
-                printField("Def Buff Amt", md.defenseBuffAmount);
-            printField("Def Buff Dur", md.defenseBuffDuration == -1
-                                        ? "full round" : md.defenseBuffDuration + " ticks");
-            if ("BLOCK".equals(md.defenseType)) {
-                if (md.blockDuration == -1)
-                    printField("Block Duration", "end of round");
-                else if (md.blockDuration == 0)
-                    printField("Block Duration", "uses AP cost");
-                else
-                    printField("Block Duration", md.blockDuration + " ticks");
-                if (md.blockAffectedTags != null)
-                    printField("Block Tags", md.blockAffectedTags.toString());
-                printField("Block Reduction", md.blockDamageReduction + "%");
-            }
+        if ("BLOCK".equals(md.defenseType)) {
+            if (md.blockDuration == -1)
+                printField("Block Duration", "end of round");
+            else if (md.blockDuration == 0)
+                printField("Block Duration", "uses AP cost");
+            else
+                printField("Block Duration", md.blockDuration + " ticks");
+            if (md.blockAffectedTags != null)
+                printField("Block Tags", md.blockAffectedTags.toString());
+            printField("Block Reduction", md.blockDamageReduction + "%");
         }
         try {
             boolean bf = md.derivedCategory().isBlackFlashEligible();
             printField("BF Eligible", bf ? "Yes ★" : "No");
         } catch (Exception ignored) {}
-        printField("Guaranteed",     md.isGuaranteedMove ? "Yes" : "No");
+        printField("Free",        md.isGuaranteedMove ? "Yes" : "No");
         if (md.requiredTechniqueName != null)
             printField("Requires",   md.requiredTechniqueName);
         if (md.prerequisites != null && !md.prerequisites.isEmpty())
@@ -272,24 +275,31 @@ public class MoveEditorMain {
                                     md.unleashPoint > 0 ? md.unleashPoint : 1,
                                     1, Math.max(md.apCost, 1));
 
-        // ── Damage ────────────────────────────────────────────────────────────
-        System.out.println();
-        sep("Damage  (0 / N/A = non-damaging)");
-        md.basePower = promptIntUnbounded("Base Power", md.basePower, 0);
+        // ── Damage (only for ATTACK moves) ────────────────────────────────────────────
+        boolean isAttack = md.tags != null && md.tags.contains("ATTACK");
+        if (isAttack) {
+            System.out.println();
+            sep("Damage  (attacks only — utility moves have 0 power)");
+            md.basePower = promptIntUnbounded("Base Power", md.basePower, 0);
 
-        String accInput = promptWithDefault(
-            "Base Accuracy % (1–100, or 'never' for cannot-miss)",
-            md.neverMiss ? "never" : String.valueOf((int) (md.baseAccuracy * 100)));
-        if (accInput.equalsIgnoreCase("never")) {
-            md.neverMiss    = true;
-            md.baseAccuracy = 1.0;
-        } else {
-            md.neverMiss = false;
-            try {
-                md.baseAccuracy = Math.min(100, Math.max(1, Integer.parseInt(accInput))) / 100.0;
-            } catch (NumberFormatException e) {
-                System.out.println("  Invalid — keeping previous value.");
+            String accInput = promptWithDefault(
+                "Base Accuracy % (1–100, or 'never' for cannot-miss)",
+                md.neverMiss ? "never" : String.valueOf((int) (md.baseAccuracy * 100)));
+            if (accInput.equalsIgnoreCase("never")) {
+                md.neverMiss    = true;
+                md.baseAccuracy = 1.0;
+            } else {
+                md.neverMiss = false;
+                try {
+                    md.baseAccuracy = Math.min(100, Math.max(1, Integer.parseInt(accInput))) / 100.0;
+                } catch (NumberFormatException e) {
+                    System.out.println("  Invalid — keeping previous value.");
+                }
             }
+        } else {
+            md.basePower = 0;
+            md.baseAccuracy = 1.0;
+            md.neverMiss = false;
         }
 
         // ── CE Cost ───────────────────────────────────────────────────────────
@@ -314,38 +324,33 @@ public class MoveEditorMain {
         // ── Defensive ─────────────────────────────────────────────────────────
         System.out.println();
         sep("Defense Type");
-        System.out.println("  Options: NONE  STAT_BUFF  BLOCK");
-        System.out.println("  STAT_BUFF: raises Defense stat for a duration.");
-        System.out.println("  BLOCK:    damage-reducing block with configurable duration, tags, reduction %.");
+        System.out.println("  Options: NONE  BLOCK");
         md.defenseType = promptEnum("Defense Type", md.defenseType, DefenseType.class);
-        if (!"NONE".equals(md.defenseType)) {
-            if ("STAT_BUFF".equals(md.defenseType)) {
-                md.defenseBuffAmount   = promptIntUnbounded("Defense Buff Amount", md.defenseBuffAmount, 0);
-                md.defenseBuffDuration = promptInt("Duration (-1 = full round)",
-                                                    md.defenseBuffDuration, -1, 99999);
-                // Clear block fields
-                md.blockDuration = 0;
-                md.blockAffectedTags = null;
-                md.blockDamageReduction = 100;
-            } else if ("BLOCK".equals(md.defenseType)) {
-                System.out.println();
-                sep("Block Settings");
-                md.blockDuration = promptInt(
-                    "Duration in AP ticks (0 = use move's AP cost, -1 = end of round)",
-                    md.blockDuration, -1, 99999);
-                String tagsInput = promptWithDefault(
-                    "Affected tags (comma-separated: PHYSICAL, CURSED_ENERGY, INNATE_TECHNIQUE, NON_INNATE_TECHNIQUE)",
-                    md.blockAffectedTags != null ? String.join(", ", md.blockAffectedTags) : "");
-                md.blockAffectedTags = tagsInput.isBlank() ? null
-                    : java.util.Arrays.asList(tagsInput.split(",")).stream()
-                        .map(String::trim).filter(s -> !s.isBlank()).toList();
-                md.blockDamageReduction = promptInt(
-                    "Damage reduction % (100 = full block, 50 = half damage)",
-                    md.blockDamageReduction, 0, 100);
-                // Clear stat buff fields
-                md.defenseBuffAmount = 0;
-                md.defenseBuffDuration = -1;
-            }
+        if ("BLOCK".equals(md.defenseType)) {
+            System.out.println();
+            sep("Block Settings");
+            md.blockDuration = promptInt(
+                "Duration in AP ticks (0 = use move's AP cost, -1 = end of round)",
+                md.blockDuration, -1, 99999);
+            String tagsInput = promptWithDefault(
+                "Affected tags (comma-separated: PHYSICAL, CURSED_ENERGY, INNATE_TECHNIQUE, NON_INNATE_TECHNIQUE)",
+                md.blockAffectedTags != null ? String.join(", ", md.blockAffectedTags) : "");
+            md.blockAffectedTags = tagsInput.isBlank() ? null
+                : java.util.Arrays.asList(tagsInput.split(",")).stream()
+                    .map(String::trim).filter(s -> !s.isBlank()).toList();
+            md.blockDamageReduction = promptInt(
+                "Damage reduction % (100 = full block, 50 = half damage)",
+                md.blockDamageReduction, 0, 100);
+            // Clear stat buff fields
+            md.defenseBuffAmount = 0;
+            md.defenseBuffDuration = -1;
+        } else {
+            md.defenseType = "NONE";
+            md.defenseBuffAmount = 0;
+            md.defenseBuffDuration = -1;
+            md.blockDuration = 0;
+            md.blockAffectedTags = null;
+            md.blockDamageReduction = 100;
         }
 
         // ── Technique restriction ──────────────────────────────────────────────
@@ -393,11 +398,11 @@ public class MoveEditorMain {
         System.out.println("  Current: " + formatEffectsNullable(md.selfEffects));
         md.selfEffects = promptEffects(md.selfEffects);
 
-        // ── Guaranteed ────────────────────────────────────────────────────────
+        // ── Free move (doesn't use a slot) ────────────────────────────
         System.out.println();
-        String isG = promptWithDefault("Guaranteed move (always available, y/N)",
+        String isF = promptWithDefault("Free move (doesn't use a slot, y/N)",
                                        md.isGuaranteedMove ? "y" : "n");
-        md.isGuaranteedMove = isG.equalsIgnoreCase("y");
+        md.isGuaranteedMove = isF.equalsIgnoreCase("y");
     }
 
     // =========================================================================
@@ -547,82 +552,21 @@ public class MoveEditorMain {
     }
 
     // =========================================================================
-    // Prompt helpers
+    // Prompt helpers — delegates to EditorIO
     // =========================================================================
 
-    private String prompt(String label) {
-        System.out.print(label);
-        return sc.nextLine();
-    }
+    private String prompt(String label)                                          { return io.prompt(label); }
+    private String promptWithDefault(String label, String cur)                   { return io.promptWithDefault(label, cur); }
+    private int    promptInt(String label, int cur, int min, int max)            { return io.promptInt(label, cur, min, max); }
+    private int    promptIntUnbounded(String label, int cur, int min)            { return io.promptIntUnbounded(label, cur, min); }
+    private double promptDouble(String label, double cur)                        { return io.promptDouble(label, cur); }
+    private <E extends Enum<E>> String promptEnum(String label, String cur, Class<E> cls) { return io.promptEnum(label, cur, cls); }
 
-    private String promptWithDefault(String label, String current) {
-        String display = (current != null && !current.isBlank()) ? " [" + current + "]" : " [blank]";
-        String input   = prompt("  " + label + display + ": ").trim();
-        return input.isBlank() ? (current != null ? current : "") : input;
-    }
-
-    private int promptInt(String label, int current, int min, int max) {
-        while (true) {
-            String input = prompt("  " + label + " [" + current + "]: ").trim();
-            if (input.isBlank()) return current;
-            try {
-                int v = Integer.parseInt(input);
-                if (v >= min && v <= max) return v;
-                System.out.printf("  Must be between %d and %d.%n", min, max);
-            } catch (NumberFormatException e) {
-                System.out.println("  Enter a whole number.");
-            }
-        }
-    }
-
-    /** promptInt with no upper bound. */
-    private int promptIntUnbounded(String label, int current, int min) {
-        while (true) {
-            String input = prompt("  " + label + " [" + current + "]: ").trim();
-            if (input.isBlank()) return current;
-            // Accept "N/A" or "0" both as 0 for non-damaging moves
-            if (input.equalsIgnoreCase("n/a") || input.equalsIgnoreCase("na")) return 0;
-            try {
-                int v = Integer.parseInt(input);
-                if (v >= min) return v;
-                System.out.printf("  Must be >= %d.%n", min);
-            } catch (NumberFormatException e) {
-                System.out.println("  Enter a whole number (or N/A for non-damaging).");
-            }
-        }
-    }
-
-    private double promptDouble(String label, double current) {
-        while (true) {
-            String input = prompt("  " + label + " [" + current + "]: ").trim();
-            if (input.isBlank()) return current;
-            try {
-                return Double.parseDouble(input);
-            } catch (NumberFormatException e) {
-                System.out.println("  Enter a decimal number.");
-            }
-        }
-    }
-
-    private <E extends Enum<E>> String promptEnum(String label, String current, Class<E> enumClass) {
-        while (true) {
-            String input = promptWithDefault(label, current).toUpperCase().replace(" ", "_");
-            try {
-                Enum.valueOf(enumClass, input);
-                return input;
-            } catch (IllegalArgumentException e) {
-                System.out.println("  Invalid value. Choose from the listed options.");
-            }
-        }
-    }
-
-    /** Show the list and ask for a numeric ID string. */
     private String pickMoveById(String label) {
         listMoves();
         System.out.println();
         String id = prompt("  " + label).trim();
         if (id.isBlank()) return null;
-        // Accept bare numbers without leading zeros
         try {
             int n = Integer.parseInt(id);
             id = MoveRepository.formatId(n);
@@ -631,31 +575,13 @@ public class MoveEditorMain {
     }
 
     // =========================================================================
-    // Display helpers
+    // Display helpers — delegates to EditorIO
     // =========================================================================
 
-    private void sep(String title) {
-        System.out.println("  ─── " + title + " " + "─".repeat(Math.max(0, 50 - title.length())));
-    }
-
-    private void printField(String label, Object value) {
-        System.out.printf("  │  %-16s: %-39s│%n", label, truncate(String.valueOf(value), 39));
-    }
-
-    private void printWrapped(String label, String text) {
-        System.out.printf("  │  %-16s:%n", label);
-        if (text == null || text.isBlank()) {
-            System.out.printf("  │    %-53s│%n", "—");
-            return;
-        }
-        while (text.length() > 53) {
-            int cut = text.lastIndexOf(' ', 53);
-            if (cut <= 0) cut = 53;
-            System.out.printf("  │    %-53s│%n", text.substring(0, cut));
-            text = text.substring(cut).trim();
-        }
-        if (!text.isEmpty()) System.out.printf("  │    %-53s│%n", text);
-    }
+    private void sep(String title)                          { io.sep(title); }
+    private void printField(String label, Object value)     { io.printField(label, value); }
+    private void printWrapped(String label, String text)    { io.printWrapped(label, text); }
+    private static String truncate(String s, int max)       { return EditorIO.truncate(s, max); }
 
     private String formatEffects(List<MoveData.StatusEffectData> effects) {
         if (effects == null || effects.isEmpty()) return "none";
@@ -669,10 +595,5 @@ public class MoveEditorMain {
 
     private String formatEffectsNullable(List<MoveData.StatusEffectData> effects) {
         return (effects == null || effects.isEmpty()) ? "none" : formatEffects(effects);
-    }
-
-    private static String truncate(String s, int max) {
-        if (s == null) return "";
-        return s.length() <= max ? s : s.substring(0, max - 1) + "…";
     }
 }

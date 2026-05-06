@@ -2,6 +2,9 @@ package com.jjktbf.model.move;
 
 /**
  * Describes the defensive behavior of a DEFENSIVE-tagged move.
+ *
+ * Stat-boosting defensive utility moves (e.g. raising the Defense stat)
+ * are handled via the UTILITY tag and ability effects — not here.
  */
 public enum DefenseType {
 
@@ -9,19 +12,26 @@ public enum DefenseType {
     NONE,
 
     /**
-     * Temporarily raises the Defense stat for a portion of or the full round.
-     * The enhancement applies from the move's unleash point onward for the
-     * specified duration (in AP ticks). After expiry, Defense returns to base.
+     * Percentage-based damage block.
+     * Incoming attacks that fire while this block is active have their damage
+     * reduced by blockDamageReduction % (0–100). 100 = full negation.
+     *
+     * Duration is controlled by blockDuration:
+     *   0  = use the move's apCost as the window
+     *  -1  = lasts until end of round
+     *  >0  = that many AP ticks from the block's unleash point
+     *
+     * Tag filtering via blockAffectedTags (null = all damage types).
      */
-    STAT_BUFF,
+    BLOCK,
 
     /**
-     * Active damage-blocking move.
-     * Has duration (AP ticks), affected tags, and damage reduction %.
-     * Incoming attacks are reduced if they unleash within the block's duration window.
-     * The block activates at its unleash point and lasts for blockDuration ticks.
-     * If blockDuration = 0, uses the move's apCost as the duration.
-     * If blockDuration = -1, lasts until end of round.
+     * Flat damage block.
+     * Incoming attacks that fire while this block is active have a fixed
+     * amount subtracted from their final damage (blockFlatReduction).
+     * Damage cannot go below 1 from this reduction alone.
+     *
+     * Uses the same duration and tag-filtering rules as BLOCK.
      */
-    BLOCK
+    FLAT_BLOCK
 }
