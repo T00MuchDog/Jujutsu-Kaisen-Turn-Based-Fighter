@@ -1,6 +1,8 @@
 package com.jjktbf.model.character;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Applies passive ability effects to produce modified character stats and
@@ -29,20 +31,15 @@ public final class AbilityApplicator {
 
     public static ApplicationResult apply(CharacterStats baseStats, List<Ability> abilities) {
 
-        // Start from base values (can go to 0 via STAT_SET_MIN)
-        int vit  = baseStats.getVitality();
-        int str  = baseStats.getStrength();
-        int dur  = baseStats.getDurability();
-        int spd  = baseStats.getSpeed();
-        int ceR  = baseStats.getCursedEnergyReserves();
-        int ceEf = baseStats.getCursedEnergyEfficiency();
-        int ceO  = baseStats.getCursedEnergyOutput();
-        int js   = baseStats.getJujutsuSkill();
-        int ca   = baseStats.getCombatAbility();
-        int ctm  = baseStats.getCursedTechniqueMastery();
+        // Use EnumMap — one entry per StatKey. No parallel variable arrays.
+        Map<StatKey, Integer> additive      = new EnumMap<>(StatKey.class);
+        Map<StatKey, Double>  multipliers   = new EnumMap<>(StatKey.class);
 
-        // Multipliers (product of all STAT_MULTIPLY / divided by STAT_DIVIDE)
-        double vitM=1, strM=1, durM=1, spdM=1, ceRM=1, ceEfM=1, ceOM=1, jsM=1, caM=1, ctmM=1;
+        // Seed with base values and neutral multipliers
+        for (StatKey k : StatKey.values()) {
+            additive.put(k, k.get(baseStats));
+            multipliers.put(k, 1.0);
+        }
 
         AbilityFlags flags = new AbilityFlags();
 
@@ -60,101 +57,43 @@ public final class AbilityApplicator {
 
                     // ── Override (set) — applied before add/multiply ─────────
                     case STAT_SET_MIN -> {
-                        switch (norm(eff.stat)) {
-                            case "vitality"               -> vit  = 0;
-                            case "strength"               -> str  = 0;
-                            case "durability"             -> dur  = 0;
-                            case "speed"                  -> spd  = 0;
-                            case "cursedenergyreserves"   -> ceR  = 0;
-                            case "cursedenergyefficiency" -> ceEf = 0;
-                            case "cursedenergyoutput"     -> ceO  = 0;
-                            case "jujutsuskill"           -> js   = 0;
-                            case "combatability"          -> ca   = 0;
-                            case "cursedtechniquemastery" -> ctm  = 0;
-                            default -> warn(eff.stat);
-                        }
+                        StatKey k = resolveStatKey(eff.stat);
+                        if (k != null) additive.put(k, 0);
                     }
                     case STAT_SET_VALUE -> {
-                        int v = eff.intValue != null ? eff.intValue : 0;
-                        switch (norm(eff.stat)) {
-                            case "vitality"               -> vit  = v;
-                            case "strength"               -> str  = v;
-                            case "durability"             -> dur  = v;
-                            case "speed"                  -> spd  = v;
-                            case "cursedenergyreserves"   -> ceR  = v;
-                            case "cursedenergyefficiency" -> ceEf = v;
-                            case "cursedenergyoutput"     -> ceO  = v;
-                            case "jujutsuskill"           -> js   = v;
-                            case "combatability"          -> ca   = v;
-                            case "cursedtechniquemastery" -> ctm  = v;
-                            default -> warn(eff.stat);
-                        }
+                        StatKey k = resolveStatKey(eff.stat);
+                        if (k != null) additive.put(k, nvl(eff.intValue, 0));
                     }
 
                     // ── Additive ─────────────────────────────────────────────
                     case STAT_ADD -> {
-                        int a = eff.intValue != null ? eff.intValue : 0;
-                        switch (norm(eff.stat)) {
-                            case "vitality"               -> vit  += a;
-                            case "strength"               -> str  += a;
-                            case "durability"             -> dur  += a;
-                            case "speed"                  -> spd  += a;
-                            case "cursedenergyreserves"   -> ceR  += a;
-                            case "cursedenergyefficiency" -> ceEf += a;
-                            case "cursedenergyoutput"     -> ceO  += a;
-                            case "jujutsuskill"           -> js   += a;
-                            case "combatability"          -> ca   += a;
-                            case "cursedtechniquemastery" -> ctm  += a;
-                            default -> warn(eff.stat);
-                        }
+                        StatKey k = resolveStatKey(eff.stat);
+                        if (k != null) additive.merge(k, nvl(eff.intValue, 0), Integer::sum);
                     }
 
                     // ── Multiplicative ───────────────────────────────────────
                     case STAT_MULTIPLY -> {
-                        double f = eff.doubleValue != null ? eff.doubleValue : 1.0;
-                        switch (norm(eff.stat)) {
-                            case "vitality"               -> vitM  *= f;
-                            case "strength"               -> strM  *= f;
-                            case "durability"             -> durM  *= f;
-                            case "speed"                  -> spdM  *= f;
-                            case "cursedenergyreserves"   -> ceRM  *= f;
-                            case "cursedenergyefficiency" -> ceEfM *= f;
-                            case "cursedenergyoutput"     -> ceOM  *= f;
-                            case "jujutsuskill"           -> jsM   *= f;
-                            case "combatability"          -> caM   *= f;
-                            case "cursedtechniquemastery" -> ctmM  *= f;
-                            default -> warn(eff.stat);
-                        }
+                        StatKey k = resolveStatKey(eff.stat);
+                        if (k != null) multipliers.merge(k, nvl(eff.doubleValue, 1.0), (a, b) -> a * b);
                     }
                     case STAT_DIVIDE -> {
-                        double d = eff.doubleValue != null && eff.doubleValue != 0 ? eff.doubleValue : 1.0;
-                        switch (norm(eff.stat)) {
-                            case "vitality"               -> vitM  /= d;
-                            case "strength"               -> strM  /= d;
-                            case "durability"             -> durM  /= d;
-                            case "speed"                  -> spdM  /= d;
-                            case "cursedenergyreserves"   -> ceRM  /= d;
-                            case "cursedenergyefficiency" -> ceEfM /= d;
-                            case "cursedenergyoutput"     -> ceOM  /= d;
-                            case "jujutsuskill"           -> jsM   /= d;
-                            case "combatability"          -> caM   /= d;
-                            case "cursedtechniquemastery" -> ctmM  /= d;
-                            default -> warn(eff.stat);
-                        }
+                        double d = (eff.doubleValue != null && eff.doubleValue != 0) ? eff.doubleValue : 1.0;
+                        StatKey k = resolveStatKey(eff.stat);
+                        if (k != null) multipliers.merge(k, d, (a, b) -> a / b);
                     }
 
                     // ── Non-stat → flags ─────────────────────────────────────
                     case CE_COST_TO_MINIMUM      -> flags.ceCostToMinimum = true;
                     case CE_COST_MULTIPLY        -> flags.ceCostMultiplier *= nvl(eff.doubleValue, 1.0);
 
-                    case MOVE_ACCURACY_ADD       -> flags.accuracyBonus   += nvl(eff.intValue, 0);
-                    case MOVE_ACCURACY_MULTIPLY  -> flags.accuracyMultiplier *= nvl(eff.doubleValue, 1.0);
+                    case MOVE_ACCURACY_ADD       -> flags.accuracyBonus        += nvl(eff.intValue, 0);
+                    case MOVE_ACCURACY_MULTIPLY  -> flags.accuracyMultiplier   *= nvl(eff.doubleValue, 1.0);
 
-                    case OPPONENT_ACCURACY_ADD   -> flags.opponentAccuracyBonus += nvl(eff.intValue, 0);
-                    case OPPONENT_ACCURACY_MULTIPLY -> flags.opponentAccuracyMultiplier *= nvl(eff.doubleValue, 1.0);
+                    case OPPONENT_ACCURACY_ADD      -> flags.opponentAccuracyBonus       += nvl(eff.intValue, 0);
+                    case OPPONENT_ACCURACY_MULTIPLY -> flags.opponentAccuracyMultiplier  *= nvl(eff.doubleValue, 1.0);
 
-                    case DAMAGE_MULTIPLY         -> flags.damageMultiplier *= nvl(eff.doubleValue, 1.0);
-                    case BF_CHANCE_ADD           -> flags.bfChanceBonus   += nvl(eff.doubleValue, 0.0);
+                    case DAMAGE_MULTIPLY         -> flags.damageMultiplier  *= nvl(eff.doubleValue, 1.0);
+                    case BF_CHANCE_ADD           -> flags.bfChanceBonus    += nvl(eff.doubleValue, 0.0);
                     case MODIFY_DEFENSE          -> flags.defenseMultiplier *= nvl(eff.doubleValue, 1.0);
                     case MODIFY_AP_BAR           -> flags.apBarBonus       += nvl(eff.intValue, 0);
                     case COST_CE_PER_ROUND       -> flags.ceCostPerRound   += nvl(eff.intValue, 0);
@@ -173,18 +112,18 @@ public final class AbilityApplicator {
             }
         }
 
-        // Apply multipliers — use unclamped constructor so 0 is valid
+        // Apply multipliers via unclamped constructor (0 is valid)
         CharacterStats modified = new CharacterStats(
-            noNeg((int) Math.round(vit  * vitM)),
-            noNeg((int) Math.round(str  * strM)),
-            noNeg((int) Math.round(dur  * durM)),
-            noNeg((int) Math.round(spd  * spdM)),
-            noNeg((int) Math.round(ceR  * ceRM)),
-            noNeg((int) Math.round(ceEf * ceEfM)),
-            noNeg((int) Math.round(ceO  * ceOM)),
-            noNeg((int) Math.round(js   * jsM)),
-            noNeg((int) Math.round(ca   * caM)),
-            noNeg((int) Math.round(ctm  * ctmM))
+            noNeg((int) Math.round(additive.get(StatKey.VITALITY)                 * multipliers.get(StatKey.VITALITY))),
+            noNeg((int) Math.round(additive.get(StatKey.STRENGTH)                 * multipliers.get(StatKey.STRENGTH))),
+            noNeg((int) Math.round(additive.get(StatKey.DURABILITY)               * multipliers.get(StatKey.DURABILITY))),
+            noNeg((int) Math.round(additive.get(StatKey.SPEED)                    * multipliers.get(StatKey.SPEED))),
+            noNeg((int) Math.round(additive.get(StatKey.CURSED_ENERGY_RESERVES)   * multipliers.get(StatKey.CURSED_ENERGY_RESERVES))),
+            noNeg((int) Math.round(additive.get(StatKey.CURSED_ENERGY_EFFICIENCY) * multipliers.get(StatKey.CURSED_ENERGY_EFFICIENCY))),
+            noNeg((int) Math.round(additive.get(StatKey.CURSED_ENERGY_OUTPUT)     * multipliers.get(StatKey.CURSED_ENERGY_OUTPUT))),
+            noNeg((int) Math.round(additive.get(StatKey.JUJUTSU_SKILL)            * multipliers.get(StatKey.JUJUTSU_SKILL))),
+            noNeg((int) Math.round(additive.get(StatKey.COMBAT_ABILITY)           * multipliers.get(StatKey.COMBAT_ABILITY))),
+            noNeg((int) Math.round(additive.get(StatKey.CURSED_TECHNIQUE_MASTERY) * multipliers.get(StatKey.CURSED_TECHNIQUE_MASTERY)))
         );
 
         return new ApplicationResult(modified, flags);
@@ -192,11 +131,18 @@ public final class AbilityApplicator {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static String norm(String s) {
-        return s != null ? s.toLowerCase().replace("_","").replace(" ","") : "";
-    }
-    private static void warn(String stat) {
-        System.err.println("[WARN] AbilityApplicator: unknown stat '" + stat + "'");
+    /** Resolve a stat name string to a StatKey, logging a warning on failure. */
+    private static StatKey resolveStatKey(String stat) {
+        if (stat == null || stat.isBlank()) {
+            System.err.println("[WARN] AbilityApplicator: null/blank stat name");
+            return null;
+        }
+        try {
+            return StatKey.fromString(stat);
+        } catch (IllegalArgumentException e) {
+            System.err.println("[WARN] AbilityApplicator: unknown stat '" + stat + "'");
+            return null;
+        }
     }
     private static int    nvl(Integer v, int    def) { return v != null ? v : def; }
     private static double nvl(Double  v, double def) { return v != null ? v : def; }

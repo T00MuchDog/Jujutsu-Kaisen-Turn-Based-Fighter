@@ -117,9 +117,9 @@ public abstract class Character extends Entity {
 
             // --- 3. Slot budget (DEFENSIVE and UTILITY are free — not slot-gated) ---
             MoveCategory cat = move.getCategory();
-            if (cat != MoveCategory.DEFENSIVE && cat != MoveCategory.UTILITY) {
+            if (SlotBudgetEnforcer.isSlotGated(cat)) {
                 int used      = slotUsed.getOrDefault(cat, 0);
-                int available = getSlotCount(combatStats, cs, cat);
+                int available = SlotBudgetEnforcer.slotBudgetFor(combatStats, cs, cat);
                 if (used >= available) {
                     throw new IllegalArgumentException(
                         "Character has no available slots for category " + cat
@@ -133,15 +133,6 @@ public abstract class Character extends Entity {
         }
 
         return validated;
-    }
-
-    private static int getSlotCount(CombatStats combatStats, CharacterStats cs, MoveCategory cat) {
-        return switch (cat) {
-            case PHYSICAL             -> combatStats.getPhysicalMoveSlots();
-            case INNATE_TECHNIQUE     -> combatStats.getCursedTechniqueSlots();
-            case NON_INNATE_TECHNIQUE -> combatStats.getJujutsuTechniqueSlots();
-            default                   -> combatStats.hybridSlots(cs, cat);
-        };
     }
 
     /** Package-accessible and public delegate — routes through CharacterStats.getByName(). */

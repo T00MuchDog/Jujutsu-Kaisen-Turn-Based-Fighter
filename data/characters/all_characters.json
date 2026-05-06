@@ -1,1 +1,31 @@
-[ ]
+[ {
+  "id" : "000000",
+  "name" : "Test_A",
+  "vitality" : 80,
+  "strength" : 80,
+  "durability" : 80,
+  "speed" : 80,
+  "cursedEnergyReserves" : 80,
+  "cursedEnergyEfficiency" : 80,
+  "cursedEnergyOutput" : 80,
+  "jujutsuSkill" : 80,
+  "combatAbility" : 80,
+  "cursedTechniqueMastery" : 0,
+  "moveIds" : [ "000000", "000001" ],
+  "abilityIds" : [ ]
+}, {
+  "id" : "000001",
+  "name" : "Test_B",
+  "vitality" : 80,
+  "strength" : 80,
+  "durability" : 80,
+  "speed" : 80,
+  "cursedEnergyReserves" : 80,
+  "cursedEnergyEfficiency" : 80,
+  "cursedEnergyOutput" : 80,
+  "jujutsuSkill" : 80,
+  "combatAbility" : 80,
+  "cursedTechniqueMastery" : 0,
+  "moveIds" : [ "000000", "000001" ],
+  "abilityIds" : [ ]
+} ]

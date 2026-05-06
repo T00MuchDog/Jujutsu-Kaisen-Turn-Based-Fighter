@@ -16,8 +16,7 @@ import java.util.List;
  * Rules:
  *  - Blocks are placed sequentially; a new block starts at (previous block's end + 1).
  *  - Total AP of all blocks cannot exceed maxApBar.
- *  - The FULL_BLOCK defensive move, if present, registers its tick range for
- *    real-time active-block queries during resolution.
+ *  - BLOCK defensive moves register their tick range for active-block queries during resolution.
  */
 public class Timeline {
 
@@ -95,22 +94,6 @@ public class Timeline {
             }
         }
         return firing;
-    }
-
-    /**
-     * Check if a FULL_BLOCK defensive move is covering the given tick.
-     * A full block is "active" if the counter is still inside its AP block range.
-     */
-    public boolean hasActiveFullBlockAt(int tick) {
-        for (MoveBlock b : blocks) {
-            if (!b.isKnockedOut()
-                && b.getMove().getDefenseType() == DefenseType.BLOCK
-                && tick >= b.getStartTick()
-                && tick <= b.getEndTick()) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**

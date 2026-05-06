@@ -64,8 +64,8 @@ public final class DamageCalculator {
         Random          rng,
         int             currentRound
     ) {
-        CharacterStats acs = attacker.getCharacter().getBaseStats();
-        CharacterStats dcs = defender.getCharacter().getBaseStats();
+        // Use ability-modified stats for all calculations
+        CharacterStats acs = attacker.getEffectiveStats();
 
         // --- 1. Hit roll ---
         boolean hit;
@@ -73,8 +73,8 @@ public final class DamageCalculator {
             hit = true;
         } else {
             double hitChance = CombatStats.computeHitChance(
-                attacker.getCharacter().getCombatStats().getAccuracy(),
-                defender.getCharacter().getCombatStats().getEvasion(),
+                attacker.getEffectiveCombatStats().getAccuracy(),
+                defender.getEffectiveCombatStats().getEvasion(),
                 move.getBaseAccuracy()
             );
             hit = rng.nextDouble() < hitChance;

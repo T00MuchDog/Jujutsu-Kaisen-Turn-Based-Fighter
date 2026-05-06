@@ -2,6 +2,7 @@ package com.jjktbf.editor;
 
 import com.jjktbf.model.character.*;
 import com.jjktbf.model.move.*;
+import com.jjktbf.model.character.SlotBudgetEnforcer;
 
 import java.io.IOException;
 import java.util.*;
@@ -51,32 +52,36 @@ public class CharacterEditorMain {
     private static final int STAT_MAX          = CharacterStats.MAX_STAT;   // 300
     private static final int STAT_BASELINE     = CharacterStats.BASELINE;   // 80
 
-    /** Order in which stats are presented to the user. */
-    private static final String[] STAT_KEYS = {
-        "vitality", "strength", "durability", "speed",
-        "cursedEnergyReserves", "cursedEnergyEfficiency", "cursedEnergyOutput",
-        "jujutsuSkill", "combatAbility", "cursedTechniqueMastery"
-    };
-
-    private static final String[] STAT_LABELS = {
-        "Vitality", "Strength", "Durability", "Speed",
-        "Cursed Energy Reserves", "Cursed Energy Efficiency", "Cursed Energy Output",
-        "Jujutsu Skill", "Combat Ability", "Cursed Technique Mastery"
+    /** Stat display order — drives all stat-entry loops. Derived from StatKey enum. */
+    private static final StatKey[] STAT_ORDER = {
+        StatKey.VITALITY, StatKey.STRENGTH, StatKey.DURABILITY, StatKey.SPEED,
+        StatKey.COMBAT_ABILITY,
+        StatKey.CURSED_ENERGY_RESERVES, StatKey.CURSED_ENERGY_EFFICIENCY, StatKey.CURSED_ENERGY_OUTPUT,
+        StatKey.JUJUTSU_SKILL, StatKey.CURSED_TECHNIQUE_MASTERY
     };
 
     // -------------------------------------------------------------------------
     // Fields
     // -------------------------------------------------------------------------
 
-    private final Scanner             sc           = new Scanner(System.in);
-    private final CharacterRepository charRepo;
-    private final MoveRepository      moveRepo;
-    private final AbilityRepository   abilityRepo;
+    private final Scanner             sc;
+    private final EditorIO              io;
+    private final CharacterRepository   charRepo;
+    private final MoveRepository        moveRepo;
+    private final AbilityRepository     abilityRepo;
+    private final StatEntryFlow         statEntry;
+    private final MoveAssignmentFlow    moveAssignment;
+    private final AbilityAssignmentFlow abilityAssignment;
 
     public CharacterEditorMain() {
-        this.charRepo    = new CharacterRepository(CHAR_DATA_DIR);
-        this.moveRepo    = new MoveRepository(MOVE_DATA_DIR);
-        this.abilityRepo = new AbilityRepository(ABILITY_DATA_DIR);
+        this.sc                = new Scanner(System.in);
+        this.io                = new EditorIO(sc);
+        this.charRepo          = new CharacterRepository(CHAR_DATA_DIR);
+        this.moveRepo          = new MoveRepository(MOVE_DATA_DIR);
+        this.abilityRepo       = new AbilityRepository(ABILITY_DATA_DIR);
+        this.statEntry         = new StatEntryFlow(io, sc);
+        this.moveAssignment    = new MoveAssignmentFlow(io, sc, moveRepo);
+        this.abilityAssignment = new AbilityAssignmentFlow(io, sc, abilityRepo);
     }
 
     public static void main(String[] args) {
@@ -343,409 +348,29 @@ public class CharacterEditorMain {
         boolean hasInnate = cd.innateTechniqueName != null;
         System.out.println();
         if (pointBuy) {
-            fillStatsPointBuy(cd, hasInnate);
+            statEntry.fillPointBuy(cd, hasInnate);
         } else {
-            fillStatsManual(cd, hasInnate);
+            statEntry.fillManual(cd, hasInnate);
         }
 
         // ── Move assignment ───────────────────────────────────────────────────
         System.out.println();
-        fillMoves(cd);
+        moveAssignment.run(cd);
 
         // ── Ability assignment ────────────────────────────────────────────────
         System.out.println();
-        fillAbilities(cd);
+        abilityAssignment.run(cd);
     }
 
-    // =========================================================================
-    // Manual stat entry
-    // =========================================================================
-
-    private void fillStatsManual(CharacterData cd, boolean hasInnate) {
-        sep("Stats  (editor mode — no limits enforced)");
-        System.out.println("  Baseline: " + STAT_BASELINE + "  |  Game-rule range: " + STAT_MIN + "–" + STAT_MAX
-            + "  |  Editor: any value, including 0 (N/A)");
-        if (!hasInnate) {
-            System.out.println("  Note: Cursed Technique Mastery is N/A (locked at " + STAT_BASELINE + ").");
-        }
-
-        for (int i = 0; i < STAT_KEYS.length; i++) {
-            String key   = STAT_KEYS[i];
-            String label = STAT_LABELS[i];
-
-            // CTM is locked at baseline for characters with no innate technique
-            if (key.equals("cursedTechniqueMastery") && !hasInnate) {
-                setStatField(cd, key, STAT_BASELINE);
-                System.out.println("  Cursed Technique Mastery: N/A (baseline " + STAT_BASELINE + " — no innate technique)");
-                continue;
-            }
-
-            int current = getStatField(cd, key);
-            // Editor mode: no min/max enforced — use uncapped promptStatWithPreview
-            int value   = promptStatWithPreviewUncapped(label, current, cd, key);
-            setStatField(cd, key, value);
-        }
-    }
-
-    // =========================================================================
-    // Point-buy stat entry
-    // =========================================================================
-
-    private void fillStatsPointBuy(CharacterData cd, boolean hasInnate) {
-        // Initialise all stats to baseline if this is a fresh character
-        if (cd.vitality == 0) {
-            for (String key : STAT_KEYS) setStatField(cd, key, STAT_BASELINE);
-        }
-        // Lock CTM to baseline immediately for no-technique characters
-        if (!hasInnate) {
-            setStatField(cd, "cursedTechniqueMastery", STAT_BASELINE);
-        }
-
-        int budget = POINT_BUY_BUDGET + (hasInnate ? 0 : POINT_BUY_BONUS_NO_TECH);
-
-        sep("Stats — Point-Buy  (budget: " + budget + " pts, baseline " + STAT_BASELINE + ")");
-        if (!hasInnate) {
-            System.out.println("  +80 bonus points applied (CTM is N/A — locked at " + STAT_BASELINE + ").");
-        }
-
-        for (int i = 0; i < STAT_KEYS.length; i++) {
-            String key   = STAT_KEYS[i];
-            String label = STAT_LABELS[i];
-
-            // CTM locked for no-technique characters
-            if (key.equals("cursedTechniqueMastery") && !hasInnate) {
-                System.out.println("  Cursed Technique Mastery: N/A (locked at " + STAT_BASELINE + ")");
-                continue;
-            }
-
-            while (true) {
-                int pointsSpent     = pointsSpent(cd, hasInnate);
-                int pointsRemaining = budget - pointsSpent;
-                int current         = getStatField(cd, key);
-                int maxAffordable   = Math.min(STAT_MAX, current + pointsRemaining);
-
-                System.out.printf("%n  Points remaining: %d / %d%n", pointsRemaining, budget);
-                System.out.printf("  %s [current: %d, max affordable: %d, floor: %d]%n",
-                    label, current, maxAffordable, STAT_MIN);
-                printStatPreview(cd);
-
-                String input = prompt("  Enter value (ENTER to keep " + current + "): ").trim();
-                if (input.isBlank()) break;
-
-                try {
-                    int v = Integer.parseInt(input);
-                    if (v < STAT_MIN) {
-                        System.out.printf("  Minimum is %d.%n", STAT_MIN);
-                        continue;
-                    }
-                    if (v > STAT_MAX) {
-                        System.out.printf("  Maximum is %d.%n", STAT_MAX);
-                        continue;
-                    }
-                    int delta = v - current;
-                    if (delta > 0 && delta > pointsRemaining) {
-                        System.out.printf("  Not enough points. You have %d remaining, this costs %d.%n",
-                            pointsRemaining, delta);
-                        continue;
-                    }
-                    setStatField(cd, key, v);
-                    break;
-                } catch (NumberFormatException e) {
-                    System.out.println("  Enter a whole number.");
-                }
-            }
-        }
-
-        int finalSpent = pointsSpent(cd, hasInnate);
-        System.out.printf("%n  Stats finalised. Points spent: %d / %d  (unspent: %d)%n",
-            finalSpent, budget, budget - finalSpent);
-    }
-
-    /**
-     * Points spent = sum of all counted stats minus their baseline values.
-     * When hasInnate is false, CTM is excluded from the count (it's locked and free).
-     */
-    private int pointsSpent(CharacterData cd, boolean hasInnate) {
-        int sumStats = 0;
-        int countedKeys = 0;
-        for (String key : STAT_KEYS) {
-            if (key.equals("cursedTechniqueMastery") && !hasInnate) continue;
-            sumStats += getStatField(cd, key);
-            countedKeys++;
-        }
-        return sumStats - (STAT_BASELINE * countedKeys);
-    }
-
-    // =========================================================================
-    // Move assignment
-    // =========================================================================
-
-    private void fillMoves(CharacterData cd) {
-        sep("Move Assignment");
-
-        CharacterStats stats = cd.toCharacterStats();
-        CombatStats    cs    = cd.toCombatStats();
-
-        System.out.println("  Slot budgets:");
-        System.out.printf("    Physical:               %d slots%n", cs.getPhysicalMoveSlots());
-        System.out.printf("    Jujutsu / CE:           %d slots%n", cs.getJujutsuTechniqueSlots());
-        System.out.printf("    Cursed Technique:       %d slots%n", cs.getCursedTechniqueSlots());
-        System.out.println("    Defensive / Utility:    unlimited");
-        System.out.println();
-
-        if (cd.moveIds == null) cd.moveIds = new ArrayList<>();
-        List<String> assignedIds = new ArrayList<>(cd.moveIds);
-
-        // Track slot usage from already-assigned moves
-        Map<MoveCategory, Integer> slotUsed = countSlotUsage(assignedIds, cs, stats);
-
-        System.out.println("  Currently assigned: " + formatIdList(assignedIds));
-        System.out.println("  Enter 0 to finish, or R to reset move list.");
-        System.out.println();
-
-        while (true) {
-            // Build eligible move list
-            List<MoveData> eligible = getEligibleMoves(cd, assignedIds, slotUsed, stats, cs);
-
-            if (eligible.isEmpty()) {
-                System.out.println("  No more moves available (all slots filled or no eligible moves remain).");
-                break;
-            }
-
-            // Print eligible moves
-            printEligibleMoveList(eligible, assignedIds);
-            System.out.printf("  Queue: %s%n", formatIdList(assignedIds));
-            System.out.println();
-            System.out.print("  > Add move (#), 0 to finish, R to reset: ");
-            String input = sc.nextLine().trim().toUpperCase();
-
-            if (input.equals("0")) break;
-            if (input.equals("R")) {
-                assignedIds.clear();
-                slotUsed.clear();
-                System.out.println("  Move list cleared.");
-                continue;
-            }
-
-            try {
-                int idx = Integer.parseInt(input) - 1;
-                if (idx < 0 || idx >= eligible.size()) {
-                    System.out.println("  Invalid number.");
-                    continue;
-                }
-                MoveData chosen = eligible.get(idx);
-                assignedIds.add(chosen.id);
-
-                // Update slot usage
-                MoveCategory cat = chosen.derivedCategory();
-                if (cat != MoveCategory.DEFENSIVE && cat != MoveCategory.UTILITY) {
-                    slotUsed.merge(cat, 1, Integer::sum);
-                }
-                System.out.println("  Added: " + chosen.name);
-
-            } catch (NumberFormatException e) {
-                System.out.println("  Enter a number or 0.");
-            }
-        }
-
-        cd.moveIds = assignedIds;
-        System.out.printf("  %d moves assigned.%n", assignedIds.size());
-    }
-
-    /**
-     * Return moves from the repository that this character is eligible for
-     * and has not already assigned.
-     *
-     * Eligibility:
-     *  - Not already in assignedIds
-     *  - Technique restriction: if move.requiredTechniqueName != null,
-     *    character must have a matching innateTechniqueName (case-insensitive)
-     *  - All stat prerequisites met
-     *  - Slot budget not exhausted for this move's category
-     */
-    private List<MoveData> getEligibleMoves(
-        CharacterData cd,
-        List<String> assignedIds,
-        Map<MoveCategory, Integer> slotUsed,
-        CharacterStats stats,
-        CombatStats cs
-    ) {
-        List<MoveData> eligible = new ArrayList<>();
-
-        for (MoveData md : moveRepo.getAll()) {
-            // Skip already assigned
-            if (assignedIds.contains(md.id)) continue;
-
-            // Technique restriction check
-            if (md.requiredTechniqueName != null && !md.requiredTechniqueName.isBlank()) {
-                if (cd.innateTechniqueName == null
-                    || !md.requiredTechniqueName.equalsIgnoreCase(cd.innateTechniqueName)) {
-                    continue; // character doesn't have this technique
-                }
-            }
-
-            // Stat prerequisite check
-            if (md.prerequisites != null) {
-                boolean prereqFailed = false;
-                for (Map.Entry<String, Integer> prereq : md.prerequisites.entrySet()) {
-                    try {
-                        int actual = stats.getByName(prereq.getKey());
-                        if (actual < prereq.getValue()) { prereqFailed = true; break; }
-                    } catch (Exception ignored) { prereqFailed = true; break; }
-                }
-                if (prereqFailed) continue;
-            }
-
-            // Slot budget check
-            MoveCategory cat = md.derivedCategory();
-            if (cat != MoveCategory.DEFENSIVE && cat != MoveCategory.UTILITY) {
-                int used      = slotUsed.getOrDefault(cat, 0);
-                int available = getSlotBudget(cs, stats, cat);
-                if (used >= available) continue;
-            }
-
-            eligible.add(md);
-        }
-
-        return eligible;
-    }
-
-    // =========================================================================
-    // Ability assignment
-    // =========================================================================
-
-    private void fillAbilities(CharacterData cd) {
-        sep("Ability Assignment");
-
-        if (cd.abilityIds == null) cd.abilityIds = new ArrayList<>();
-        List<String> assignedIds = new ArrayList<>(cd.abilityIds);
-
-        System.out.println("  Abilities are global — browse and assign by ID.");
-        System.out.println("  Some abilities have source requirements (e.g. technique, stat threshold).");
-        System.out.println("  Currently assigned: " + formatAbilityIdList(assignedIds));
-        System.out.println("  Enter 0 to finish, R to reset.");
-        System.out.println();
-
-        while (true) {
-            List<AbilityData> eligible = getEligibleAbilities(cd, assignedIds);
-
-            if (eligible.isEmpty() && abilityRepo.size() == 0) {
-                System.out.println("  No abilities in the repository yet. Use the Ability Editor to create some.");
-                break;
-            }
-
-            printEligibleAbilityList(eligible);
-            System.out.printf("  Assigned: %s%n", formatAbilityIdList(assignedIds));
-            System.out.print("  > Add ability (#), 0 to finish, R to reset: ");
-            String input = sc.nextLine().trim().toUpperCase();
-
-            if (input.equals("0")) break;
-            if (input.equals("R")) { assignedIds.clear(); System.out.println("  Ability list cleared."); continue; }
-
-            try {
-                int idx = Integer.parseInt(input) - 1;
-                if (idx < 0 || idx >= eligible.size()) { System.out.println("  Invalid number."); continue; }
-                AbilityData chosen = eligible.get(idx);
-                assignedIds.add(chosen.id);
-                System.out.println("  Added: " + chosen.name);
-            } catch (NumberFormatException e) {
-                System.out.println("  Enter a number or 0.");
-            }
-        }
-
-        cd.abilityIds = assignedIds;
-        System.out.printf("  %d abilities assigned.%n", assignedIds.size());
-    }
-
-    /**
-     * Return all abilities NOT already assigned to this character.
-     * No hard eligibility gating here — source requirements are informational
-     * (the designer sees them and decides). The engine enforces them at runtime.
-     */
-    private List<AbilityData> getEligibleAbilities(CharacterData cd, List<String> assignedIds) {
-        List<AbilityData> eligible = new ArrayList<>();
-        for (AbilityData ad : abilityRepo.getAll()) {
-            if (!assignedIds.contains(ad.id)) eligible.add(ad);
-        }
-        return eligible;
-    }
-
-    private void printEligibleAbilityList(List<AbilityData> abilities) {
-        if (abilities.isEmpty()) {
-            System.out.println("  [All abilities already assigned or none exist]");
-            return;
-        }
-        System.out.printf("  %-4s %-8s %-24s %-10s %-20s%n", "#", "ID", "Name", "Category", "Source");
-        System.out.println("  " + "─".repeat(72));
-        for (int i = 0; i < abilities.size(); i++) {
-            AbilityData ad = abilities.get(i);
-            String src = ad.sourceType != null ? ad.sourceType : "?";
-            if (ad.sourceValue != null) src += "(" + truncate(ad.sourceValue, 12) + ")";
-            System.out.printf("  %-4d %-8s %-24s %-10s %-20s%n",
-                i + 1, ad.id, truncate(ad.name, 24), ad.category, truncate(src, 20));
-        }
-    }
-
-    private String formatAbilityEntry(String abilityId) {
-        return abilityRepo.findById(abilityId)
-            .map(ad -> abilityId + " " + truncate(ad.name, 40)
-                + " [" + (ad.category != null ? ad.category : "?") + "]")
-            .orElse(abilityId + " [missing]");
-    }
-
-    private String formatAbilityIdList(List<String> ids) {
-        if (ids == null || ids.isEmpty()) return "[none]";
-        return ids.stream()
-            .map(id -> abilityRepo.findById(id).map(ad -> ad.name).orElse(id))
-            .collect(Collectors.joining(" | "));
-    }
-
-    private Map<MoveCategory, Integer> countSlotUsage(
-        List<String> moveIds, CombatStats cs, CharacterStats stats
-    ) {
-        Map<MoveCategory, Integer> slotUsed = new EnumMap<>(MoveCategory.class);
-        for (String id : moveIds) {
-            moveRepo.findById(id).ifPresent(md -> {
-                MoveCategory cat = md.derivedCategory();
-                if (cat != MoveCategory.DEFENSIVE && cat != MoveCategory.UTILITY) {
-                    slotUsed.merge(cat, 1, Integer::sum);
-                }
-            });
-        }
-        return slotUsed;
-    }
-
-    private int getSlotBudget(CombatStats cs, CharacterStats stats, MoveCategory cat) {
-        return switch (cat) {
-            case PHYSICAL             -> cs.getPhysicalMoveSlots();
-            case INNATE_TECHNIQUE     -> cs.getCursedTechniqueSlots();
-            case NON_INNATE_TECHNIQUE -> cs.getJujutsuTechniqueSlots();
-            default                   -> cs.hybridSlots(stats, cat);
-        };
-    }
-
-    private void printEligibleMoveList(List<MoveData> moves, List<String> assigned) {
-        System.out.printf("  %-4s %-8s %-24s %-20s %-5s %-5s%n",
-            "#", "ID", "Name", "Tags", "AP", "Pwr");
-        System.out.println("  " + "─".repeat(72));
-        for (int i = 0; i < moves.size(); i++) {
-            MoveData md  = moves.get(i);
-            String tags  = md.tags != null ? String.join(",", md.tags) : "—";
-            String power = md.basePower == 0 ? "N/A" : String.valueOf(md.basePower);
-            System.out.printf("  %-4d %-8s %-24s %-20s %-5d %-5s%n",
-                i + 1, md.id, truncate(md.name, 24), truncate(tags, 20), md.apCost, power);
-        }
-    }
 
     // =========================================================================
     // Validation and persistence
     // =========================================================================
 
     private void validateAndAdd(CharacterData cd) {
+        if (cd.id == null || cd.id.isBlank()) { cd.id = charRepo.nextId(); }
         String err = validateCharacterData(cd);
         if (err != null) { System.out.println("  [VALIDATION ERROR] " + err); return; }
-        // Assign ID before add (works even when repository was empty)
-        if (cd.id == null || cd.id.isBlank()) { cd.id = charRepo.nextId(); }
         charRepo.add(cd);
         persistNow();
         System.out.println("  Saved as ID: " + cd.id + "  —  " + cd.name);
@@ -761,7 +386,6 @@ public class CharacterEditorMain {
 
     private String validateCharacterData(CharacterData cd) {
         if (cd.name == null || cd.name.isBlank()) return "Name is required.";
-        // Attempt to build the domain character to catch constraint violations
         try {
             cd.toCharacter(moveRepo);
         } catch (Exception e) {
@@ -775,149 +399,20 @@ public class CharacterEditorMain {
         catch (IOException e) { System.out.println("  [ERROR] Could not write: " + e.getMessage()); }
     }
 
-    // =========================================================================
-    // Stat preview helpers
-    // =========================================================================
-
-    /** Stat prompt with game-rule bounds enforced. Used by the point-buy creator. */
-    private int promptStatWithPreview(String label, int current, CharacterData cd,
-                                      String key, int min, int max) {
-        while (true) {
-            String input = prompt("  " + label + " [" + current + ", range " + min + "–" + max + "]: ").trim();
-            if (input.isBlank()) {
-                printStatPreviewForKey(key, current, cd);
-                return current;
-            }
-            try {
-                int v = Integer.parseInt(input);
-                if (v < min || v > max) {
-                    System.out.printf("  Must be between %d and %d.%n", min, max);
-                    continue;
-                }
-                setStatField(cd, key, v);
-                printStatPreviewForKey(key, v, cd);
-                return v;
-            } catch (NumberFormatException e) {
-                System.out.println("  Enter a whole number.");
-            }
-        }
-    }
-
-    /**
-     * Stat prompt with NO bounds enforced.
-     * Used by the character editor (Manual mode and Edit mode).
-     * Values below 0 are rejected (no stat can be negative); 0 = N/A is allowed.
-     */
-    private int promptStatWithPreviewUncapped(String label, int current, CharacterData cd, String key) {
-        while (true) {
-            String input = prompt("  " + label + " [" + current + "] (0 = N/A, no upper limit): ").trim();
-            if (input.isBlank()) {
-                printStatPreviewForKey(key, current, cd);
-                return current;
-            }
-            try {
-                int v = Integer.parseInt(input);
-                if (v < 0) {
-                    System.out.println("  Stats cannot be negative. Enter 0 for N/A.");
-                    continue;
-                }
-                setStatField(cd, key, v);
-                printStatPreviewForKey(key, v, cd);
-                return v;
-            } catch (NumberFormatException e) {
-                System.out.println("  Enter a whole number.");
-            }
-        }
-    }
-
-    private void printStatPreviewForKey(String key, int value, CharacterData cd) {
-        CombatStats cs = cd.toCombatStats();
-        String preview = switch (key) {
-            case "vitality"               -> "→ HP: " + cs.getMaxHp();
-            case "speed", "combatAbility" -> "→ AP Bar: " + cs.getMaxApBar()
-                                           + "  Accuracy: " + cs.getAccuracy()
-                                           + "  Evasion: " + cs.getEvasion();
-            case "cursedEnergyReserves"   -> "→ CE Pool: " + cs.getMaxCursedEnergy()
-                                           + "  Physical slots not affected";
-            case "cursedEnergyEfficiency" -> "→ CE efficiency factor: "
-                                           + String.format("%.2f", (double) CharacterStats.BASELINE / value)
-                                           + "x cost multiplier";
-            case "jujutsuSkill"           -> "→ Jujutsu/CE move slots: " + cs.getJujutsuTechniqueSlots();
-            case "cursedTechniqueMastery" -> "→ Cursed Technique move slots: " + cs.getCursedTechniqueSlots();
-            default -> "";
-        };
-        if (!preview.isEmpty()) System.out.println("    " + preview);
-    }
-
-    private void printStatPreview(CharacterData cd) {
-        CombatStats cs = cd.toCombatStats();
-        System.out.printf("    [ HP: %-4d  AP: %-4d  CE Pool: %-5d  Accuracy: %-4d  Evasion: %-4d ]%n",
-            cs.getMaxHp(), cs.getMaxApBar(), cs.getMaxCursedEnergy(),
-            cs.getAccuracy(), cs.getEvasion());
-        System.out.printf("    [ Phys slots: %-3d  JJ slots: %-3d  CT slots: %-3d ]%n",
-            cs.getPhysicalMoveSlots(), cs.getJujutsuTechniqueSlots(), cs.getCursedTechniqueSlots());
+    private String formatAbilityEntry(String abilityId) {
+        return abilityRepo.findById(abilityId)
+            .map(ad -> abilityId + " " + truncate(ad.name, 40)
+                + " [" + (ad.category != null ? ad.category : "?") + "]")
+            .orElse(abilityId + " [missing]");
     }
 
     // =========================================================================
-    // Stat get/set by key string (maps field name → CharacterData field)
+    // Prompt helpers — delegates to EditorIO
     // =========================================================================
 
-    private int getStatField(CharacterData cd, String key) {
-        return switch (key) {
-            case "vitality"               -> cd.vitality;
-            case "strength"               -> cd.strength;
-            case "durability"             -> cd.durability;
-            case "speed"                  -> cd.speed;
-            case "cursedEnergyReserves"   -> cd.cursedEnergyReserves;
-            case "cursedEnergyEfficiency" -> cd.cursedEnergyEfficiency;
-            case "cursedEnergyOutput"     -> cd.cursedEnergyOutput;
-            case "jujutsuSkill"           -> cd.jujutsuSkill;
-            case "combatAbility"          -> cd.combatAbility;
-            case "cursedTechniqueMastery" -> cd.cursedTechniqueMastery;
-            default -> throw new IllegalArgumentException("Unknown stat key: " + key);
-        };
-    }
-
-    private void setStatField(CharacterData cd, String key, int value) {
-        switch (key) {
-            case "vitality"               -> cd.vitality               = value;
-            case "strength"               -> cd.strength               = value;
-            case "durability"             -> cd.durability             = value;
-            case "speed"                  -> cd.speed                  = value;
-            case "cursedEnergyReserves"   -> cd.cursedEnergyReserves   = value;
-            case "cursedEnergyEfficiency" -> cd.cursedEnergyEfficiency = value;
-            case "cursedEnergyOutput"     -> cd.cursedEnergyOutput     = value;
-            case "jujutsuSkill"           -> cd.jujutsuSkill           = value;
-            case "combatAbility"          -> cd.combatAbility          = value;
-            case "cursedTechniqueMastery" -> cd.cursedTechniqueMastery = value;
-            default -> throw new IllegalArgumentException("Unknown stat key: " + key);
-        }
-    }
-
-    // =========================================================================
-    // Prompt helpers
-    // =========================================================================
-
-    private String prompt(String label) {
-        System.out.print(label);
-        return sc.nextLine();
-    }
-
-    private String promptNonEmpty(String label, String current) {
-        while (true) {
-            String display = (current != null && !current.isBlank()) ? " [" + current + "]" : "";
-            String input   = prompt("  " + label.replace(": ", display + ": ")).trim();
-            if (!input.isBlank()) return input;
-            if (current != null && !current.isBlank()) return current;
-            System.out.println("  Value cannot be empty.");
-        }
-    }
-
-    private String promptWithDefault(String label, String current) {
-        String display = (current != null && !current.isBlank()) ? " [" + current + "]" : " [blank]";
-        String input   = prompt("  " + label + display + ": ").trim();
-        return input.isBlank() ? (current != null ? current : "") : input;
-    }
+    private String prompt(String label)                        { return io.prompt(label); }
+    private String promptNonEmpty(String label, String cur)    { return io.promptNonEmpty(label, cur); }
+    private String promptWithDefault(String label, String cur) { return io.promptWithDefault(label, cur); }
 
     private String pickCharById(String label) {
         listCharacters();
@@ -932,12 +427,10 @@ public class CharacterEditorMain {
     }
 
     // =========================================================================
-    // Display helpers
+    // Display helpers — delegates to EditorIO
     // =========================================================================
 
-    private void sep(String title) {
-        System.out.println("  ─── " + title + " " + "─".repeat(Math.max(0, 50 - title.length())));
-    }
+    private void sep(String title) { io.sep(title); }
 
     private String formatIdList(List<String> ids) {
         if (ids == null || ids.isEmpty()) return "[none]";
@@ -946,8 +439,5 @@ public class CharacterEditorMain {
             .collect(Collectors.joining(" | "));
     }
 
-    private static String truncate(String s, int max) {
-        if (s == null) return "";
-        return s.length() <= max ? s : s.substring(0, max - 1) + "…";
-    }
+    private static String truncate(String s, int max) { return EditorIO.truncate(s, max); }
 }
