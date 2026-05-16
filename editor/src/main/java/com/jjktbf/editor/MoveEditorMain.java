@@ -159,7 +159,7 @@ public class MoveEditorMain {
         }
         printField("Interrupt",      md.interruptType);
         printField("Defense Type",   md.defenseType);
-        if ("BLOCK".equals(md.defenseType) || "FLAT_BLOCK".equals(md.defenseType)) {
+        if ("PERCENTAGE_BLOCK".equals(md.defenseType) || "FLAT_BLOCK".equals(md.defenseType)) {
             if (md.blockDuration == -1)
                 printField("Block Duration", "end of round");
             else if (md.blockDuration == 0)
@@ -168,7 +168,7 @@ public class MoveEditorMain {
                 printField("Block Duration", md.blockDuration + " ticks");
             if (md.blockAffectedTags != null)
                 printField("Block Tags", md.blockAffectedTags.toString());
-            if ("BLOCK".equals(md.defenseType))
+            if ("PERCENTAGE_BLOCK".equals(md.defenseType))
                 printField("Block Reduction", md.blockDamageReduction + "%");
             else
                 printField("Flat Reduction", "-" + md.blockFlatReduction + " dmg");
@@ -177,9 +177,9 @@ public class MoveEditorMain {
             boolean bf = md.derivedCategory().isBlackFlashEligible();
             printField("BF Eligible", bf ? "Yes ★" : "No");
         } catch (Exception ignored) {}
-        printField("Free",        md.isGuaranteedMove ? "Yes" : "No");
-        if (md.requiredTechniqueName != null)
-            printField("Requires",   md.requiredTechniqueName);
+        printField("Free",        md.isFreeMove ? "Yes" : "No");
+        if (md.requiredTechniqueId != null)
+            printField("Requires",   md.requiredTechniqueId);
         if (md.prerequisites != null && !md.prerequisites.isEmpty())
             printField("Prereqs",    md.prerequisites.toString());
         if (md.onHitEffects != null && !md.onHitEffects.isEmpty())
@@ -327,11 +327,11 @@ public class MoveEditorMain {
         // ── Defensive ─────────────────────────────────────────────────────────
         System.out.println();
         sep("Defense Type");
-        System.out.println("  Options: NONE  BLOCK  FLAT_BLOCK");
-        System.out.println("  BLOCK:      reduces incoming damage by a % (0–100).");
-        System.out.println("  FLAT_BLOCK: reduces incoming damage by a flat amount.");
+        System.out.println("  Options: NONE  PERCENTAGE_BLOCK  FLAT_BLOCK");
+        System.out.println("  PERCENTAGE_BLOCK: reduces incoming damage by a % (0–100).");
+        System.out.println("  FLAT_BLOCK:       reduces incoming damage by a flat amount.");
         md.defenseType = promptEnum("Defense Type", md.defenseType, DefenseType.class);
-        if ("BLOCK".equals(md.defenseType) || "FLAT_BLOCK".equals(md.defenseType)) {
+        if ("PERCENTAGE_BLOCK".equals(md.defenseType) || "FLAT_BLOCK".equals(md.defenseType)) {
             System.out.println();
             sep("Block Settings");
             md.blockDuration = promptInt(
@@ -343,7 +343,7 @@ public class MoveEditorMain {
             md.blockAffectedTags = tagsInput.isBlank() ? null
                 : java.util.Arrays.asList(tagsInput.split(",")).stream()
                     .map(String::trim).filter(s -> !s.isBlank()).toList();
-            if ("BLOCK".equals(md.defenseType)) {
+            if ("PERCENTAGE_BLOCK".equals(md.defenseType)) {
                 md.blockDamageReduction = promptInt(
                     "Damage reduction % (100 = full block, 50 = half damage)",
                     md.blockDamageReduction, 0, 100);
@@ -366,9 +366,9 @@ public class MoveEditorMain {
         System.out.println();
         sep("Technique Restriction");
         String tech = promptWithDefault(
-            "Required technique name (e.g. Shrine, Blood Manipulation — or blank for none)",
-            md.requiredTechniqueName != null ? md.requiredTechniqueName : "");
-        md.requiredTechniqueName = tech.isBlank() ? null : tech;
+            "Required technique ID (e.g. SHRINE, BLOOD_MANIPULATION — or blank for none)",
+            md.requiredTechniqueId != null ? md.requiredTechniqueId : "");
+        md.requiredTechniqueId = tech.isBlank() ? null : tech;
 
         // ── Prerequisites ─────────────────────────────────────────────────────
         System.out.println();
@@ -410,8 +410,8 @@ public class MoveEditorMain {
         // ── Free move (doesn't use a slot) ────────────────────────────
         System.out.println();
         String isF = promptWithDefault("Free move (doesn't use a slot, y/N)",
-                                       md.isGuaranteedMove ? "y" : "n");
-        md.isGuaranteedMove = isF.equalsIgnoreCase("y");
+                                       md.isFreeMove ? "y" : "n");
+        md.isFreeMove = isF.equalsIgnoreCase("y");
     }
 
     // =========================================================================

@@ -19,8 +19,8 @@ public class CombatEvent {
         MOVE_STARTED,       // a move block's startTick was reached; CE drained
         MOVE_FIRED,         // move unleashed — attack resolved
         MOVE_MISSED,
-        MOVE_BLOCKED,       // full block negated the damage
-        MOVE_PARTIAL_BLOCK, // partial block halved incoming damage
+        MOVE_BLOCKED,        // block fully negated the damage (PERCENTAGE_BLOCK at 100%)
+        MOVE_BLOCK_REDUCED,  // block reduced but did not fully negate damage
         MOVE_KNOCKED_OUT,   // interrupt removed this block
 
         // Damage

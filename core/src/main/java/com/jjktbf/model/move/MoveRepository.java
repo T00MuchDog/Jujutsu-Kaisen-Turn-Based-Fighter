@@ -19,7 +19,7 @@ import java.util.*;
  *   When a move is deleted the remaining moves are resequenced so IDs remain
  *   contiguous (0..n-1 for n moves). The order is preserved.
  *
- * Technique names are plain strings stored on MoveData.requiredTechniqueName.
+ * Technique IDs are stored on MoveData.requiredTechniqueId.
  * A separate technique-id registry (TechniqueRepository) handles technique→id mapping.
  */
 public class MoveRepository {

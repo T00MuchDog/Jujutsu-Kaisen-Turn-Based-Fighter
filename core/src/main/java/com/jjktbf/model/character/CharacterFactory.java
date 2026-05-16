@@ -69,7 +69,7 @@ public final class CharacterFactory {
             CoreMoves.ironwall()
         );
 
-        // Sukuna's technique name "Shrine" matches requiredTechniqueName on Dismantle/Cleave/Fleshy Strike
+        // Sukuna's technique ID "SHRINE" matches requiredTechniqueId on Dismantle/Cleave/Fleshy Strike
         return new SorcererCharacter("000001", "Ryomen Sukuna", stats, "Shrine", moves);
     }
 }

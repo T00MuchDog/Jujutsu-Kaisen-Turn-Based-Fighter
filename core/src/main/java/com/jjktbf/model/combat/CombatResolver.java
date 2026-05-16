@@ -146,7 +146,7 @@ public class CombatResolver {
     // Firing collection and sorting
     // -------------------------------------------------------------------------
 
-    private record FiringEntry(MoveBlock block, BattleCombatant attacker, BattleCombatant defender) {}
+    private record FiringEntry(MoveBlock  block, BattleCombatant attacker, BattleCombatant defender) {}
 
     private List<FiringEntry> collectFiringMoves(BattleCombatant player, BattleCombatant enemy, int tick) {
         List<FiringEntry> firing = new ArrayList<>();
@@ -247,10 +247,10 @@ public class CombatResolver {
             defender.applyDamage(result.getFinalDamage());
 
             if (wasBlocked) {
-                events.add(CombatEvent.of(CombatEvent.Type.MOVE_PARTIAL_BLOCK)
+                events.add(CombatEvent.of(CombatEvent.Type.MOVE_BLOCK_REDUCED)
                     .source(attacker).target(defender).move(move)
                     .message(defender.getCharacter().getName()
-                             + " partially blocked " + move.getName() + "! (damage halved)")
+                             + " blocked " + move.getName() + "! (damage reduced)")
                     .build());
             }
 
@@ -300,7 +300,7 @@ public class CombatResolver {
 
     private void resolveDefensiveMove(BattleCombatant combatant, Move move, int tick, List<CombatEvent> events) {
         switch (move.getDefenseType()) {
-            case BLOCK -> {
+            case PERCENTAGE_BLOCK -> {
                 // Block is tracked via Timeline.hasActiveBlockAt()
                 events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                     .source(combatant).move(move)

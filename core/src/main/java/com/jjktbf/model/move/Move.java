@@ -13,7 +13,7 @@ import java.util.Set;
  *
  * Special moves:
  *  - BASIC_PUNCH and BASIC_BLOCK are always available to every character regardless
- *    of move slots. They are stored separately in the character's guaranteed move set.
+ *    of move slots (isFreeMove = true).
  *
  * CE cost:
  *  - baseCeCost is modified at use-time by the character's CE Efficiency stat.
@@ -124,8 +124,8 @@ public class Move {
      */
     private final String requiredTechniqueId;
 
-    /** If true, this move is one of the two always-available guaranteed moves. */
-    private final boolean isGuaranteedMove;
+    /** If true, this move does not consume a move slot when assigned to a character. */
+    private final boolean isFreeMove;
 
     // -------------------------------------------------------------------------
     // Construction via Builder
@@ -155,7 +155,7 @@ public class Move {
         this.selfEffects         = Collections.unmodifiableList(b.selfEffects);
         this.prerequisites       = Collections.unmodifiableMap(b.prerequisites);
         this.requiredTechniqueId = b.requiredTechniqueId;
-        this.isGuaranteedMove    = b.isGuaranteedMove;
+        this.isFreeMove          = b.isFreeMove;
     }
 
     // -------------------------------------------------------------------------
@@ -184,7 +184,7 @@ public class Move {
     public List<StatusEffect> getSelfEffects()    { return selfEffects; }
     public java.util.Map<String, Integer> getPrerequisites() { return prerequisites; }
     public String getRequiredTechniqueId()        { return requiredTechniqueId; }
-    public boolean isGuaranteedMove()             { return isGuaranteedMove; }
+    public boolean isFreeMove()                    { return isFreeMove; }
 
     public boolean isBlackFlashEligible() {
         return category.isBlackFlashEligible();
@@ -230,7 +230,7 @@ public class Move {
         private List<StatusEffect> selfEffects  = List.of();
         private java.util.Map<String, Integer> prerequisites = java.util.Map.of();
         private String requiredTechniqueId   = null;
-        private boolean isGuaranteedMove     = false;
+        private boolean isFreeMove           = false;
 
         public Builder(String id) { this.id = id; }
 
@@ -255,7 +255,7 @@ public class Move {
         public Builder selfEffects(List<StatusEffect> v)   { this.selfEffects = v; return this; }
         public Builder prerequisites(java.util.Map<String, Integer> v) { this.prerequisites = v; return this; }
         public Builder requiredTechniqueId(String v)       { this.requiredTechniqueId = v; return this; }
-        public Builder guaranteedMove(boolean v)           { this.isGuaranteedMove = v; return this; }
+        public Builder freeMove(boolean v)                 { this.isFreeMove = v; return this; }
 
         public Move build() {
             if (id == null || id.isBlank()) throw new IllegalStateException("Move id is required");

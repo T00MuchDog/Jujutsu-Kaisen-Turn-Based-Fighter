@@ -60,12 +60,16 @@ import com.jjktbf.model.move.MoveCategory;
  *      BFS hit 4+ → 50% (cap)
  *    BF only rolls on moves that are BlackFlashEligible (PHYSICAL + CE component).
  *
- *  DEFENSE (passive — applied on each hit received)
- *    Uses Durability and REMAINING CE Reserves at the moment of resolution.
- *    Ratio 3:2 RemainingCE_Reserves to Durability.  (CE reserves stat, not pool units)
+ *  DEFENSE (computed combat stat — applied on each hit AFTER defensive moves)
+ *    Defense is computed during damage calculation, after PERCENTAGE_BLOCK and FLAT_BLOCK
+ *    have already been applied to the incoming damage. It is NOT a raw base stat but
+ *    is derived from Durability, CE Reserves, and the current CE pool at the moment of
+ *    resolution. Utility moves that raise Durability (e.g. via STATUS_EFFECT DEFENSE_UP)
+ *    will indirectly increase Defense.
  *    Formula: DEF = (CE_remaining_fraction * CE_RESERVES * 3 + DUR * 2) / 5
  *    where CE_remaining_fraction = currentCE / maxCE
  *    Note: DEF is dynamic — recalculated each hit based on current CE.
+ *    Pipeline: incoming damage → DEFENSIVE move reduction → Defense stat → final damage.
  *
  *  POWER (move-specific — see PowerCalculator; not a single flat stat)
  *    Physical:          (STR * 4 + CA) / 5
@@ -211,9 +215,17 @@ public class CombatStats {
      * @param currentCe    the character's remaining CE pool units at this moment
      * @param maxCe        the character's max CE pool units
      */
+    /**
+     * Compute the Defense value at the moment of a hit.
+     *
+     * Defense is a combat stat (not a base stat) applied AFTER defensive moves
+     * (PERCENTAGE_BLOCK / FLAT_BLOCK) have already reduced incoming damage.
+     * It is derived from Durability and the fraction of CE Reserves remaining.
+     * As CE is spent during a round, Defense falls — a depleted fighter is easier to damage.
+     * Stat enhancements that increase Durability (e.g. from utility moves) raise Defense.
+     */
     public static int computeDefense(CharacterStats cs, int currentCe, int maxCe) {
         // 3:2 RemainingCE_Reserves : Durability
-        // Scale CE reserves stat by the fraction of CE remaining
         double ceReserveFraction = (maxCe > 0) ? (double) currentCe / maxCe : 0.0;
         double scaledCeReserves  = cs.getCursedEnergyReserves() * ceReserveFraction;
         return (int) Math.round((scaledCeReserves * 3 + cs.getDurability() * 2) / 5.0);

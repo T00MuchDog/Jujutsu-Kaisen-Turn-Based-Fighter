@@ -18,7 +18,7 @@ import java.util.*;
  * Does NOT hold mutable battle state — that lives in BattleCombatant.
  *
  * Technique gating:
- *   Moves with a requiredTechniqueName are only accessible to characters whose
+ *   Moves with a requiredTechniqueId are only accessible to characters whose
  *   innateTechniqueName matches (case-insensitive). Characters with no innate
  *   technique (innateTechniqueName == null) cannot use any technique-restricted move.
  */
@@ -33,6 +33,7 @@ public abstract class Character extends Entity {
      * e.g. "Shrine", "Blood Manipulation", "Infinite Void".
      * Null if the character has no innate technique.
      * Matched case-insensitively against Move.requiredTechniqueId.
+     * Will be replaced by a Technique ID reference once the Technique class is implemented.
      */
     private final String innateTechniqueName;
 
@@ -85,10 +86,6 @@ public abstract class Character extends Entity {
         List<Move> validated = new ArrayList<>();
 
         for (Move move : moves) {
-            if (move.isGuaranteedMove()) {
-                validated.add(move);
-                continue;
-            }
 
             // --- 1. Prerequisite stats ---
             for (Map.Entry<String, Integer> prereq : move.getPrerequisites().entrySet()) {
@@ -103,7 +100,6 @@ public abstract class Character extends Entity {
             }
 
             // --- 2. Technique restriction ---
-            // Move.getRequiredTechniqueId() stores the technique name (renamed field, same slot)
             if (move.getRequiredTechniqueId() != null) {
                 if (innateTechniqueName == null
                     || !move.getRequiredTechniqueId().equalsIgnoreCase(innateTechniqueName)) {
@@ -115,18 +111,20 @@ public abstract class Character extends Entity {
                 }
             }
 
-            // --- 3. Slot budget (DEFENSIVE and UTILITY are free — not slot-gated) ---
-            MoveCategory cat = move.getCategory();
-            if (SlotBudgetEnforcer.isSlotGated(cat)) {
-                int used      = slotUsed.getOrDefault(cat, 0);
-                int available = SlotBudgetEnforcer.slotBudgetFor(combatStats, cs, cat);
-                if (used >= available) {
-                    throw new IllegalArgumentException(
-                        "Character has no available slots for category " + cat
-                        + " (budget=" + available + ") when trying to add move '" + move.getName() + "'"
-                    );
+            // --- 3. Slot budget — free moves and non-slot-gated categories are exempt ---
+            if (!move.isFreeMove()) {
+                MoveCategory cat = move.getCategory();
+                if (SlotBudgetEnforcer.isSlotGated(cat)) {
+                    int used      = slotUsed.getOrDefault(cat, 0);
+                    int available = SlotBudgetEnforcer.slotBudgetFor(combatStats, cs, cat);
+                    if (used >= available) {
+                        throw new IllegalArgumentException(
+                            "Character has no available slots for category " + cat
+                            + " (budget=" + available + ") when trying to add move '" + move.getName() + "'"
+                        );
+                    }
+                    slotUsed.put(cat, used + 1);
                 }
-                slotUsed.put(cat, used + 1);
             }
 
             validated.add(move);

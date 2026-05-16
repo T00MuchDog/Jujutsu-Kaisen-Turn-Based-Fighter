@@ -148,7 +148,7 @@ TextBattleView implements BattleView {
                 case BATTLE_OVER      -> "  !!! ";
                 case MOVE_MISSED      -> "  ··  ";
                 case MOVE_BLOCKED        -> "  ▓▓  ";
-                case MOVE_PARTIAL_BLOCK  -> "  ▒▒  ";
+                case MOVE_BLOCK_REDUCED  -> "  ▒▒  ";
                 case DAMAGE_DEALT     -> "  ►   ";
                 case CE_DEPLETED      -> "  ▼▼▼ ";
                 case MOVE_KNOCKED_OUT -> "  ✗   ";
@@ -243,7 +243,7 @@ TextBattleView implements BattleView {
         }
         if (move.isDefensive()) {
             System.out.printf("  │  Defense    : %-41s│%n", move.getDefenseType());
-            if (move.getDefenseType() == com.jjktbf.model.move.DefenseType.BLOCK) {
+            if (move.getDefenseType() == com.jjktbf.model.move.DefenseType.PERCENTAGE_BLOCK) {
                 System.out.printf("  │  Block      : -%d%%%-38s│%n", move.getBlockDamageReduction(), "");
             } else if (move.getDefenseType() == com.jjktbf.model.move.DefenseType.FLAT_BLOCK) {
                 System.out.printf("  │  Flat Block : -%d dmg%-36s│%n", move.getBlockFlatReduction(), "");

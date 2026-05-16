@@ -32,7 +32,7 @@ public final class CoreMoves {
             .maxCeCost(0)
             .interruptType(InterruptType.NONE)
             .defenseType(DefenseType.NONE)
-            .guaranteedMove(true)
+            .freeMove(true)
             .build();
     }
 
@@ -50,10 +50,10 @@ public final class CoreMoves {
             .minCeCost(0)
             .maxCeCost(0)
             .interruptType(InterruptType.NONE)
-            .defenseType(DefenseType.BLOCK)
+            .defenseType(DefenseType.PERCENTAGE_BLOCK)
             .blockDuration(0)         // lasts for the move's full AP cost (8 ticks)
             .blockDamageReduction(100)
-            .guaranteedMove(true)
+            .freeMove(true)
             .build();
     }
 
@@ -228,7 +228,7 @@ public final class CoreMoves {
             .apCost(12)
             .unleashPoint(1)          // instant activation
             .baseCeCost(25).minCeCost(12).maxCeCost(45)
-            .defenseType(DefenseType.BLOCK)
+            .defenseType(DefenseType.PERCENTAGE_BLOCK)
             .blockDuration(-1)        // lasts the entire round
             .blockDamageReduction(50) // PLACEHOLDER: 50% damage reduction
             .prerequisites(java.util.Map.of("jujutsuskill", 60, "cursedenergyreserves", 60))
@@ -247,7 +247,7 @@ public final class CoreMoves {
             .apCost(20)
             .unleashPoint(1)
             .baseCeCost(0).minCeCost(0).maxCeCost(0)
-            .defenseType(DefenseType.BLOCK)
+            .defenseType(DefenseType.PERCENTAGE_BLOCK)
             .prerequisites(java.util.Map.of("combatability", 70, "durability", 70))
             .build();
     }

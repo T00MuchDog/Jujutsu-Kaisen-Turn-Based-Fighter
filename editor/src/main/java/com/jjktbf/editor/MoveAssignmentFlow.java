@@ -72,7 +72,7 @@ public class MoveAssignmentFlow {
                     System.out.println("  Removed: " + chosen.name);
                 } else {
                     MoveCategory cat = chosen.derivedCategory();
-                    if (SlotBudgetEnforcer.isSlotGated(cat) && !chosen.isGuaranteedMove) {
+                    if (SlotBudgetEnforcer.isSlotGated(cat) && !chosen.isFreeMove) {
                         Map<MoveCategory, Integer> used = countUsage(assignedIds);
                         int available = SlotBudgetEnforcer.slotBudgetFor(cs, stats, cat);
                         if (used.getOrDefault(cat, 0) >= available) {
@@ -104,9 +104,9 @@ public class MoveAssignmentFlow {
         List<MoveData> list = new ArrayList<>();
         for (MoveData md : moveRepo.getAll()) {
             // Technique restriction
-            if (md.requiredTechniqueName != null && !md.requiredTechniqueName.isBlank()) {
+            if (md.requiredTechniqueId != null && !md.requiredTechniqueId.isBlank()) {
                 if (cd.innateTechniqueName == null
-                    || !md.requiredTechniqueName.equalsIgnoreCase(cd.innateTechniqueName)) {
+                    || !md.requiredTechniqueId.equalsIgnoreCase(cd.innateTechniqueName)) {
                     continue;
                 }
             }
