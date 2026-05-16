@@ -198,6 +198,80 @@ public class Move {
         return defenseType != DefenseType.NONE;
     }
 
+    /**
+     * Returns a short display string summarising this block's reduction amount.
+     * e.g. "-50% damage" or "-30 flat dmg". Returns null if not a block.
+     */
+    public String blockDisplayInfo() {
+        return switch (defenseType) {
+            case PERCENTAGE_BLOCK -> "-" + blockDamageReduction + "% damage";
+            case FLAT_BLOCK       -> "-" + blockFlatReduction + " flat dmg";
+            default               -> null;
+        };
+    }
+
+    /**
+     * Returns a human-readable activation message for this block move, for use in combat events.
+     * Returns null if this move is not a block.
+     */
+    public String blockActivationMessage(String characterName) {
+        return switch (defenseType) {
+            case PERCENTAGE_BLOCK -> characterName + " raises their block! (" + blockDamageReduction + "% damage reduction)";
+            case FLAT_BLOCK       -> characterName + " raises their block! (-" + blockFlatReduction + " flat damage reduction)";
+            default               -> null;
+        };
+    }
+
+    /**
+     * Returns true if this move acts as an active block (PERCENTAGE_BLOCK or FLAT_BLOCK).
+     * Used by Timeline to identify blocks without knowing concrete DefenseType values.
+     */
+    public boolean isActiveBlock() {
+        return defenseType == DefenseType.PERCENTAGE_BLOCK || defenseType == DefenseType.FLAT_BLOCK;
+    }
+
+    /**
+     * Apply this move's block reduction to an incoming raw damage value.
+     *
+     * Returns the modified damage. Damage is never reduced below 1.
+     * If this is a full PERCENTAGE_BLOCK (100%), returns 0 to signal a complete block.
+     * Callers should treat a return value of 0 as BLOCKED outcome.
+     *
+     * Should only be called if isActiveBlock() is true.
+     */
+    public int applyBlockTo(int rawDamage) {
+        return switch (defenseType) {
+            case PERCENTAGE_BLOCK -> {
+                if (blockDamageReduction >= 100) yield 0; // full block
+                yield Math.max(1, (int) Math.round(rawDamage * (100 - blockDamageReduction) / 100.0));
+            }
+            case FLAT_BLOCK -> Math.max(1, rawDamage - blockFlatReduction);
+            default -> rawDamage; // not a block move — no reduction
+        };
+    }
+
+    /**
+     * Resolve this move's interrupt effect against the defender's timeline at the given tick.
+     * Returns the MoveBlock that was knocked out, or null if no block was targeted.
+     *
+     * Should only be called if hasInterrupt() is true.
+     */
+    public com.jjktbf.model.combat.MoveBlock resolveInterruptOn(
+            int tick,
+            com.jjktbf.model.combat.Timeline defenderTimeline) {
+        if (defenderTimeline == null) return null;
+        com.jjktbf.model.combat.MoveBlock target = switch (interruptType) {
+            case KNOCK_CURRENT_BLOCK -> defenderTimeline.blockAt(tick);
+            case KNOCK_NEXT_BLOCK    -> defenderTimeline.nextBlockAfter(tick);
+            case NONE                -> null;
+        };
+        if (target != null && !target.isKnockedOut()) {
+            target.knockOut();
+            return target;
+        }
+        return null;
+    }
+
     @Override
     public String toString() {
         return String.format("Move{%s [%s] AP=%d unleash=%d CE=%d}", name, category, apCost, unleashPoint, baseCeCost);

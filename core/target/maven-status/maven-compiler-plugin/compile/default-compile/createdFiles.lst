@@ -20,13 +20,13 @@ com/jjktbf/controller/AIStrategy.class
 com/jjktbf/controller/GreedyAIStrategy.class
 com/jjktbf/model/move/MoveRepository.class
 com/jjktbf/model/combat/BattleCombatant.class
-com/jjktbf/model/combat/CombatResolver$1.class
 com/jjktbf/model/character/CharacterRepository.class
 com/jjktbf/model/character/Entity.class
 com/jjktbf/model/combat/DamageCalculator$DamageResult.class
 com/jjktbf/model/combat/DamageCalculator.class
 com/jjktbf/model/combat/PowerCalculator$1.class
 com/jjktbf/model/move/InterruptType.class
+com/jjktbf/model/move/Move$1.class
 com/jjktbf/model/character/SlotBudgetEnforcer$1.class
 com/jjktbf/model/move/StatusEffect.class
 com/jjktbf/model/character/AbilityApplicator$AbilityFlags.class

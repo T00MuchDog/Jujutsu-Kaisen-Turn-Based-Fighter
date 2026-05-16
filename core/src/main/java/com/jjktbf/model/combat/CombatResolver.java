@@ -299,24 +299,12 @@ public class CombatResolver {
     // -------------------------------------------------------------------------
 
     private void resolveDefensiveMove(BattleCombatant combatant, Move move, int tick, List<CombatEvent> events) {
-        switch (move.getDefenseType()) {
-            case PERCENTAGE_BLOCK -> {
-                // Block is tracked via Timeline.hasActiveBlockAt()
-                events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
-                    .source(combatant).move(move)
-                    .message(combatant.getCharacter().getName()
-                             + " raises their block! (" + move.getBlockDamageReduction() + "% damage reduction)")
-                    .build());
-            }
-            case FLAT_BLOCK -> {
-                // Flat block is tracked via Timeline.hasActiveBlockAt() (same window logic)
-                events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
-                    .source(combatant).move(move)
-                    .message(combatant.getCharacter().getName()
-                             + " raises their block! (-" + move.getBlockFlatReduction() + " flat damage reduction)")
-                    .build());
-            }
-            case NONE -> {}
+        String msg = move.blockActivationMessage(combatant.getCharacter().getName());
+        if (msg != null) {
+            events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
+                .source(combatant).move(move)
+                .message(msg)
+                .build());
         }
         applySelfEffects(combatant, move, events);
     }
@@ -366,14 +354,9 @@ public class CombatResolver {
         Timeline defenderTimeline = defender.getTimeline();
         if (defenderTimeline == null) return;
 
-        MoveBlock targetBlock = switch (move.getInterruptType()) {
-            case KNOCK_CURRENT_BLOCK -> defenderTimeline.blockAt(tick);
-            case KNOCK_NEXT_BLOCK    -> defenderTimeline.nextBlockAfter(tick);
-            case NONE                -> null;
-        };
+        MoveBlock targetBlock = move.resolveInterruptOn(tick, defenderTimeline);
 
-        if (targetBlock != null && !targetBlock.isKnockedOut()) {
-            targetBlock.knockOut();
+        if (targetBlock != null) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_KNOCKED_OUT)
                 .source(attacker).target(defender).move(targetBlock.getMove())
                 .message(attacker.getCharacter().getName() + "'s " + move.getName()

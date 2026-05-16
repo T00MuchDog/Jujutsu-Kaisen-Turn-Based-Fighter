@@ -2,7 +2,6 @@ package com.jjktbf.model.combat;
 
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.CombatStats;
-import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.Move;
 
 import java.util.Random;
@@ -88,17 +87,9 @@ public final class DamageCalculator {
         // --- 2. Check block ---
         Timeline defTimeline = defender.getTimeline();
         MoveBlock activeBlock = defTimeline != null ? defTimeline.blockAt(currentTick) : null;
-        // Only count non-knocked-out defensive blocks
-        if (activeBlock != null && (activeBlock.isKnockedOut()
-                || activeBlock.getMove().getDefenseType() == DefenseType.NONE)) {
+        // Only count non-knocked-out active blocks
+        if (activeBlock != null && (activeBlock.isKnockedOut() || !activeBlock.getMove().isActiveBlock())) {
             activeBlock = null;
-        }
-
-        if (activeBlock != null) {
-            DefenseType dt = activeBlock.getMove().getDefenseType();
-            if (dt == DefenseType.PERCENTAGE_BLOCK && activeBlock.getMove().getBlockDamageReduction() >= 100) {
-                return DamageResult.blocked(move);
-            }
         }
 
         // --- 3. Power ---
@@ -110,22 +101,19 @@ public final class DamageCalculator {
 
         // --- 5. Damage formula ---
         // damage = basePower × (power / defense) × DAMAGE_SCALE × roll
-        // If a block is active, apply reduction (percentage or flat) after the formula.
         double randomRoll = ROLL_MIN + (1.0 - ROLL_MIN) * rng.nextDouble();
         int rawDamage = (int) Math.round(
             move.getBasePower() * ((double) power / defense) * DAMAGE_SCALE * randomRoll
         );
         rawDamage = Math.max(1, rawDamage);
 
+        // --- 5b. Apply block reduction (delegated to the block move itself) ---
         if (activeBlock != null) {
-            DefenseType dt = activeBlock.getMove().getDefenseType();
-            if (dt == DefenseType.PERCENTAGE_BLOCK) {
-                int reductionPct = activeBlock.getMove().getBlockDamageReduction();
-                rawDamage = (int) Math.round(rawDamage * (100 - reductionPct) / 100.0);
-                rawDamage = Math.max(1, rawDamage);
-            } else if (dt == DefenseType.FLAT_BLOCK) {
-                rawDamage = Math.max(1, rawDamage - activeBlock.getMove().getBlockFlatReduction());
+            int afterBlock = activeBlock.getMove().applyBlockTo(rawDamage);
+            if (afterBlock == 0) {
+                return DamageResult.blocked(move); // full block
             }
+            rawDamage = afterBlock;
         }
 
         // --- 6. Black Flash roll ---

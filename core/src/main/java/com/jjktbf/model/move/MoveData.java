@@ -132,6 +132,25 @@ public class MoveData {
     }
 
     // -------------------------------------------------------------------------
+    // Defense type helpers — use these instead of raw string comparisons
+    // -------------------------------------------------------------------------
+
+    /** True if this move uses percentage-based block reduction. */
+    public boolean isPercentageBlock() {
+        return DefenseType.PERCENTAGE_BLOCK.name().equals(defenseType);
+    }
+
+    /** True if this move uses flat damage subtraction. */
+    public boolean isFlatBlock() {
+        return DefenseType.FLAT_BLOCK.name().equals(defenseType);
+    }
+
+    /** True if this move has any active block (PERCENTAGE_BLOCK or FLAT_BLOCK). */
+    public boolean isAnyBlock() {
+        return isPercentageBlock() || isFlatBlock();
+    }
+
+    // -------------------------------------------------------------------------
     // Conversion: MoveData → Move (domain object)
     // -------------------------------------------------------------------------
 
