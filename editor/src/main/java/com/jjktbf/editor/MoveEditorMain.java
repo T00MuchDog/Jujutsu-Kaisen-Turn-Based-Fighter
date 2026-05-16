@@ -159,7 +159,7 @@ public class MoveEditorMain {
         }
         printField("Interrupt",      md.interruptType);
         printField("Defense Type",   md.defenseType);
-        if ("PERCENTAGE_BLOCK".equals(md.defenseType) || "FLAT_BLOCK".equals(md.defenseType)) {
+        if (md.isAnyBlock()) {
             if (md.blockDuration == -1)
                 printField("Block Duration", "end of round");
             else if (md.blockDuration == 0)
@@ -168,7 +168,7 @@ public class MoveEditorMain {
                 printField("Block Duration", md.blockDuration + " ticks");
             if (md.blockAffectedTags != null)
                 printField("Block Tags", md.blockAffectedTags.toString());
-            if ("PERCENTAGE_BLOCK".equals(md.defenseType))
+            if (md.isPercentageBlock())
                 printField("Block Reduction", md.blockDamageReduction + "%");
             else
                 printField("Flat Reduction", "-" + md.blockFlatReduction + " dmg");
@@ -331,7 +331,7 @@ public class MoveEditorMain {
         System.out.println("  PERCENTAGE_BLOCK: reduces incoming damage by a % (0–100).");
         System.out.println("  FLAT_BLOCK:       reduces incoming damage by a flat amount.");
         md.defenseType = promptEnum("Defense Type", md.defenseType, DefenseType.class);
-        if ("PERCENTAGE_BLOCK".equals(md.defenseType) || "FLAT_BLOCK".equals(md.defenseType)) {
+        if (md.isAnyBlock()) {
             System.out.println();
             sep("Block Settings");
             md.blockDuration = promptInt(
@@ -343,7 +343,7 @@ public class MoveEditorMain {
             md.blockAffectedTags = tagsInput.isBlank() ? null
                 : java.util.Arrays.asList(tagsInput.split(",")).stream()
                     .map(String::trim).filter(s -> !s.isBlank()).toList();
-            if ("PERCENTAGE_BLOCK".equals(md.defenseType)) {
+            if (md.isPercentageBlock()) {
                 md.blockDamageReduction = promptInt(
                     "Damage reduction % (100 = full block, 50 = half damage)",
                     md.blockDamageReduction, 0, 100);

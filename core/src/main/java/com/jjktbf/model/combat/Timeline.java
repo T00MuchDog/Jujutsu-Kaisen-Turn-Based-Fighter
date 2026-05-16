@@ -1,6 +1,5 @@
 package com.jjktbf.model.combat;
 
-import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.Move;
 
 import java.util.ArrayList;
@@ -97,13 +96,12 @@ public class Timeline {
     }
 
     /**
-     * Check if a BLOCK or FLAT_BLOCK defensive move is covering the given tick.
+     * Check if an active block (PERCENTAGE_BLOCK or FLAT_BLOCK) is covering the given tick.
      */
     public boolean hasActiveBlockAt(int tick) {
         for (MoveBlock b : blocks) {
-            DefenseType dt = b.getMove().getDefenseType();
             if (!b.isKnockedOut()
-                && (dt == DefenseType.PERCENTAGE_BLOCK || dt == DefenseType.FLAT_BLOCK)
+                && b.getMove().isActiveBlock()
                 && tick >= b.getStartTick()
                 && tick <= b.getEndTick()) {
                 return true;
