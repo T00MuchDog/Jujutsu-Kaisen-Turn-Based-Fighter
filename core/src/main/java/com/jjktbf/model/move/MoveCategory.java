@@ -32,14 +32,14 @@ public enum MoveCategory {
     INNATE_TECHNIQUE(
         EnumSet.of(MoveTag.INNATE_TECHNIQUE),
         SlotStat.CURSED_TECHNIQUE_MASTERY,
-        true    // BF eligible (CE implied)
+        false    // BF ineligible (No physical contact)
     ),
 
     /** Non-Innate Technique only (CE implied). Slot governed by JujutsuSkill. */
     NON_INNATE_TECHNIQUE(
         EnumSet.of(MoveTag.NON_INNATE_TECHNIQUE),
         SlotStat.JUJUTSU_SKILL,
-        true    // BF eligible (CE implied)
+        false    // BF ineligible (No physical contact)
     ),
 
     // -------------------------------------------------------------------------
@@ -71,7 +71,7 @@ public enum MoveCategory {
     INNATE_NON_INNATE_TECHNIQUE(
         EnumSet.of(MoveTag.INNATE_TECHNIQUE, MoveTag.NON_INNATE_TECHNIQUE),
         SlotStat.LESSER_CTM_JS,
-        true
+        false
     ),
 
     /** Physical + InnateT + NonInnateT. 1:3:2. Slot: lesser of all three. */

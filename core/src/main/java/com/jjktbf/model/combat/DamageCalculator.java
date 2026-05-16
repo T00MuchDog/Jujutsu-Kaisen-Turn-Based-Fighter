@@ -96,7 +96,7 @@ public final class DamageCalculator {
 
         if (activeBlock != null) {
             DefenseType dt = activeBlock.getMove().getDefenseType();
-            if (dt == DefenseType.BLOCK && activeBlock.getMove().getBlockDamageReduction() >= 100) {
+            if (dt == DefenseType.PERCENTAGE_BLOCK && activeBlock.getMove().getBlockDamageReduction() >= 100) {
                 return DamageResult.blocked(move);
             }
         }
@@ -119,7 +119,7 @@ public final class DamageCalculator {
 
         if (activeBlock != null) {
             DefenseType dt = activeBlock.getMove().getDefenseType();
-            if (dt == DefenseType.BLOCK) {
+            if (dt == DefenseType.PERCENTAGE_BLOCK) {
                 int reductionPct = activeBlock.getMove().getBlockDamageReduction();
                 rawDamage = (int) Math.round(rawDamage * (100 - reductionPct) / 100.0);
                 rawDamage = Math.max(1, rawDamage);

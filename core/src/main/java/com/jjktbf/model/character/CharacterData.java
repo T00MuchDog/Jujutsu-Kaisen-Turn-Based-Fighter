@@ -30,6 +30,7 @@ public class CharacterData {
      * Human-readable innate technique name (e.g. "Shrine", "Blood Manipulation").
      * Null means no innate technique.
      * Matched case-insensitively against Move.requiredTechniqueId when loading moves.
+     * Will be replaced by a Technique ID reference once the Technique class is implemented.
      */
     public String innateTechniqueName;
 

@@ -103,7 +103,7 @@ public class Timeline {
         for (MoveBlock b : blocks) {
             DefenseType dt = b.getMove().getDefenseType();
             if (!b.isKnockedOut()
-                && (dt == DefenseType.BLOCK || dt == DefenseType.FLAT_BLOCK)
+                && (dt == DefenseType.PERCENTAGE_BLOCK || dt == DefenseType.FLAT_BLOCK)
                 && tick >= b.getStartTick()
                 && tick <= b.getEndTick()) {
                 return true;

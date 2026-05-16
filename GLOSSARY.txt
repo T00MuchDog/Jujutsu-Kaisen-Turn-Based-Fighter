@@ -11,34 +11,25 @@ be consistent with this document.
 Last updated: May 2026
 
 --------------------------------------------------------------------------------
-  CONTRADICTIONS / NAMING ISSUES TO RESOLVE
+  RESOLVED CONTRADICTIONS (previously flagged, now fixed)
 --------------------------------------------------------------------------------
 
-  1. MOVE_PARTIAL_BLOCK event type (CombatEvent.java line 23)
-     The concept of a "partial block" (old PARTIAL_BLOCK DefenseType) was replaced
-     by BLOCK with blockDamageReduction < 100, and FLAT_BLOCK. The event type
-     MOVE_PARTIAL_BLOCK still exists in CombatEvent.java and is emitted by
-     CombatResolver when a block reduces (but doesn't fully negate) damage.
-     Decision needed: rename this event to MOVE_BLOCK_REDUCED or keep as-is?
+  1. MOVE_PARTIAL_BLOCK → MOVE_BLOCK_REDUCED
+     Renamed in CombatEvent.java to reflect that both PERCENTAGE_BLOCK (< 100%)
+     and FLAT_BLOCK reduce but do not fully negate damage.
 
-  2. requiredTechniqueId (Move.java field name)
-     The field is named "Id" but stores a plain name string (e.g. "Shrine"),
-     not a numeric or formal ID. It should arguably be requiredTechniqueName to
-     match the MoveData DTO field. Kept as-is for now — flag for renaming.
+  2. MoveData.requiredTechniqueName → requiredTechniqueId
+     Both the DTO (MoveData) and domain (Move) now use requiredTechniqueId.
+     The value is still stored as a plain string (e.g. "SHRINE") and matched
+     case-insensitively, pending implementation of the Technique class.
 
-  3. isGuaranteedMove (Move.java)
-     In the move editor this is labelled "Free move" (doesn't use a slot).
-     But the game concept of a "guaranteed" move (always available, not slot-gated)
-     is broader — it might not be the same as "free". Decide: is the field name
-     isGuaranteedMove or isFreeMove, and should it be renamed everywhere?
+  3. isGuaranteedMove → isFreeMove
+     Renamed everywhere. Free moves do not consume a move slot. They still
+     respect prerequisite stats and technique restrictions — only the slot
+     budget is skipped.
 
-  4. Defense (stat vs. computed value vs. move tag)
-     - "Defense" as a stat does not exist — it is a computed value from Durability
-       and current CE (see DEFENSE entry below).
-     - "DEFENSIVE" is a MoveTag and MoveCategory name.
-     - Avoid writing "Defense stat" — the correct term is Defense (computed).
-     - Avoid "damage reduction" as a synonym for Defense — use Defense for the
-       computed value, blockDamageReduction for the block percentage.
+  4. BLOCK → PERCENTAGE_BLOCK
+     DefenseType.BLOCK renamed to PERCENTAGE_BLOCK for clarity alongside FLAT_BLOCK.
 
 ================================================================================
   1. CHARACTER STATS  (CharacterStats.java, StatKey.java)
@@ -132,15 +123,22 @@ These are the numbers actually used in combat calculations.
     the attacker's base stats. Not a stored field — computed at damage resolution.
     See DAMAGE CALCULATION section for formulas.
 
-  DEFENSE (computed)
-    A mid-fight value computed per incoming hit. Represents the defender's
-    current resilience. Falls as CE is spent during a round.
+  DEFENSE (computed combat stat)
+    A value computed during damage calculation, applied AFTER defensive moves
+    (PERCENTAGE_BLOCK / FLAT_BLOCK) have already reduced incoming damage.
+    Defense represents the defender's current resilience at the moment of each hit.
+    It falls as CE is spent — a depleted fighter is easier to damage.
     Formula: Defense = (CE_remaining_fraction × Cursed Energy Reserves × 3
                         + Durability × 2) / 5
     where CE_remaining_fraction = currentCE / maxCE.
-    NOTE: Defense is not a character stat — it is a computed value. Do not
-    refer to it as the "Defense stat". The stat that contributes most to it
-    is Durability; CE Reserves also affects it.
+
+    Key clarifications:
+    - Defense IS a combat stat (computed, not stored as a base stat).
+    - "Defense stat" is acceptable terminology — it refers to this computed value.
+    - Utility moves that raise Durability (via stat enhancements) indirectly raise Defense.
+    - Do NOT confuse with DEFENSIVE (a MoveTag for blocking moves).
+    - Do NOT confuse blockDamageReduction (block %) with Defense.
+    - Pipeline: incoming damage → DEFENSIVE move reduction → Defense → final damage.
 
 ================================================================================
   3. MOVE STRUCTURE  (Move.java, MoveData.java)
@@ -180,10 +178,10 @@ These are the numbers actually used in combat calculations.
   MAX CE COST
     Ceiling: efficiency scaling cannot raise CE cost above this value.
 
-  FREE MOVE (isGuaranteedMove)
+  FREE MOVE (isFreeMove)
     If true, the move does not consume a move slot when assigned to a character.
-    Used for always-available moves (e.g. Basic Punch, Basic Block).
-    NOTE: the code field is isGuaranteedMove — see naming issue #3 above.
+    Free moves still respect prerequisite stats and technique restrictions.
+    Only the slot budget check is skipped.
 
   REQUIRED TECHNIQUE
     An innate technique name the character must possess to use this move.
@@ -204,16 +202,16 @@ The canonical terms for describing a move's type are the tag names below.
 
   PHYSICAL
     Pure physical strike (fists, weapons, body). Governed by Strength and Combat
-    Ability. Alone: not Black Flash eligible. Combined with CE tags: BF eligible.
+    Ability.
 
   CURSED ENERGY
-    Cursed energy without a specific technique. Always paired with other tags.
+    Raw Cursed energy without a specific technique. Always paired with other tags.
     Governed by CE Output, CE Reserves, CE Efficiency.
 
   INNATE TECHNIQUE
     Move tied to a specific innate cursed technique (e.g. Shrine, Limitless).
     Requires the character to possess that technique. CE is implied.
-    Governed by CE component and Cursed Technique Mastery. Black Flash eligible.
+    Governed by CE component and Cursed Technique Mastery.
 
   NON-INNATE TECHNIQUE
     Move from a learned, non-innate technique (barriers, RCT, cursed tool, etc.).
@@ -227,7 +225,8 @@ The canonical terms for describing a move's type are the tag names below.
     Non-damaging move that does not deal direct damage. Not slot-gated.
 
   DEFENSIVE
-    A move that reduces or blocks incoming damage. Not slot-gated.
+    A move that reduces or blocks incoming damage (PERCENTAGE_BLOCK, FLAT_BLOCK).
+    Applied BEFORE the defender's Defense stat in the damage pipeline. Not slot-gated.
 
 ================================================================================
   5. MOVE CATEGORIES  (MoveCategory.java)
@@ -295,11 +294,11 @@ Utility and Defensive moves have no slot limit.
   NONE
     Not a defensive move. No damage reduction applied.
 
-  BLOCK
+  PERCENTAGE_BLOCK
     Percentage-based damage reduction. Incoming attacks that fire while this
     block is active have their damage multiplied by (1 - blockDamageReduction / 100).
     blockDamageReduction = 100: full negation (damage = 0, outcome = BLOCKED).
-    blockDamageReduction < 100: partial reduction (damage minimum 1).
+    blockDamageReduction < 100: partial reduction (damage minimum 1, outcome = MOVE_BLOCK_REDUCED).
 
   FLAT_BLOCK
     Flat damage subtraction. Incoming attacks that fire while this block is
@@ -315,9 +314,10 @@ Utility and Defensive moves have no slot limit.
     Null = reduces all incoming damage types.
     Specified = reduces only incoming attacks whose tags include all listed tags.
 
+  Applied before Defense in the damage pipeline.
   DO NOT call "blockDamageReduction" the "Defense" value. Defense is the computed
-  value from Durability + CE (see COMBAT STATS section). blockDamageReduction is
-  the block's percentage reduction property.
+  stat from Durability + CE applied after these block moves. blockDamageReduction
+  is the block's percentage reduction property.
 
 ================================================================================
   8. INTERRUPT TYPES  (InterruptType.java)
@@ -613,10 +613,9 @@ These are the canonical names for what happened in a given tick.
   MOVE_STARTED        — startTick reached; CE drained from combatant
   MOVE_FIRED          — fireTick reached; move effect resolved
   MOVE_MISSED         — hit roll failed
-  MOVE_BLOCKED        — block fully negated incoming damage (outcome = BLOCKED)
-  MOVE_PARTIAL_BLOCK  — block reduced but did not fully negate damage
-                        NOTE: name is stale (references old "partial block" concept)
-                        — see naming issue #1 above.
+  MOVE_BLOCKED        — block fully negated incoming damage (PERCENTAGE_BLOCK at 100%)
+  MOVE_BLOCK_REDUCED  — block reduced but did not fully negate damage
+                        (PERCENTAGE_BLOCK < 100%, or FLAT_BLOCK)
   MOVE_KNOCKED_OUT    — interrupt removed this move block
   DAMAGE_DEALT        — HP was deducted from a combatant
   BLACK_FLASH         — BF proc; includes BF damage value
@@ -660,8 +659,9 @@ These are the canonical names for what happened in a given tick.
   ABILITY EDITOR
     CLI tool for creating and editing abilities. Saved to data/abilities/all_abilities.json.
 
-  FREE MOVE (editor label for isGuaranteedMove)
-    A move that does not consume a slot when assigned to a character.
+  FREE MOVE (isFreeMove)
+    A move that does not consume a move slot when assigned to a character.
+    Respects prereqs and technique restrictions — only slot budget is skipped.
 
   POINT-BUY BUDGET
     1000 points baseline. Characters without an innate technique receive +80 bonus

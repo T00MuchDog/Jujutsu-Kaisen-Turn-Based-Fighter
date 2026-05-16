@@ -1,5 +1,4 @@
-remove black flash from non physical moves
-change block to percentage block in keywords
+Change the damage calculation pipeline
 find a new keyword for move block to replace block
 Add graphics
 Add cursed energy output stat

@@ -14,7 +14,7 @@ import java.util.Map;
  * Category is derived at runtime from the tags list — it is not stored separately.
  * Tags is the canonical representation; MoveCategory is computed via MoveCategory.fromTags().
  *
- * requiredTechniqueId has been replaced by requiredTechniqueName (plain string, e.g. "Shrine").
+ * requiredTechniqueId stores the technique's ID string (e.g. "SHRINE").
  * Technique IDs live in TechniqueRepository and are resolved separately.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -73,9 +73,9 @@ public class MoveData {
      * Null means no technique restriction.
      * The numeric technique ID is resolved via TechniqueRepository at load time.
      */
-    public String  requiredTechniqueName;
+    public String  requiredTechniqueId;
 
-    public boolean isGuaranteedMove = false;
+    public boolean isFreeMove = false;
 
     // -------------------------------------------------------------------------
     // Status effect sub-DTO
@@ -156,8 +156,8 @@ public class MoveData {
             .blockAffectedTags(blockAffectedTags)
             .blockDamageReduction(blockDamageReduction)
             .blockFlatReduction(blockFlatReduction)
-            .requiredTechniqueId(requiredTechniqueName) // still stored as requiredTechniqueId in Move domain
-            .guaranteedMove(isGuaranteedMove);
+            .requiredTechniqueId(requiredTechniqueId)
+            .freeMove(isFreeMove);
 
         if (prerequisites != null)  b.prerequisites(prerequisites);
         if (onHitEffects  != null)  b.onHitEffects(toStatusEffects(onHitEffects));
@@ -212,8 +212,8 @@ public class MoveData {
                                     ? new java.util.ArrayList<>(move.getBlockAffectedTags()) : null;
         d.blockDamageReduction  = move.getBlockDamageReduction();
         d.blockFlatReduction    = move.getBlockFlatReduction();
-        d.requiredTechniqueName = move.getRequiredTechniqueId(); // domain still uses id field
-        d.isGuaranteedMove    = move.isGuaranteedMove();
+        d.requiredTechniqueId = move.getRequiredTechniqueId();
+        d.isFreeMove          = move.isFreeMove();
         d.prerequisites       = move.getPrerequisites().isEmpty() ? null
                                     : new java.util.LinkedHashMap<>(move.getPrerequisites());
 
