@@ -31,7 +31,7 @@ public final class CeEfficiencyCalculator {
      *
      * @param move      the move being used
      * @param ceEfficiency the user's CE Efficiency stat value
-     * @return          the CE units to drain when this move block begins
+     * @return          the CE units to drain when this action segment begins
      */
     public static int computeActualCost(Move move, int ceEfficiency) {
         if (move.getBaseCeCost() == 0) return 0; // non-CE move

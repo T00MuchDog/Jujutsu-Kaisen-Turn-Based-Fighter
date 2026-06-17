@@ -28,6 +28,7 @@ com/jjktbf/model/combat/PowerCalculator$1.class
 com/jjktbf/model/move/InterruptType.class
 com/jjktbf/model/move/Move$1.class
 com/jjktbf/model/character/SlotBudgetEnforcer$1.class
+com/jjktbf/model/combat/ActionSegment.class
 com/jjktbf/model/move/StatusEffect.class
 com/jjktbf/model/character/AbilityApplicator$AbilityFlags.class
 com/jjktbf/model/character/AbilityApplicator.class
@@ -35,7 +36,6 @@ com/jjktbf/model/move/Move.class
 com/jjktbf/model/combat/DamageCalculator$DamageResult$Outcome.class
 com/jjktbf/model/character/AbilityEffectType.class
 com/jjktbf/model/move/MoveRepository$1.class
-com/jjktbf/model/combat/MoveBlock.class
 com/jjktbf/model/combat/CeEfficiencyCalculator.class
 com/jjktbf/view/BattleView.class
 com/jjktbf/model/combat/CombatEvent$Builder.class

@@ -194,7 +194,7 @@ public final class AbilityApplicator {
          * Move tags that are locked by this character's abilities.
          * PASSIVE: blocks the tag in the character creator move assignment and
          *          prevents queuing those moves during combat planning.
-         * ACTIVE/TRIGGERED: the engine removes those blocks from the opponent's
+         * ACTIVE/TRIGGERED: the engine removes those segments from the opponent's
          *          timeline when the ability fires.
          */
         public final java.util.List<String>            lockedMoveTags    = new java.util.ArrayList<>();

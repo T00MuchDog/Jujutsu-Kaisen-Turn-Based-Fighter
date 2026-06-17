@@ -161,13 +161,13 @@ These are the numbers actually used in combat calculations.
 
   AP COST
     How many AP ticks the move occupies on the AP Timeline.
-    The move block spans from startTick to startTick + apCost - 1.
+    The action segment spans from startTick to startTick + apCost - 1.
 
   UNLEASH POINT
-    The AP tick within the move's block at which the move fires.
+    The AP tick within the move's action segment at which the move fires.
     Range: [1, apCost].
     Unleash point 1 = instant (highest priority, fires on the first tick).
-    Unleash point == apCost = full charge (fires on the last tick of the block).
+    Unleash point == apCost = full charge (fires on the last tick of the segment).
 
   BASE CE COST
     CE cost before efficiency scaling. 0 for non-CE moves.
@@ -305,7 +305,7 @@ Utility and Defensive moves have no slot limit.
     active have blockFlatReduction subtracted from their final damage.
     Damage cannot go below 1 from this reduction alone.
 
-  Block duration rules (same for BLOCK and FLAT_BLOCK):
+  Block duration rules (same for PERCENTAGE_BLOCK and FLAT_BLOCK):
     blockDuration = 0:   block lasts for the move's full AP cost (the whole block window).
     blockDuration = -1:  block lasts until end of round.
     blockDuration > 0:   block lasts that many AP ticks from the unleash point.
@@ -326,61 +326,61 @@ Utility and Defensive moves have no slot limit.
   NONE
     No interrupt capability.
 
-  KNOCK_CURRENT_BLOCK
-    On unleash, removes the move block the action counter is currently occupying
-    on the opponent's AP Timeline. CE for the knocked block has already been
-    paid (CE is drained when a block begins its startTick).
+  KNOCK_CURRENT_SEGMENT
+    On unleash, removes the action segment the action counter is currently occupying
+    on the opponent's AP Timeline. CE for the knocked segment has already been
+    paid (CE is drained when a segment begins its startTick).
 
-  KNOCK_NEXT_BLOCK
-    On unleash, removes the next move block in the opponent's queue —
-    the block immediately after the current position on their timeline.
+  KNOCK_NEXT_SEGMENT
+    On unleash, removes the next action segment in the opponent's queue —
+    the segment immediately after the current position on their timeline.
 
 ================================================================================
-  9. AP TIMELINE  (Timeline.java, MoveBlock.java, BattleState.java)
+  9. AP TIMELINE  (Timeline.java, ActionSegment.java, BattleState.java)
 ================================================================================
 
   AP BAR
     The total action points a combatant has available per round.
-    Determined by Combat Stats. Filled left-to-right with move blocks.
+    Determined by Combat Stats. Filled left-to-right with action segments.
 
   AP TIMELINE
-    The ordered sequence of move blocks a combatant queues for a round.
-    Blocks are packed sequentially from tick 1. Empty space between blocks
+    The ordered sequence of action segments a combatant queues for a round.
+    Segments are packed sequentially from tick 1. Empty space between segments
     is valid (idle time, no move covering that tick).
 
   TICK
     One unit of the AP timeline. Equivalent to one action point.
     The action counter advances tick by tick through the resolution phase.
-    NOTE: the code uses "tick" (BattleState.currentTick, MoveBlock.fireTick).
+    NOTE: the code uses "tick" (BattleState.currentTick, ActionSegment.fireTick).
     The term "game tick" is also acceptable. "AP tick" is the most precise.
 
   ACTION COUNTER
     The sweeping counter that advances tick by tick during resolution.
-    When it reaches a move block's startTick: CE is drained.
-    When it reaches a move block's fireTick: the move fires.
+    When it reaches an action segment's startTick: CE is drained.
+    When it reaches an action segment's fireTick: the move fires.
 
-  MOVE BLOCK
+  ACTION SEGMENT
     One move's occupancy on the AP timeline. Has a startTick, endTick,
     fireTick, and an actualCeCost. Can be knocked out by interrupts.
 
   START TICK
-    The AP tick at which a move block begins. CE is drained here.
+    The AP tick at which an action segment begins. CE is drained here.
 
   FIRE TICK
     The AP tick at which a move's effect is resolved.
     fireTick = startTick + unleashPoint - 1.
 
   END TICK
-    The last AP tick of a move block.
+    The last AP tick of an action segment.
     endTick = startTick + apCost - 1.
-    For blocks: the window during which the block is active.
+    For defensive block moves, this is currently used as the active block window.
 
   INSTANT MOVE
     A move with unleashPoint == 1. Its fireTick equals its startTick.
     Highest priority in tie-breaking — fires before all same-tick moves.
 
   KNOCKED OUT
-    A move block that was removed by an interrupt. Its AP slot is still spent;
+    An action segment that was removed by an interrupt. Its AP slot is still spent;
     the move simply does not fire or take effect.
 
 ================================================================================
@@ -496,7 +496,7 @@ Utility and Defensive moves have no slot limit.
 ================================================================================
 
   CURSED ENERGY (CE)
-    A combat resource. Spent when CE-tagged move blocks begin their startTick.
+    A combat resource. Spent when CE-tagged action segments begin their startTick.
     Not regenerated during a fight. Running out weakens the character's Defense.
 
   CE POOL (Max Cursed Energy)
@@ -504,7 +504,7 @@ Utility and Defensive moves have no slot limit.
     Formula: CE Pool = Cursed Energy Reserves × 5
 
   CE COST (of a move)
-    The amount of CE drained when a CE-tagged move block reaches its startTick.
+    The amount of CE drained when a CE-tagged action segment reaches its startTick.
     Scaled by CE Efficiency from the base CE cost, clamped to [minCeCost, maxCeCost].
 
   CE EFFICIENCY SCALING
@@ -572,7 +572,7 @@ Utility and Defensive moves have no slot limit.
 
     Move Locking:
       LOCK_MOVE_TAG      — prevent use of moves with a given tag (PASSIVE: permanent;
-                           ACTIVE/TRIGGERED: removes matching blocks from opponent's
+                           ACTIVE/TRIGGERED: removes matching action segments from opponent's
                            timeline for the current round)
 
     Sustained Cost:
@@ -586,7 +586,7 @@ Utility and Defensive moves have no slot limit.
   Each effect has a duration in rounds and a magnitude.
 
   Debilitating (applied to opponent):
-    STUN              — prevents the target from acting on their next queued block
+    STUN              — prevents the target from acting on their next queued action segment
     POISON            — deals damage at the start of each round tick for a duration
     BIND              — reduces the target's Evasion for a duration
     CURSED_SEAL       — reduces CE Efficiency (moves cost more CE)
@@ -616,7 +616,7 @@ These are the canonical names for what happened in a given tick.
   MOVE_BLOCKED        — block fully negated incoming damage (PERCENTAGE_BLOCK at 100%)
   MOVE_BLOCK_REDUCED  — block reduced but did not fully negate damage
                         (PERCENTAGE_BLOCK < 100%, or FLAT_BLOCK)
-  MOVE_KNOCKED_OUT    — interrupt removed this move block
+  MOVE_KNOCKED_OUT    — interrupt removed this action segment
   DAMAGE_DEALT        — HP was deducted from a combatant
   BLACK_FLASH         — BF proc; includes BF damage value
   CE_DRAINED          — CE was spent on a move

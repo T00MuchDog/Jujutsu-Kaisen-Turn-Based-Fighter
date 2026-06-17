@@ -22,7 +22,6 @@
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/move/MoveCategory.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/combat/PowerCalculator.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/character/Character.java
-/Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/combat/MoveBlock.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/character/SorcererCharacter.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/move/Move.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/controller/AIStrategy.java
@@ -32,6 +31,7 @@
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/character/AbilityEffectData.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/combat/CombatResolver.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/combat/BattleState.java
+/Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/combat/ActionSegment.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/view/BattleView.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/combat/BattleCombatant.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/combat/CombatEvent.java

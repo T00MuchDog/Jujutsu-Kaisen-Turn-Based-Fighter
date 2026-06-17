@@ -86,10 +86,11 @@ public final class DamageCalculator {
 
         // --- 2. Check block ---
         Timeline defTimeline = defender.getTimeline();
-        MoveBlock activeBlock = defTimeline != null ? defTimeline.blockAt(currentTick) : null;
-        // Only count non-knocked-out active blocks
-        if (activeBlock != null && (activeBlock.isKnockedOut() || !activeBlock.getMove().isActiveBlock())) {
-            activeBlock = null;
+        ActionSegment activeBlockSegment = defTimeline != null ? defTimeline.segmentAt(currentTick) : null;
+        // Only count non-knocked-out active defensive blocks
+        if (activeBlockSegment != null
+            && (activeBlockSegment.isKnockedOut() || !activeBlockSegment.getMove().isActiveBlock())) {
+            activeBlockSegment = null;
         }
 
         // --- 3. Power ---
@@ -108,8 +109,8 @@ public final class DamageCalculator {
         rawDamage = Math.max(1, rawDamage);
 
         // --- 5b. Apply block reduction (delegated to the block move itself) ---
-        if (activeBlock != null) {
-            int afterBlock = activeBlock.getMove().applyBlockTo(rawDamage);
+        if (activeBlockSegment != null) {
+            int afterBlock = activeBlockSegment.getMove().applyBlockTo(rawDamage);
             if (afterBlock == 0) {
                 return DamageResult.blocked(move); // full block
             }

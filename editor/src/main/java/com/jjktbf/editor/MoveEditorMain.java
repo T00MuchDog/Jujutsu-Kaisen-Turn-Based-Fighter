@@ -321,7 +321,7 @@ public class MoveEditorMain {
         // ── Interrupt ─────────────────────────────────────────────────────────
         System.out.println();
         sep("Interrupt");
-        System.out.println("  Options: NONE  KNOCK_CURRENT_BLOCK  KNOCK_NEXT_BLOCK");
+        System.out.println("  Options: NONE  KNOCK_CURRENT_SEGMENT  KNOCK_NEXT_SEGMENT");
         md.interruptType = promptEnum("Interrupt Type", md.interruptType, InterruptType.class);
 
         // ── Defensive ─────────────────────────────────────────────────────────

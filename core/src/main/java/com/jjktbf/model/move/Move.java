@@ -65,13 +65,13 @@ public class Move {
     private final boolean neverMiss;
 
     /**
-     * Size of the block this move occupies on the AP timeline.
+     * Size of the action segment this move occupies on the AP timeline.
      * Min: 5,  Max: ~100.
      */
     private final int apCost;
 
     /**
-     * The AP tick within the block at which the move is unleashed.
+     * The AP tick within the action segment at which the move is unleashed.
      * Range: [1, apCost].
      * Unleash at tick 1 = instant/highest priority.
      * Unleash at tick == apCost = full charge.
@@ -252,18 +252,18 @@ public class Move {
 
     /**
      * Resolve this move's interrupt effect against the defender's timeline at the given tick.
-     * Returns the MoveBlock that was knocked out, or null if no block was targeted.
+     * Returns the ActionSegment that was knocked out, or null if no segment was targeted.
      *
      * Should only be called if hasInterrupt() is true.
      */
-    public com.jjktbf.model.combat.MoveBlock resolveInterruptOn(
+    public com.jjktbf.model.combat.ActionSegment resolveInterruptOn(
             int tick,
             com.jjktbf.model.combat.Timeline defenderTimeline) {
         if (defenderTimeline == null) return null;
-        com.jjktbf.model.combat.MoveBlock target = switch (interruptType) {
-            case KNOCK_CURRENT_BLOCK -> defenderTimeline.blockAt(tick);
-            case KNOCK_NEXT_BLOCK    -> defenderTimeline.nextBlockAfter(tick);
-            case NONE                -> null;
+        com.jjktbf.model.combat.ActionSegment target = switch (interruptType) {
+            case KNOCK_CURRENT_SEGMENT -> defenderTimeline.segmentAt(tick);
+            case KNOCK_NEXT_SEGMENT    -> defenderTimeline.nextSegmentAfter(tick);
+            case NONE                  -> null;
         };
         if (target != null && !target.isKnockedOut()) {
             target.knockOut();

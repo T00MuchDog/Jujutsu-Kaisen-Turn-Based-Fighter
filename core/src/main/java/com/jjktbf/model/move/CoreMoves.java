@@ -26,7 +26,7 @@ public final class CoreMoves {
             .basePower(30)
             .baseAccuracy(1.0)
             .apCost(10)
-            .unleashPoint(5)          // fires mid-block — fast but not instant
+            .unleashPoint(5)          // fires mid-segment — fast but not instant
             .baseCeCost(0)
             .minCeCost(0)
             .maxCeCost(0)
@@ -96,14 +96,14 @@ public final class CoreMoves {
     public static Move divekick() {
         return new Move.Builder("DIVEKICK")
             .name("Divekick")
-            .description("A high-speed aerial kick. Interrupts the opponent's current block on hit.")
+            .description("A high-speed aerial kick. Interrupts the opponent's current action segment on hit.")
             .category(MoveCategory.PHYSICAL)
             .basePower(50)
             .baseAccuracy(0.85)
             .apCost(18)
             .unleashPoint(6)
             .baseCeCost(0).minCeCost(0).maxCeCost(0)
-            .interruptType(InterruptType.KNOCK_CURRENT_BLOCK)
+            .interruptType(InterruptType.KNOCK_CURRENT_SEGMENT)
             .defenseType(DefenseType.NONE)
             .prerequisites(java.util.Map.of("speed", 80, "combatability", 70))
             .build();
@@ -204,7 +204,7 @@ public final class CoreMoves {
             .apCost(22)
             .unleashPoint(8)
             .baseCeCost(25).minCeCost(12).maxCeCost(45)
-            .interruptType(InterruptType.KNOCK_NEXT_BLOCK)
+            .interruptType(InterruptType.KNOCK_NEXT_SEGMENT)
             .defenseType(DefenseType.NONE)
             .requiredTechniqueId("SHRINE")
             .prerequisites(java.util.Map.of(
