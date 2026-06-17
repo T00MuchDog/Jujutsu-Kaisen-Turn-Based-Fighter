@@ -12,8 +12,8 @@ import java.util.*;
  *   1. Determines the max tick count for this round (max AP bar of both combatants)
  *   2. Sweeps the action counter tick by tick
  *   3. At each tick:
- *      a. If a block's startTick is reached → drain CE (move "begins")
- *      b. If a block's fireTick is reached  → resolve the move
+ *      a. If a segment's startTick is reached → drain CE (move "begins")
+ *      b. If a segment's fireTick is reached  → resolve the move
  *         - Hit roll
  *         - Full block check on defender
  *         - Damage calculation
@@ -85,9 +85,9 @@ public class CombatResolver {
         for (int tick = 1; tick <= maxTick; tick++) {
             state.advanceTick();
 
-            // --- CE drain when a block starts ---
-            drainCeForStartingBlocks(player, tick, events);
-            drainCeForStartingBlocks(enemy,  tick, events);
+            // --- CE drain when a segment starts ---
+            drainCeForStartingSegments(player, tick, events);
+            drainCeForStartingSegments(enemy,  tick, events);
 
             // --- Collect all moves firing this tick ---
             List<FiringEntry> firing = collectFiringMoves(player, enemy, tick);
@@ -97,7 +97,7 @@ public class CombatResolver {
 
             // --- Resolve each firing move ---
             for (FiringEntry entry : firing) {
-                if (entry.block.isKnockedOut()) continue;
+                if (entry.segment.isKnockedOut()) continue;
                 if (state.checkAndResolveBattleOver()) {
                     events.add(CombatEvent.of(CombatEvent.Type.BATTLE_OVER)
                         .message("Battle ended during resolution!").build());
@@ -116,20 +116,20 @@ public class CombatResolver {
     // CE draining
     // -------------------------------------------------------------------------
 
-    private void drainCeForStartingBlocks(BattleCombatant combatant, int tick, List<CombatEvent> events) {
+    private void drainCeForStartingSegments(BattleCombatant combatant, int tick, List<CombatEvent> events) {
         Timeline tl = combatant.getTimeline();
         if (tl == null) return;
 
-        for (MoveBlock block : tl.getBlocks()) {
-            if (block.isKnockedOut()) continue;
-            if (block.getStartTick() == tick && block.getActualCeCost() > 0) {
-                int drained = combatant.drainCe(block.getActualCeCost());
+        for (ActionSegment segment : tl.getSegments()) {
+            if (segment.isKnockedOut()) continue;
+            if (segment.getStartTick() == tick && segment.getActualCeCost() > 0) {
+                int drained = combatant.drainCe(segment.getActualCeCost());
                 events.add(CombatEvent.of(CombatEvent.Type.CE_DRAINED)
                     .source(combatant)
-                    .move(block.getMove())
+                    .move(segment.getMove())
                     .intValue(drained)
                     .message(combatant.getCharacter().getName() + " uses " + drained
-                             + " CE for " + block.getMove().getName())
+                             + " CE for " + segment.getMove().getName())
                     .build());
 
                 if (!combatant.hasAnyCe()) {
@@ -146,19 +146,19 @@ public class CombatResolver {
     // Firing collection and sorting
     // -------------------------------------------------------------------------
 
-    private record FiringEntry(MoveBlock  block, BattleCombatant attacker, BattleCombatant defender) {}
+    private record FiringEntry(ActionSegment segment, BattleCombatant attacker, BattleCombatant defender) {}
 
     private List<FiringEntry> collectFiringMoves(BattleCombatant player, BattleCombatant enemy, int tick) {
         List<FiringEntry> firing = new ArrayList<>();
 
         if (player.getTimeline() != null) {
-            for (MoveBlock b : player.getTimeline().firingAt(tick)) {
-                firing.add(new FiringEntry(b, player, enemy));
+            for (ActionSegment segment : player.getTimeline().firingAt(tick)) {
+                firing.add(new FiringEntry(segment, player, enemy));
             }
         }
         if (enemy.getTimeline() != null) {
-            for (MoveBlock b : enemy.getTimeline().firingAt(tick)) {
-                firing.add(new FiringEntry(b, enemy, player));
+            for (ActionSegment segment : enemy.getTimeline().firingAt(tick)) {
+                firing.add(new FiringEntry(segment, enemy, player));
             }
         }
         return firing;
@@ -173,8 +173,8 @@ public class CombatResolver {
     private void sortFiringEntries(List<FiringEntry> firing, BattleCombatant player, BattleCombatant enemy) {
         firing.sort((a, b) -> {
             // Instant moves have top priority
-            int aInstant = a.block.isInstant() ? 1 : 0;
-            int bInstant = b.block.isInstant() ? 1 : 0;
+            int aInstant = a.segment.isInstant() ? 1 : 0;
+            int bInstant = b.segment.isInstant() ? 1 : 0;
             if (aInstant != bInstant) return bInstant - aInstant; // higher = first
 
             // Speed tiebreak
@@ -199,8 +199,8 @@ public class CombatResolver {
         int               tick,
         List<CombatEvent> events
     ) {
-        MoveBlock       block    = entry.block;
-        Move            move     = block.getMove();
+        ActionSegment   segment  = entry.segment;
+        Move            move     = segment.getMove();
         BattleCombatant attacker = entry.attacker;
         BattleCombatant defender = entry.defender;
 
@@ -354,14 +354,14 @@ public class CombatResolver {
         Timeline defenderTimeline = defender.getTimeline();
         if (defenderTimeline == null) return;
 
-        MoveBlock targetBlock = move.resolveInterruptOn(tick, defenderTimeline);
+        ActionSegment targetSegment = move.resolveInterruptOn(tick, defenderTimeline);
 
-        if (targetBlock != null) {
+        if (targetSegment != null) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_KNOCKED_OUT)
-                .source(attacker).target(defender).move(targetBlock.getMove())
+                .source(attacker).target(defender).move(targetSegment.getMove())
                 .message(attacker.getCharacter().getName() + "'s " + move.getName()
-                         + " knocks out " + defender.getCharacter().getName()
-                         + "'s " + targetBlock.getMove().getName() + "!")
+                          + " knocks out " + defender.getCharacter().getName()
+                         + "'s " + targetSegment.getMove().getName() + "!")
                 .build());
         }
     }

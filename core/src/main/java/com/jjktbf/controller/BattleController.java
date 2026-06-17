@@ -87,8 +87,8 @@ public class BattleController {
             int cost = CeEfficiencyCalculator.computeActualCost(
                 move, player.getEffectiveStats().getCursedEnergyEfficiency()
             );
-            MoveBlock block = playerTimeline.addMove(move, cost);
-            if (block == null) {
+            ActionSegment segment = playerTimeline.addMove(move, cost);
+            if (segment == null) {
                 view.displayMessage("Not enough AP to queue " + move.getName() + " — skipped.");
             }
         }

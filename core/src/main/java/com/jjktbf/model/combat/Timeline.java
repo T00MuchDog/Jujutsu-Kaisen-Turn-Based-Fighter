@@ -9,42 +9,42 @@ import java.util.List;
 /**
  * The AP timeline for one combatant during one round.
  *
- * Represents the full AP bar as a sequence of MoveBlocks packed from tick 1.
- * Empty AP between or after blocks is implicit (no block occupying that tick).
+ * Represents the full AP bar as a sequence of ActionSegments packed from tick 1.
+ * Empty AP between or after segments is implicit (no move occupying that tick).
  *
  * Rules:
- *  - Blocks are placed sequentially; a new block starts at (previous block's end + 1).
- *  - Total AP of all blocks cannot exceed maxApBar.
+ *  - Segments are placed sequentially; a new segment starts at (previous segment's end + 1).
+ *  - Total AP of all segments cannot exceed maxApBar.
  *  - BLOCK defensive moves register their tick range for active-block queries during resolution.
  */
 public class Timeline {
 
     private final int            maxApBar;
-    private final List<MoveBlock> blocks;
+    private final List<ActionSegment> segments;
     private int                   nextAvailableTick;
 
     public Timeline(int maxApBar) {
         this.maxApBar           = maxApBar;
-        this.blocks             = new ArrayList<>();
+        this.segments           = new ArrayList<>();
         this.nextAvailableTick  = 1;
     }
 
     /**
-     * Attempt to add a move block to the timeline.
+     * Attempt to add an action segment to the timeline.
      *
      * @param move          the move to queue
      * @param actualCeCost  CE cost after efficiency scaling
-     * @return the created MoveBlock, or null if insufficient AP remains
+     * @return the created ActionSegment, or null if insufficient AP remains
      */
-    public MoveBlock addMove(Move move, int actualCeCost) {
+    public ActionSegment addMove(Move move, int actualCeCost) {
         int remaining = maxApBar - (nextAvailableTick - 1);
         if (move.getApCost() > remaining) {
             return null; // not enough AP
         }
-        MoveBlock block = new MoveBlock(move, nextAvailableTick, actualCeCost);
-        blocks.add(block);
+        ActionSegment segment = new ActionSegment(move, nextAvailableTick, actualCeCost);
+        segments.add(segment);
         nextAvailableTick += move.getApCost();
-        return block;
+        return segment;
     }
 
     /**
@@ -55,41 +55,41 @@ public class Timeline {
     }
 
     /**
-     * Retrieve the MoveBlock whose range [startTick, endTick] contains the given tick.
-     * Returns null if no block covers that tick (empty AP gap).
+     * Retrieve the ActionSegment whose range [startTick, endTick] contains the given tick.
+     * Returns null if no segment covers that tick (empty AP gap).
      */
-    public MoveBlock blockAt(int tick) {
-        for (MoveBlock b : blocks) {
-            if (tick >= b.getStartTick() && tick <= b.getEndTick()) {
-                return b;
+    public ActionSegment segmentAt(int tick) {
+        for (ActionSegment segment : segments) {
+            if (tick >= segment.getStartTick() && tick <= segment.getEndTick()) {
+                return segment;
             }
         }
         return null;
     }
 
     /**
-     * Returns the next MoveBlock after the one containing the given tick.
-     * Used for KNOCK_NEXT_BLOCK interrupt resolution.
+     * Returns the next ActionSegment after the one containing the given tick.
+     * Used for KNOCK_NEXT_SEGMENT interrupt resolution.
      */
-    public MoveBlock nextBlockAfter(int tick) {
-        MoveBlock current = blockAt(tick);
+    public ActionSegment nextSegmentAfter(int tick) {
+        ActionSegment current = segmentAt(tick);
         if (current == null) return null;
 
-        int idx = blocks.indexOf(current);
-        if (idx + 1 < blocks.size()) {
-            return blocks.get(idx + 1);
+        int idx = segments.indexOf(current);
+        if (idx + 1 < segments.size()) {
+            return segments.get(idx + 1);
         }
         return null;
     }
 
     /**
-     * Get all non-knocked-out MoveBlocks that fire at the given tick.
+     * Get all non-knocked-out ActionSegments that fire at the given tick.
      */
-    public List<MoveBlock> firingAt(int tick) {
-        List<MoveBlock> firing = new ArrayList<>();
-        for (MoveBlock b : blocks) {
-            if (!b.isKnockedOut() && b.getFireTick() == tick) {
-                firing.add(b);
+    public List<ActionSegment> firingAt(int tick) {
+        List<ActionSegment> firing = new ArrayList<>();
+        for (ActionSegment segment : segments) {
+            if (!segment.isKnockedOut() && segment.getFireTick() == tick) {
+                firing.add(segment);
             }
         }
         return firing;
@@ -99,11 +99,11 @@ public class Timeline {
      * Check if an active block (PERCENTAGE_BLOCK or FLAT_BLOCK) is covering the given tick.
      */
     public boolean hasActiveBlockAt(int tick) {
-        for (MoveBlock b : blocks) {
-            if (!b.isKnockedOut()
-                && b.getMove().isActiveBlock()
-                && tick >= b.getStartTick()
-                && tick <= b.getEndTick()) {
+        for (ActionSegment segment : segments) {
+            if (!segment.isKnockedOut()
+                && segment.getMove().isActiveBlock()
+                && tick >= segment.getStartTick()
+                && tick <= segment.getEndTick()) {
                 return true;
             }
         }
@@ -111,21 +111,21 @@ public class Timeline {
     }
 
     /**
-     * The total AP consumed by all blocks (including knocked-out ones — AP is spent).
+     * The total AP consumed by all segments (including knocked-out ones — AP is spent).
      */
     public int totalApUsed() {
         return nextAvailableTick - 1;
     }
 
-    public List<MoveBlock> getBlocks()  { return Collections.unmodifiableList(blocks); }
-    public int getMaxApBar()            { return maxApBar; }
+    public List<ActionSegment> getSegments() { return Collections.unmodifiableList(segments); }
+    public int getMaxApBar()                 { return maxApBar; }
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("Timeline[");
         sb.append(maxApBar).append(" AP] ");
-        for (MoveBlock b : blocks) {
-            sb.append(b).append(" | ");
+        for (ActionSegment segment : segments) {
+            sb.append(segment).append(" | ");
         }
         return sb.toString();
     }

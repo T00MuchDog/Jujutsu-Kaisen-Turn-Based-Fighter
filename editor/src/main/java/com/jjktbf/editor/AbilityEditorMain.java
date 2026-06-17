@@ -642,7 +642,7 @@ public class AbilityEditorMain {
             case LOCK_MOVE_TAG -> {
                 System.out.println("  Which move tag to lock out?");
                 System.out.println("  PASSIVE: prevents using/learning moves with this tag.");
-                System.out.println("  ACTIVE/TRIGGERED: temporarily removes those blocks from the timeline.");
+                System.out.println("  ACTIVE/TRIGGERED: temporarily removes those action segments from the timeline.");
                 e.moveTag = pickMoveTag();
             }
             case COST_CE_PER_ROUND -> {

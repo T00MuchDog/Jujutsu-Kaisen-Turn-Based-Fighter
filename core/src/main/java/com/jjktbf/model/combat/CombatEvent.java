@@ -16,12 +16,12 @@ public class CombatEvent {
 
     public enum Type {
         // Move execution
-        MOVE_STARTED,       // a move block's startTick was reached; CE drained
+        MOVE_STARTED,       // an action segment's startTick was reached; CE drained
         MOVE_FIRED,         // move unleashed — attack resolved
         MOVE_MISSED,
         MOVE_BLOCKED,        // block fully negated the damage (PERCENTAGE_BLOCK at 100%)
         MOVE_BLOCK_REDUCED,  // block reduced but did not fully negate damage
-        MOVE_KNOCKED_OUT,   // interrupt removed this block
+        MOVE_KNOCKED_OUT,   // interrupt removed this action segment
 
         // Damage
         DAMAGE_DEALT,

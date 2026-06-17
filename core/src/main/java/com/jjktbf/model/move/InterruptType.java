@@ -9,15 +9,15 @@ public enum InterruptType {
     NONE,
 
     /**
-     * On unleash, removes the move block that the action counter is currently
+     * On unleash, removes the action segment that the action counter is currently
      * occupying on the opponent's timeline, replacing it with nothing (empty AP).
-     * The removed block's CE cost has already been paid (CE is drained when a block begins).
+     * The removed segment's CE cost has already been paid (CE is drained when a segment begins).
      */
-    KNOCK_CURRENT_BLOCK,
+    KNOCK_CURRENT_SEGMENT,
 
     /**
-     * On unleash, removes the NEXT move block in the opponent's queue
-     * (the block immediately after the current position on their timeline).
+     * On unleash, removes the NEXT action segment in the opponent's queue
+     * (the segment immediately after the current position on their timeline).
      */
-    KNOCK_NEXT_BLOCK
+    KNOCK_NEXT_SEGMENT
 }

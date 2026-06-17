@@ -75,6 +75,13 @@ Black Flash chance, and damage range.
 
 These were established deliberately and should be maintained throughout development.
 
+### Recent engineering update — Action Segment terminology
+
+1. What changed: AP timeline occupancy is now called **Action Segment**. Defensive block terminology remains unchanged for `PERCENTAGE_BLOCK`, `FLAT_BLOCK`, `MOVE_BLOCKED`, `MOVE_BLOCK_REDUCED`, and block reduction fields.
+2. Architectural/data/API implications: the AP occupancy class is `ActionSegment`; timeline APIs now use `segmentAt()`, `nextSegmentAfter()`, and `getSegments()`. Interrupt enum values that target queued timeline occupancy are now `KNOCK_CURRENT_SEGMENT` and `KNOCK_NEXT_SEGMENT`.
+3. Important files touched: `ActionSegment.java`, `Timeline.java`, `CombatResolver.java`, `DamageCalculator.java`, `Move.java`, `InterruptType.java`, editor labels, and `GLOSSARY.txt`.
+4. Follow-up tasks or risks: existing external move data using legacy interrupt strings must be migrated. The known damage-pipeline issue remains: defensive block reduction currently happens after raw damage calculation and should be moved before Defense/raw damage computation.
+
 ### 1. Loose coupling — changes touch the minimum number of files
 
 The key test: if you add a new `DefenseType`, `InterruptType`, or `StatusEffectType`,

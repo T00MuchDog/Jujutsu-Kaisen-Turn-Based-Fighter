@@ -144,7 +144,7 @@ public enum AbilityEffectType {
      * PASSIVE: prevents the character from using (and in the character creator,
      *          learning) moves with this tag. Stored in AbilityFlags.lockedMoveTags.
      *
-     * ACTIVE / TRIGGERED: temporarily removes queued blocks with this tag from
+     * ACTIVE / TRIGGERED: temporarily removes queued action segments with this tag from
      *          the opponent's AP timeline for the current round.
      *          Stored in AbilityFlags.lockedMoveTags (combat engine reads it).
      *
