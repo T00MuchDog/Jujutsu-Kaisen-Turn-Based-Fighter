@@ -66,8 +66,8 @@ mvn exec:java -pl editor -Dexec.mainClass=com.jjktbf.editor.AbilityEditorMain
 mvn test
 ```
 Tests live in `core/src/test/java/com/jjktbf/StatVerificationTest.java`.
-There are 11 tests covering HP, AP bar, hit chance, CE efficiency, move slots,
-Black Flash chance, and damage range.
+There are 14 tests covering HP, AP bar, hit chance, CE efficiency, move slots,
+Black Flash chance, damage range, block timing, block tag filters, and block damage ordering.
 
 ---
 
@@ -80,7 +80,14 @@ These were established deliberately and should be maintained throughout developm
 1. What changed: AP timeline occupancy is now called **Action Segment**. Defensive block terminology remains unchanged for `PERCENTAGE_BLOCK`, `FLAT_BLOCK`, `MOVE_BLOCKED`, `MOVE_BLOCK_REDUCED`, and block reduction fields.
 2. Architectural/data/API implications: the AP occupancy class is `ActionSegment`; timeline APIs now use `segmentAt()`, `nextSegmentAfter()`, and `getSegments()`. Interrupt enum values that target queued timeline occupancy are now `KNOCK_CURRENT_SEGMENT` and `KNOCK_NEXT_SEGMENT`.
 3. Important files touched: `ActionSegment.java`, `Timeline.java`, `CombatResolver.java`, `DamageCalculator.java`, `Move.java`, `InterruptType.java`, editor labels, and `GLOSSARY.txt`.
-4. Follow-up tasks or risks: existing external move data using legacy interrupt strings must be migrated. The known damage-pipeline issue remains: defensive block reduction currently happens after raw damage calculation and should be moved before Defense/raw damage computation.
+4. Follow-up tasks or risks: existing external move data using legacy interrupt strings must be migrated.
+
+### Recent engineering update — Combat pipeline fixes
+
+1. What changed: defensive blocks now activate from `fireTick`, respect `blockDuration` and `blockAffectedTags`, and apply before Defense using `basePower × Power → block reduction → Defense → scale/roll`. Basic Block JSON now uses `PERCENTAGE_BLOCK` with 50% reduction.
+2. Architectural/data/API implications: `Timeline.activeBlockAt(tick, incomingMove)` owns block-window/tag lookup. `CeEfficiencyCalculator` has an ability-aware overload. `Character` now carries resolved abilities, and text/graphics character loading resolves `abilityIds` through `AbilityRepository`.
+3. Important files touched: `DamageCalculator.java`, `Timeline.java`, `CombatResolver.java`, `BattleController.java`, `BattleCombatant.java`, `AbilityApplicator.java`, `CharacterData.java`, `Character.java`, text/graphics battle entry points, `data/moves/all_moves.json`, `GLOSSARY.txt`, and `StatVerificationTest.java`.
+4. Follow-up tasks or risks: status-effect behavior remains intentionally unimplemented. Existing saved data with legacy interrupt names or invalid defense types still needs migration if present outside the current JSON files.
 
 ### 1. Loose coupling — changes touch the minimum number of files
 

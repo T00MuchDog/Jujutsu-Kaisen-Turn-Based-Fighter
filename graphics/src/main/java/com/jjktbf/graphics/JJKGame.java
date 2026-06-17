@@ -10,6 +10,7 @@ import com.jjktbf.graphics.screens.editors.CharacterEditorScreen;
 import com.jjktbf.graphics.screens.editors.MoveEditorScreen;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterData;
+import com.jjktbf.model.character.AbilityRepository;
 import com.jjktbf.model.move.MoveRepository;
 
 /**
@@ -100,12 +101,12 @@ public class JJKGame extends Game {
      * to the render thread safely.
      */
     public void startBattle(CharacterData playerData, CharacterData cpuData,
-                            MoveRepository moveRepo) {
+                            MoveRepository moveRepo, AbilityRepository abilityRepo) {
         setScreen(battleScreen);
 
         Thread battleThread = new Thread(() -> {
-            Character player = playerData.toCharacter(moveRepo);
-            Character cpu    = cpuData.toCharacter(moveRepo);
+            Character player = playerData.toCharacter(moveRepo, abilityRepo);
+            Character cpu    = cpuData.toCharacter(moveRepo, abilityRepo);
             BattleController controller = new BattleController(battleScreen);
             controller.runBattle(player, cpu);
         }, "battle-thread");

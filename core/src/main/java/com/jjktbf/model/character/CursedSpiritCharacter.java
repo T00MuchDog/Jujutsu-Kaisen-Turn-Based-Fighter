@@ -20,4 +20,15 @@ public class CursedSpiritCharacter extends Character {
     ) {
         super(id, name, CharacterType.SORCERER, baseStats, innateTechniqueName, knownMoves);
     }
+
+    public CursedSpiritCharacter(
+        String         id,
+        String         name,
+        CharacterStats baseStats,
+        String         innateTechniqueName,
+        List<Move>     knownMoves,
+        List<Ability>  abilities
+    ) {
+        super(id, name, CharacterType.SORCERER, baseStats, innateTechniqueName, knownMoves, abilities);
+    }
 }

@@ -147,14 +147,14 @@ public class BattleScreen implements Screen, BattleView {
             remainingAp += card.getMove().getApCost();
             projectedCe += CeEfficiencyCalculator.computeActualCost(
                     card.getMove(),
-                    renderPlayer.getEffectiveStats().getCursedEnergyEfficiency());
+                    renderPlayer.getEffectiveStats().getCursedEnergyEfficiency(), renderPlayer.getAbilityFlags());
             refreshCardStates();
         } else {
             // Attempt to select
             if (card.getMove().getApCost() <= remainingAp) {
                 int ceCost = CeEfficiencyCalculator.computeActualCost(
                         card.getMove(),
-                        renderPlayer.getEffectiveStats().getCursedEnergyEfficiency());
+                        renderPlayer.getEffectiveStats().getCursedEnergyEfficiency(), renderPlayer.getAbilityFlags());
                 if (ceCost <= projectedCe) {
                     card.setSelected(true);
                     selectedQueue.add(card.getMove());
@@ -172,7 +172,7 @@ public class BattleScreen implements Screen, BattleView {
                 boolean apOk = card.getMove().getApCost() <= remainingAp;
                 int ce = CeEfficiencyCalculator.computeActualCost(
                         card.getMove(),
-                        renderPlayer.getEffectiveStats().getCursedEnergyEfficiency());
+                        renderPlayer.getEffectiveStats().getCursedEnergyEfficiency(), renderPlayer.getAbilityFlags());
                 boolean ceOk = ce <= projectedCe;
                 card.setDisabled(!apOk || !ceOk);
             }
@@ -287,7 +287,7 @@ public class BattleScreen implements Screen, BattleView {
             renderPlayer  = combatant;
             renderEnemy   = opponent;
             phaseLabel    = "SELECT YOUR MOVES";
-            remainingAp   = combatant.getEffectiveCombatStats().getMaxApBar();
+            remainingAp   = combatant.getMaxApBar();
             projectedCe   = combatant.getCurrentCe();
             selectedQueue = new ArrayList<>();
             buildMoveCards(combatant);
@@ -374,6 +374,7 @@ public class BattleScreen implements Screen, BattleView {
         float startX = CARD_MARGIN;
         float cardY  = CARD_MARGIN;
         for (Move m : moves) {
+            if (combatant.getAbilityFlags().lockedMoveTags.stream().anyMatch(m::hasTag)) continue;
             MoveCard card = new MoveCard(m, startX, cardY,
                     assets.cardNormal, assets.cardSelected, assets.cardDisabled);
             moveCards.add(card);

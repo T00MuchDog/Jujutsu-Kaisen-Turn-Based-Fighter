@@ -99,15 +99,24 @@ public class Timeline {
      * Check if an active block (PERCENTAGE_BLOCK or FLAT_BLOCK) is covering the given tick.
      */
     public boolean hasActiveBlockAt(int tick) {
+        return activeBlockAt(tick, null) != null;
+    }
+
+    public ActionSegment activeBlockAt(int tick, Move incomingMove) {
         for (ActionSegment segment : segments) {
-            if (!segment.isKnockedOut()
-                && segment.getMove().isActiveBlock()
-                && tick >= segment.getStartTick()
-                && tick <= segment.getEndTick()) {
-                return true;
-            }
+            Move move = segment.getMove();
+            if (segment.isKnockedOut() || !move.isActiveBlock()) continue;
+            if (incomingMove != null && !incomingMove.hasAllTags(move.getBlockAffectedTags())) continue;
+
+            int start = segment.getFireTick();
+            int end = switch (move.getBlockDuration()) {
+                case -1 -> maxApBar;
+                case 0  -> start + move.getApCost() - 1;
+                default -> start + move.getBlockDuration() - 1;
+            };
+            if (tick >= start && tick <= end) return segment;
         }
-        return false;
+        return null;
     }
 
     /**

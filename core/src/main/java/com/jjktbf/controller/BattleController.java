@@ -49,8 +49,8 @@ public class BattleController {
      * @param enemyCharacter   the opponent character
      */
     public void runBattle(Character playerCharacter, Character enemyCharacter) {
-        BattleCombatant player = new BattleCombatant(playerCharacter);
-        BattleCombatant enemy  = new BattleCombatant(enemyCharacter);
+        BattleCombatant player = new BattleCombatant(playerCharacter, playerCharacter.getAbilities());
+        BattleCombatant enemy  = new BattleCombatant(enemyCharacter, enemyCharacter.getAbilities());
         BattleState     state  = new BattleState(player, enemy);
 
         view.displayMessage("=== BATTLE START: "
@@ -78,33 +78,48 @@ public class BattleController {
         view.displayRoundStart(state);
 
         // --- Player move selection ---
-        int playerApBar = player.getEffectiveCombatStats().getMaxApBar();
+        int playerApBar = player.getMaxApBar();
         Timeline playerTimeline = new Timeline(playerApBar);
         player.setTimeline(playerTimeline);
 
         List<Move> playerMoves = view.promptMoveSelection(player, enemy);
+        int projectedPlayerCe = player.getCurrentCe();
         for (Move move : playerMoves) {
+            if (isLockedByAbility(player, move)) {
+                view.displayMessage(move.getName() + " is locked by an ability — skipped.");
+                continue;
+            }
             int cost = CeEfficiencyCalculator.computeActualCost(
-                move, player.getEffectiveStats().getCursedEnergyEfficiency()
+                move, player.getEffectiveStats().getCursedEnergyEfficiency(), player.getAbilityFlags()
             );
+            if (cost > projectedPlayerCe) {
+                view.displayMessage("Not enough CE to queue " + move.getName() + " — skipped.");
+                continue;
+            }
             ActionSegment segment = playerTimeline.addMove(move, cost);
             if (segment == null) {
                 view.displayMessage("Not enough AP to queue " + move.getName() + " — skipped.");
+                continue;
             }
+            projectedPlayerCe -= cost;
         }
 
         // --- Enemy AI move selection ---
-        int enemyApBar = enemy.getEffectiveCombatStats().getMaxApBar();
+        int enemyApBar = enemy.getMaxApBar();
         Timeline enemyTimeline = new Timeline(enemyApBar);
         enemy.setTimeline(enemyTimeline);
 
         List<Move> enemyMoves = aiStrategy.selectMoves(enemy, player);
         for (Move move : enemyMoves) {
             int cost = CeEfficiencyCalculator.computeActualCost(
-                move, enemy.getEffectiveStats().getCursedEnergyEfficiency()
+                move, enemy.getEffectiveStats().getCursedEnergyEfficiency(), enemy.getAbilityFlags()
             );
             enemyTimeline.addMove(move, cost);
         }
+    }
+
+    private boolean isLockedByAbility(BattleCombatant combatant, Move move) {
+        return combatant.getAbilityFlags().lockedMoveTags.stream().anyMatch(move::hasTag);
     }
 
     // -------------------------------------------------------------------------

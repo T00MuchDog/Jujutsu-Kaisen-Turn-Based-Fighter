@@ -1,6 +1,7 @@
 package com.jjktbf.model.combat;
 
 import com.jjktbf.model.character.CharacterStats;
+import com.jjktbf.model.character.AbilityApplicator;
 import com.jjktbf.model.move.Move;
 
 /**
@@ -34,12 +35,29 @@ public final class CeEfficiencyCalculator {
      * @return          the CE units to drain when this action segment begins
      */
     public static int computeActualCost(Move move, int ceEfficiency) {
+        return computeActualCost(move, ceEfficiency, null);
+    }
+
+    public static int computeActualCost(
+        Move move,
+        int ceEfficiency,
+        AbilityApplicator.AbilityFlags flags
+    ) {
         if (move.getBaseCeCost() == 0) return 0; // non-CE move
 
-        double factor  = (double) BASELINE_EFFICIENCY / ceEfficiency;
-        int    rawCost = (int) Math.round(move.getBaseCeCost() * factor);
+        int safeEfficiency = Math.max(1, ceEfficiency);
+        double factor  = (double) BASELINE_EFFICIENCY / safeEfficiency;
+        double rawCost = move.getBaseCeCost() * factor;
+
+        if (flags != null) {
+            rawCost *= flags.ceCostMultiplierFor(move);
+        }
 
         // Clamp to the move's hard min/max
-        return Math.max(move.getMinCeCost(), Math.min(move.getMaxCeCost(), rawCost));
+        int clamped = Math.max(move.getMinCeCost(), Math.min(move.getMaxCeCost(), (int) Math.round(rawCost)));
+        if (flags != null && flags.forcesMinimumCeCost(move)) {
+            return move.getMinCeCost();
+        }
+        return clamped;
     }
 }

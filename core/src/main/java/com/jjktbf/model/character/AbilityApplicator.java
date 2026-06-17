@@ -83,16 +83,37 @@ public final class AbilityApplicator {
                     }
 
                     // ── Non-stat → flags ─────────────────────────────────────
-                    case CE_COST_TO_MINIMUM      -> flags.ceCostToMinimum = true;
-                    case CE_COST_MULTIPLY        -> flags.ceCostMultiplier *= nvl(eff.doubleValue, 1.0);
+                    case CE_COST_TO_MINIMUM      -> {
+                        flags.ceCostToMinimum = true;
+                        flags.ceCostToMinimumEffects.add(eff);
+                    }
+                    case CE_COST_MULTIPLY        -> {
+                        flags.ceCostMultiplier *= nvl(eff.doubleValue, 1.0);
+                        flags.ceCostMultiplierEffects.add(eff);
+                    }
 
-                    case MOVE_ACCURACY_ADD       -> flags.accuracyBonus        += nvl(eff.intValue, 0);
-                    case MOVE_ACCURACY_MULTIPLY  -> flags.accuracyMultiplier   *= nvl(eff.doubleValue, 1.0);
+                    case MOVE_ACCURACY_ADD       -> {
+                        flags.accuracyBonus += nvl(eff.intValue, 0);
+                        flags.accuracyAddEffects.add(eff);
+                    }
+                    case MOVE_ACCURACY_MULTIPLY  -> {
+                        flags.accuracyMultiplier *= nvl(eff.doubleValue, 1.0);
+                        flags.accuracyMultiplierEffects.add(eff);
+                    }
 
-                    case OPPONENT_ACCURACY_ADD      -> flags.opponentAccuracyBonus       += nvl(eff.intValue, 0);
-                    case OPPONENT_ACCURACY_MULTIPLY -> flags.opponentAccuracyMultiplier  *= nvl(eff.doubleValue, 1.0);
+                    case OPPONENT_ACCURACY_ADD      -> {
+                        flags.opponentAccuracyBonus += nvl(eff.intValue, 0);
+                        flags.opponentAccuracyAddEffects.add(eff);
+                    }
+                    case OPPONENT_ACCURACY_MULTIPLY -> {
+                        flags.opponentAccuracyMultiplier *= nvl(eff.doubleValue, 1.0);
+                        flags.opponentAccuracyMultiplierEffects.add(eff);
+                    }
 
-                    case DAMAGE_MULTIPLY         -> flags.damageMultiplier  *= nvl(eff.doubleValue, 1.0);
+                    case DAMAGE_MULTIPLY         -> {
+                        flags.damageMultiplier *= nvl(eff.doubleValue, 1.0);
+                        flags.damageMultiplierEffects.add(eff);
+                    }
                     case BF_CHANCE_ADD           -> flags.bfChanceBonus    += nvl(eff.doubleValue, 0.0);
                     case MODIFY_DEFENSE          -> flags.defenseMultiplier *= nvl(eff.doubleValue, 1.0);
                     case MODIFY_AP_BAR           -> flags.apBarBonus       += nvl(eff.intValue, 0);
@@ -168,18 +189,25 @@ public final class AbilityApplicator {
         public boolean ceCostToMinimum   = false;
         public double  ceCostMultiplier   = 1.0;
         public int     ceCostPerRound     = 0;
+        public final java.util.List<AbilityEffectData> ceCostToMinimumEffects = new java.util.ArrayList<>();
+        public final java.util.List<AbilityEffectData> ceCostMultiplierEffects = new java.util.ArrayList<>();
 
         // Own accuracy
         public int     accuracyBonus      = 0;
         public double  accuracyMultiplier = 1.0;
+        public final java.util.List<AbilityEffectData> accuracyAddEffects = new java.util.ArrayList<>();
+        public final java.util.List<AbilityEffectData> accuracyMultiplierEffects = new java.util.ArrayList<>();
 
         // Opponent accuracy modifiers (applied to the opponent's hit chance)
         public int     opponentAccuracyBonus      = 0;
         public double  opponentAccuracyMultiplier = 1.0;
+        public final java.util.List<AbilityEffectData> opponentAccuracyAddEffects = new java.util.ArrayList<>();
+        public final java.util.List<AbilityEffectData> opponentAccuracyMultiplierEffects = new java.util.ArrayList<>();
 
         // Damage / defense
         public double  damageMultiplier   = 1.0;
         public double  defenseMultiplier  = 1.0;
+        public final java.util.List<AbilityEffectData> damageMultiplierEffects = new java.util.ArrayList<>();
 
         // Black Flash
         public double  bfChanceBonus      = 0.0;
@@ -201,6 +229,62 @@ public final class AbilityApplicator {
 
         // Status automation
         public final java.util.List<AbilityEffectData> autoStatusEffects = new java.util.ArrayList<>();
+
+        private boolean appliesTo(AbilityEffectData effect, com.jjktbf.model.move.Move move) {
+            return effect.moveTag == null || effect.moveTag.isBlank() || move.hasTag(effect.moveTag);
+        }
+
+        public boolean forcesMinimumCeCost(com.jjktbf.model.move.Move move) {
+            return ceCostToMinimumEffects.stream().anyMatch(effect -> appliesTo(effect, move));
+        }
+
+        public double ceCostMultiplierFor(com.jjktbf.model.move.Move move) {
+            double multiplier = 1.0;
+            for (AbilityEffectData effect : ceCostMultiplierEffects) {
+                if (appliesTo(effect, move)) multiplier *= nvl(effect.doubleValue, 1.0);
+            }
+            return multiplier;
+        }
+
+        public int accuracyBonusFor(com.jjktbf.model.move.Move move) {
+            int bonus = 0;
+            for (AbilityEffectData effect : accuracyAddEffects) {
+                if (appliesTo(effect, move)) bonus += nvl(effect.intValue, 0);
+            }
+            return bonus;
+        }
+
+        public double accuracyMultiplierFor(com.jjktbf.model.move.Move move) {
+            double multiplier = 1.0;
+            for (AbilityEffectData effect : accuracyMultiplierEffects) {
+                if (appliesTo(effect, move)) multiplier *= nvl(effect.doubleValue, 1.0);
+            }
+            return multiplier;
+        }
+
+        public int opponentAccuracyBonusFor(com.jjktbf.model.move.Move move) {
+            int bonus = 0;
+            for (AbilityEffectData effect : opponentAccuracyAddEffects) {
+                if (appliesTo(effect, move)) bonus += nvl(effect.intValue, 0);
+            }
+            return bonus;
+        }
+
+        public double opponentAccuracyMultiplierFor(com.jjktbf.model.move.Move move) {
+            double multiplier = 1.0;
+            for (AbilityEffectData effect : opponentAccuracyMultiplierEffects) {
+                if (appliesTo(effect, move)) multiplier *= nvl(effect.doubleValue, 1.0);
+            }
+            return multiplier;
+        }
+
+        public double damageMultiplierFor(com.jjktbf.model.move.Move move) {
+            double multiplier = 1.0;
+            for (AbilityEffectData effect : damageMultiplierEffects) {
+                if (appliesTo(effect, move)) multiplier *= nvl(effect.doubleValue, 1.0);
+            }
+            return multiplier;
+        }
 
         public boolean hasAnyEffect() {
             return ceCostToMinimum || ceCostMultiplier != 1.0

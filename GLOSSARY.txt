@@ -412,16 +412,18 @@ Utility and Defensive moves have no slot limit.
 
   Pipeline:
     1. HIT ROLL — does the move connect?
-    2. BLOCK CHECK — is the defender's block active and fully negating?
-    3. POWER — attacker's power multiplier for this move category.
-    4. DEFENSE — defender's current Defense value.
-    5. DAMAGE FORMULA — base computation.
-    6. BLOCK REDUCTION — apply % or flat block if active.
+    2. POWER — attacker's power multiplier for this move category.
+    3. BLOCK CHECK / REDUCTION — active DEFENSIVE moves reduce basePower × Power.
+    4. DEFENSE — defender's current Defense value divides the remaining attack value.
+    5. DAMAGE FORMULA — scale and random roll are applied.
+    6. DAMAGE MULTIPLIERS — ability damage modifiers apply.
     7. BLACK FLASH ROLL — BF check on eligible moves.
     8. BF MULTIPLIER — apply ×2.5 if Black Flash proc'd.
 
   DAMAGE FORMULA (verbatim):
-    damage = basePower × (Power / Defense) × DAMAGE_SCALE × roll
+    attackValue = basePower × Power
+    attackValueAfterBlock = DEFENSIVE move reduction applied to attackValue
+    damage = (attackValueAfterBlock / Defense) × DAMAGE_SCALE × roll × damageMultiplier
     DAMAGE_SCALE = 0.5 (placeholder — balance pass pending)
     roll = random value in [0.85, 1.0]
 

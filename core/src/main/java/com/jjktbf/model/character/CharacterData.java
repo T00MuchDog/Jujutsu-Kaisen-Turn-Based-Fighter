@@ -87,8 +87,13 @@ public class CharacterData {
      * Move IDs that don't exist in the repository are skipped with a console warning.
      */
     public Character toCharacter(MoveRepository moveRepo) {
+        return toCharacter(moveRepo, null);
+    }
+
+    public Character toCharacter(MoveRepository moveRepo, AbilityRepository abilityRepo) {
         CharacterStats stats = toCharacterStats();
         List<Move> moves = new ArrayList<>();
+        List<Ability> abilities = new ArrayList<>();
 
         if (moveIds != null) {
             for (String moveId : moveIds) {
@@ -105,7 +110,18 @@ public class CharacterData {
             }
         }
 
-        return new SorcererCharacter(id, name, stats, innateTechniqueName, moves);
+        if (abilityRepo != null && abilityIds != null) {
+            for (String abilityId : abilityIds) {
+                var found = abilityRepo.findById(abilityId);
+                if (found.isPresent()) {
+                    abilities.add(new Ability(found.get()));
+                } else {
+                    System.err.println("[WARN] Ability ID " + abilityId + " not found in repository — skipped for character '" + name + "'");
+                }
+            }
+        }
+
+        return new SorcererCharacter(id, name, stats, innateTechniqueName, moves, abilities);
     }
 
     // -------------------------------------------------------------------------

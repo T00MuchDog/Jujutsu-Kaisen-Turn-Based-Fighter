@@ -4,6 +4,7 @@ import com.jjktbf.controller.BattleController;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.CharacterRepository;
+import com.jjktbf.model.character.AbilityRepository;
 import com.jjktbf.model.move.MoveRepository;
 import com.jjktbf.view.BattleView;
 
@@ -15,14 +16,17 @@ public class TextMain {
 
     private static final String CHAR_DATA_DIR = "data/characters";
     private static final String MOVE_DATA_DIR = "data/moves";
+    private static final String ABILITY_DATA_DIR = "data/abilities";
 
     private final Scanner scanner = new Scanner(System.in);
     private final CharacterRepository charRepo;
     private final MoveRepository moveRepo;
+    private final AbilityRepository abilityRepo;
 
     public TextMain() {
         this.charRepo = new CharacterRepository(CHAR_DATA_DIR);
         this.moveRepo = new MoveRepository(MOVE_DATA_DIR);
+        this.abilityRepo = new AbilityRepository(ABILITY_DATA_DIR);
     }
 
     public static void main(String[] args) {
@@ -35,6 +39,7 @@ public class TextMain {
         try {
             moveRepo.load();
             charRepo.load();
+            abilityRepo.load();
         } catch (IOException e) {
             System.out.println("[ERROR] Failed to load data: " + e.getMessage());
             return;
@@ -59,8 +64,8 @@ public class TextMain {
             return;
         }
 
-        Character player = playerChar.toCharacter(moveRepo);
-        Character enemy  = enemyChar.toCharacter(moveRepo);
+        Character player = playerChar.toCharacter(moveRepo, abilityRepo);
+        Character enemy  = enemyChar.toCharacter(moveRepo, abilityRepo);
 
         BattleView       view       = new TextBattleView();
         BattleController controller = new BattleController(view);

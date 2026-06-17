@@ -32,11 +32,11 @@
   "minCeCost" : 0,
   "maxCeCost" : 0,
   "interruptType" : "NONE",
-  "defenseType" : "BLOCK",
+  "defenseType" : "PERCENTAGE_BLOCK",
   "defenseBuffDuration" : -1,
   "defenseBuffAmount" : 0,
   "blockDuration" : 0,
-  "blockAffectedTags" : [ "physical" ],
+  "blockAffectedTags" : [ "PHYSICAL" ],
   "blockDamageReduction" : 50,
   "isGuaranteedMove" : true
 } ]
