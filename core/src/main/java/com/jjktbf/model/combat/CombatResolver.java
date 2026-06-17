@@ -53,7 +53,8 @@ public class CombatResolver {
     public int computeCostIfAffordable(BattleCombatant combatant, Move move) {
         int cost = CeEfficiencyCalculator.computeActualCost(
             move,
-            combatant.getCharacter().getBaseStats().getCursedEnergyEfficiency()
+            combatant.getEffectiveStats().getCursedEnergyEfficiency(),
+            combatant.getAbilityFlags()
         );
         return (combatant.getCurrentCe() >= cost) ? cost : -1;
     }
@@ -81,6 +82,9 @@ public class CombatResolver {
             playerTimeline != null ? playerTimeline.getMaxApBar() : 0,
             enemyTimeline  != null ? enemyTimeline.getMaxApBar()  : 0
         );
+
+        drainSustainedCe(player, events);
+        drainSustainedCe(enemy, events);
 
         for (int tick = 1; tick <= maxTick; tick++) {
             state.advanceTick();
@@ -123,6 +127,16 @@ public class CombatResolver {
         for (ActionSegment segment : tl.getSegments()) {
             if (segment.isKnockedOut()) continue;
             if (segment.getStartTick() == tick && segment.getActualCeCost() > 0) {
+                if (!combatant.hasCe(segment.getActualCeCost())) {
+                    segment.knockOut();
+                    events.add(CombatEvent.of(CombatEvent.Type.CE_DEPLETED)
+                        .source(combatant)
+                        .move(segment.getMove())
+                        .message(combatant.getCharacter().getName() + " does not have enough CE for "
+                            + segment.getMove().getName() + "!")
+                        .build());
+                    continue;
+                }
                 int drained = combatant.drainCe(segment.getActualCeCost());
                 events.add(CombatEvent.of(CombatEvent.Type.CE_DRAINED)
                     .source(combatant)
@@ -139,6 +153,23 @@ public class CombatResolver {
                         .build());
                 }
             }
+        }
+    }
+
+    private void drainSustainedCe(BattleCombatant combatant, List<CombatEvent> events) {
+        int cost = combatant.getAbilityFlags().ceCostPerRound;
+        if (cost <= 0) return;
+        int drained = combatant.drainCe(cost);
+        events.add(CombatEvent.of(CombatEvent.Type.CE_DRAINED)
+            .source(combatant)
+            .intValue(drained)
+            .message(combatant.getCharacter().getName() + " spends " + drained + " CE to sustain abilities.")
+            .build());
+        if (!combatant.hasAnyCe()) {
+            events.add(CombatEvent.of(CombatEvent.Type.CE_DEPLETED)
+                .source(combatant)
+                .message(combatant.getCharacter().getName() + " has exhausted all Cursed Energy!")
+                .build());
         }
     }
 
@@ -242,7 +273,7 @@ public class CombatResolver {
         } else {
             // Hit — check whether a block softened it
             boolean wasBlocked = defender.getTimeline() != null
-                && defender.getTimeline().hasActiveBlockAt(tick);
+                && defender.getTimeline().activeBlockAt(tick, move) != null;
 
             defender.applyDamage(result.getFinalDamage());
 
@@ -265,12 +296,13 @@ public class CombatResolver {
             // Black Flash
             if (result.isBlackFlash()) {
                 int ceRestored = (int) Math.round(
-                    attacker.getCharacter().getCombatStats().getMaxCursedEnergy()
+                    attacker.getEffectiveCombatStats().getMaxCursedEnergy()
                     * CombatStats.BF_CE_RESTORE_FRACTION
                 );
                 attacker.restoreCeFraction(CombatStats.BF_CE_RESTORE_FRACTION);
+                boolean wasInBfs = attacker.isInBlackFlashState();
                 attacker.enterBlackFlashState(state.getRoundNumber());
-                attacker.recordBfsHit();
+                if (wasInBfs) attacker.recordBfsHit();
 
                 events.add(CombatEvent.of(CombatEvent.Type.BLACK_FLASH)
                     .source(attacker).target(defender).move(move)

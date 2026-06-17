@@ -44,6 +44,7 @@ public abstract class Character extends Entity {
      * possession, and slot budget at construction time.
      */
     private final List<Move> knownMoves;
+    private final List<Ability> abilities;
 
     // -------------------------------------------------------------------------
     // Construction
@@ -57,6 +58,18 @@ public abstract class Character extends Entity {
         String         innateTechniqueName,
         List<Move>     knownMoves
     ) {
+        this(id, name, type, baseStats, innateTechniqueName, knownMoves, List.of());
+    }
+
+    protected Character(
+        String         id,
+        String         name,
+        CharacterType  type,
+        CharacterStats baseStats,
+        String         innateTechniqueName,
+        List<Move>     knownMoves,
+        List<Ability>  abilities
+    ) {
         super(id, name);
         Objects.requireNonNull(type,      "CharacterType cannot be null");
         Objects.requireNonNull(baseStats, "CharacterStats cannot be null");
@@ -68,6 +81,8 @@ public abstract class Character extends Entity {
         this.knownMoves         = Collections.unmodifiableList(
             validateAndBuildMoveList(knownMoves, baseStats, combatStats, innateTechniqueName)
         );
+        this.abilities          = abilities != null
+            ? Collections.unmodifiableList(new ArrayList<>(abilities)) : List.of();
     }
 
     // -------------------------------------------------------------------------
@@ -147,6 +162,7 @@ public abstract class Character extends Entity {
     public CharacterType   getType()                 { return type; }
     public String          getInnateTechniqueName()  { return innateTechniqueName; }
     public List<Move>      getKnownMoves()           { return knownMoves; }
+    public List<Ability>   getAbilities()            { return abilities; }
     public boolean         hasInnateTechnique()      { return innateTechniqueName != null; }
 
     /** @deprecated Use getInnateTechniqueName(). Kept for any callers using the old name. */

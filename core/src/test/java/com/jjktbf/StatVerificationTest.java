@@ -3,8 +3,11 @@ package com.jjktbf;
 import com.jjktbf.model.character.*;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CombatStats;
-import com.jjktbf.model.move.CoreMoves;
+import com.jjktbf.model.combat.*;
+import com.jjktbf.model.move.*;
 import org.junit.jupiter.api.Test;
+import java.util.List;
+import java.util.Random;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class StatVerificationTest {
@@ -141,5 +144,110 @@ public class StatVerificationTest {
         // Should deal between 70 and 115 (allowing for formula rounding)
         assertTrue(minDamage >= 70 && maxDamage <= 115,
             String.format("Damage out of expected range: %.1f–%.1f", minDamage, maxDamage));
+    }
+
+    @Test
+    void blockDurationStartsAtFireTickAndUsesApCostWhenDurationIsZero() {
+        Move attack = new Move.Builder("TEST_ATTACK")
+            .name("Test Attack")
+            .category(MoveCategory.PHYSICAL)
+            .basePower(50)
+            .apCost(10)
+            .unleashPoint(1)
+            .build();
+        Move block = new Move.Builder("TEST_BLOCK")
+            .name("Test Block")
+            .category(MoveCategory.DEFENSIVE)
+            .apCost(10)
+            .unleashPoint(3)
+            .defenseType(DefenseType.PERCENTAGE_BLOCK)
+            .blockDuration(0)
+            .blockAffectedTags(List.of("PHYSICAL"))
+            .blockDamageReduction(50)
+            .build();
+
+        Timeline timeline = new Timeline(30);
+        timeline.addMove(block, 0);
+
+        assertNull(timeline.activeBlockAt(2, attack));
+        assertNotNull(timeline.activeBlockAt(3, attack));
+        assertNotNull(timeline.activeBlockAt(12, attack));
+        assertNull(timeline.activeBlockAt(13, attack));
+    }
+
+    @Test
+    void blockAffectedTagsFilterIncomingMoveTags() {
+        Move physicalAttack = new Move.Builder("PHYSICAL_TEST")
+            .name("Physical Test")
+            .category(MoveCategory.PHYSICAL)
+            .basePower(50)
+            .build();
+        Move innateAttack = new Move.Builder("INNATE_TEST")
+            .name("Innate Test")
+            .category(MoveCategory.INNATE_TECHNIQUE)
+            .basePower(50)
+            .build();
+        Move physicalBlock = new Move.Builder("PHYSICAL_BLOCK")
+            .name("Physical Block")
+            .category(MoveCategory.DEFENSIVE)
+            .defenseType(DefenseType.PERCENTAGE_BLOCK)
+            .blockAffectedTags(List.of("PHYSICAL"))
+            .blockDamageReduction(50)
+            .build();
+
+        Timeline timeline = new Timeline(30);
+        timeline.addMove(physicalBlock, 0);
+
+        assertNotNull(timeline.activeBlockAt(10, physicalAttack));
+        assertNull(timeline.activeBlockAt(10, innateAttack));
+    }
+
+    @Test
+    void blockReductionAppliesBeforeDefenseAndScaleRoll() {
+        Move attack = new Move.Builder("TEST_ATTACK")
+            .name("Test Attack")
+            .category(MoveCategory.PHYSICAL)
+            .basePower(100)
+            .neverMiss(true)
+            .apCost(10)
+            .unleashPoint(1)
+            .build();
+        Move block = new Move.Builder("TEST_BLOCK")
+            .name("Test Block")
+            .category(MoveCategory.DEFENSIVE)
+            .defenseType(DefenseType.PERCENTAGE_BLOCK)
+            .blockDamageReduction(50)
+            .neverMiss(true)
+            .apCost(10)
+            .unleashPoint(1)
+            .build();
+
+        CharacterStats stats = new CharacterStats.Builder().build();
+        Character attackerChar = new SorcererCharacter("A", "Attacker", stats, null, List.of(attack));
+        Character defenderChar = new SorcererCharacter("D", "Defender", stats, null, List.of(block));
+        BattleCombatant attacker = new BattleCombatant(attackerChar);
+        BattleCombatant defender = new BattleCombatant(defenderChar);
+        Timeline defenderTimeline = new Timeline(30);
+        defenderTimeline.addMove(block, 0);
+        defender.setTimeline(defenderTimeline);
+
+        DamageCalculator.DamageResult result = DamageCalculator.resolve(
+            attacker, defender, attack, 1, new FixedRandom(0.0), 1
+        );
+
+        assertEquals(21, result.getFinalDamage());
+    }
+
+    private static final class FixedRandom extends Random {
+        private final double value;
+
+        private FixedRandom(double value) {
+            this.value = value;
+        }
+
+        @Override
+        public double nextDouble() {
+            return value;
+        }
     }
 }

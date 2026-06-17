@@ -20,7 +20,7 @@ public class GreedyAIStrategy implements AIStrategy {
     @Override
     public List<Move> selectMoves(BattleCombatant ai, BattleCombatant opponent) {
         List<Move> selected  = new ArrayList<>();
-        int        remainAp  = ai.getEffectiveCombatStats().getMaxApBar();
+        int        remainAp  = ai.getMaxApBar();
         int        currentCe = ai.getCurrentCe();
 
         // Sort moves by base power descending, then pick greedily
@@ -28,10 +28,11 @@ public class GreedyAIStrategy implements AIStrategy {
         sorted.sort((a, b) -> b.getBasePower() - a.getBasePower());
 
         for (Move move : sorted) {
+            if (ai.getAbilityFlags().lockedMoveTags.stream().anyMatch(move::hasTag)) continue;
             if (move.getApCost() > remainAp) continue;
 
             int ceCost = CeEfficiencyCalculator.computeActualCost(
-                move, ai.getEffectiveStats().getCursedEnergyEfficiency()
+                move, ai.getEffectiveStats().getCursedEnergyEfficiency(), ai.getAbilityFlags()
             );
             if (ceCost > currentCe) continue;
 

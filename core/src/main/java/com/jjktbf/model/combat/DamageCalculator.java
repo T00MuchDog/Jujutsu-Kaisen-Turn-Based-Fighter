@@ -12,13 +12,14 @@ import java.util.Random;
  * Pipeline:
  *  1. Hit roll   — does the move connect?
  *  2. Power      — attacker's Power for this move category (via PowerCalculator)
- *  3. Defense    — defender's current Defense (via CombatStats.computeDefense)
- *  4. Damage     — scaled formula applied
+ *  3. Block      — defensive move reduction applies to basePower × Power
+ *  4. Defense    — defender's current Defense (via CombatStats.computeDefense)
+ *  5. Damage     — scaled formula applied
  *  5. Black Flash roll — if eligible and move hits
  *  6. BF multiplier applied if proc'd
  *
  * Damage formula:
- *   damage = basePower × (power / defense) × DAMAGE_SCALE × roll
+ *   damage = ((basePower × power) after block / defense) × DAMAGE_SCALE × roll
  *
  * DAMAGE_SCALE = 0.5 (PLACEHOLDER — tune during balance pass).
  *
@@ -72,8 +73,14 @@ public final class DamageCalculator {
         if (move.isNeverMiss()) {
             hit = true;
         } else {
+            double modifiedAccuracy = (attacker.getEffectiveCombatStats().getAccuracy()
+                + attacker.getAbilityFlags().accuracyBonusFor(move)
+                + defender.getAbilityFlags().opponentAccuracyBonusFor(move))
+                * attacker.getAbilityFlags().accuracyMultiplierFor(move)
+                * defender.getAbilityFlags().opponentAccuracyMultiplierFor(move);
+            int attackerAccuracy = (int) Math.round(Math.max(0, modifiedAccuracy));
             double hitChance = CombatStats.computeHitChance(
-                attacker.getEffectiveCombatStats().getAccuracy(),
+                attackerAccuracy,
                 defender.getEffectiveCombatStats().getEvasion(),
                 move.getBaseAccuracy()
             );
@@ -86,38 +93,34 @@ public final class DamageCalculator {
 
         // --- 2. Check block ---
         Timeline defTimeline = defender.getTimeline();
-        ActionSegment activeBlockSegment = defTimeline != null ? defTimeline.segmentAt(currentTick) : null;
-        // Only count non-knocked-out active defensive blocks
-        if (activeBlockSegment != null
-            && (activeBlockSegment.isKnockedOut() || !activeBlockSegment.getMove().isActiveBlock())) {
-            activeBlockSegment = null;
-        }
+        ActionSegment activeBlockSegment = defTimeline != null ? defTimeline.activeBlockAt(currentTick, move) : null;
 
         // --- 3. Power ---
         int power   = PowerCalculator.compute(move.getCategory(), acs);
 
-        // --- 4. Defense ---
+        // --- 4. Apply defensive block before Defense ---
+        double attackValue = move.getBasePower() * (double) power;
+        if (activeBlockSegment != null) {
+            attackValue = activeBlockSegment.getMove().applyBlockTo(attackValue);
+            if (attackValue == 0) {
+                return DamageResult.blocked(move); // full block
+            }
+        }
+
+        // --- 5. Defense ---
         int defense = defender.computeCurrentDefense(currentTick);
         if (defense < 1) defense = 1; // prevent division-by-zero or negative defense
 
-        // --- 5. Damage formula ---
-        // damage = basePower × (power / defense) × DAMAGE_SCALE × roll
+        // --- 6. Damage formula ---
+        // damage = ((basePower × power) after block / defense) × DAMAGE_SCALE × roll
         double randomRoll = ROLL_MIN + (1.0 - ROLL_MIN) * rng.nextDouble();
         int rawDamage = (int) Math.round(
-            move.getBasePower() * ((double) power / defense) * DAMAGE_SCALE * randomRoll
+            (attackValue / defense) * DAMAGE_SCALE * randomRoll
+                * attacker.getAbilityFlags().damageMultiplierFor(move)
         );
         rawDamage = Math.max(1, rawDamage);
 
-        // --- 5b. Apply block reduction (delegated to the block move itself) ---
-        if (activeBlockSegment != null) {
-            int afterBlock = activeBlockSegment.getMove().applyBlockTo(rawDamage);
-            if (afterBlock == 0) {
-                return DamageResult.blocked(move); // full block
-            }
-            rawDamage = afterBlock;
-        }
-
-        // --- 6. Black Flash roll ---
+        // --- 7. Black Flash roll ---
         boolean blackFlash = false;
         int finalDamage    = rawDamage;
 

@@ -10,6 +10,7 @@ import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.CharacterRepository;
+import com.jjktbf.model.character.AbilityRepository;
 import com.jjktbf.model.move.MoveRepository;
 
 import java.io.IOException;
@@ -28,6 +29,7 @@ public class CharacterSelectScreen implements Screen {
 
     private static final String CHAR_DATA_DIR = "data/characters";
     private static final String MOVE_DATA_DIR = "data/moves";
+    private static final String ABILITY_DATA_DIR = "data/abilities";
 
     private enum Phase { PLAYER, CPU }
 
@@ -36,6 +38,7 @@ public class CharacterSelectScreen implements Screen {
     private final SpriteBatch        batch;
     private final CharacterRepository charRepo;
     private final MoveRepository      moveRepo;
+    private final AbilityRepository   abilityRepo;
 
     private List<CharacterData> characters;
     private int    cursorIndex    = 0;
@@ -49,6 +52,7 @@ public class CharacterSelectScreen implements Screen {
         this.batch     = new SpriteBatch();
         this.charRepo  = new CharacterRepository(CHAR_DATA_DIR);
         this.moveRepo  = new MoveRepository(MOVE_DATA_DIR);
+        this.abilityRepo = new AbilityRepository(ABILITY_DATA_DIR);
     }
 
     // -------------------------------------------------------------------------
@@ -64,6 +68,7 @@ public class CharacterSelectScreen implements Screen {
 
         try {
             moveRepo.load();
+            abilityRepo.load();
             charRepo.load();
             characters = charRepo.getAll();
             if (characters.isEmpty()) {
@@ -114,7 +119,7 @@ public class CharacterSelectScreen implements Screen {
                 cursorIndex  = 0;
             } else {
                 CharacterData cpuChoice = characters.get(cursorIndex);
-                game.startBattle(playerChoice, cpuChoice, moveRepo);
+                game.startBattle(playerChoice, cpuChoice, moveRepo, abilityRepo);
             }
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {

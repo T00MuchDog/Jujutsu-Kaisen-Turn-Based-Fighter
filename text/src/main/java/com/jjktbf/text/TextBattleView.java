@@ -52,7 +52,7 @@ TextBattleView implements BattleView {
     @Override
     public List<Move> promptMoveSelection(BattleCombatant combatant, BattleCombatant opponent) {
         List<Move> queue    = new ArrayList<>();
-        int remainingAp     = combatant.getEffectiveCombatStats().getMaxApBar();
+        int remainingAp     = combatant.getMaxApBar();
         int projectedCe     = combatant.getCurrentCe(); // tracks CE after queued moves
 
         while (true) {
@@ -120,7 +120,7 @@ TextBattleView implements BattleView {
 
                 Move chosen  = available.get(choice - 1);
                 int  ceCost  = CeEfficiencyCalculator.computeActualCost(
-                    chosen, combatant.getCharacter().getBaseStats().getCursedEnergyEfficiency());
+                    chosen, combatant.getEffectiveStats().getCursedEnergyEfficiency(), combatant.getAbilityFlags());
 
                 queue.add(chosen);
                 remainingAp -= chosen.getApCost();
@@ -212,7 +212,7 @@ TextBattleView implements BattleView {
      */
     private void printMoveInspect(Move move, BattleCombatant combatant) {
         int ceCost = CeEfficiencyCalculator.computeActualCost(
-            move, combatant.getCharacter().getBaseStats().getCursedEnergyEfficiency());
+            move, combatant.getEffectiveStats().getCursedEnergyEfficiency(), combatant.getAbilityFlags());
 
         System.out.println();
         System.out.println("  ┌─────────────────────────────────────────────────────────┐");
@@ -285,7 +285,7 @@ TextBattleView implements BattleView {
     private void printCombatantStatus(BattleCombatant c, int projectedCe) {
         int maxHp = c.getEffectiveCombatStats().getMaxHp();
         int maxCe = c.getEffectiveCombatStats().getMaxCursedEnergy();
-        int apBar = c.getEffectiveCombatStats().getMaxApBar();
+        int apBar = c.getMaxApBar();
 
         System.out.printf("  %-24s%s%n",
             c.getCharacter().getName(),
@@ -346,7 +346,7 @@ TextBattleView implements BattleView {
         int idx = 1;
         for (Move move : moves) {
             int ceCost = CeEfficiencyCalculator.computeActualCost(
-                move, combatant.getCharacter().getBaseStats().getCursedEnergyEfficiency());
+                move, combatant.getEffectiveStats().getCursedEnergyEfficiency(), combatant.getAbilityFlags());
             String accStr = move.isNeverMiss() ? "—" : String.format("%.0f%%", move.getBaseAccuracy() * 100);
             System.out.printf("  %-3d %-22s %-5d %-5s %-6s %-12s %-6s%n",
                 idx++,
@@ -365,9 +365,10 @@ TextBattleView implements BattleView {
                                           BattleCombatant combatant) {
         List<Move> affordable = new ArrayList<>();
         for (Move move : known) {
+            if (combatant.getAbilityFlags().lockedMoveTags.stream().anyMatch(move::hasTag)) continue;
             if (move.getApCost() > remainAp) continue;
             int ceCost = CeEfficiencyCalculator.computeActualCost(
-                move, combatant.getCharacter().getBaseStats().getCursedEnergyEfficiency());
+                move, combatant.getEffectiveStats().getCursedEnergyEfficiency(), combatant.getAbilityFlags());
             if (ceCost > currentCe) continue;
             affordable.add(move);
         }

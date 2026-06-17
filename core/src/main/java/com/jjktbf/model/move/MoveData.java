@@ -49,12 +49,12 @@ public class MoveData {
     /** DefenseType enum name */
     public String  defenseType    = "NONE";
 
-    /** Block-specific fields (used when defenseType = BLOCK or FLAT_BLOCK) */
+    /** Block-specific fields (used when defenseType = PERCENTAGE_BLOCK or FLAT_BLOCK) */
     /** Duration in AP ticks. 0 = use move's apCost. -1 = end of round. */
     public int     blockDuration = 0;
     /** Tags this block affects. Null = all damage types. */
     public List<String> blockAffectedTags;
-    /** BLOCK only: percentage of damage reduced (0-100). 100 = full block. */
+    /** PERCENTAGE_BLOCK only: percentage of damage reduced (0-100). 100 = full block. */
     public int     blockDamageReduction = 100;
     /** FLAT_BLOCK only: flat damage amount subtracted from incoming attacks. */
     public int     blockFlatReduction = 0;

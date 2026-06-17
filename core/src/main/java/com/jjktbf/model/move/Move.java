@@ -93,13 +93,13 @@ public class Move {
     /** Defensive behavior, if any. */
     private final DefenseType defenseType;
 
-    /** Duration in AP ticks. 0 = use move's apCost. -1 = end of round. Applies to BLOCK and FLAT_BLOCK. */
+    /** Duration in AP ticks. 0 = use move's apCost. -1 = end of round. Applies to PERCENTAGE_BLOCK and FLAT_BLOCK. */
     private final int blockDuration;
 
-    /** Tags this block affects. Null = all damage types. Applies to BLOCK and FLAT_BLOCK. */
+    /** Tags this block affects. Null = all damage types. Applies to PERCENTAGE_BLOCK and FLAT_BLOCK. */
     private final List<String> blockAffectedTags;
 
-    /** Percentage of damage reduced (0-100). 100 = full block. Used by BLOCK. */
+    /** Percentage of damage reduced (0-100). 100 = full block. Used by PERCENTAGE_BLOCK. */
     private final int blockDamageReduction;
 
     /** Flat damage subtracted from incoming damage. Used by FLAT_BLOCK. */
@@ -190,6 +190,34 @@ public class Move {
         return category.isBlackFlashEligible();
     }
 
+    public boolean hasTag(String tagName) {
+        if (tagName == null || tagName.isBlank()) return true;
+        String normalized = tagName.trim().toUpperCase();
+        if ("ATTACK".equals(normalized)) return basePower > 0 && category != MoveCategory.DEFENSIVE && category != MoveCategory.UTILITY;
+        if ("CURSED_ENERGY".equals(normalized)) {
+            return category == MoveCategory.PHYSICAL_CURSED_ENERGY
+                || category == MoveCategory.INNATE_TECHNIQUE
+                || category == MoveCategory.NON_INNATE_TECHNIQUE
+                || category == MoveCategory.PHYSICAL_INNATE_TECHNIQUE
+                || category == MoveCategory.PHYSICAL_NON_INNATE_TECHNIQUE
+                || category == MoveCategory.INNATE_NON_INNATE_TECHNIQUE
+                || category == MoveCategory.PHYSICAL_INNATE_NON_INNATE_TECHNIQUE;
+        }
+        try {
+            return category.getTags().contains(MoveTag.valueOf(normalized));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    public boolean hasAllTags(List<String> tagNames) {
+        if (tagNames == null || tagNames.isEmpty()) return true;
+        for (String tagName : tagNames) {
+            if (!hasTag(tagName)) return false;
+        }
+        return true;
+    }
+
     public boolean hasInterrupt() {
         return interruptType != InterruptType.NONE;
     }
@@ -240,13 +268,17 @@ public class Move {
      * Should only be called if isActiveBlock() is true.
      */
     public int applyBlockTo(int rawDamage) {
+        return (int) Math.round(applyBlockTo((double) rawDamage));
+    }
+
+    public double applyBlockTo(double incomingDamage) {
         return switch (defenseType) {
             case PERCENTAGE_BLOCK -> {
                 if (blockDamageReduction >= 100) yield 0; // full block
-                yield Math.max(1, (int) Math.round(rawDamage * (100 - blockDamageReduction) / 100.0));
+                yield Math.max(1.0, incomingDamage * (100 - blockDamageReduction) / 100.0);
             }
-            case FLAT_BLOCK -> Math.max(1, rawDamage - blockFlatReduction);
-            default -> rawDamage; // not a block move — no reduction
+            case FLAT_BLOCK -> Math.max(1.0, incomingDamage - blockFlatReduction);
+            default -> incomingDamage; // not a block move — no reduction
         };
     }
 

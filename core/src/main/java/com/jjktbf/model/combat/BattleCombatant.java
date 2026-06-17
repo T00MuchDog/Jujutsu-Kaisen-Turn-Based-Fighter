@@ -166,6 +166,10 @@ public class BattleCombatant {
         return currentCe > 0;
     }
 
+    public boolean hasCe(int amount) {
+        return currentCe >= amount;
+    }
+
     // -------------------------------------------------------------------------
     // Black Flash State
     // -------------------------------------------------------------------------
@@ -308,6 +312,7 @@ public class BattleCombatant {
     public CharacterStats getEffectiveStats()              { return effectiveStats; }
     public CombatStats getEffectiveCombatStats()           { return effectiveCombatStats; }
     public AbilityApplicator.AbilityFlags getAbilityFlags(){ return abilityFlags; }
+    public int getMaxApBar()                              { return Math.max(0, effectiveCombatStats.getMaxApBar() + abilityFlags.apBarBonus); }
     public int getCurrentHp()                             { return currentHp; }
     public int getCurrentCe()                             { return currentCe; }
     public boolean isInBlackFlashState()                  { return inBlackFlashState; }
