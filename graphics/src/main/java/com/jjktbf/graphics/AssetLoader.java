@@ -5,6 +5,8 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator.FreeTypeFontParameter;
+import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.jjktbf.graphics.ui.pixel.PixelSkin;
 
 /**
  * Centralised asset loading and disposal.
@@ -43,6 +45,14 @@ public class AssetLoader {
     public Texture cardSelected;
     public Texture cardDisabled;
 
+    // ── Scene2D skin for the editors ───────────────────────────────────────────
+
+    /**
+     * Code-generated FRLG-style Scene2D skin (panels, buttons, sliders,
+     * textfields, scrollbars, etc.). Used by all editor screens.
+     */
+    public Skin editorSkin;
+
     // ── Internal ──────────────────────────────────────────────────────────────
 
     private FreeTypeFontGenerator fontGenerator;
@@ -59,6 +69,16 @@ public class AssetLoader {
         loadFonts();
         loadSprites();
         loadUi();
+        loadSkin();
+    }
+
+    /**
+     * Build the code-generated editor skin. Uses the bundled TTF directly —
+     * independent of the battle fonts above, so disposing the skin later
+     * cannot affect the battle UI.
+     */
+    private void loadSkin() {
+        editorSkin = PixelSkin.create();
     }
 
     private void loadFonts() {
@@ -121,5 +141,7 @@ public class AssetLoader {
         if (cardNormal    != null) cardNormal.dispose();
         if (cardSelected  != null) cardSelected.dispose();
         if (cardDisabled  != null) cardDisabled.dispose();
+
+        if (editorSkin    != null) editorSkin.dispose();
     }
 }

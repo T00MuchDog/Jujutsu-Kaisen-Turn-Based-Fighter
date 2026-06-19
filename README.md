@@ -89,6 +89,16 @@ These were established deliberately and should be maintained throughout developm
 3. Important files touched: `DamageCalculator.java`, `Timeline.java`, `CombatResolver.java`, `BattleController.java`, `BattleCombatant.java`, `AbilityApplicator.java`, `CharacterData.java`, `Character.java`, text/graphics battle entry points, `data/moves/all_moves.json`, `GLOSSARY.txt`, and `StatVerificationTest.java`.
 4. Follow-up tasks or risks: status-effect behavior remains intentionally unimplemented. Existing saved data with legacy interrupt names or invalid defense types still needs migration if present outside the current JSON files.
 
+### Recent engineering update — Scene2D graphical editors
+
+1. What changed: Replaced the three read-only, keyboard-only graphical editor screens and the keyboard-only main menu with full mouse-driven, pixel-art (Gen 3 FireRed/LeafGreen style) CRUD editors running under LibGDX Scene2D. Added `PixelSkin` (code-generated 9-patch textures), `EditorScreenBase<D>` (master-detail chrome), and reusable field widgets (`StatField`, `TagPicker`, `EnumSelectBox`, `AssignmentPanel`, `EffectListEditor`). All screens share a `#CDDCFA` light-blue background; button text highlights bright yellow (`#FFE32E`) on hover.
+2. Architectural/data/API implications: The graphics module now depends on Scene2D (`Stage`, `Skin`, `ScrollPane`, `DragAndDrop`). All UI textures are generated in code — no new binary assets. The `EditorScreenBase` owns the draft lifecycle (new/edit/save/cancel) with explicit save validation. The `core` module is untouched — editors reuse `SlotBudgetEnforcer`, `CombatStats`, `StatKey`, repos, and DTO `toMove()`/`toCharacter()` validation. `PixelSkin` now generates three fonts (small 8, body 10, large 18); the large font drives the `"title"` label style and main-menu title.
+3. Important files touched:
+   - New: `graphics/.../ui/pixel/PixelSkin.java`, `graphics/.../ui/editor/{EditorScreenBase, ValidationResult, StatField, TagPicker, EnumSelectBox, EffectListEditor, AssignmentPanel}.java` (8 files)
+   - Rewritten: `screens/MainMenuScreen.java`, `screens/editors/{MoveEditorScreen, CharacterEditorScreen, AbilityEditorScreen}.java` (4 files)
+   - Edited: `AssetLoader.java` (load/dispose `editorSkin`), `CharacterSelectScreen.java` + `BattleScreen.java` (shared background colour)
+4. Follow-up tasks or risks: Legacy on-disk move data (`data/moves/all_moves.json`) still uses old field names (`defenseBuffDuration`, `isGuaranteedMove`) — first Move-editor Save rewrites cleanly. Scene2D `DragAndDrop` inside `ScrollPane` may need tuning. Point-buy budget logic is ported from `StatEntryFlow` into the GUI (not shared code).
+
 ### 1. Loose coupling — changes touch the minimum number of files
 
 The key test: if you add a new `DefenseType`, `InterruptType`, or `StatusEffectType`,
@@ -193,6 +203,8 @@ TextBattleView / BattleScreen (render)
 - **Placeholder sprites**: `assets/sprites/player_placeholder.png` and `enemy_placeholder.png` — 64×96 solid colour PNGs. Replace with real pixel art when ready.
 - **No core changes required**: `BattleScreen` implements `BattleView`. `JJKGame` wires it to `BattleController`. The entire `core` module is untouched.
 - **Thread model**: `BattleController.runBattle()` runs on a daemon background thread (`battle-thread`). All LibGDX render-thread mutations go through `Gdx.app.postRunnable()`.
+- **Editors (Scene2D)**: The three editors (`MoveEditorScreen`, `CharacterEditorScreen`, `AbilityEditorScreen`) and the main menu are Scene2D Stage-based UIs with full CRUD. UI textures are generated in code by `PixelSkin` (no binary assets) in a Gen-3 FireRed/LeafGreen pixel style. The shared chrome lives in `EditorScreenBase<D>`; reusable field widgets (`StatField`, `TagPicker`, `EnumSelectBox`, `AssignmentPanel`, `EffectListEditor`) live in `com.jjktbf.graphics.ui.editor`. Edits are held in an in-memory draft; Save validates and persists, Cancel discards.
+- **Screen background**: All screens clear to `#CDDCFA` (light blue). Button text turns bright yellow (`#FFE32E`) on hover to signal clickability.
 
 ---
 

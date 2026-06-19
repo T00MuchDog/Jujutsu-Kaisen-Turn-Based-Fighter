@@ -72,6 +72,8 @@ public final class PixelSkin {
 
     /** Dark navy text on cream panels. */
     private static final Color TEXT_DARK     = new Color(0.078f, 0.176f, 0.337f, 1f);   // matches BORDER_OUTER
+    /** Bright yellow — used for hover highlight on clickable buttons. */
+    private static final Color TEXT_HOVER    = new Color(1.000f, 0.890f, 0.180f, 1f);   // #FFE32E
     /** Red for error/validation feedback. */
     private static final Color TEXT_ERROR    = new Color(0.760f, 0.090f, 0.090f, 1f);
     /** Green for success / dirty-saved feedback. */
@@ -82,6 +84,7 @@ public final class PixelSkin {
     /** Fonts generated and added to the skin. */
     private final BitmapFont font;
     private final BitmapFont fontSmall;
+    private final BitmapFont fontLarge;
 
     /** Tracks every Texture we create so dispose() can free GPU memory. */
     private final List<Texture> ownedTextures = new ArrayList<>();
@@ -104,8 +107,10 @@ public final class PixelSkin {
         BitmapFont[] fonts = generateFonts();
         this.font      = fonts[0];
         this.fontSmall = fonts[1];
+        this.fontLarge = fonts[2];
         ownedFonts.add(font);
         ownedFonts.add(fontSmall);
+        ownedFonts.add(fontLarge);
     }
 
     // =========================================================================
@@ -117,6 +122,7 @@ public final class PixelSkin {
 
         skin.add("default", font, BitmapFont.class);
         skin.add("small",   fontSmall, BitmapFont.class);
+        skin.add("large",   fontLarge, BitmapFont.class);
 
         addColors(skin);
 
@@ -259,6 +265,7 @@ public final class PixelSkin {
         skin.add("text-ok",    TEXT_OK,    Color.class);
         skin.add("text-dirty", TEXT_DIRTY, Color.class);
         skin.add("text-dim",   new Color(0.42f, 0.42f, 0.46f, 1f), Color.class);
+        skin.add("text-hover", TEXT_HOVER, Color.class);
         skin.add("white",      Color.WHITE, Color.class);
         skin.add("black",      Color.BLACK, Color.class);
     }
@@ -277,7 +284,7 @@ public final class PixelSkin {
         skin.add("small", small, com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle.class);
 
         com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle title =
-            new com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle(font, new Color(0.078f, 0.176f, 0.337f, 1f));
+            new com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle(fontLarge, new Color(0.078f, 0.176f, 0.337f, 1f));
         skin.add("title", title, com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle.class);
 
         com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle error =
@@ -298,7 +305,9 @@ public final class PixelSkin {
             new com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle(up, down, up, font);
         def.fontColor = TEXT_DARK;
         def.downFontColor = Color.WHITE;
-        def.overFontColor = TEXT_DARK;
+        // Hover highlight: bright-yellow text signals the button is clickable.
+        def.overFontColor = TEXT_HOVER;
+        def.over = hover;
         skin.add("default", def, com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle.class);
 
         // Toggle variant — same look, checked shows pressed state.
@@ -306,6 +315,8 @@ public final class PixelSkin {
             new com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle(up, down, checked, font);
         toggle.fontColor = TEXT_DARK;
         toggle.checkedFontColor = Color.WHITE;
+        toggle.overFontColor = TEXT_HOVER;
+        toggle.over = hover;
         skin.add("toggle", toggle, com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle.class);
     }
 
@@ -398,7 +409,12 @@ public final class PixelSkin {
         BitmapFont small = gen.generateFont(p);
         small.setUseIntegerPositions(true);
 
+        // Large font for titles / banners
+        p.size = 18;
+        BitmapFont large = gen.generateFont(p);
+        large.setUseIntegerPositions(true);
+
         gen.dispose();
-        return new BitmapFont[]{ body, small };
+        return new BitmapFont[]{ body, small, large };
     }
 }

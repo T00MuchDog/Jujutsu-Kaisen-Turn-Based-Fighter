@@ -184,7 +184,8 @@ public class BattleScreen implements Screen, BattleView {
     // -------------------------------------------------------------------------
 
     private void clearScreen() {
-        Gdx.gl.glClearColor(0, 0, 0, 1);
+        // #CDDCFA — light blue, shared across all screens
+        Gdx.gl.glClearColor(0.804f, 0.863f, 0.980f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
     }
 
