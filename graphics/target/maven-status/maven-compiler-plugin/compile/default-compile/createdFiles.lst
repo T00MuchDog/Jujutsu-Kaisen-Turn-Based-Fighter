@@ -1,7 +1,10 @@
+com/jjktbf/graphics/ui/pixel/HoverList.class
 com/jjktbf/graphics/screens/CharacterSelectScreen$Phase.class
 com/jjktbf/graphics/GraphicsMain.class
 com/jjktbf/graphics/ui/StatusBar.class
 com/jjktbf/graphics/AssetLoader.class
+com/jjktbf/graphics/ui/pixel/HoverList$1.class
+com/jjktbf/graphics/ui/editor/AssignmentPanel$5.class
 com/jjktbf/graphics/ui/CombatantPanel.class
 com/jjktbf/graphics/screens/editors/CharacterEditorScreen.class
 com/jjktbf/graphics/screens/editors/AbilityEditorScreen.class
