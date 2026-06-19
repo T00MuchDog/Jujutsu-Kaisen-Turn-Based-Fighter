@@ -5,40 +5,90 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
+import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.utils.Align;
+import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 
 /**
- * Main menu screen.
+ * Main menu screen — pixel-art themed, mouse + keyboard driven.
  *
- * Options:
- *   1  New Game         → CharacterSelectScreen
- *   2  Move Editor      → MoveEditorScreen
- *   3  Character Editor → CharacterEditorScreen
- *   4  Ability Editor   → AbilityEditorScreen
- *   Esc  Quit
+ * Options (clickable TextButtons; number keys also work):
+ *   1  NEW GAME          → CharacterSelectScreen
+ *   2  MOVE EDITOR       → MoveEditorScreen
+ *   3  CHARACTER EDITOR  → CharacterEditorScreen
+ *   4  ABILITY EDITOR    → AbilityEditorScreen
+ *   Esc / Q              Quit
  *
- * Keyboard-driven for now (pixel art aesthetic — no mouse cursor needed).
+ * Mouse cursor is visible here (Scene2D Stage handles hit-testing).
  */
 public class MainMenuScreen implements Screen {
 
-    private static final String[] OPTIONS = {
-        "1. NEW GAME",
-        "2. MOVE EDITOR",
-        "3. CHARACTER EDITOR",
-        "4. ABILITY EDITOR",
-        "ESC. QUIT"
-    };
-
     private final JJKGame     game;
     private final AssetLoader assets;
-    private final SpriteBatch batch;
+    private final Stage       stage;
+    private final Table       root;
 
     public MainMenuScreen(JJKGame game, AssetLoader assets) {
         this.game   = game;
         this.assets = assets;
-        this.batch  = new SpriteBatch();
+        this.stage  = new Stage(new ScreenViewport());
+
+        this.root = new Table();
+        root.setFillParent(true);
+        root.pad(20);
+        stage.addActor(root);
+
+        buildMenu();
+    }
+
+    private void buildMenu() {
+        // Title (uses the "title" style — large font)
+        Label title = new Label("JJK TURN BASED FIGHTER", assets.editorSkin, "title");
+        title.setAlignment(Align.center);
+        title.setColor(new Color(0.992f, 0.835f, 0.314f, 1f)); // warm yellow
+        root.add(title).colspan(2).padBottom(40).row();
+
+        TextButton newGame   = makeButton("1. NEW GAME",         game::showCharacterSelect);
+        TextButton moveEd    = makeButton("2. MOVE EDITOR",      game::showMoveEditor);
+        TextButton charEd    = makeButton("3. CHARACTER EDITOR", game::showCharacterEditor);
+        TextButton abilityEd = makeButton("4. ABILITY EDITOR",   game::showAbilityEditor);
+        TextButton quit      = makeButton("ESC. QUIT",           () -> Gdx.app.exit());
+
+        // Lay the buttons out in a centered vertical stack, sized generously.
+        for (TextButton b : new TextButton[]{ newGame, moveEd, charEd, abilityEd, quit }) {
+            root.add(b).width(360).height(44).pad(5).colspan(2).row();
+        }
+
+        // Keyboard shortcuts
+        stage.addListener(new InputListener() {
+            @Override public boolean keyDown(InputEvent event, int keycode) {
+                if (keycode == Input.Keys.NUM_1) game.showCharacterSelect();
+                else if (keycode == Input.Keys.NUM_2) game.showMoveEditor();
+                else if (keycode == Input.Keys.NUM_3) game.showCharacterEditor();
+                else if (keycode == Input.Keys.NUM_4) game.showAbilityEditor();
+                else if (keycode == Input.Keys.ESCAPE || keycode == Input.Keys.Q) Gdx.app.exit();
+                else return false;
+                return true;
+            }
+        });
+
+        return;
+    }
+
+    private TextButton makeButton(String label, Runnable onClick) {
+        TextButton b = new TextButton(label, assets.editorSkin);
+        b.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent e, float x, float y) { onClick.run(); }
+        });
+        return b;
     }
 
     // -------------------------------------------------------------------------
@@ -46,65 +96,26 @@ public class MainMenuScreen implements Screen {
     // -------------------------------------------------------------------------
 
     @Override
-    public void show() {}
+    public void show() {
+        Gdx.input.setInputProcessor(stage);
+    }
 
     @Override
     public void render(float delta) {
-        clearScreen();
-        handleInput();
-        drawMenu();
+        // #CDDCFA — light blue, shared across all screens
+        Gdx.gl.glClearColor(0.804f, 0.863f, 0.980f, 1f);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        stage.act(delta);
+        stage.draw();
     }
 
-    @Override public void resize(int w, int h) { batch.getProjectionMatrix().setToOrtho2D(0, 0, w, h); }
+    @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
     @Override public void pause()  {}
     @Override public void resume() {}
     @Override public void hide()   {}
 
     @Override
     public void dispose() {
-        batch.dispose();
-    }
-
-    // -------------------------------------------------------------------------
-    // Input
-    // -------------------------------------------------------------------------
-
-    private void handleInput() {
-        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1)) game.showCharacterSelect();
-        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_2)) game.showMoveEditor();
-        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_3)) game.showCharacterEditor();
-        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_4)) game.showAbilityEditor();
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) Gdx.app.exit();
-    }
-
-    // -------------------------------------------------------------------------
-    // Draw
-    // -------------------------------------------------------------------------
-
-    private void clearScreen() {
-        Gdx.gl.glClearColor(0, 0, 0, 1);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-    }
-
-    private void drawMenu() {
-        float sw = Gdx.graphics.getWidth();
-        float sh = Gdx.graphics.getHeight();
-
-        batch.begin();
-
-        // Title
-        assets.fontLarge.setColor(Color.WHITE);
-        String title = "JJK TURN BASED FIGHTER";
-        assets.fontLarge.draw(batch, title, sw * 0.5f - title.length() * 5f, sh * 0.75f);
-
-        // Options
-        assets.fontSmall.setColor(Color.WHITE);
-        float startY = sh * 0.55f;
-        float lineH  = 22f;
-        for (int i = 0; i < OPTIONS.length; i++) {
-            assets.fontSmall.draw(batch, OPTIONS[i], sw * 0.3f, startY - i * lineH);
-        }
-
-        batch.end();
+        stage.dispose();
     }
 }

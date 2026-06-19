@@ -310,7 +310,8 @@ public abstract class EditorScreenBase<D> implements Screen {
 
     @Override
     public void render(float delta) {
-        Gdx.gl.glClearColor(0.04f, 0.05f, 0.08f, 1f);
+        // #CDDCFA — light blue, shared across all screens
+        Gdx.gl.glClearColor(0.804f, 0.863f, 0.980f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
         stage.act(delta);
         stage.draw();
