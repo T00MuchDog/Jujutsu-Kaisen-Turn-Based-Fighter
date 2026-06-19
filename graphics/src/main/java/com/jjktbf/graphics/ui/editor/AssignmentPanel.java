@@ -2,6 +2,7 @@ package com.jjktbf.graphics.ui.editor;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.HorizontalGroup;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
@@ -160,15 +161,33 @@ public class AssignmentPanel extends Table {
         row.setBackground(skin.getDrawable("panel-inset"));
         row.pad(4);
 
-        Label name = new Label(item.label, skin, "small");
+        final Label name = new Label(item.label, skin, "small");
         name.setAlignment(Align.left);
         row.add(name).left().growX().row();
+        final Label sub;
         if (item.sublabel != null && !item.sublabel.isEmpty()) {
-            Label sub = new Label(item.sublabel, skin, "small");
+            sub = new Label(item.sublabel, skin, "small");
             sub.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
             sub.setAlignment(Align.left);
             row.add(sub).left().growX();
+        } else {
+            sub = null;
         }
+
+        // Hover highlight: text turns bright yellow on enter, restored on exit.
+        final com.badlogic.gdx.graphics.Color hover = skin.get("text-hover", com.badlogic.gdx.graphics.Color.class);
+        final com.badlogic.gdx.graphics.Color nameBase = name.getColor();
+        final com.badlogic.gdx.graphics.Color subBase = sub != null ? sub.getColor() : null;
+        row.addListener(new InputListener() {
+            @Override public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
+                name.setColor(hover);
+                if (sub != null) sub.setColor(hover);
+            }
+            @Override public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
+                name.setColor(nameBase);
+                if (sub != null) sub.setColor(subBase);
+            }
+        });
 
         // Click to toggle
         row.addListener(new ClickListener() {

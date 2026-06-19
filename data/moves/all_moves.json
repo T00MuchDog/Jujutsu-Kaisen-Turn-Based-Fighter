@@ -13,16 +13,20 @@
   "maxCeCost" : 0,
   "interruptType" : "NONE",
   "defenseType" : "NONE",
-  "defenseBuffDuration" : -1,
-  "defenseBuffAmount" : 0,
   "blockDuration" : 0,
   "blockDamageReduction" : 100,
-  "isGuaranteedMove" : true
+  "blockFlatReduction" : 0,
+  "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "isFreeMove" : false,
+  "anyBlock" : false,
+  "flatBlock" : false,
+  "percentageBlock" : false
 }, {
   "id" : "000001",
   "name" : "Basic Block",
   "description" : "A simple guard against physical blows",
-  "tags" : [ "PHYSICAL", "DEFENSIVE" ],
+  "tags" : [ "DEFENSIVE" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
@@ -33,10 +37,14 @@
   "maxCeCost" : 0,
   "interruptType" : "NONE",
   "defenseType" : "PERCENTAGE_BLOCK",
-  "defenseBuffDuration" : -1,
-  "defenseBuffAmount" : 0,
   "blockDuration" : 0,
   "blockAffectedTags" : [ "PHYSICAL" ],
   "blockDamageReduction" : 50,
-  "isGuaranteedMove" : true
+  "blockFlatReduction" : 0,
+  "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "isFreeMove" : false,
+  "anyBlock" : true,
+  "flatBlock" : false,
+  "percentageBlock" : true
 } ]

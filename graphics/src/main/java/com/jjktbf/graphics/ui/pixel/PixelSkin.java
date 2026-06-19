@@ -126,14 +126,17 @@ public final class PixelSkin {
 
         addColors(skin);
 
-        // Drawable registry
-        Drawable panel        = nine("panel",       4, PANEL_FILL,   BORDER_OUTER, BORDER_INNER, BORDER_ACCENT);
-        Drawable panelInset   = nine("panel-inset", 4, PANEL_INSET,  BORDER_OUTER, BORDER_INNER, null);
-        Drawable buttonUp     = nine("btn-up",      4, BUTTON_UP,    BORDER_OUTER, BORDER_INNER, null);
-        Drawable buttonDown   = nine("btn-down",    4, BUTTON_DOWN,  BORDER_OUTER, null,         null);
-        Drawable buttonHover  = nine("btn-hover",   4, BUTTON_UP,    BUTTON_HOVER, null,         null);
-        Drawable buttonCheck  = nine("btn-checked", 4, BUTTON_DOWN,  BORDER_OUTER, BORDER_INNER, null);
-        Drawable textfield    = nine("textfield",   3, Color.WHITE,  BORDER_OUTER, BORDER_INNER, null);
+        // Drawable registry. nine() now takes a *pad* (border thickness) and
+        // generates a texture large enough that every border ring is a complete
+        // rectangle — no more "4 dots" corner artefacts.
+        Drawable panel        = nine("panel",       3, PANEL_FILL,   BORDER_OUTER, BORDER_INNER, BORDER_ACCENT);
+        Drawable panelInset   = nine("panel-inset", 2, PANEL_INSET,  BORDER_OUTER, BORDER_INNER, null);
+        Drawable buttonUp     = nine("btn-up",      2, BUTTON_UP,    BORDER_OUTER, BORDER_INNER, null);
+        Drawable buttonDown   = nine("btn-down",    1, BUTTON_DOWN,  BORDER_OUTER, null,         null);
+        // Hover only changes the text colour (set on the style), not the box.
+        Drawable buttonHover  = buttonUp;
+        Drawable buttonCheck  = nine("btn-checked", 2, BUTTON_DOWN,  BORDER_OUTER, BORDER_INNER, null);
+        Drawable textfield    = nine("textfield",   2, Color.WHITE,  BORDER_OUTER, BORDER_INNER, null);
         Drawable selection    = patch("sel",        SELECTION);
         Drawable selectionRow = patch("sel-row",    new Color(SELECTION.r, SELECTION.g, SELECTION.b, 0.35f));
         Drawable sliderH      = patch("slider-bg-h",SLIDER_BG);
@@ -145,9 +148,13 @@ public final class PixelSkin {
         Drawable scrollKnobH  = patch("scroll-knob-h", SCROLL_KNOB);
         Drawable scrollKnobV  = patch("scroll-knob-v", SCROLL_KNOB);
         Drawable listSel      = patch("list-sel",   new Color(SELECTION.r, SELECTION.g, SELECTION.b, 0.85f));
+        // Pure-white dropdown + list background (was parchment, which let the
+        // screen colour bleed through).
+        Drawable whitePanel   = nine("white-panel", 2, Color.WHITE, BORDER_OUTER, BORDER_INNER, null);
 
         skin.add("panel",         panel,        Drawable.class);
         skin.add("panel-inset",   panelInset,   Drawable.class);
+        skin.add("white-panel",   whitePanel,   Drawable.class);
         skin.add("button-up",     buttonUp,     Drawable.class);
         skin.add("button-down",   buttonDown,   Drawable.class);
         skin.add("button-hover",  buttonHover,  Drawable.class);
@@ -196,44 +203,50 @@ public final class PixelSkin {
     /**
      * Draw a beveled 9-patch into a fresh Pixmap and return a NinePatchDrawable.
      *
-     * @param size   pixel size of the source image (square)
+     * The source image is large enough (size = pad*2 + 2) that every border
+     * pixel ring is a complete rectangle (no gaps), and the 9-patch splits are
+     * always strictly less than the texture size — this is what produces solid
+     * continuous borders when stretched, instead of "4 dots" in the corners.
+     *
+     * @param pad    border padding per side in pixels (outer + inner + accent)
      * @param fill   interior fill colour
      * @param outer  outer border colour (1px)
      * @param inner  inner bevel colour (1px) — null to skip
      * @param accent accent line (1px) — null to skip
      */
-    private NinePatchDrawable nine(String name, int size, Color fill,
+    private NinePatchDrawable nine(String name, int pad, Color fill,
                                    Color outer, Color inner, Color accent) {
+        int size = pad * 2 + 2;
         Pixmap pm = new Pixmap(size, size, Pixmap.Format.RGBA8888);
+
+        // Solid fill across the whole pixmap first — guarantees corners are
+        // the fill colour (no transparent gaps when stretched).
         pm.setColor(fill);
         pm.fill();
 
-        // Outer border
-        pm.setColor(outer);
-        pm.drawRectangle(0, 0, size, size);
-
-        // Inner bevel (1px inside the outer)
-        if (inner != null) {
+        // Border rings, drawn outer→inner so each is a complete rectangle.
+        // ring 0 = outermost (0,0,size,size), ring 1 = 1px in, etc.
+        if (outer != null) {
+            pm.setColor(outer);
+            pm.drawRectangle(0, 0, size, size);
+        }
+        if (inner != null && pad >= 2) {
             pm.setColor(inner);
             pm.drawRectangle(1, 1, size - 2, size - 2);
         }
-
-        // Accent line (1px inside the inner)
-        if (accent != null) {
+        if (accent != null && pad >= 3) {
             pm.setColor(accent);
             pm.drawRectangle(2, 2, size - 4, size - 4);
         }
 
         Texture tex = toTexture(pm, name);
-        // 9-patch splits: 1px outer + 1px inner (+1px accent) on each side.
-        int pad = accent != null ? 3 : (inner != null ? 2 : 1);
         NinePatch patch = new NinePatch(tex, pad, pad, pad, pad);
         return new NinePatchDrawable(patch);
     }
 
     /** A flat single-colour 9-patch (no bevel) tinted with a border. */
     private NinePatchDrawable patch(String name, Color fill) {
-        return nine(name, 4, fill, new Color(fill.r, fill.g, fill.b, 1f), null, null);
+        return nine(name, 1, fill, new Color(fill.r, fill.g, fill.b, 1f), null, null);
     }
 
     /** Solid coloured pixmap for checkboxes (square, with 1px border). */
@@ -243,9 +256,6 @@ public final class PixelSkin {
         pm.fill();
         pm.setColor(border);
         pm.drawRectangle(0, 0, size, size);
-        // inner bevel
-        pm.setColor(new Color(1, 1, 1, 0.5f));
-        pm.drawRectangle(1, 1, size - 2, size - 2);
         Texture tex = toTexture(pm, name);
         return new TextureRegionDrawable(new TextureRegion(tex));
     }
@@ -305,9 +315,9 @@ public final class PixelSkin {
             new com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle(up, down, up, font);
         def.fontColor = TEXT_DARK;
         def.downFontColor = Color.WHITE;
-        // Hover highlight: bright-yellow text signals the button is clickable.
+        // Hover highlights the TEXT only (bright yellow), not the whole box —
+        // no `over` drawable is set.
         def.overFontColor = TEXT_HOVER;
-        def.over = hover;
         skin.add("default", def, com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle.class);
 
         // Toggle variant — same look, checked shows pressed state.
@@ -316,7 +326,6 @@ public final class PixelSkin {
         toggle.fontColor = TEXT_DARK;
         toggle.checkedFontColor = Color.WHITE;
         toggle.overFontColor = TEXT_HOVER;
-        toggle.over = hover;
         skin.add("toggle", toggle, com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle.class);
     }
 
@@ -355,14 +364,30 @@ public final class PixelSkin {
     private void registerSelectBoxStyles(Skin skin, Drawable bg, Drawable listSel) {
         com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle listStyle =
             new com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle(font, Color.WHITE, TEXT_DARK, listSel);
-        listStyle.background = skin.getDrawable("panel-inset");
+        // Pure-white list background (was parchment, which let the screen colour
+        // bleed through).
+        listStyle.background = skin.getDrawable("white-panel");
         skin.add("default", listStyle, com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle.class);
 
-        com.badlogic.gdx.scenes.scene2d.ui.ScrollPane.ScrollPaneStyle scrollStyle =
-            skin.get(com.badlogic.gdx.scenes.scene2d.ui.ScrollPane.ScrollPaneStyle.class);
+        // Dropdown ScrollPane: pure-white background so no parchment shows
+        // behind the list. This is a dedicated style so the editor scroll panes
+        // keep their parchment insets.
+        com.badlogic.gdx.scenes.scene2d.ui.ScrollPane.ScrollPaneStyle dropdownScroll =
+            new com.badlogic.gdx.scenes.scene2d.ui.ScrollPane.ScrollPaneStyle();
+        dropdownScroll.background = skin.getDrawable("white-panel");
+        dropdownScroll.vScroll     = skin.getDrawable("scroll-v");
+        dropdownScroll.vScrollKnob = skin.getDrawable("scroll-knob-v");
+        dropdownScroll.hScroll     = skin.getDrawable("scroll-h");
+        dropdownScroll.hScrollKnob = skin.getDrawable("scroll-knob-h");
+        skin.add("dropdown", dropdownScroll, com.badlogic.gdx.scenes.scene2d.ui.ScrollPane.ScrollPaneStyle.class);
 
+        // SelectBox: pure-white collapsed + open backgrounds, yellow hover text.
         com.badlogic.gdx.scenes.scene2d.ui.SelectBox.SelectBoxStyle def =
-            new com.badlogic.gdx.scenes.scene2d.ui.SelectBox.SelectBoxStyle(font, TEXT_DARK, bg, scrollStyle, listStyle);
+            new com.badlogic.gdx.scenes.scene2d.ui.SelectBox.SelectBoxStyle(
+                font, TEXT_DARK, skin.getDrawable("white-panel"), dropdownScroll, listStyle);
+        def.backgroundOver  = skin.getDrawable("white-panel");
+        def.backgroundOpen  = skin.getDrawable("white-panel");
+        def.overFontColor   = TEXT_HOVER;
         skin.add("default", def, com.badlogic.gdx.scenes.scene2d.ui.SelectBox.SelectBoxStyle.class);
     }
 
@@ -374,6 +399,9 @@ public final class PixelSkin {
     private void registerCheckBoxStyles(Skin skin, Drawable on, Drawable off) {
         com.badlogic.gdx.scenes.scene2d.ui.CheckBox.CheckBoxStyle def =
             new com.badlogic.gdx.scenes.scene2d.ui.CheckBox.CheckBoxStyle(off, on, font, TEXT_DARK);
+        // Hover highlights the label text (the checkbox box itself is handled
+        // by the on/off drawables).
+        def.overFontColor = TEXT_HOVER;
         skin.add("default", def, com.badlogic.gdx.scenes.scene2d.ui.CheckBox.CheckBoxStyle.class);
     }
 

@@ -25,6 +25,7 @@ import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.ui.pixel.HoverList;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,8 +82,8 @@ public abstract class EditorScreenBase<D> implements Screen {
 
     /** Search box above the master list. */
     protected TextField searchField;
-    /** The list of names shown in the master panel. */
-    protected final com.badlogic.gdx.scenes.scene2d.ui.List<String> masterList;
+    /** The list of names shown in the master panel. Hover-highlighted (bright yellow). */
+    protected final HoverList<String> masterList;
     /** ScrollPane wrapping the master list. */
     protected ScrollPane masterScroll;
     /** Container holding the detail form on the right. Cleared on selection change. */
@@ -126,7 +127,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         this.root.pad(PAD);
         this.stage.addActor(root);
 
-        this.masterList = new com.badlogic.gdx.scenes.scene2d.ui.List<>(skin);
+        this.masterList = new HoverList<>(skin);
         buildChrome();
         wireInput();
     }
