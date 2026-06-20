@@ -36,6 +36,7 @@ com/jjktbf/model/move/Move.class
 com/jjktbf/model/combat/DamageCalculator$DamageResult$Outcome.class
 com/jjktbf/model/character/AbilityEffectType.class
 com/jjktbf/model/move/MoveRepository$1.class
+com/jjktbf/model/repo/BaseRepository.class
 com/jjktbf/model/combat/CeEfficiencyCalculator.class
 com/jjktbf/view/BattleView.class
 com/jjktbf/model/combat/CombatEvent$Builder.class
@@ -50,7 +51,6 @@ com/jjktbf/model/character/AbilityData.class
 com/jjktbf/model/combat/BattleState$Phase.class
 com/jjktbf/model/character/AbilityTrigger.class
 com/jjktbf/model/character/CharacterStats.class
-com/jjktbf/view/EditorView.class
 com/jjktbf/model/character/AbilityRepository$Configurator.class
 com/jjktbf/model/move/MoveTag.class
 com/jjktbf/model/combat/CombatEvent$Type.class

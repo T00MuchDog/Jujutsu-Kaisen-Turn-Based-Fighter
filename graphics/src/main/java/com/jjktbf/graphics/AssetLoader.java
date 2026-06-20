@@ -37,10 +37,6 @@ public class AssetLoader {
 
     // ── UI panels ─────────────────────────────────────────────────────────────
 
-    public Texture panel;
-    public Texture buttonNormal;
-    public Texture buttonHover;
-    public Texture buttonPressed;
     public Texture cardNormal;
     public Texture cardSelected;
     public Texture cardDisabled;
@@ -82,10 +78,8 @@ public class AssetLoader {
     }
 
     private void loadFonts() {
-        // Try the Google Fonts export name first, fall back to the plain name
         com.badlogic.gdx.files.FileHandle ttf =
             Gdx.files.internal("assets/fonts/PressStart2P-Regular.ttf");
-        if (!ttf.exists()) ttf = Gdx.files.internal("assets/fonts/PressStart2P-Regular.ttf");
         fontGenerator = new FreeTypeFontGenerator(ttf);
 
         FreeTypeFontParameter p = new FreeTypeFontParameter();
@@ -110,10 +104,6 @@ public class AssetLoader {
     }
 
     private void loadUi() {
-        panel         = new Texture(Gdx.files.internal("assets/ui/panel.png"));
-        buttonNormal  = new Texture(Gdx.files.internal("assets/ui/button_normal.png"));
-        buttonHover   = new Texture(Gdx.files.internal("assets/ui/button_hover.png"));
-        buttonPressed = new Texture(Gdx.files.internal("assets/ui/button_pressed.png"));
         cardNormal    = new Texture(Gdx.files.internal("assets/ui/card_normal.png"));
         cardSelected  = new Texture(Gdx.files.internal("assets/ui/card_selected.png"));
         cardDisabled  = new Texture(Gdx.files.internal("assets/ui/card_disabled.png"));
@@ -134,10 +124,6 @@ public class AssetLoader {
         if (playerSprite != null) playerSprite.dispose();
         if (enemySprite  != null) enemySprite.dispose();
 
-        if (panel         != null) panel.dispose();
-        if (buttonNormal  != null) buttonNormal.dispose();
-        if (buttonHover   != null) buttonHover.dispose();
-        if (buttonPressed != null) buttonPressed.dispose();
         if (cardNormal    != null) cardNormal.dispose();
         if (cardSelected  != null) cardSelected.dispose();
         if (cardDisabled  != null) cardDisabled.dispose();

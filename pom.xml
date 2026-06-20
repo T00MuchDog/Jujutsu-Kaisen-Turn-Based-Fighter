@@ -13,9 +13,7 @@
 
     <modules>
         <module>core</module>
-        <module>text</module>
         <module>graphics</module>
-        <module>editor</module>
     </modules>
 
     <properties>

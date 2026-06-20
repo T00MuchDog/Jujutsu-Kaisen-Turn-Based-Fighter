@@ -21,10 +21,6 @@
             <groupId>com.jjktbf</groupId>
             <artifactId>core</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.jjktbf</groupId>
-            <artifactId>editor</artifactId>
-        </dependency>
 
         <!-- LibGDX core API -->
         <dependency>

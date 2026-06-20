@@ -1,59 +1,42 @@
 package com.jjktbf.model.character;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.jjktbf.model.move.MoveRepository;
+import com.jjktbf.model.repo.BaseRepository;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.*;
+import java.util.List;
 
 /**
- * Persistent repository for character definitions.
+ * Persistent repository for character definitions ({@code data/characters/all_characters.json}).
  *
- * Mirrors MoveRepository exactly in structure and ID scheme.
- * Stored at: data/characters/all_characters.json
+ * ID scheme and behaviour are inherited from {@link BaseRepository}: 6-digit
+ * zero-padded sequential ids, resequenced on delete.
  *
- * ID scheme: 6-digit zero-padded sequential integers.
- * Deleting a character resequences all IDs — no gaps.
+ * On first run (no file), seeds Yuji Itadori and Ryomen Sukuna.
  *
- * On first run (no file), seeds Yuji Itadori and Ryomen Sukuna from CharacterFactory.
+ * <b>Note:</b> seeded characters reference seeded move ids by position
+ * (see {@link com.jjktbf.model.move.MoveRepository}). Resequencing a move out
+ * from under a character's {@code moveIds} orphans the reference — load()
+ * resolves move ids leniently (missing moves are skipped with a warning).
  */
-public class CharacterRepository {
-
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-        .enable(SerializationFeature.INDENT_OUTPUT);
-
-    private final File dataFile;
-    private final List<CharacterData> store = new ArrayList<>();
+public class CharacterRepository extends BaseRepository<CharacterData> {
 
     public CharacterRepository(String dataDirectory) {
-        this.dataFile = new File(dataDirectory, "all_characters.json");
+        super(dataDirectory, "all_characters.json");
     }
 
-    // -------------------------------------------------------------------------
-    // Load
-    // -------------------------------------------------------------------------
-
-    public void load() throws IOException {
-        if (!dataFile.exists()) {
-            seedFromFactory();
-            resequence();
-            save();
-            return;
-        }
-        List<CharacterData> list = MAPPER.readValue(dataFile, new TypeReference<>() {});
-        store.clear();
-        store.addAll(list);
-        resequence(); // ensure IDs are consistent
+    @Override protected String idOf(CharacterData d)             { return d.id; }
+    @Override protected void assignId(CharacterData d, String id) { d.id = id; }
+    @Override protected String entityName()                       { return "character"; }
+    @Override protected TypeReference<List<CharacterData>> typeReference() {
+        return new TypeReference<>() {};
     }
 
-    private void seedFromFactory() {
-        store.clear();
-
-        // Yuji — no innate technique
-        // Move IDs correspond to positions in the seeded MoveRepository (000000–000011)
+    @Override protected void seed() {
+        // Yuji — no innate technique.
+        // Move ids correspond to positions in the seeded MoveRepository (000000–000011):
+        // 000000 Basic Punch, 000001 Basic Block, 000002 Heavy Punch,
+        // 000003 Rapid Strikes, 000004 Divekick, 000005 Cursed Strike,
+        // 000006 Divergent Fist, 000010 Cursed Energy Armor, 000011 Iron Wall
         CharacterData yuji = new CharacterData();
         yuji.name                  = "Yuji Itadori";
         yuji.innateTechniqueName   = null;
@@ -67,15 +50,16 @@ public class CharacterRepository {
         yuji.jujutsuSkill          = 140;
         yuji.combatAbility         = 220;
         yuji.cursedTechniqueMastery= 10;
-        // 000000 Basic Punch, 000001 Basic Block, 000002 Heavy Punch,
-        // 000003 Rapid Strikes, 000004 Divekick, 000005 Cursed Strike,
-        // 000006 Divergent Fist, 000010 Cursed Energy Armor, 000011 Iron Wall
-        yuji.moveIds = java.util.List.of(
+        yuji.moveIds = List.of(
             "000000", "000001", "000003", "000002", "000004",
             "000005", "000006", "000010", "000011");
-        store.add(yuji);
+        super.add(yuji);
 
-        // Sukuna — innate technique: Shrine
+        // Sukuna — innate technique: Shrine.
+        // 000000 Basic Punch, 000001 Basic Block, 000002 Heavy Punch,
+        // 000003 Rapid Strikes, 000005 Cursed Strike,
+        // 000007 Dismantle, 000008 Cleave, 000009 Fleshy Strike,
+        // 000010 Cursed Energy Armor, 000011 Iron Wall
         CharacterData sukuna = new CharacterData();
         sukuna.name                  = "Ryomen Sukuna";
         sukuna.innateTechniqueName   = "Shrine";
@@ -89,84 +73,9 @@ public class CharacterRepository {
         sukuna.jujutsuSkill          = 290;
         sukuna.combatAbility         = 285;
         sukuna.cursedTechniqueMastery= 300;
-        // 000000 Basic Punch, 000001 Basic Block, 000002 Heavy Punch,
-        // 000003 Rapid Strikes, 000005 Cursed Strike,
-        // 000007 Dismantle, 000008 Cleave, 000009 Fleshy Strike,
-        // 000010 Cursed Energy Armor, 000011 Iron Wall
-        sukuna.moveIds = java.util.List.of(
+        sukuna.moveIds = List.of(
             "000000", "000001", "000003", "000002", "000005",
             "000007", "000008", "000009", "000010", "000011");
-        store.add(sukuna);
+        super.add(sukuna);
     }
-
-    // -------------------------------------------------------------------------
-    // ID management
-    // -------------------------------------------------------------------------
-
-    public static String formatId(int index) {
-        return String.format("%06d", index);
-    }
-
-    private void resequence() {
-        for (int i = 0; i < store.size(); i++) {
-            store.get(i).id = formatId(i);
-        }
-    }
-
-    public String nextId() {
-        return formatId(store.size());
-    }
-
-    // -------------------------------------------------------------------------
-    // Save
-    // -------------------------------------------------------------------------
-
-    public void save() throws IOException {
-        dataFile.getParentFile().mkdirs();
-        MAPPER.writeValue(dataFile, store);
-    }
-
-    // -------------------------------------------------------------------------
-    // CRUD
-    // -------------------------------------------------------------------------
-
-    public List<CharacterData> getAll() {
-        return Collections.unmodifiableList(store);
-    }
-
-    public Optional<CharacterData> findById(String id) {
-        return store.stream().filter(c -> id.equals(c.id)).findFirst();
-    }
-
-    public boolean exists(String id) {
-        return store.stream().anyMatch(c -> id.equals(c.id));
-    }
-
-    /** Append a new character. ID is auto-assigned; any existing id field is ignored. */
-    public void add(CharacterData cd) {
-        cd.id = nextId();
-        store.add(cd);
-    }
-
-    /** Replace an existing character in-place by id. */
-    public void update(CharacterData cd) {
-        for (int i = 0; i < store.size(); i++) {
-            if (store.get(i).id.equals(cd.id)) {
-                store.set(i, cd);
-                return;
-            }
-        }
-        throw new NoSuchElementException("No character with id: " + cd.id);
-    }
-
-    /** Delete by id and resequence. Returns true if something was removed. */
-    public boolean delete(String id) {
-        boolean removed = store.removeIf(c -> id.equals(c.id));
-        if (removed) resequence();
-        return removed;
-    }
-
-    public int size() { return store.size(); }
-
-    public File getDataFile() { return dataFile; }
 }

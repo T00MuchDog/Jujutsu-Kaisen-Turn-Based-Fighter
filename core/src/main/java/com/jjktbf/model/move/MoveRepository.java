@@ -1,63 +1,35 @@
 package com.jjktbf.model.move;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import com.jjktbf.model.repo.BaseRepository;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.*;
+import java.util.List;
 
 /**
- * Persistent repository for move definitions.
+ * Persistent repository for move definitions ({@code data/moves/all_moves.json}).
  *
- * Moves are stored in data/moves/all_moves.json.
+ * ID scheme and behaviour are inherited from {@link BaseRepository}: 6-digit
+ * zero-padded sequential ids, resequenced on delete.
  *
- * ID scheme:
- *   Every move has a 6-digit zero-padded numeric string ID: "000000", "000001", …
- *   IDs are assigned automatically and are sequential with no gaps.
- *   When a move is deleted the remaining moves are resequenced so IDs remain
- *   contiguous (0..n-1 for n moves). The order is preserved.
+ * On first run (no file), seeds the core move set from {@link CoreMoves}.
  *
- * Technique IDs are stored on MoveData.requiredTechniqueId.
- * A separate technique-id registry (TechniqueRepository) handles technique→id mapping.
+ * Technique restrictions live on {@link MoveData#requiredTechniqueId}; a
+ * dedicated technique registry is future work.
  */
-public class MoveRepository {
-
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-        .enable(SerializationFeature.INDENT_OUTPUT);
-
-    private final File dataFile;
-
-    /**
-     * Ordered list — position determines ID after every resequence.
-     * We do NOT use a Map keyed by id because ids are reassigned on delete.
-     */
-    private final List<MoveData> store = new ArrayList<>();
+public class MoveRepository extends BaseRepository<MoveData> {
 
     public MoveRepository(String dataDirectory) {
-        this.dataFile = new File(dataDirectory, "all_moves.json");
+        super(dataDirectory, "all_moves.json");
     }
 
-    // -------------------------------------------------------------------------
-    // Load
-    // -------------------------------------------------------------------------
-
-    public void load() throws IOException {
-        if (!dataFile.exists()) {
-            seedFromCoreMoves();
-            resequence();
-            save();
-            return;
-        }
-        List<MoveData> list = MAPPER.readValue(dataFile, new TypeReference<>() {});
-        store.clear();
-        store.addAll(list);
-        // Ensure IDs are consistent (handle old-format string IDs gracefully)
-        resequence();
+    @Override protected String idOf(MoveData d)            { return d.id; }
+    @Override protected void assignId(MoveData d, String id){ d.id = id; }
+    @Override protected String entityName()                 { return "move"; }
+    @Override protected TypeReference<List<MoveData>> typeReference() {
+        return new TypeReference<>() {};
     }
 
-    private void seedFromCoreMoves() {
+    @Override protected void seed() {
         List<Move> coreMoves = List.of(
             CoreMoves.basicPunch(),
             CoreMoves.basicBlock(),
@@ -72,96 +44,9 @@ public class MoveRepository {
             CoreMoves.cursedEnergyArmor(),
             CoreMoves.ironwall()
         );
-        store.clear();
         for (Move m : coreMoves) {
-            store.add(MoveData.fromMove(m));
+            // fromMove leaves the id blank; the base add()/resequence assigns it.
+            super.add(MoveData.fromMove(m));
         }
     }
-
-    // -------------------------------------------------------------------------
-    // ID management
-    // -------------------------------------------------------------------------
-
-    /** Format an integer index as a 6-digit zero-padded string. */
-    public static String formatId(int index) {
-        return String.format("%06d", index);
-    }
-
-    /**
-     * Reassign IDs to all moves in order: 000000, 000001, …
-     * Call after every delete so there are never gaps.
-     */
-    private void resequence() {
-        for (int i = 0; i < store.size(); i++) {
-            store.get(i).id = formatId(i);
-        }
-    }
-
-    /** Return the ID that the next new move will receive. */
-    public String nextId() {
-        return formatId(store.size());
-    }
-
-    // -------------------------------------------------------------------------
-    // Save
-    // -------------------------------------------------------------------------
-
-    public void save() throws IOException {
-        dataFile.getParentFile().mkdirs();
-        MAPPER.writeValue(dataFile, store);
-    }
-
-    // -------------------------------------------------------------------------
-    // CRUD
-    // -------------------------------------------------------------------------
-
-    public List<MoveData> getAll() {
-        return Collections.unmodifiableList(store);
-    }
-
-    public Optional<MoveData> findById(String id) {
-        return store.stream().filter(m -> id.equals(m.id)).findFirst();
-    }
-
-    public boolean exists(String id) {
-        return store.stream().anyMatch(m -> id.equals(m.id));
-    }
-
-    /**
-     * Append a new move. The id field is ignored — a fresh sequential ID is assigned.
-     */
-    public void add(MoveData md) {
-        if (md.id == null || md.id.isBlank()) {
-            md.id = nextId();  // assign BEFORE add
-        }
-        store.add(md);
-    }
-
-    /**
-     * Replace an existing move in-place (by its current id).
-     * The id on md must match an existing entry.
-     */
-    public void update(MoveData md) {
-        for (int i = 0; i < store.size(); i++) {
-            if (store.get(i).id.equals(md.id)) {
-                store.set(i, md);
-                return;
-            }
-        }
-        throw new NoSuchElementException("No move with id: " + md.id);
-    }
-
-    /**
-     * Delete a move by id, then resequence all remaining IDs.
-     * Returns true if the move existed and was removed.
-     */
-    public boolean delete(String id) {
-        boolean removed = store.removeIf(m -> id.equals(m.id));
-        if (removed) resequence();
-        return removed;
-    }
-
-    public int size() { return store.size(); }
-
-    public File getDataFile() { return dataFile; }
 }

@@ -15,6 +15,7 @@
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/move/MoveRepository.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/move/InterruptType.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/character/StatKey.java
+/Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/repo/BaseRepository.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/move/MoveData.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/character/AbilityData.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/character/CharacterData.java
@@ -26,7 +27,6 @@
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/move/Move.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/controller/AIStrategy.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/move/StatusEffect.java
-/Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/view/EditorView.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/character/AbilityTrigger.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/character/AbilityEffectData.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/combat/CombatResolver.java
