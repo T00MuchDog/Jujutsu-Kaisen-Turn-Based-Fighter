@@ -1,2 +1,6 @@
 Remove Old text based editors
 Fix Move tag selection Bugs
+Change move types design in the editor, moves have sections dedicated to the type, a move with the attack and defense tags,
+will contain a defense section and a attack section which contains the customized settings for that section of the move, in the
+case where details are selected and the tag is unselected then the section disspears from the editor but if it retagged before,
+the move is saved the details reappear, they are only discarded after saving without the tag toggled.

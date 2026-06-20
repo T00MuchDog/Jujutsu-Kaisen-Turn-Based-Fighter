@@ -143,6 +143,9 @@ public final class PixelSkin {
         Drawable sliderKnobH  = patch("slider-knob",SLIDER_KNOB);
         Drawable checkboxOn   = flat("chk-on",      11, Color.WHITE, BORDER_OUTER);
         Drawable checkboxOff  = flat("chk-off",     11, PANEL_INSET, BORDER_OUTER);
+        // Light-grey "locked-on" checkbox — signals a tag that's selected by
+        // rule (not manual choice) and can't be toggled.
+        Drawable checkboxLocked = flat("chk-locked", 11, new Color(0.78f, 0.78f, 0.82f, 1f), BORDER_OUTER);
         Drawable scrollH      = patch("scroll-h",   SCROLL_BG);
         Drawable scrollV      = patch("scroll-v",   SCROLL_BG);
         Drawable scrollKnobH  = patch("scroll-knob-h", SCROLL_KNOB);
@@ -166,6 +169,7 @@ public final class PixelSkin {
         skin.add("slider-knob",   sliderKnobH,  Drawable.class);
         skin.add("check-on",      checkboxOn,   Drawable.class);
         skin.add("check-off",     checkboxOff,  Drawable.class);
+        skin.add("check-locked",  checkboxLocked, Drawable.class);
         skin.add("scroll-h",      scrollH,      Drawable.class);
         skin.add("scroll-v",      scrollV,      Drawable.class);
         skin.add("scroll-knob-h", scrollKnobH,  Drawable.class);
