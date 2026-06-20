@@ -89,8 +89,54 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     }
 
     @Override protected MoveData draftFromRecord(MoveData stored) {
-        // Deep copy so editing the draft can't mutate the stored record.
-        return MoveData.fromMove(stored.toMove());
+        // Deep-copy the DTO field-by-field. Do NOT round-trip through
+        // fromMove(toMove()) — toMove() collapses the tag set to a single
+        // derived category, which would discard any multi-category selection
+        // (e.g. an Attack + Innate Technique move would lose its tags).
+        return deepCopy(stored);
+    }
+
+    /** Field-by-field deep copy of a MoveData (lists/maps are cloned). */
+    private static MoveData deepCopy(MoveData s) {
+        MoveData d = new MoveData();
+        d.id                    = s.id;
+        d.name                  = s.name;
+        d.description           = s.description;
+        d.tags                  = s.tags != null ? new ArrayList<>(s.tags) : null;
+        d.basePower             = s.basePower;
+        d.baseAccuracy          = s.baseAccuracy;
+        d.neverMiss             = s.neverMiss;
+        d.apCost                = s.apCost;
+        d.unleashPoint          = s.unleashPoint;
+        d.baseCeCost            = s.baseCeCost;
+        d.minCeCost             = s.minCeCost;
+        d.maxCeCost             = s.maxCeCost;
+        d.interruptType         = s.interruptType;
+        d.defenseType           = s.defenseType;
+        d.blockDuration         = s.blockDuration;
+        d.blockAffectedTags     = s.blockAffectedTags != null
+                                  ? new ArrayList<>(s.blockAffectedTags) : null;
+        d.blockDamageReduction  = s.blockDamageReduction;
+        d.blockFlatReduction    = s.blockFlatReduction;
+        d.onHitEffects          = s.onHitEffects != null
+                                  ? s.onHitEffects.stream().map(MoveEditorScreen::copyEffect).toList()
+                                  : new ArrayList<>();
+        d.selfEffects           = s.selfEffects != null
+                                  ? s.selfEffects.stream().map(MoveEditorScreen::copyEffect).toList()
+                                  : new ArrayList<>();
+        d.prerequisites         = s.prerequisites != null
+                                  ? new LinkedHashMap<>(s.prerequisites) : null;
+        d.requiredTechniqueId   = s.requiredTechniqueId;
+        d.isFreeMove            = s.isFreeMove;
+        return d;
+    }
+
+    private static MoveData.StatusEffectData copyEffect(MoveData.StatusEffectData e) {
+        MoveData.StatusEffectData c = new MoveData.StatusEffectData();
+        c.type            = e.type;
+        c.durationRounds  = e.durationRounds;
+        c.magnitude       = e.magnitude;
+        return c;
     }
 
     @Override protected String idOf(MoveData r) { return r.id; }

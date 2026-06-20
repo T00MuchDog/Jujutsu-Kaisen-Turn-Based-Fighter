@@ -19,14 +19,14 @@
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
   "isFreeMove" : false,
-  "flatBlock" : false,
+  "anyBlock" : false,
   "percentageBlock" : false,
-  "anyBlock" : false
+  "flatBlock" : false
 }, {
   "id" : "000001",
   "name" : "Basic Block",
   "description" : "A simple guard against physical blows",
-  "tags" : [ "DEFENSIVE" ],
+  "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
@@ -44,31 +44,7 @@
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
   "isFreeMove" : false,
-  "flatBlock" : false,
+  "anyBlock" : true,
   "percentageBlock" : true,
-  "anyBlock" : true
-}, {
-  "id" : "000002",
-  "name" : "Test Move",
-  "description" : "a Testing move",
-  "tags" : [ "DEFENSIVE", "PHYSICAL" ],
-  "basePower" : 0,
-  "baseAccuracy" : 1.0,
-  "neverMiss" : false,
-  "apCost" : 10,
-  "unleashPoint" : 1,
-  "baseCeCost" : 0,
-  "minCeCost" : 0,
-  "maxCeCost" : 0,
-  "interruptType" : "NONE",
-  "defenseType" : "NONE",
-  "blockDuration" : 0,
-  "blockDamageReduction" : 100,
-  "blockFlatReduction" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "isFreeMove" : false,
-  "flatBlock" : false,
-  "percentageBlock" : false,
-  "anyBlock" : false
+  "flatBlock" : false
 } ]
