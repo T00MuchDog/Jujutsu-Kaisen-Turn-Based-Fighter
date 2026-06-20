@@ -109,6 +109,10 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
     @Override protected String idOf(CharacterData r) { return r.id; }
 
+    @Override protected String nextId() { return charRepo.nextId(); }
+
+    @Override protected void stampNewId(CharacterData draft) { draft.id = charRepo.nextId(); }
+
     @Override protected String listLabel(CharacterData r) {
         String tech = r.innateTechniqueName != null ? " [" + r.innateTechniqueName + "]" : "";
         return r.name + tech;
@@ -116,7 +120,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
     @Override protected boolean isNewDraft(CharacterData draft) {
         return draft.id == null || draft.id.isEmpty()
-            || charRepo.findById(draft.id) == null;
+            || charRepo.findById(draft.id).isEmpty();
     }
 
     @Override
@@ -133,6 +137,10 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (d.name == null || d.name.trim().isEmpty()) {
             return ValidationResult.error("Name is required.");
         }
+        // New drafts need a non-blank id for the Entity constructor to validate.
+        if (isNewDraft(d) && (d.id == null || d.id.isBlank())) {
+            d.id = charRepo.nextId();
+        }
         try {
             d.toCharacter(moveRepo, abilityRepo);
         } catch (Exception e) {
@@ -140,6 +148,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         }
         try {
             if (isNewDraft(d)) {
+                // Clear so the repo assigns the canonical next id.
                 d.id = null;
                 charRepo.add(d);
             } else {
@@ -175,6 +184,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
         // ── Identity ───────────────────────────────────────────────────────────
         form.add(sectionHeader("IDENTITY")).growX().colspan(2).row();
+        form.add(idBadge(cd.id)).colspan(2).padBottom(2).row();
         form.add(labelledField("Name", cd.name,
                 s -> { cd.name = s; })).growX().colspan(2).row();
         form.add(labelledField("Innate Technique (blank = none)",

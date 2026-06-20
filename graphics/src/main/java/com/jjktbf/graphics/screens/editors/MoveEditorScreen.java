@@ -95,6 +95,10 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
     @Override protected String idOf(MoveData r) { return r.id; }
 
+    @Override protected String nextId() { return repo.nextId(); }
+
+    @Override protected void stampNewId(MoveData draft) { draft.id = repo.nextId(); }
+
     @Override protected String listLabel(MoveData r) {
         return r.name == null || r.name.isEmpty() ? "(unnamed)" : r.name;
     }
@@ -119,6 +123,18 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         if (d.tags == null || d.tags.isEmpty()) {
             return ValidationResult.error("At least one tag is required.");
         }
+        // A legal move must declare its purpose: at least one of ATTACK,
+        // UTILITY, or DEFENSIVE must be selected.
+        boolean hasPurpose = d.tags.contains(MoveTag.ATTACK.name())
+                          || d.tags.contains(MoveTag.UTILITY.name())
+                          || d.tags.contains(MoveTag.DEFENSIVE.name());
+        if (!hasPurpose) {
+            return ValidationResult.error("Select at least one of Attack, Utility, or Defensive.");
+        }
+        // New drafts need a non-blank id for the engine builder to validate.
+        if (isNewDraft(d) && (d.id == null || d.id.isBlank())) {
+            d.id = repo.nextId();
+        }
         // Validate via the engine's own builder — catches unleashPoint/AP,
         // bad enums, derived-category errors, etc.
         try {
@@ -128,7 +144,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         }
         try {
             if (isNewDraft(d)) {
-                d.id = null;                 // let repo assign a fresh id
+                // Clear so the repo assigns the canonical next id (robust to
+                // other edits since the draft was created).
+                d.id = null;
                 repo.add(d);
             } else {
                 repo.update(d);
@@ -164,6 +182,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
         // ── Identity ───────────────────────────────────────────────────────────
         form.add(sectionHeader("IDENTITY")).growX().colspan(2).row();
+        form.add(idBadge(d.id)).colspan(2).padBottom(2).row();
         form.add(labelledField("Name", d.name,
                 s -> { d.name = s; })).growX().colspan(2).row();
         form.add(labelledField("Description", d.description,
@@ -181,6 +200,10 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             d.tags = tags.stream().map(MoveTag::name).toList();
             refreshConditionalSections(d);
         }, skin);
+        // Sync the draft's tags with the picker's coupling-enforced initial set
+        // (e.g. a technique tag implies CURSED_ENERGY). suppressDirty is on
+        // during build, so this won't mark the record dirty on load.
+        d.tags = tagPicker.getSelected().stream().map(MoveTag::name).toList();
         form.add(tagPicker).growX().colspan(2).row();
 
         // ── Cost ───────────────────────────────────────────────────────────────
