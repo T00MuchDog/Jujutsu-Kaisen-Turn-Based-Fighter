@@ -28,4 +28,19 @@
   "cursedTechniqueMastery" : 0,
   "moveIds" : [ "000000", "000001" ],
   "abilityIds" : [ ]
+}, {
+  "id" : "000002",
+  "name" : "Test_C",
+  "vitality" : 80,
+  "strength" : 80,
+  "durability" : 80,
+  "speed" : 80,
+  "cursedEnergyReserves" : 80,
+  "cursedEnergyEfficiency" : 80,
+  "cursedEnergyOutput" : 80,
+  "jujutsuSkill" : 80,
+  "combatAbility" : 80,
+  "cursedTechniqueMastery" : 80,
+  "moveIds" : [ ],
+  "abilityIds" : [ ]
 } ]

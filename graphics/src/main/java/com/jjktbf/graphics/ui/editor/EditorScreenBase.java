@@ -148,6 +148,13 @@ public abstract class EditorScreenBase<D> implements Screen {
     /** Unique id of a record (for selection tracking). */
     protected abstract String idOf(D record);
 
+    /**
+     * The id the next new record will receive ({@code formatId(store.size())}).
+     * Used to pre-fill a new/copy draft's id so engine validation (which
+     * rejects blank ids) passes before the repo assigns the real id on add.
+     */
+    protected abstract String nextId();
+
     /** Human-readable list label for a record. */
     protected abstract String listLabel(D record);
 
@@ -266,12 +273,18 @@ public abstract class EditorScreenBase<D> implements Screen {
     }
 
     private void wireInput() {
-        // Master list selection
+        // Master list selection. Resolve the picked label back to a record
+        // (NOT by index — the list is filtered + alphabetised during search, so
+        // its index order does not match records).
         masterList.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
-                int idx = masterList.getSelectedIndex();
-                if (idx >= 0 && idx < records.size()) {
-                    selectRecord(idx);
+                String picked = masterList.getSelected();
+                if (picked == null) return;
+                for (int i = 0; i < records.size(); i++) {
+                    if (listLabel(records.get(i)).equals(picked)) {
+                        selectRecord(i);
+                        break;
+                    }
                 }
             }
         });
@@ -336,7 +349,14 @@ public abstract class EditorScreenBase<D> implements Screen {
     // Master list
     // =========================================================================
 
-    /** Rebuild the master list from {@link #records}, honouring the search box. */
+    /**
+     * Rebuild the master list from {@link #records}, honouring the search box.
+     *
+     * With no search query, items are shown in id order (records is loaded
+     * sequentially from the repo, so id order == list order).
+     * With a search query, the *filtered matches* are sorted alphabetically by
+     * their display label — so typing narrows and re-orders for quick finding.
+     */
     protected void refreshMasterList() {
         String q = searchField.getText().trim().toLowerCase();
         idToName.clear();
@@ -347,6 +367,11 @@ public abstract class EditorScreenBase<D> implements Screen {
             if (q.isEmpty() || label.toLowerCase().contains(q)) {
                 items.add(label);
             }
+        }
+        // Searching re-orders matches alphabetically for quick scanning;
+        // no-query view keeps id order (which == records order).
+        if (!q.isEmpty()) {
+            items.sort(String.CASE_INSENSITIVE_ORDER);
         }
         masterList.setItems(items.toArray(new String[0]));
     }
@@ -388,6 +413,7 @@ public abstract class EditorScreenBase<D> implements Screen {
 
     private void doStartNew() {
         draft = newDraft();
+        stampNewId(draft);
         selectedIndex = -1;
         masterList.getSelection().clear();
         suppressDirty = true;
@@ -402,8 +428,11 @@ public abstract class EditorScreenBase<D> implements Screen {
         if (selectedIndex < 0) { setStatus("Select a record to copy first.", true); return; }
         D stored = records.get(selectedIndex);
         D copy = draftFromRecord(stored);
-        // The subclass's draftFromRecord returns a copy; we just start editing it as a new draft.
         draft = copy;
+        // A copy is treated as a brand-new record: it gets the next id, not the
+        // source's id. The repo re-assigns on add anyway, but stamping now lets
+        // engine validation pass and lets the form show the prospective id.
+        stampNewId(draft);
         selectedIndex = -1;
         masterList.getSelection().clear();
         suppressDirty = true;
@@ -412,6 +441,14 @@ public abstract class EditorScreenBase<D> implements Screen {
         markDirty(); // a duplicate is always "new" / dirty
         setStatus("Editing copy — SAVE to add as a new record.", false);
     }
+
+    /**
+     * Assign the prospective next id to a draft that is about to be created.
+     * Subclasses override to write the id onto their DTO; the default does
+     * nothing. The repo will reassign on add, but the draft needs a non-blank
+     * id so engine validation (Entity / Move.Builder) succeeds beforehand.
+     */
+    protected void stampNewId(D draft) { /* override in subclass */ }
 
     /** Delete the currently selected record (with confirmation). */
     protected void deleteCurrent() {
@@ -475,6 +512,11 @@ public abstract class EditorScreenBase<D> implements Screen {
         }
         if (r.isOk()) {
             try {
+                // Clear dirty BEFORE reselecting so the programmatic
+                // masterList.setSelectedIndex(i) below doesn't trip the
+                // "discard changes?" guard in selectRecord() — we just saved,
+                // so there is nothing to discard.
+                clearDirty();
                 reloadRecords();
                 refreshMasterList();
                 // Reselect the saved record (by name match for new records).
@@ -491,7 +533,6 @@ public abstract class EditorScreenBase<D> implements Screen {
                 suppressDirty = true;
                 rebuildDetail();
                 suppressDirty = false;
-                clearDirty();
                 setStatus(r.getMessage(), false);
             } catch (IOException e) {
                 setStatus("Saved but reload failed: " + e.getMessage(), true);
@@ -580,6 +621,21 @@ public abstract class EditorScreenBase<D> implements Screen {
     // =========================================================================
     // Field-builder helpers for subclasses
     // =========================================================================
+
+    /**
+     * A non-interactive {@code #id} badge — small black text, shown directly
+     * below an "IDENTITY" section header and above the Name field. Scaled-down
+     * version of the section-header font. Not clickable / not hover-highlighted.
+     *
+     * @param id the record id (e.g. "000007"), or null for an unsaved new record
+     */
+    protected Label idBadge(String id) {
+        Label l = new Label("#" + (id == null ? "—" : id), skin, "small");
+        l.setColor(com.badlogic.gdx.graphics.Color.BLACK);
+        // Scale down a touch so it reads as subordinate to the header.
+        l.setFontScale(0.85f);
+        return l;
+    }
 
     /**
      * A labelled text field row. The supplier reads the current value for

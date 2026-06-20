@@ -1,1 +1,17 @@
-[ ]
+[ {
+  "id" : "000000",
+  "name" : "New Ability",
+  "flavourText" : "",
+  "mechanicText" : "",
+  "category" : "PASSIVE",
+  "sourceType" : "CHARACTER",
+  "effects" : [ {
+    "type" : "STAT_ADD",
+    "intValue" : 0
+  } ],
+  "triggerThreshold" : 0,
+  "active" : false,
+  "queued" : false,
+  "triggered" : false,
+  "passive" : true
+} ]

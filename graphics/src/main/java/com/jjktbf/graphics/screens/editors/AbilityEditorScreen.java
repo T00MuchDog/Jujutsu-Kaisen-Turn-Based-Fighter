@@ -92,6 +92,10 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
 
     @Override protected String idOf(AbilityData r) { return r.id; }
 
+    @Override protected String nextId() { return repo.nextId(); }
+
+    @Override protected void stampNewId(AbilityData draft) { draft.id = repo.nextId(); }
+
     @Override protected String listLabel(AbilityData r) {
         String cat = r.category != null ? " (" + r.category + ")" : "";
         return r.name + cat;
@@ -175,6 +179,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
 
         // ── Identity ───────────────────────────────────────────────────────────
         form.add(sectionHeader("IDENTITY")).growX().colspan(2).row();
+        form.add(idBadge(d.id)).colspan(2).padBottom(2).row();
         form.add(labelledField("Name", d.name,
                 s -> { d.name = s; })).growX().colspan(2).row();
         form.add(labelledField("Flavour Text", d.flavourText,
