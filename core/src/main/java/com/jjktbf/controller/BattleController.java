@@ -18,7 +18,7 @@ import java.util.Random;
  *  - Never contains damage math (that's CombatResolver's job)
  *  - Delegates AI move selection to an AIStrategy (default: GreedyAIStrategy)
  *
- * This is the only class that the application entry point (TextMain / GraphicsMain)
+ * This is the only class that the application entry point (GraphicsMain)
  * needs to instantiate and call to run a battle.
  */
 public class BattleController {

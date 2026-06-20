@@ -2,8 +2,7 @@
 
 A turn-based combat game built in Java with a multi-module Maven architecture.
 Characters, moves, and abilities are all data-driven (JSON) and authored through
-dedicated CLI editors. A LibGDX graphics front-end is in development alongside
-the existing terminal mode.
+the graphical editors inside the LibGDX front-end.
 
 ---
 
@@ -12,9 +11,8 @@ the existing terminal mode.
 ```
 JJKTBF/
 ├── core/      Domain model + combat engine. No I/O, no rendering. All other modules depend on this.
-├── text/      Terminal front-end. TextMain is the entry point for CLI play.
 ├── graphics/  LibGDX graphics front-end. GraphicsMain is the entry point for windowed play.
-├── editor/    CLI data-authoring tools (Move, Character, Ability editors).
+│              Hosts the battle UI plus the Scene2D graphical editors (Move/Character/Ability).
 └── data/      JSON data files shared by all modules at runtime.
     ├── moves/all_moves.json
     ├── characters/all_characters.json
@@ -30,12 +28,6 @@ JJKTBF/
 mvn compile
 ```
 
-### Run text mode (CLI)
-```bash
-mvn package -pl text -am -DskipTests
-java -jar text/target/text-1.0-SNAPSHOT.jar
-```
-
 ### Run graphics mode (macOS — ALWAYS include -XstartOnFirstThread)
 ```bash
 mvn package -pl graphics -am -DskipTests
@@ -49,17 +41,8 @@ java -XstartOnFirstThread -jar graphics/target/graphics-1.0-SNAPSHOT.jar
 > **Rebuild rule:** Always repackage before running. Editing a `.java` file does
 > not update the JAR automatically.
 
-### Run CLI editors
-```bash
-# Move editor
-mvn exec:java -pl editor -Dexec.mainClass=com.jjktbf.editor.MoveEditorMain
-
-# Character editor
-mvn exec:java -pl editor -Dexec.mainClass=com.jjktbf.editor.CharacterEditorMain
-
-# Ability editor
-mvn exec:java -pl editor -Dexec.mainClass=com.jjktbf.editor.AbilityEditorMain
-```
+> The graphical editors are launched from the main menu inside the graphics
+> front-end — there is no separate editor command anymore.
 
 ### Run tests
 ```bash
@@ -75,29 +58,16 @@ Black Flash chance, damage range, block timing, block tag filters, and block dam
 
 These were established deliberately and should be maintained throughout development.
 
-### Recent engineering update — Action Segment terminology
+### Recent engineering update — dead code removal + repository refactor
 
-1. What changed: AP timeline occupancy is now called **Action Segment**. Defensive block terminology remains unchanged for `PERCENTAGE_BLOCK`, `FLAT_BLOCK`, `MOVE_BLOCKED`, `MOVE_BLOCK_REDUCED`, and block reduction fields.
-2. Architectural/data/API implications: the AP occupancy class is `ActionSegment`; timeline APIs now use `segmentAt()`, `nextSegmentAfter()`, and `getSegments()`. Interrupt enum values that target queued timeline occupancy are now `KNOCK_CURRENT_SEGMENT` and `KNOCK_NEXT_SEGMENT`.
-3. Important files touched: `ActionSegment.java`, `Timeline.java`, `CombatResolver.java`, `DamageCalculator.java`, `Move.java`, `InterruptType.java`, editor labels, and `GLOSSARY.txt`.
-4. Follow-up tasks or risks: existing external move data using legacy interrupt strings must be migrated.
-
-### Recent engineering update — Combat pipeline fixes
-
-1. What changed: defensive blocks now activate from `fireTick`, respect `blockDuration` and `blockAffectedTags`, and apply before Defense using `basePower × Power → block reduction → Defense → scale/roll`. Basic Block JSON now uses `PERCENTAGE_BLOCK` with 50% reduction.
-2. Architectural/data/API implications: `Timeline.activeBlockAt(tick, incomingMove)` owns block-window/tag lookup. `CeEfficiencyCalculator` has an ability-aware overload. `Character` now carries resolved abilities, and text/graphics character loading resolves `abilityIds` through `AbilityRepository`.
-3. Important files touched: `DamageCalculator.java`, `Timeline.java`, `CombatResolver.java`, `BattleController.java`, `BattleCombatant.java`, `AbilityApplicator.java`, `CharacterData.java`, `Character.java`, text/graphics battle entry points, `data/moves/all_moves.json`, `GLOSSARY.txt`, and `StatVerificationTest.java`.
-4. Follow-up tasks or risks: status-effect behavior remains intentionally unimplemented. Existing saved data with legacy interrupt names or invalid defense types still needs migration if present outside the current JSON files.
-
-### Recent engineering update — Scene2D graphical editors
-
-1. What changed: Replaced the three read-only, keyboard-only graphical editor screens and the keyboard-only main menu with full mouse-driven, pixel-art (Gen 3 FireRed/LeafGreen style) CRUD editors running under LibGDX Scene2D. Added `PixelSkin` (code-generated 9-patch textures), `EditorScreenBase<D>` (master-detail chrome), and reusable field widgets (`StatField`, `TagPicker`, `EnumSelectBox`, `AssignmentPanel`, `EffectListEditor`). All screens share a `#CDDCFA` light-blue background; button text highlights bright yellow (`#FFE32E`) on hover.
-2. Architectural/data/API implications: The graphics module now depends on Scene2D (`Stage`, `Skin`, `ScrollPane`, `DragAndDrop`). All UI textures are generated in code — no new binary assets. The `EditorScreenBase` owns the draft lifecycle (new/edit/save/cancel) with explicit save validation. The `core` module is untouched — editors reuse `SlotBudgetEnforcer`, `CombatStats`, `StatKey`, repos, and DTO `toMove()`/`toCharacter()` validation. `PixelSkin` now generates three fonts (small 8, body 10, large 18); the large font drives the `"title"` label style and main-menu title.
+1. What changed: Removed the obsolete `editor` (CLI editors) and `text` (CLI battler) modules, the orphaned `EditorView` interface, four unused UI textures (`panel`/`button_*`) + their loader fields, the orphaned `uiskin.json`, and a redundant font-fallback line in `AssetLoader`. Extracted `BaseRepository<D>` so the three repositories share load/save/CRUD/ID-resequence behaviour (each now ~55 lines, down from ~170). Documented `MoveData.fromMove()` as lossy-for-editor-drafts to prevent the tag-collapse bug recurring.
+2. Architectural/data/API implications: Two modules gone — the build is now `core` + `graphics` only. `graphics` no longer depends on `editor`. The three `*Repository` classes are now thin `BaseRepository` subclasses; their public API (load/save/getAll/findById/exists/add/update/delete/nextId/formatId/size/getDataFile) is unchanged. Repository `add()` now uniformly assigns the canonical next id when blank (previously `CharacterRepository`/`AbilityRepository` always overwrote; in practice identical since editors clear the id before add).
 3. Important files touched:
-   - New: `graphics/.../ui/pixel/PixelSkin.java`, `graphics/.../ui/editor/{EditorScreenBase, ValidationResult, StatField, TagPicker, EnumSelectBox, EffectListEditor, AssignmentPanel}.java` (8 files)
-   - Rewritten: `screens/MainMenuScreen.java`, `screens/editors/{MoveEditorScreen, CharacterEditorScreen, AbilityEditorScreen}.java` (4 files)
-   - Edited: `AssetLoader.java` (load/dispose `editorSkin`), `CharacterSelectScreen.java` + `BattleScreen.java` (shared background colour)
-4. Follow-up tasks or risks: Legacy on-disk move data (`data/moves/all_moves.json`) still uses old field names (`defenseBuffDuration`, `isGuaranteedMove`) — first Move-editor Save rewrites cleanly. Scene2D `DragAndDrop` inside `ScrollPane` may need tuning. Point-buy budget logic is ported from `StatEntryFlow` into the GUI (not shared code).
+   - Removed: `editor/` (7 files + pom), `text/` (2 files + pom), `view/EditorView.java`, `assets/skin/uiskin.json`, `assets/ui/{panel,button_normal,button_hover,button_pressed}.png`
+   - New: `core/.../model/repo/BaseRepository.java`
+   - Rewritten: `MoveRepository.java`, `CharacterRepository.java`, `AbilityRepository.java` (now extend `BaseRepository`)
+   - Edited: `pom.xml` (modules), `graphics/pom.xml` (dropped editor dep), `AssetLoader.java` (dropped unused fields + redundant fallback), `MoveData.java` (`fromMove` Javadoc)
+4. Follow-up tasks or risks: The battle UI (`BattleScreen`, `CharacterSelectScreen`) still uses per-screen hand-rolled `SpriteBatch`/`ShapeRenderer`; planned to migrate to the same Scene2D system as the editors. `CursedSpiritCharacter` remains as a documented future-type stub.
 
 ### 1. Loose coupling — changes touch the minimum number of files
 
@@ -114,11 +84,11 @@ Current mechanisms that enforce this:
 
 ### 2. Encapsulation — internals stay internal
 
-- `BattleView` interface: the graphics layer and the text layer both implement this interface. The `core` module never knows which renderer is active.
+- `BattleView` interface: the graphics layer implements this interface. The `core` module never knows which renderer is active.
 - `AIStrategy` interface: AI logic is pluggable. `GreedyAIStrategy` is the default.
-- `SlotBudgetEnforcer`: slot budget logic lives in one place in `core`. Both the domain (`Character.validateAndBuildMoveList`) and the editor (`MoveAssignmentFlow`) delegate to it.
+- `SlotBudgetEnforcer`: slot budget logic lives in one place in `core`. Both the domain (`Character.validateAndBuildMoveList`) and the graphical Character editor (`AssignmentPanel`) delegate to it.
 - `StatKey` enum: stat name mapping (string aliases, display labels, read/write on `CharacterData`) lives in one place. `CharacterStats.getByName()` and `AbilityApplicator` both delegate to it. Adding a new stat means touching one enum.
-- `EditorIO`: all CLI prompt/display utilities for editors live in this one class. The three editor mains (`MoveEditorMain`, `CharacterEditorMain`, `AbilityEditorMain`) delegate to it.
+- `BaseRepository<D>`: the three repositories (`MoveRepository`, `CharacterRepository`, `AbilityRepository`) share their load/save/CRUD/ID-resequence behaviour via this abstract base. Each subclass supplies only id accessors, a Jackson `TypeReference`, a seed hook, and an entity name.
 
 ### 3. Abstraction — callers don't need to know implementation details
 
@@ -128,7 +98,7 @@ Bad pattern to avoid: raw string comparisons like `"PERCENTAGE_BLOCK".equals(md.
 
 ### 4. The BattleView contract
 
-`BattleController` only ever calls methods on `BattleView`. It never calls `System.out`, never references `TextBattleView` or `BattleScreen`. This is what makes swapping renderers zero-cost to core.
+`BattleController` only ever calls methods on `BattleView`. It never calls `System.out`, never references `BattleScreen`. This is what makes swapping renderers zero-cost to core.
 
 When the graphics `BattleScreen` implements `BattleView`, it runs the controller on a background thread and uses `Gdx.app.postRunnable()` to push state updates back to the LibGDX render thread. `promptMoveSelection()` blocks the controller thread via a `volatile boolean` flag until the player confirms their queue.
 
@@ -173,7 +143,7 @@ BattleState + Timeline
     ↓ CombatResolver.resolveRound()
 List<CombatEvent>
     ↓ BattleView.displayCombatEvents()
-TextBattleView / BattleScreen (render)
+BattleScreen (render)
 ```
 
 ---
@@ -184,9 +154,8 @@ TextBattleView / BattleScreen (render)
 - **Technique class**: `requiredTechniqueId` on moves and `innateTechniqueName` on characters are currently plain strings matched case-insensitively. A proper `InnateTechiqueEntry` class needs to be built with: `id`, `name`, `List<Move> availableMoves`, `List<Ability> techniqueAbilities`. Until then the string matching works but is fragile.
 
 ### Medium priority
-- **Graphics Phase 4 — full editor forms**: The three graphical editor screens (`MoveEditorScreen`, `CharacterEditorScreen`, `AbilityEditorScreen`) currently display read-only summaries. Full edit forms (text fields, dropdowns, tag pickers) need to be built using LibGDX Scene2D widgets.
 - **`MoveData.derivedCategory()` fragility**: The tag-to-category mapping is a manually maintained if/else ladder. If a new `MoveCategory` is added, this method must be updated manually — there is no exhaustiveness check. A future refactor should move this logic onto `MoveCategory` itself.
-- **`CombatEvent.Type` in `TextBattleView`**: The switch on event types for display prefixes has 10 named cases. Any new event type silently falls through to the default prefix. Consider a `displayPrefix()` method on `CombatEvent.Type`.
+- **`CombatEvent.Type` display prefixes**: The battle UI's switch on event types for display prefixes has 10 named cases. Any new event type silently falls through to the default prefix. Consider a `displayPrefix()` method on `CombatEvent.Type`.
 
 ### Low priority / future sessions
 - **Parry and dodge**: `DefenseType` was deliberately left with only PERCENTAGE_BLOCK and FLAT_BLOCK. Parry and dodge are planned for a future session.

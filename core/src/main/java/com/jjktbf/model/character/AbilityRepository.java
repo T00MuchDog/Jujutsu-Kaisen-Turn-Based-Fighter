@@ -1,56 +1,32 @@
 package com.jjktbf.model.character;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import com.jjktbf.model.repo.BaseRepository;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.*;
+import java.util.List;
 
 /**
- * Persistent repository for ability definitions.
+ * Persistent repository for ability definitions ({@code data/abilities/all_abilities.json}).
  *
- * Mirrors MoveRepository and CharacterRepository in structure and ID scheme.
- * Stored at: data/abilities/all_abilities.json
- *
- * ID scheme: 6-digit zero-padded sequential integers.
- * Deleting an ability resequences all IDs — no gaps.
+ * ID scheme and behaviour are inherited from {@link BaseRepository}: 6-digit
+ * zero-padded sequential ids, resequenced on delete.
  *
  * On first run (no file), seeds Six Eyes and Infinity as example abilities.
  */
-public class AbilityRepository {
-
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-        .enable(SerializationFeature.INDENT_OUTPUT);
-
-    private final File dataFile;
-    private final List<AbilityData> store = new ArrayList<>();
+public class AbilityRepository extends BaseRepository<AbilityData> {
 
     public AbilityRepository(String dataDirectory) {
-        this.dataFile = new File(dataDirectory, "all_abilities.json");
+        super(dataDirectory, "all_abilities.json");
     }
 
-    // -------------------------------------------------------------------------
-    // Load
-    // -------------------------------------------------------------------------
-
-    public void load() throws IOException {
-        if (!dataFile.exists()) {
-            seedExamples();
-            resequence();
-            save();
-            return;
-        }
-        List<AbilityData> list = MAPPER.readValue(dataFile, new TypeReference<>() {});
-        store.clear();
-        store.addAll(list);
-        resequence();
+    @Override protected String idOf(AbilityData d)             { return d.id; }
+    @Override protected void assignId(AbilityData d, String id) { d.id = id; }
+    @Override protected String entityName()                     { return "ability"; }
+    @Override protected TypeReference<List<AbilityData>> typeReference() {
+        return new TypeReference<>() {};
     }
 
-    private void seedExamples() {
-        store.clear();
-
+    @Override protected void seed() {
         // Six Eyes
         AbilityData sixEyes = new AbilityData();
         sixEyes.name        = "Six Eyes";
@@ -69,7 +45,7 @@ public class AbilityRepository {
             AbilityEffectData.moveAccuracyAdd(null, 20),
             AbilityEffectData.statBonusPoints(80)
         );
-        store.add(sixEyes);
+        super.add(sixEyes);
 
         // Infinity (granted by Limitless technique)
         AbilityData infinity = new AbilityData();
@@ -89,7 +65,7 @@ public class AbilityRepository {
             }),
             eff(AbilityEffectType.COST_CE_PER_ROUND, e -> e.intValue = 15)
         );
-        store.add(infinity);
+        super.add(infinity);
     }
 
     /** Inline builder helper for seeding — avoids verbose constructors. */
@@ -102,69 +78,4 @@ public class AbilityRepository {
         config.configure(e);
         return e;
     }
-
-    // -------------------------------------------------------------------------
-    // ID management
-    // -------------------------------------------------------------------------
-
-    public static String formatId(int index) {
-        return String.format("%06d", index);
-    }
-
-    private void resequence() {
-        for (int i = 0; i < store.size(); i++) {
-            store.get(i).id = formatId(i);
-        }
-    }
-
-    public String nextId() {
-        return formatId(store.size());
-    }
-
-    // -------------------------------------------------------------------------
-    // Save
-    // -------------------------------------------------------------------------
-
-    public void save() throws IOException {
-        dataFile.getParentFile().mkdirs();
-        MAPPER.writeValue(dataFile, store);
-    }
-
-    // -------------------------------------------------------------------------
-    // CRUD
-    // -------------------------------------------------------------------------
-
-    public List<AbilityData> getAll() {
-        return Collections.unmodifiableList(store);
-    }
-
-    public Optional<AbilityData> findById(String id) {
-        return store.stream().filter(a -> id.equals(a.id)).findFirst();
-    }
-
-    public boolean exists(String id) {
-        return store.stream().anyMatch(a -> id.equals(a.id));
-    }
-
-    public void add(AbilityData ad) {
-        ad.id = nextId();
-        store.add(ad);
-    }
-
-    public void update(AbilityData ad) {
-        for (int i = 0; i < store.size(); i++) {
-            if (store.get(i).id.equals(ad.id)) { store.set(i, ad); return; }
-        }
-        throw new NoSuchElementException("No ability with id: " + ad.id);
-    }
-
-    public boolean delete(String id) {
-        boolean removed = store.removeIf(a -> id.equals(a.id));
-        if (removed) resequence();
-        return removed;
-    }
-
-    public int size() { return store.size(); }
-
-    public File getDataFile() { return dataFile; }
 }

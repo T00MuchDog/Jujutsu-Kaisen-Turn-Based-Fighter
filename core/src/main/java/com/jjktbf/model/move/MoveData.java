@@ -197,6 +197,20 @@ public class MoveData {
     // Conversion: Move (domain object) → MoveData
     // -------------------------------------------------------------------------
 
+    /**
+     * Reconstruct a MoveData from a {@link Move}.
+     *
+     * <p><b>Tags are reconstructed from the move's derived category, not from a
+     * raw tag list</b> — {@link Move} stores only its {@link MoveCategory} (the
+     * canonical form in the domain). This is correct for the engine, but it is
+     * <b>lossy as a copy</b>: a MoveData that carries a multi-category raw tag
+     * set (e.g. an editor draft) will collapse to a single category's tag set.
+     *
+     * <p>For copying a MoveData (e.g. in editors), copy the DTO field-by-field
+     * instead of round-tripping through {@code fromMove(toMove())}. The only
+     * legitimate caller is seeding ({@link MoveRepository#seed()}), which builds
+     * a Move from {@link CoreMoves} where the category is authoritative.
+     */
     public static MoveData fromMove(Move move) {
         MoveData d = new MoveData();
         d.id                  = move.getId();

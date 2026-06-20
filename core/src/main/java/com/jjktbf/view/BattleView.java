@@ -11,8 +11,8 @@ import java.util.List;
  * The MVC View interface for the battle screen.
  *
  * The core module depends ONLY on this interface — never on any implementation.
- * Swapping TextBattleView for PixelBattleView (graphics transition) requires
- * zero changes to any core class.
+ * Swapping renderers (e.g. BattleScreen for a future one) requires zero
+ * changes to any core class.
  *
  * All methods are called by the BattleController at appropriate points in the
  * battle loop.
