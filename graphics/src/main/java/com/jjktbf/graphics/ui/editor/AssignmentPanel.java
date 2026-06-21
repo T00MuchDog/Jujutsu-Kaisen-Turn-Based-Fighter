@@ -44,8 +44,17 @@ public class AssignmentPanel extends Table {
         public final String id;
         public final String label;
         public final String sublabel; // optional second line (e.g. tags, type)
+        /** When true, the row renders greyed-out, is unclickable, un-draggable, and un-hoverable.
+         *  Used to show technique moves whose CTM prerequisite the character hasn't met. */
+        public final boolean locked;
+        /** Optional explanation shown as the sublabel when {@link #locked} is true. */
+        public final String lockReason;
         public Item(String id, String label, String sublabel) {
+            this(id, label, sublabel, false, null);
+        }
+        public Item(String id, String label, String sublabel, boolean locked, String lockReason) {
             this.id = id; this.label = label; this.sublabel = sublabel;
+            this.locked = locked; this.lockReason = lockReason;
         }
     }
 
@@ -165,13 +174,24 @@ public class AssignmentPanel extends Table {
         name.setAlignment(Align.left);
         row.add(name).left().growX().row();
         final Label sub;
-        if (item.sublabel != null && !item.sublabel.isEmpty()) {
-            sub = new Label(item.sublabel, skin, "small");
+        String subText = item.locked && item.lockReason != null
+            ? (item.lockReason) : item.sublabel;
+        if (subText != null && !subText.isEmpty()) {
+            sub = new Label(subText, skin, "small");
             sub.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
             sub.setAlignment(Align.left);
             row.add(sub).left().growX();
         } else {
             sub = null;
+        }
+
+        // LOCKED rows: greyed-out, no hover, no click, no drag. They exist only
+        // to show progression-gated items (e.g. a technique move whose CTM the
+        // character hasn't reached yet).
+        if (item.locked) {
+            com.badlogic.gdx.graphics.Color dim = skin.get("text-dim", com.badlogic.gdx.graphics.Color.class);
+            name.setColor(dim);
+            return row;
         }
 
         // Hover highlight: text turns bright yellow on enter, restored on exit.

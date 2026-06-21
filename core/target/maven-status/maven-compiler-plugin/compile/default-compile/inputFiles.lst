@@ -16,8 +16,10 @@
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/move/InterruptType.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/character/StatKey.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/repo/BaseRepository.java
+/Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/technique/TechniqueRepository.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/move/MoveData.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/character/AbilityData.java
+/Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/technique/InnateTechniqueData.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/character/CharacterData.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/combat/CeEfficiencyCalculator.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/move/MoveCategory.java
@@ -36,6 +38,7 @@
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/combat/BattleCombatant.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/combat/CombatEvent.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/character/CursedSpiritCharacter.java
+/Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/technique/InnateTechnique.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/move/MoveTag.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/character/Entity.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/character/Ability.java

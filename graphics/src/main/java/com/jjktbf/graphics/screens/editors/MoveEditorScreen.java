@@ -305,6 +305,18 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 d.requiredTechniqueId,
                 s -> { d.requiredTechniqueId = (s == null || s.isBlank()) ? null : s; }))
             .growX().colspan(2).row();
+        // Read-only hint: does the named technique exist in the TechniqueRepository?
+        // Warns (does not block) — a move may legitimately predate its technique.
+        if (d.requiredTechniqueId != null && !d.requiredTechniqueId.isBlank()) {
+            boolean exists = techniqueExists(d.requiredTechniqueId);
+            Label techHint = exists
+                ? hint("✓ technique \"" + d.requiredTechniqueId + "\" found")
+                : hint("⚠ no technique named \"" + d.requiredTechniqueId + "\" — create it in the Technique Editor");
+            techHint.setColor(exists
+                ? skin.get("text-ok", com.badlogic.gdx.graphics.Color.class)
+                : skin.get("text-error", com.badlogic.gdx.graphics.Color.class));
+            form.add(techHint).colspan(2).padBottom(4).row();
+        }
 
         // ── Prerequisites ──────────────────────────────────────────────────────
         form.add(sectionHeader("STAT PREREQUISITES")).growX().colspan(2).row();
@@ -612,6 +624,18 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     // =========================================================================
     // Small UI helpers
     // =========================================================================
+
+    /** True if a technique with the given name (case-insensitive) exists in the technique repo. */
+    private boolean techniqueExists(String name) {
+        try {
+            com.jjktbf.model.technique.TechniqueRepository techRepo =
+                new com.jjktbf.model.technique.TechniqueRepository("data/techniques");
+            techRepo.load();
+            return techRepo.nameExists(name);
+        } catch (java.io.IOException e) {
+            return false; // can't confirm — don't block
+        }
+    }
 
     private Label sectionHeader(String text) {
         Label l = new Label(text, skin, "title");

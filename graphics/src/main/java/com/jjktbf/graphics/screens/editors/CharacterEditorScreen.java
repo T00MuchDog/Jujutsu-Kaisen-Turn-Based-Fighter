@@ -343,9 +343,19 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 List<AssignmentPanel.Item> items = new ArrayList<>();
                 List<MoveData> allMoves = moveRepo.getAll();
                 List<String> assigned = cd.moveIds != null ? cd.moveIds : List.of();
+                int ctm = cd.cursedTechniqueMastery;
                 for (MoveData md : allMoves) {
-                    if (!assigned.contains(md.id)) {
-                        String sub = md.tags != null ? String.join(", ", md.tags) : "";
+                    if (assigned.contains(md.id)) continue;
+                    String sub = md.tags != null ? String.join(", ", md.tags) : "";
+                    // Technique moves whose CTM prerequisite the character hasn't
+                    // reached are shown LOCKED (greyed, unclickable) so the
+                    // progression ladder is visible rather than silently hidden.
+                    Integer ctmReq = masteryPrereq(md, "cursedtechniquemastery", "ctm");
+                    if (ctmReq != null && ctmReq > ctm) {
+                        items.add(new AssignmentPanel.Item(
+                            md.id, md.name, sub, true,
+                            "🔒 needs CTM ≥ " + ctmReq + " (you have " + ctm + ")"));
+                    } else {
                         items.add(new AssignmentPanel.Item(md.id, md.name, sub));
                     }
                 }
@@ -441,6 +451,26 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 }
             }
         }, skin);
+    }
+
+    /**
+     * Look up a mastery prerequisite value from a move's prerequisite map by
+     * canonical name and alias (case/underscore/whitespace-insensitive).
+     * Returns null if the stat isn't a prerequisite.
+     */
+    private static Integer masteryPrereq(MoveData md, String canonical, String alias) {
+        if (md.prerequisites == null) return null;
+        String canon = normaliseStat(canonical);
+        String ali   = normaliseStat(alias);
+        for (Map.Entry<String, Integer> e : md.prerequisites.entrySet()) {
+            String k = normaliseStat(e.getKey());
+            if (k.equals(canon) || k.equals(ali)) return e.getValue();
+        }
+        return null;
+    }
+
+    private static String normaliseStat(String s) {
+        return s == null ? "" : s.toLowerCase().replace("_", "").replace(" ", "");
     }
 
     /** Collect MoveCategory for every assigned, slot-gated, non-free move. */

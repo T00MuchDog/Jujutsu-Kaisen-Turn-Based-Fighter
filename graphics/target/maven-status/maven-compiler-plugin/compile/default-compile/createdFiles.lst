@@ -9,6 +9,7 @@ com/jjktbf/graphics/ui/CombatantPanel.class
 com/jjktbf/graphics/screens/editors/CharacterEditorScreen.class
 com/jjktbf/graphics/screens/editors/AbilityEditorScreen.class
 com/jjktbf/graphics/ui/MoveCard.class
+com/jjktbf/graphics/screens/editors/TechniqueEditorScreen.class
 com/jjktbf/graphics/screens/CharacterSelectScreen.class
 com/jjktbf/graphics/JJKGame.class
 com/jjktbf/graphics/screens/MainMenuScreen.class

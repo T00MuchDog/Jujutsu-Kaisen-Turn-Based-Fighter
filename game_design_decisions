@@ -1,0 +1,41 @@
+1. Heavy and stun moves, when a character is proceed by the stun effect the current action segment the pointer is pointing to
+is "knocked out" meaning the move is disregarded, Moves with the new heavy tag ignore stun effects. For the average move assuming
+same action segment length, a move with stun will have an early activation point and deal little damage, a move without stun or heavy
+will have a medium activation point and deal medium damage, and a move with heavy will have a late activation point and deal medium damage.
+This creates a rock paper scissors mechanic like in YOMI hustle where stun moves > base moves > heavy moves > stun moves.
+
+2. I need to create the ability of predicting the opponents moves, this drives most of the combat competitive pokemon gameplay, it is the
+core fun mechanic in high level pokemon and YOMI hustle and needs to be preserved in this game for it to have mass multiplayer appeal.
+Prediction is easy in pokemon where the a battler can only have 4 moves, and one turn per move, and in YOMI hustler where moves devolve
+into 4 types, quick, medium, slow, and special, where each type has an advantage over the other. Making move predictions for a character
+that can have up to 30 moves and multiple abilities stacked in a queue of 6-10 moves is nearly impossible without other features such
+as the rock paper scissors mechanic mentioned above. I can't do something as blunt as giving you information of the opponents choices
+as that would make it too easy to figure out what they chose, it needs to be logic based prediction. The problem with YOMI hustle is that
+despite having many move options most boil down to those 4 types making the game at times a glorified rock paper scissors simulator, stacking
+multiple moves in a row removes this flaw as even if you get hit first you can still make moves. If we think of this from the JJK perspective
+most characters are able to react to moves and use their remaining time to dodge, block, parry or strike first, however since this game is turn
+based and i decided to preselect your moves before the turn it is impossible to react, unless what if after the first quater of ticks
+pass you are able to swap out your remaining moves, giving both players a chance to reevaluate and strategise after seeing how the opponent plays
+this would also allow for psychological tactics, if this happens at the end of the first, second, and third quarters. Maybe quarter is
+too many times it makes it too tedious, how about half way. but half way through what, the AP bars are different depending on speed, also
+Mechanically speaking how is this different from just having two rounds of half the size, the difference is that you plan out the
+"second round" before realtering it if necessary. Lets put a pin in that idea for now and think about it from the players point of view,
+i know that in the previous round kashimo set up his lightning trap, when he uses the unleash move, if it hits me and get's the headshot
+crit ability whatever then i know im dead, i need to predict when he is going to use it so i can stun him or use a defensive move to
+avoid it. what tools do i have at my disposal, in jjk a character would wait for a spike in cursed energy to- hmm that's an idea, curse
+energy sense, cursed energy efficiency is a stat and it relates to how well you are able to sense cursed energy perhaps, moves with CE
+costs emit a signal of some kind, one grows with the cost, it would need to be displayed after move selection is locked in from both sides
+to avoid misdirection, and perhaps you we could create a free move with high CE cost to intentionally misdirect the opponent, ok but
+there are two issues we need to solve, one is that locking in move selection displaying this CE cost and then editing the moves for
+every single round for a mechanic that isn't involved every single round is tedious and time consuming, this could be solved with a toggle,
+activating this toggle means after you and you're opponent both lock in you can alter you're moves. Alternatively there can be two buttons,
+once you finish selecting your moves for the round you select the first button to display you're CE to the enemy, then once you've changed
+your moves you both press the second button to start the round. This doesnt work as the person can just switch the location of the moves afterwards.
+We need a solution that adheres to the following strict game rules
+1. Move selection only occurs during the beginning of the round, never during.
+2. The game cannot tell you any information about you're opponent's move selection.
+3. The solution must give you a meaningful chance at predicting your opponents moves based on logic and psychology
+4. The solution must not funnel down the many choices into a simple RPS function
+The solution ideally would be a subtle as designing the combat so that some simple choices are encouraged such as always starting with a
+fast stun move, or always finishing with a guard, or always using your biggest move in the middle, these would create predictable move
+types that can be changed to subvert expectations.

@@ -29,6 +29,7 @@ com/jjktbf/model/move/InterruptType.class
 com/jjktbf/model/move/Move$1.class
 com/jjktbf/model/character/SlotBudgetEnforcer$1.class
 com/jjktbf/model/combat/ActionSegment.class
+com/jjktbf/model/technique/TechniqueRepository$1.class
 com/jjktbf/model/move/StatusEffect.class
 com/jjktbf/model/character/AbilityApplicator$AbilityFlags.class
 com/jjktbf/model/character/AbilityApplicator.class
@@ -51,14 +52,17 @@ com/jjktbf/model/character/AbilityData.class
 com/jjktbf/model/combat/BattleState$Phase.class
 com/jjktbf/model/character/AbilityTrigger.class
 com/jjktbf/model/character/CharacterStats.class
+com/jjktbf/model/technique/TechniqueRepository.class
 com/jjktbf/model/character/AbilityRepository$Configurator.class
 com/jjktbf/model/move/MoveTag.class
 com/jjktbf/model/combat/CombatEvent$Type.class
+com/jjktbf/model/technique/InnateTechnique.class
 com/jjktbf/model/combat/BattleState.class
 com/jjktbf/model/move/MoveCategory$SlotStat.class
 com/jjktbf/model/character/AbilityEffectData.class
 com/jjktbf/model/combat/PowerCalculator.class
 com/jjktbf/model/combat/CombatResolver.class
 com/jjktbf/model/character/StatKey.class
+com/jjktbf/model/technique/InnateTechniqueData.class
 com/jjktbf/model/character/AbilityRepository$1.class
 com/jjktbf/model/character/CombatStats$1.class
