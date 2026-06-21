@@ -95,6 +95,16 @@ public class AbilityData {
      */
     public int triggerThreshold;
 
+    /**
+     * Mastery threshold at which a technique-sourced ability unlocks and is
+     * auto-granted to a character. For {@code sourceType == "TECHNIQUE"}
+     * abilities, this is compared against the character's cursed-technique-mastery
+     * (or a substitute stat for Copy-like abilities) — see
+     * {@link com.jjktbf.model.technique.InnateTechnique#abilities}. Ignored for
+     * non-technique abilities. Zero = unlocked from the start.
+     */
+    public int masteryThreshold;
+
     // ── Derived helpers ───────────────────────────────────────────────────────
 
     public boolean isPassive()  { return "PASSIVE".equalsIgnoreCase(category); }

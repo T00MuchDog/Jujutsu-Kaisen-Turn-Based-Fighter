@@ -127,7 +127,15 @@ public final class AbilityApplicator {
                     }
                     case AUTO_STATUS_APPLY -> flags.autoStatusEffects.add(eff);
 
-                    case UNLOCK_TECHNIQUE  -> { /* handled at CharacterData.toCharacter() */ }
+                    case UNLOCK_TECHNIQUE  -> {
+                        // Technique access is resolved once at construction, not per
+                        // applicator pass: Character.accessibleTechniquesOf() unions the
+                        // granted technique name into the access set, and move validation
+                        // (Character.validateAndBuildMoveList) checks membership. Nothing
+                        // to mutate on the combatant here — the granted moves flow in via
+                        // the character's knownMoves/ability list, and UNLOCK_TECHNIQUE
+                        // has no stat/slot side effects.
+                    }
                     case STAT_BONUS_POINTS -> { /* editor/creator-only — no runtime effect */ }
                 }
             }

@@ -8,6 +8,7 @@ import com.jjktbf.graphics.screens.MainMenuScreen;
 import com.jjktbf.graphics.screens.editors.AbilityEditorScreen;
 import com.jjktbf.graphics.screens.editors.CharacterEditorScreen;
 import com.jjktbf.graphics.screens.editors.MoveEditorScreen;
+import com.jjktbf.graphics.screens.editors.TechniqueEditorScreen;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.AbilityRepository;
@@ -32,9 +33,10 @@ public class JJKGame extends Game {
     private MainMenuScreen        mainMenuScreen;
     private CharacterSelectScreen characterSelectScreen;
     private BattleScreen          battleScreen;
-    private MoveEditorScreen      moveEditorScreen;
-    private CharacterEditorScreen characterEditorScreen;
-    private AbilityEditorScreen   abilityEditorScreen;
+    private MoveEditorScreen       moveEditorScreen;
+    private CharacterEditorScreen  characterEditorScreen;
+    private AbilityEditorScreen    abilityEditorScreen;
+    private TechniqueEditorScreen  techniqueEditorScreen;
 
     // -------------------------------------------------------------------------
     // LibGDX lifecycle
@@ -51,6 +53,7 @@ public class JJKGame extends Game {
         moveEditorScreen      = new MoveEditorScreen(this, assets);
         characterEditorScreen = new CharacterEditorScreen(this, assets);
         abilityEditorScreen   = new AbilityEditorScreen(this, assets);
+        techniqueEditorScreen = new TechniqueEditorScreen(this, assets);
 
         setScreen(mainMenuScreen);
     }
@@ -66,6 +69,7 @@ public class JJKGame extends Game {
         moveEditorScreen.dispose();
         characterEditorScreen.dispose();
         abilityEditorScreen.dispose();
+        techniqueEditorScreen.dispose();
     }
 
     // -------------------------------------------------------------------------
@@ -90,6 +94,10 @@ public class JJKGame extends Game {
 
     public void showAbilityEditor() {
         setScreen(abilityEditorScreen);
+    }
+
+    public void showTechniqueEditor() {
+        setScreen(techniqueEditorScreen);
     }
 
     /**

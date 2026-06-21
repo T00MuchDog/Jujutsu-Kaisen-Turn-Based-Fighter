@@ -202,6 +202,12 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         sourceValueContainer.setActor(buildSourceValue(d));
         form.add(sourceValueContainer).growX().colspan(2).row();
 
+        // Mastery threshold — when this ability is technique-sourced
+        // (sourceType=TECHNIQUE), this is the cursed-technique-mastery value at
+        // which the technique auto-grants it. Ignored for other source types.
+        form.add(labelledIntField("Mastery Threshold (TECHNIQUE abilities)", d.masteryThreshold, 0, 999,
+                v -> { d.masteryThreshold = v; })).growX().colspan(2).row();
+
         // ── Active sub-fields (only when ACTIVE) ────────────────────────────────
         form.add(sectionHeader("ACTIVE SETTINGS")).growX().colspan(2).row();
         activeSubContainer = new Container<>();

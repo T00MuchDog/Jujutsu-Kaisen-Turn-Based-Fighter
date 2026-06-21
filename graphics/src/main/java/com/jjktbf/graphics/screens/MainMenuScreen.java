@@ -60,10 +60,11 @@ public class MainMenuScreen implements Screen {
         TextButton moveEd    = makeButton("2. MOVE EDITOR",      game::showMoveEditor);
         TextButton charEd    = makeButton("3. CHARACTER EDITOR", game::showCharacterEditor);
         TextButton abilityEd = makeButton("4. ABILITY EDITOR",   game::showAbilityEditor);
+        TextButton techEd    = makeButton("5. TECHNIQUE EDITOR", game::showTechniqueEditor);
         TextButton quit      = makeButton("ESC. QUIT",           () -> Gdx.app.exit());
 
         // Lay the buttons out in a centered vertical stack, sized generously.
-        for (TextButton b : new TextButton[]{ newGame, moveEd, charEd, abilityEd, quit }) {
+        for (TextButton b : new TextButton[]{ newGame, moveEd, charEd, abilityEd, techEd, quit }) {
             root.add(b).width(360).height(44).pad(5).colspan(2).row();
         }
 
@@ -74,6 +75,7 @@ public class MainMenuScreen implements Screen {
                 else if (keycode == Input.Keys.NUM_2) game.showMoveEditor();
                 else if (keycode == Input.Keys.NUM_3) game.showCharacterEditor();
                 else if (keycode == Input.Keys.NUM_4) game.showAbilityEditor();
+                else if (keycode == Input.Keys.NUM_5) game.showTechniqueEditor();
                 else if (keycode == Input.Keys.ESCAPE || keycode == Input.Keys.Q) Gdx.app.exit();
                 else return false;
                 return true;

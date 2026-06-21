@@ -16,7 +16,8 @@ JJKTBF/
 └── data/      JSON data files shared by all modules at runtime.
     ├── moves/all_moves.json
     ├── characters/all_characters.json
-    └── abilities/all_abilities.json
+    ├── abilities/all_abilities.json
+    └── techniques/all_techniques.json
 ```
 
 ---
@@ -68,6 +69,18 @@ These were established deliberately and should be maintained throughout developm
    - Rewritten: `MoveRepository.java`, `CharacterRepository.java`, `AbilityRepository.java` (now extend `BaseRepository`)
    - Edited: `pom.xml` (modules), `graphics/pom.xml` (dropped editor dep), `AssetLoader.java` (dropped unused fields + redundant fallback), `MoveData.java` (`fromMove` Javadoc)
 4. Follow-up tasks or risks: The battle UI (`BattleScreen`, `CharacterSelectScreen`) still uses per-screen hand-rolled `SpriteBatch`/`ShapeRenderer`; planned to migrate to the same Scene2D system as the editors. `CursedSpiritCharacter` remains as a documented future-type stub.
+
+### Recent engineering update — Innate Technique foundation
+
+1. What changed: Introduced innate techniques as first-class entities with their own class, repository (`data/techniques/all_techniques.json`), and graphical editor. A technique owns only `{id, name, description}`; its move/ability progression is **discovered** at runtime (query repos for entries referencing its name, filter by mastery, sort ascending). Made `UNLOCK_TECHNIQUE` actually functional — a character's accessible techniques now = innate technique ∪ techniques granted by applied abilities (was a documented no-op). Added a save-validated `Move.Builder` invariant: technique-tagged moves must declare their governing mastery prereq (INNATE→cursedTechniqueMastery, NON_INNATE→jujutsuSkill) and innate moves must name their technique. Added `AbilityData.masteryThreshold` (auto-grant ordering for technique abilities). The Character editor's move panel now shows technique moves in three states: **locked** (CTM-insufficient, greyed + unclickable), unlocked, learned — surfacing the progression ladder.
+2. Architectural/data/API implications: New `model/technique/` package (`InnateTechnique`, `InnateTechniqueData`, `TechniqueRepository`). `Character` gained an 8-arg constructor taking a resolved `Set<String> accessibleTechniques`; move validation checks set membership instead of a single `equalsIgnoreCase`. `CharacterData.toCharacter` (existing overloads) is unchanged — the constructor resolves the access set from `innateTechniqueName` + ability `UNLOCK_TECHNIQUE` effects. Single-source-of-truth: editing a move's CTM prereq automatically re-sorts its technique progression (no stored id-lists to sync). Technique names remain string-matched case-insensitively during this transition.
+3. Important files touched:
+   - New (core): `model/technique/{InnateTechnique, InnateTechniqueData, TechniqueRepository}.java`; `data/techniques/all_techniques.json` (seeded: Shrine, Limitless)
+   - New (graphics): `screens/editors/TechniqueEditorScreen.java`
+   - Edited (core): `Character.java` (accessibleTechniques ctor + membership check), `AbilityApplicator.java` (UNLOCK_TECHNIQUE comment), `AbilityData.java` (+masteryThreshold), `Move.java` (Builder invariant)
+   - Edited (graphics): `JJKGame.java` + `MainMenuScreen.java` (technique editor wiring), `AssignmentPanel.java` (locked row state), `CharacterEditorScreen.java` (CTM-locked move rows), `MoveEditorScreen.java` (technique-exists hint), `AbilityEditorScreen.java` (masteryThreshold field)
+   - Test: `StatVerificationTest.java` (invariant-compliant test move)
+4. Follow-up tasks or risks: **Domains** deferred (sure-hit, clash, arena-lock — needs a `MoveData.sureHit` flag + clash resolver). **Copy stat substitution** deferred (foundation enables it; the "substitute CTM with a copy stat" effect flag is a later addition). CTM does double-duty (unlock gate + slot budget, both `/20`); a baseline character (CTM 80) cannot use a technique whose cheapest move costs >80 CTM — an authoring guideline, not a code fix.
 
 ### 1. Loose coupling — changes touch the minimum number of files
 

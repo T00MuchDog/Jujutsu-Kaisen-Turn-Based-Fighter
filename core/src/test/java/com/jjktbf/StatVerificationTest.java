@@ -185,6 +185,8 @@ public class StatVerificationTest {
         Move innateAttack = new Move.Builder("INNATE_TEST")
             .name("Innate Test")
             .category(MoveCategory.INNATE_TECHNIQUE)
+            .requiredTechniqueId("SHRINE")                                  // technique-tag invariant
+            .prerequisites(java.util.Map.of("cursedtechniquemastery", 0))   // technique-tag invariant
             .basePower(50)
             .build();
         Move physicalBlock = new Move.Builder("PHYSICAL_BLOCK")

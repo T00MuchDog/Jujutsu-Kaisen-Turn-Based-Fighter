@@ -70,6 +70,32 @@ public abstract class Character extends Entity {
         List<Move>     knownMoves,
         List<Ability>  abilities
     ) {
+        this(id, name, type, baseStats, innateTechniqueName, knownMoves, abilities, accessibleTechniquesOf(innateTechniqueName, abilities));
+    }
+
+    /**
+     * Full construction with an explicit set of accessible technique names.
+     *
+     * <p>A character "has access to" technique T if it is their
+     * {@code innateTechniqueName} OR an applied ability's
+     * {@code UNLOCK_TECHNIQUE} effect grants it. The caller resolves this set
+     * (typically {@link CharacterData#toCharacter}); the default constructors
+     * compute it via {@link #accessibleTechniquesOf} from the ability list.
+     *
+     * <p>Move validation checks membership against this set instead of a single
+     * {@code equalsIgnoreCase} against the innate name — which is what makes
+     * UNLOCK_TECHNIQUE (and, by extension, Copy) functional.
+     */
+    protected Character(
+        String         id,
+        String         name,
+        CharacterType  type,
+        CharacterStats baseStats,
+        String         innateTechniqueName,
+        List<Move>     knownMoves,
+        List<Ability>  abilities,
+        java.util.Set<String> accessibleTechniques
+    ) {
         super(id, name);
         Objects.requireNonNull(type,      "CharacterType cannot be null");
         Objects.requireNonNull(baseStats, "CharacterStats cannot be null");
@@ -79,10 +105,36 @@ public abstract class Character extends Entity {
         this.combatStats        = new CombatStats(baseStats);
         this.innateTechniqueName = innateTechniqueName;
         this.knownMoves         = Collections.unmodifiableList(
-            validateAndBuildMoveList(knownMoves, baseStats, combatStats, innateTechniqueName)
+            validateAndBuildMoveList(knownMoves, baseStats, combatStats, accessibleTechniques)
         );
         this.abilities          = abilities != null
             ? Collections.unmodifiableList(new ArrayList<>(abilities)) : List.of();
+    }
+
+    /**
+     * Resolve the set of technique names a character can use moves from: their
+     * innate technique plus any technique granted by an {@code UNLOCK_TECHNIQUE}
+     * ability effect. Case-insensitive (names are lower-cased on insertion).
+     */
+    private static java.util.Set<String> accessibleTechniquesOf(
+            String innateTechniqueName, List<Ability> abilities) {
+        java.util.Set<String> set = new java.util.HashSet<>();
+        if (innateTechniqueName != null && !innateTechniqueName.isBlank()) {
+            set.add(innateTechniqueName.toLowerCase());
+        }
+        if (abilities != null) {
+            for (Ability a : abilities) {
+                var effects = a.getEffects();
+                if (effects == null) continue;
+                for (var e : effects) {
+                    if (com.jjktbf.model.character.AbilityEffectType.UNLOCK_TECHNIQUE.name().equals(e.type)
+                        && e.stringValue != null && !e.stringValue.isBlank()) {
+                        set.add(e.stringValue.toLowerCase());
+                    }
+                }
+            }
+        }
+        return set;
     }
 
     // -------------------------------------------------------------------------
@@ -93,7 +145,7 @@ public abstract class Character extends Entity {
         List<Move>     moves,
         CharacterStats cs,
         CombatStats    combatStats,
-        String         innateTechniqueName
+        java.util.Set<String> accessibleTechniques
     ) {
         if (moves == null) return List.of();
 
@@ -115,9 +167,12 @@ public abstract class Character extends Entity {
             }
 
             // --- 2. Technique restriction ---
+            // A move is usable if its required technique is the character's
+            // innate technique OR was granted by an UNLOCK_TECHNIQUE ability
+            // effect (e.g. Six Eyes → Limitless, or a Copy ability). Case-insensitive.
             if (move.getRequiredTechniqueId() != null) {
-                if (innateTechniqueName == null
-                    || !move.getRequiredTechniqueId().equalsIgnoreCase(innateTechniqueName)) {
+                if (accessibleTechniques == null
+                    || !accessibleTechniques.contains(move.getRequiredTechniqueId().toLowerCase())) {
                     throw new IllegalArgumentException(
                         "Character does not possess required technique '"
                         + move.getRequiredTechniqueId()

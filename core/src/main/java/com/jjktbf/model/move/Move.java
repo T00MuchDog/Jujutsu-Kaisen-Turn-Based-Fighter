@@ -367,7 +367,55 @@ public class Move {
             if (id == null || id.isBlank()) throw new IllegalStateException("Move id is required");
             if (unleashPoint < 1 || unleashPoint > apCost)
                 throw new IllegalStateException("unleashPoint must be in [1, apCost]");
+
+            // Technique-tag invariant: moves bearing the INNATE_TECHNIQUE or
+            // NON_INNATE_TECHNIQUE tag MUST declare their governing mastery stat
+            // as a prerequisite (even if 0), and innate-technique moves MUST name
+            // their technique. This is what lets a Technique's progression be
+            // discovered and mastery-sorted at runtime, and keeps the editor's
+            // save validation honest (it routes through this builder).
+            if (category != null) {
+                var tags = category.getTags();
+                boolean isInnate    = tags.contains(MoveTag.INNATE_TECHNIQUE);
+                boolean isNonInnate = tags.contains(MoveTag.NON_INNATE_TECHNIQUE);
+                if (isInnate) {
+                    if (requiredTechniqueId == null || requiredTechniqueId.isBlank()) {
+                        throw new IllegalStateException(
+                            "Innate-technique moves must set a requiredTechniqueId (name='" + name + "')");
+                    }
+                    if (!hasStatPrereq(prerequisites, "cursedtechniquemastery", "ctm")) {
+                        throw new IllegalStateException(
+                            "Innate-technique moves must declare a cursedTechniqueMastery prerequisite (name='" + name + "')");
+                    }
+                }
+                if (isNonInnate) {
+                    if (!hasStatPrereq(prerequisites, "jujutsuskill", "js")) {
+                        throw new IllegalStateException(
+                            "Non-innate-technique moves must declare a jujutsuSkill prerequisite (name='" + name + "')");
+                    }
+                }
+            }
+
             return new Move(this);
+        }
+
+        /**
+         * Case/underscore/whitespace-insensitive check that a prerequisite map
+         * contains one of the candidate stat names (canonical or alias).
+         */
+        private static boolean hasStatPrereq(java.util.Map<String, Integer> prereqs,
+                                             String canonical, String alias) {
+            String canon = normalise(canonical);
+            String ali   = normalise(alias);
+            for (String key : prereqs.keySet()) {
+                String k = normalise(key);
+                if (k.equals(canon) || k.equals(ali)) return true;
+            }
+            return false;
+        }
+
+        private static String normalise(String s) {
+            return s == null ? "" : s.toLowerCase().replace("_", "").replace(" ", "");
         }
     }
 }
