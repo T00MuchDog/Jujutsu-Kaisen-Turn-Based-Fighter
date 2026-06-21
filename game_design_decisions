@@ -38,4 +38,17 @@ We need a solution that adheres to the following strict game rules
 4. The solution must not funnel down the many choices into a simple RPS function
 The solution ideally would be a subtle as designing the combat so that some simple choices are encouraged such as always starting with a
 fast stun move, or always finishing with a guard, or always using your biggest move in the middle, these would create predictable move
-types that can be changed to subvert expectations.
+types that can be changed to subvert expectations. By jove ive got it, we seperate the the timelines into offensive and defensive timelines
+you can stack your attack actions in one timeline while simeultanously using defensive moves, this way you don't need to worry about
+wasting a attacking move slot on defending a weak ass punch at random, since we can use both, but prediction still matters as you will
+have some blind spots or minimum spacing between defensive moves probaly, we can also add some new move tags to add to this, a tag that
+makes moves take up spots on both timelines, forcing you into full defense or full attack, a stun use to knock out the move but now we can
+have versions for attacking and defensive moves. This is also good set up for domains as now they render the entire defensive line useless
+adding to their finishing move aura. moves that do not contain an attacking tag (Defensive, Utility, Defensive-Utility) will all be stored
+on the defensive line, moves that contain a attack tag will be on the Attack line (Attack, Attack-Defense, Attack-Utility, Attack-Defense-Utility).
+This also works with our simulation aspect as a character in battle can be focused on defending and attacking at the same time. Prediction
+is still an important aspect but the chances are much greater and when you know they are going to bring out a big move with a lot of AP
+you can store a bunch of defensive moves close together. I do think we should Rework the current AP bar though because currently the
+person with the bigger bar just gets some free moves extra during the end of the round which doesnt fit the design as good, Im thinking
+something like a bar 300 points long and you can place your moves anywhere along it up to your point total. maybe the size of the offensive
+and defensive bars differ depend on strength vs durability.
