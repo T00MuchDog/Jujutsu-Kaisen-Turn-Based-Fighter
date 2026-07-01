@@ -17,6 +17,20 @@ import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 public class GraphicsMain {
 
     public static void main(String[] args) {
+        // Capture any thread's uncaught exception to a file so crashes (which
+        // often die silently or show a native dialog that hides the trace) are
+        // recoverable. Diagnostic.
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            try {
+                java.io.PrintWriter pw = new java.io.PrintWriter(
+                    new java.io.FileWriter("battle_crash.log", true));
+                pw.println("===== " + java.time.Instant.now()
+                           + "  (thread: " + t.getName() + ") =====");
+                e.printStackTrace(pw);
+                pw.close();
+            } catch (Exception ignored) {}
+        });
+
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
 
         config.setTitle("Jujutsu Kaisen — Turn Based Fighter");

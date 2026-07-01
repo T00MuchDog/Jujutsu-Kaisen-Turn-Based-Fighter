@@ -167,7 +167,7 @@ public class StatVerificationTest {
             .build();
 
         Timeline timeline = new Timeline(30);
-        timeline.addMove(block, 0);
+        timeline.placeAt(block, 1, 0);
 
         assertNull(timeline.activeBlockAt(2, attack));
         assertNotNull(timeline.activeBlockAt(3, attack));
@@ -198,7 +198,7 @@ public class StatVerificationTest {
             .build();
 
         Timeline timeline = new Timeline(30);
-        timeline.addMove(physicalBlock, 0);
+        timeline.placeAt(physicalBlock, 1, 0);
 
         assertNotNull(timeline.activeBlockAt(10, physicalAttack));
         assertNull(timeline.activeBlockAt(10, innateAttack));
@@ -230,7 +230,7 @@ public class StatVerificationTest {
         BattleCombatant attacker = new BattleCombatant(attackerChar);
         BattleCombatant defender = new BattleCombatant(defenderChar);
         Timeline defenderTimeline = new Timeline(30);
-        defenderTimeline.addMove(block, 0);
+        defenderTimeline.placeAt(block, 1, 0);
         defender.setTimeline(defenderTimeline);
 
         DamageCalculator.DamageResult result = DamageCalculator.resolve(

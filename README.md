@@ -82,6 +82,18 @@ These were established deliberately and should be maintained throughout developm
    - Test: `StatVerificationTest.java` (invariant-compliant test move)
 4. Follow-up tasks or risks: **Domains** deferred (sure-hit, clash, arena-lock — needs a `MoveData.sureHit` flag + clash resolver). **Copy stat substitution** deferred (foundation enables it; the "substitute CTM with a copy stat" effect flag is a later addition). CTM does double-duty (unlock gate + slot budget, both `/20`); a baseline character (CTM 80) cannot use a technique whose cheapest move costs >80 CTM — an authoring guideline, not a code fix.
 
+### Recent engineering update — battle planning v2 (timeline creation draft)
+
+1. What changed: Rebuilt the round-planning model and UI around a fixed 300-dot two-board timeline (offensive above defensive). `Timeline` is now a free-placement 300-wide spatial board (gaps allowed; no contiguous-packing rule); AP-budget enforcement lifted to a new `BattlePlan` that owns both timelines + shared AP/CE budgets. `BattleView.promptBattlePlan(BattleCombatant, BattleCombatant)` replaces `promptMoveSelection` as the planning contract — the view owns the drag-place UI and returns the finished plan. A new `PlanningPanel` (graphics) renders the two bars + bottom move palette + Lock In button, with drag-to-place, snap-to-grid, attack/defense board gating, and live AP/CE budget greying.
+2. Architectural/data/API implications: **`maxApBar` repurposed** — it no longer sets grid length (now a fixed `BattlePlan.GRID_LENGTH = 300`); it is the *AP budget* spendable across both timelines. CE pool stays a planning budget (the agreed predictor): placing a segment deducts its CE cost; the real `currentCe` is untouched and carries into execution. `hasTag("ATTACK")` (basePower+category heuristic) drives the offensive/defensive board split. **Execution is unchanged** — `BattleController` converts each plan to the legacy single `Timeline` via `BattlePlan.toLegacyTimeline()` so today's `CombatResolver` runs as-is.
+3. Important files touched:
+   - New (core): `model/combat/BattlePlan.java`
+   - New (graphics): `ui/battle/{PlanningPanel, TimelineBar, ActionSegmentView, MoveCardView}.java`
+   - Edited (core): `Timeline.java` (free-placement 300-board; queries preserved), `BattleCombatant.java` (+plan field/accessors), `BattleView.java` (+promptBattlePlan), `BattleController.java` (builds BattlePlan for player + AI, converts to legacy timeline), `CombatResolver.java` (getMaxApBar → getGridLength)
+   - Edited (graphics): `BattleScreen.java` (real PlanningPanel flow replaces legacy delegate; planning panel drawn during planning phase)
+   - Test: `StatVerificationTest.java` (addMove → placeAt at the three timeline test sites)
+4. Follow-up tasks or risks: **Execution phase** (cross-timeline ticker, same-tick speed tie-breaking, offensive-before-defensive ordering, left-side battle log) is the next major task — `toLegacyTimeline()` is a stopgap. The `PlanningPanel` drag-ghost text rendering is minimal (shapes + snap glow work; full drag-avatar text polish pending). Planning input is raw `InputAdapter` (not Scene2D), consistent with the existing battle render loop. The legacy `promptMoveSelection` is deprecated but retained so the old `MoveCard` flow stays compilable.
+
 ### 1. Loose coupling — changes touch the minimum number of files
 
 The key test: if you add a new `DefenseType`, `InterruptType`, or `StatusEffectType`,
