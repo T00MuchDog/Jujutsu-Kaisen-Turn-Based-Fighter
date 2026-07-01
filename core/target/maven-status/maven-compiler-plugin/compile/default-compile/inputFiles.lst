@@ -11,6 +11,7 @@
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/controller/GreedyAIStrategy.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/character/CharacterFactory.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/controller/BattleController.java
+/Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/combat/BattlePlan.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/combat/Timeline.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/move/MoveRepository.java
 /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/src/main/java/com/jjktbf/model/move/InterruptType.java

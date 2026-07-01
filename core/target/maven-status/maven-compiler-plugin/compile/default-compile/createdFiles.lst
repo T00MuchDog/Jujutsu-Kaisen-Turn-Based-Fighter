@@ -1,4 +1,5 @@
 com/jjktbf/model/move/Move$Builder.class
+com/jjktbf/model/combat/BattlePlan.class
 com/jjktbf/model/move/MoveData.class
 com/jjktbf/model/character/CharacterFactory.class
 com/jjktbf/model/character/CharacterType.class
@@ -39,6 +40,7 @@ com/jjktbf/model/character/AbilityEffectType.class
 com/jjktbf/model/move/MoveRepository$1.class
 com/jjktbf/model/repo/BaseRepository.class
 com/jjktbf/model/combat/CeEfficiencyCalculator.class
+com/jjktbf/model/combat/BattlePlan$Board.class
 com/jjktbf/view/BattleView.class
 com/jjktbf/model/combat/CombatEvent$Builder.class
 com/jjktbf/model/combat/CombatResolver$FiringEntry.class

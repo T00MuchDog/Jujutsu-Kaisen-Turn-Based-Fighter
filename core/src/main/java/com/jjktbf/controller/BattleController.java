@@ -77,45 +77,44 @@ public class BattleController {
         state.transitionTo(BattleState.Phase.PLANNING);
         view.displayRoundStart(state);
 
-        // --- Player move selection ---
-        int playerApBar = player.getMaxApBar();
-        Timeline playerTimeline = new Timeline(playerApBar);
-        player.setTimeline(playerTimeline);
+        // --- Player plan (two-board timeline UI) ---
+        BattlePlan playerPlan = view.promptBattlePlan(player, enemy);
+        player.setPlan(playerPlan);
+        // Stopgap: expose the plan as the legacy single-timeline view so the
+        // current CombatResolver (single-ticker) keeps running while the
+        // cross-board execution refactor is pending.
+        player.setTimeline(playerPlan == null ? new Timeline() : playerPlan.toLegacyTimeline());
 
-        List<Move> playerMoves = view.promptMoveSelection(player, enemy);
-        int projectedPlayerCe = player.getCurrentCe();
-        for (Move move : playerMoves) {
-            if (isLockedByAbility(player, move)) {
-                view.displayMessage(move.getName() + " is locked by an ability — skipped.");
+        // --- Enemy AI plan ---
+        BattlePlan enemyPlan = buildAiPlan(enemy, player);
+        enemy.setPlan(enemyPlan);
+        enemy.setTimeline(enemyPlan.toLegacyTimeline());
+    }
+
+    /**
+     * Build the enemy's plan from the AI's move selection: place each move at
+     * the first free slot on its assigned board, honouring AP/CE budgets.
+     * Ability-locked and unaffordable moves are skipped.
+     */
+    private BattlePlan buildAiPlan(BattleCombatant ai, BattleCombatant opponent) {
+        BattlePlan plan = new BattlePlan(ai.getMaxApBar(), ai.getCurrentCe());
+        List<Move> moves = aiStrategy.selectMoves(ai, opponent);
+        for (Move move : moves) {
+            if (isLockedByAbility(ai, move)) {
+                view.displayMessage(ai.getCharacter().getName() + "'s "
+                    + move.getName() + " is locked by an ability — skipped.");
                 continue;
             }
             int cost = CeEfficiencyCalculator.computeActualCost(
-                move, player.getEffectiveStats().getCursedEnergyEfficiency(), player.getAbilityFlags()
+                move, ai.getEffectiveStats().getCursedEnergyEfficiency(), ai.getAbilityFlags()
             );
-            if (cost > projectedPlayerCe) {
-                view.displayMessage("Not enough CE to queue " + move.getName() + " — skipped.");
-                continue;
-            }
-            ActionSegment segment = playerTimeline.addMove(move, cost);
+            ActionSegment segment = plan.placeFirstFit(move, cost);
             if (segment == null) {
-                view.displayMessage("Not enough AP to queue " + move.getName() + " — skipped.");
-                continue;
+                view.displayMessage(ai.getCharacter().getName()
+                    + " could not place " + move.getName() + " — skipped.");
             }
-            projectedPlayerCe -= cost;
         }
-
-        // --- Enemy AI move selection ---
-        int enemyApBar = enemy.getMaxApBar();
-        Timeline enemyTimeline = new Timeline(enemyApBar);
-        enemy.setTimeline(enemyTimeline);
-
-        List<Move> enemyMoves = aiStrategy.selectMoves(enemy, player);
-        for (Move move : enemyMoves) {
-            int cost = CeEfficiencyCalculator.computeActualCost(
-                move, enemy.getEffectiveStats().getCursedEnergyEfficiency(), enemy.getAbilityFlags()
-            );
-            enemyTimeline.addMove(move, cost);
-        }
+        return plan;
     }
 
     private boolean isLockedByAbility(BattleCombatant combatant, Move move) {

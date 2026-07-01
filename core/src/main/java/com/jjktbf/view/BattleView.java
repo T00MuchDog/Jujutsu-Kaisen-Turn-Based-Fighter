@@ -1,5 +1,6 @@
 package com.jjktbf.view;
 
+import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.CombatEvent;
@@ -26,6 +27,21 @@ public interface BattleView {
     void displayRoundStart(BattleState state);
 
     /**
+     * Prompt the player to build their round plan via the two-board timeline UI
+     * (offensive + defensive, drag-place, shared AP/CE budgets). The view owns
+     * the entire drag-place interaction and returns the finished plan when the
+     * player clicks "Lock In".
+     *
+     * <p>This is the blocking planning call: the controller thread spins until
+     * the view signals confirmation.
+     *
+     * @param combatant   the player's combatant (for budgets, CE, known moves)
+     * @param opponent    the opponent (for display only — never reveals their plan)
+     * @return            the finished {@link BattlePlan}; may be empty (bank the round)
+     */
+    BattlePlan promptBattlePlan(BattleCombatant combatant, BattleCombatant opponent);
+
+    /**
      * Prompt the player to select moves for their timeline.
      * Returns the list of moves in the order the player wants to queue them.
      * The view is responsible for validating AP budget and showing move costs.
@@ -33,7 +49,10 @@ public interface BattleView {
      * @param combatant   the player's combatant (for AP bar size, CE, known moves)
      * @param opponent    the opponent (for displaying their info during planning)
      * @return            ordered list of moves to queue; may be empty if player banks AP
+     * @deprecated superseded by {@link #promptBattlePlan}; retained temporarily
+     *             so legacy views keep compiling during the planning-UI migration.
      */
+    @Deprecated
     List<Move> promptMoveSelection(BattleCombatant combatant, BattleCombatant opponent);
 
     /**

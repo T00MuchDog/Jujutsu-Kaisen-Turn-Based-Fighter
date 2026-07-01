@@ -79,8 +79,8 @@ public class CombatResolver {
         Timeline enemyTimeline  = enemy.getTimeline();
 
         int maxTick = Math.max(
-            playerTimeline != null ? playerTimeline.getMaxApBar() : 0,
-            enemyTimeline  != null ? enemyTimeline.getMaxApBar()  : 0
+            playerTimeline != null ? playerTimeline.getGridLength() : 0,
+            enemyTimeline  != null ? enemyTimeline.getGridLength()  : 0
         );
 
         drainSustainedCe(player, events);

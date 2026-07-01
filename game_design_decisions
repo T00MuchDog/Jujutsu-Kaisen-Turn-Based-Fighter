@@ -41,7 +41,7 @@ fast stun move, or always finishing with a guard, or always using your biggest m
 types that can be changed to subvert expectations. By jove ive got it, we seperate the the timelines into offensive and defensive timelines
 you can stack your attack actions in one timeline while simeultanously using defensive moves, this way you don't need to worry about
 wasting a attacking move slot on defending a weak ass punch at random, since we can use both, but prediction still matters as you will
-have some blind spots or minimum spacing between defensive moves probaly, we can also add some new move tags to add to this, a tag that
+have some blind spots or minimum spacing between defensive moves probaly, we can also add some new move tags to add to this, a "focus" tag that
 makes moves take up spots on both timelines, forcing you into full defense or full attack, a stun use to knock out the move but now we can
 have versions for attacking and defensive moves. This is also good set up for domains as now they render the entire defensive line useless
 adding to their finishing move aura. moves that do not contain an attacking tag (Defensive, Utility, Defensive-Utility) will all be stored
@@ -51,4 +51,15 @@ is still an important aspect but the chances are much greater and when you know 
 you can store a bunch of defensive moves close together. I do think we should Rework the current AP bar though because currently the
 person with the bigger bar just gets some free moves extra during the end of the round which doesnt fit the design as good, Im thinking
 something like a bar 300 points long and you can place your moves anywhere along it up to your point total. maybe the size of the offensive
-and defensive bars differ depend on strength vs durability.
+and defensive bars differ depend on strength vs durability. Oh yeah almost forgot a tag that ignores block type defence moves, guard break.
+
+3. next decision is how we handle the AP bar, if we assume we have the 300 point bar one for offense and one for defense,
+we have 3 ways of handling them, one seperate ap totals for offense and defense, a total AP points for offense would be comprised
+majority of speed with some strength, while the one for defense would use durability. This results in two different total points
+and a glass cannon would have high attack AP and low Defense AP, it also means that characters will always use some
+combination of attacking and defending moves each turn. The other two options both consist of characters having one AP points
+total and defensive and offensive moves being taken from the same pool, in the first version the maximum AP points for a character
+is still 300, this results in characters using some combination of offence and defensive moves and at their max they could defend or
+attack for an entire round. The other direction is to set a max AP pool of 600, meaning a character would be able to attack and defend
+at every moment which i suppose is appriate for a character with the highest possible speed but i think i prefer that be an ability
+that extends your AP point cap as opposed to the default, so i think a shared AP pool of 300 points is appropriate.

@@ -113,10 +113,24 @@ public class JJKGame extends Game {
         setScreen(battleScreen);
 
         Thread battleThread = new Thread(() -> {
-            Character player = playerData.toCharacter(moveRepo, abilityRepo);
-            Character cpu    = cpuData.toCharacter(moveRepo, abilityRepo);
-            BattleController controller = new BattleController(battleScreen);
-            controller.runBattle(player, cpu);
+            try {
+                Character player = playerData.toCharacter(moveRepo, abilityRepo);
+                Character cpu    = cpuData.toCharacter(moveRepo, abilityRepo);
+                BattleController controller = new BattleController(battleScreen);
+                controller.runBattle(player, cpu);
+            } catch (Throwable t) {
+                // The battle runs on a daemon thread; an uncaught throw would
+                // otherwise die silently. Write the stack trace to a file so the
+                // cause is recoverable.
+                try {
+                    java.io.PrintWriter pw = new java.io.PrintWriter(
+                        new java.io.FileWriter("battle_crash.log", true));
+                    pw.println("===== " + java.time.Instant.now() + " =====");
+                    t.printStackTrace(pw);
+                    pw.close();
+                } catch (Exception ignored) {}
+                throw new RuntimeException(t);
+            }
         }, "battle-thread");
 
         battleThread.setDaemon(true); // exits when the main window closes

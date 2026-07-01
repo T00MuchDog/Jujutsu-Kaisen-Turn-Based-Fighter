@@ -7,135 +7,179 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * The AP timeline for one combatant during one round.
+ * One action-timeline board: a fixed-length grid of AP dots on which
+ * {@link ActionSegment}s are placed freely (gaps allowed).
  *
- * Represents the full AP bar as a sequence of ActionSegments packed from tick 1.
- * Empty AP between or after segments is implicit (no move occupying that tick).
+ * <p>A {@link BattlePlan} owns two of these — offensive and defensive — which
+ * together form a combatant's round plan. This class is purely the spatial
+ * board: it knows about dot occupancy and segment queries, but <b>not</b> about
+ * AP/CE budgets (those live on {@link BattlePlan}, which enforces them across
+ * both timelines).
  *
- * Rules:
- *  - Segments are placed sequentially; a new segment starts at (previous segment's end + 1).
- *  - Total AP of all segments cannot exceed maxApBar.
- *  - BLOCK defensive moves register their tick range for active-block queries during resolution.
+ * <p><b>Grid model.</b> Dots are 1-indexed: tick {@code 1..gridLength}. A
+ * segment occupying ticks {@code [startTick, startTick + apCost - 1]} must lie
+ * wholly within the grid and not overlap any existing segment. Multiple
+ * segments may coexist with empty gaps between them.
+ *
+ * <p>Resolution-support queries ({@link #segmentAt}, {@link #nextSegmentAfter},
+ * {@link #firingAt}, {@link #activeBlockAt}) are preserved so the (deferred)
+ * cross-timeline ticker can sweep both boards by tick.
  */
 public class Timeline {
 
-    private final int            maxApBar;
-    private final List<ActionSegment> segments;
-    private int                   nextAvailableTick;
+    /** The fixed grid length for production timelines (both offensive & defensive). */
+    public static final int DEFAULT_GRID_LENGTH = 300;
 
-    public Timeline(int maxApBar) {
-        this.maxApBar           = maxApBar;
-        this.segments           = new ArrayList<>();
-        this.nextAvailableTick  = 1;
+    private final int gridLength;
+    private final List<ActionSegment> segments = new ArrayList<>();
+
+    public Timeline() {
+        this(DEFAULT_GRID_LENGTH);
     }
 
+    /** Test/utility constructor allowing a smaller grid. */
+    public Timeline(int gridLength) {
+        this.gridLength = gridLength;
+    }
+
+    // -------------------------------------------------------------------------
+    // Placement
+    // -------------------------------------------------------------------------
+
     /**
-     * Attempt to add an action segment to the timeline.
+     * Place a segment at an explicit start tick. The range
+     * {@code [startTick, startTick + apCost - 1]} must lie within the grid and
+     * be free of overlap.
      *
-     * @param move          the move to queue
-     * @param actualCeCost  CE cost after efficiency scaling
-     * @return the created ActionSegment, or null if insufficient AP remains
+     * @return the created segment, or {@code null} if the placement is invalid
+     *         (out of bounds or overlapping).
      */
-    public ActionSegment addMove(Move move, int actualCeCost) {
-        int remaining = maxApBar - (nextAvailableTick - 1);
-        if (move.getApCost() > remaining) {
-            return null; // not enough AP
-        }
-        ActionSegment segment = new ActionSegment(move, nextAvailableTick, actualCeCost);
+    public ActionSegment placeAt(Move move, int startTick, int actualCeCost) {
+        int endTick = startTick + move.getApCost() - 1;
+        if (startTick < 1 || endTick > gridLength) return null;
+        if (!isRangeFree(startTick, endTick)) return null;
+        ActionSegment segment = new ActionSegment(move, startTick, actualCeCost);
         segments.add(segment);
-        nextAvailableTick += move.getApCost();
         return segment;
     }
 
     /**
-     * Remaining AP points available for more moves this round.
+     * Convenience: place at the first free range that fits the move (leftmost).
+     * Returns {@code null} if no gap large enough exists.
      */
-    public int remainingAp() {
-        return maxApBar - (nextAvailableTick - 1);
-    }
-
-    /**
-     * Retrieve the ActionSegment whose range [startTick, endTick] contains the given tick.
-     * Returns null if no segment covers that tick (empty AP gap).
-     */
-    public ActionSegment segmentAt(int tick) {
-        for (ActionSegment segment : segments) {
-            if (tick >= segment.getStartTick() && tick <= segment.getEndTick()) {
-                return segment;
+    public ActionSegment placeAtFirstFit(Move move, int actualCeCost) {
+        int need = move.getApCost();
+        int cursor = 1;
+        for (ActionSegment s : sortedByStart()) {
+            int gap = s.getStartTick() - cursor;
+            if (gap >= need) {
+                return placeAt(move, cursor, actualCeCost);
             }
+            cursor = Math.max(cursor, s.getEndTick() + 1);
+        }
+        if (gridLength - cursor + 1 >= need) {
+            return placeAt(move, cursor, actualCeCost);
         }
         return null;
     }
 
-    /**
-     * Returns the next ActionSegment after the one containing the given tick.
-     * Used for KNOCK_NEXT_SEGMENT interrupt resolution.
-     */
+    /** Remove a placed segment. No-op if not present. */
+    public boolean remove(ActionSegment segment) {
+        return segments.remove(segment);
+    }
+
+    /** True if no segment occupies any tick in {@code [startTick, endTick]}. */
+    public boolean isRangeFree(int startTick, int endTick) {
+        for (ActionSegment s : segments) {
+            boolean overlaps = !(endTick < s.getStartTick() || startTick > s.getEndTick());
+            if (overlaps) return false;
+        }
+        return true;
+    }
+
+    // -------------------------------------------------------------------------
+    // Queries (preserved for resolution)
+    // -------------------------------------------------------------------------
+
+    /** The segment whose range contains the tick, or null (empty gap). */
+    public ActionSegment segmentAt(int tick) {
+        for (ActionSegment s : segments) {
+            if (tick >= s.getStartTick() && tick <= s.getEndTick()) return s;
+        }
+        return null;
+    }
+
+    /** The next segment strictly after the one containing the tick (for KNOCK_NEXT_SEGMENT). */
     public ActionSegment nextSegmentAfter(int tick) {
         ActionSegment current = segmentAt(tick);
-        if (current == null) return null;
-
-        int idx = segments.indexOf(current);
-        if (idx + 1 < segments.size()) {
-            return segments.get(idx + 1);
+        List<ActionSegment> sorted = sortedByStart();
+        int startIdx = current == null ? -1 : sorted.indexOf(current);
+        for (int i = 0; i < sorted.size(); i++) {
+            ActionSegment s = sorted.get(i);
+            if (current == null) {
+                if (s.getStartTick() > tick) return s;
+            } else if (i > startIdx) {
+                return s;
+            }
         }
         return null;
     }
 
-    /**
-     * Get all non-knocked-out ActionSegments that fire at the given tick.
-     */
+    /** All non-knocked-out segments that fire at the given tick. */
     public List<ActionSegment> firingAt(int tick) {
         List<ActionSegment> firing = new ArrayList<>();
-        for (ActionSegment segment : segments) {
-            if (!segment.isKnockedOut() && segment.getFireTick() == tick) {
-                firing.add(segment);
-            }
+        for (ActionSegment s : segments) {
+            if (!s.isKnockedOut() && s.getFireTick() == tick) firing.add(s);
         }
         return firing;
     }
 
-    /**
-     * Check if an active block (PERCENTAGE_BLOCK or FLAT_BLOCK) is covering the given tick.
-     */
     public boolean hasActiveBlockAt(int tick) {
         return activeBlockAt(tick, null) != null;
     }
 
     public ActionSegment activeBlockAt(int tick, Move incomingMove) {
-        for (ActionSegment segment : segments) {
-            Move move = segment.getMove();
-            if (segment.isKnockedOut() || !move.isActiveBlock()) continue;
+        for (ActionSegment s : segments) {
+            Move move = s.getMove();
+            if (s.isKnockedOut() || !move.isActiveBlock()) continue;
             if (incomingMove != null && !incomingMove.hasAllTags(move.getBlockAffectedTags())) continue;
 
-            int start = segment.getFireTick();
+            int start = s.getFireTick();
             int end = switch (move.getBlockDuration()) {
-                case -1 -> maxApBar;
+                case -1 -> gridLength;
                 case 0  -> start + move.getApCost() - 1;
                 default -> start + move.getBlockDuration() - 1;
             };
-            if (tick >= start && tick <= end) return segment;
+            if (tick >= start && tick <= end) return s;
         }
         return null;
     }
 
-    /**
-     * The total AP consumed by all segments (including knocked-out ones — AP is spent).
-     */
+    // -------------------------------------------------------------------------
+    // Accessors
+    // -------------------------------------------------------------------------
+
+    /** Sum of every placed segment's AP cost (regardless of knockout). */
     public int totalApUsed() {
-        return nextAvailableTick - 1;
+        int sum = 0;
+        for (ActionSegment s : segments) sum += s.getMove().getApCost();
+        return sum;
     }
 
     public List<ActionSegment> getSegments() { return Collections.unmodifiableList(segments); }
-    public int getMaxApBar()                 { return maxApBar; }
+    public int getGridLength()               { return gridLength; }
+    public boolean isEmpty()                 { return segments.isEmpty(); }
+
+    private List<ActionSegment> sortedByStart() {
+        List<ActionSegment> copy = new ArrayList<>(segments);
+        copy.sort((a, b) -> Integer.compare(a.getStartTick(), b.getStartTick()));
+        return copy;
+    }
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder("Timeline[");
-        sb.append(maxApBar).append(" AP] ");
-        for (ActionSegment segment : segments) {
-            sb.append(segment).append(" | ");
-        }
+        StringBuilder sb = new StringBuilder("Timeline[").append(gridLength).append(" grid] ");
+        for (ActionSegment s : sortedByStart()) sb.append(s).append(" | ");
         return sb.toString();
     }
 }

@@ -85,6 +85,9 @@ public class BattleCombatant {
     // --- Round's action timeline ---
     private Timeline timeline;
 
+    // --- Round's two-board battle plan (offensive + defensive) ---
+    private BattlePlan plan;
+
     // -------------------------------------------------------------------------
     // Construction
     // -------------------------------------------------------------------------
@@ -302,6 +305,18 @@ public class BattleCombatant {
 
     public Timeline getTimeline() {
         return timeline;
+    }
+
+    // -------------------------------------------------------------------------
+    // BattlePlan (two-board planning artifact)
+    // -------------------------------------------------------------------------
+
+    public void setPlan(BattlePlan plan) {
+        this.plan = plan;
+    }
+
+    public BattlePlan getPlan() {
+        return plan;
     }
 
     // -------------------------------------------------------------------------

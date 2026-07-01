@@ -13,6 +13,7 @@ import com.jjktbf.graphics.ui.CombatantPanel;
 import com.jjktbf.graphics.ui.MoveCard;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.combat.BattleCombatant;
+import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.combat.CombatEvent;
@@ -64,6 +65,9 @@ public class BattleScreen implements Screen, BattleView {
     private volatile boolean awaitingInput  = false;
     private volatile boolean inputConfirmed = false;
 
+    // ── Planning panel (two-board timeline UI) ─────────────────────────────────
+    private com.jjktbf.graphics.ui.battle.PlanningPanel planningPanel;
+
     // ── Shared render state (written by controller thread, read by render) ────
     private volatile BattleCombatant renderPlayer;
     private volatile BattleCombatant renderEnemy;
@@ -75,7 +79,11 @@ public class BattleScreen implements Screen, BattleView {
         this.game   = game;
         this.assets = assets;
         this.batch  = new SpriteBatch();
+        // autoShapeType lets our battle widgets mix filled bodies and line
+        // borders within a single begin block via sr.set(...). Without it,
+        // ShapeRenderer.set() throws "autoShapeType must be enabled."
         this.sr     = new ShapeRenderer();
+        this.sr.setAutoShapeType(true);
     }
 
     // -------------------------------------------------------------------------
@@ -119,6 +127,10 @@ public class BattleScreen implements Screen, BattleView {
 
     private void handleInput() {
         if (!awaitingInput) return;
+        // The new two-board PlanningPanel owns its own drag input processor and
+        // Lock In button — skip the legacy click-to-toggle / ENTER flow entirely
+        // while it is active.
+        if (planningPanel != null) return;
 
         // Click or touch on a move card
         if (Gdx.input.justTouched()) {
@@ -209,9 +221,15 @@ public class BattleScreen implements Screen, BattleView {
         if (playerPanel != null && renderPlayer != null)
             playerPanel.draw(batch, assets.fontSmall, renderPlayer.getCharacter().getName());
         drawLog(sw, sh);
-        if (awaitingInput) drawMoveCards();
+        if (awaitingInput && planningPanel == null) drawMoveCards();
         drawFooter(sw);
         batch.end();
+
+        // Planning panel (owns its own shape + batch passes) — drawn last so it
+        // sits on top during the planning phase.
+        if (planningPanel != null) {
+            planningPanel.draw(sr, batch, assets.fontSmall);
+        }
     }
 
     private void drawPhaseLabel(float sw, float sh) {
@@ -309,6 +327,61 @@ public class BattleScreen implements Screen, BattleView {
         });
         return result;
     }
+
+    /**
+     * Build and run the two-board timeline planning UI. Posts panel construction
+     * to the render thread, installs the panel's drag input processor, and blocks
+     * the controller thread until the player clicks "Lock In".
+     *
+     * <p>The plan is built live by the panel; on confirm we return it directly.
+     */
+    @Override
+    public BattlePlan promptBattlePlan(BattleCombatant combatant, BattleCombatant opponent) {
+        final int screenW = Gdx.graphics.getWidth();
+        final int screenH = Gdx.graphics.getHeight();
+        Gdx.app.postRunnable(() -> {
+            renderPlayer = combatant;
+            renderEnemy  = opponent;
+            phaseLabel   = "PLAN YOUR ROUND";
+            // Bars occupy the right ~55% of the screen, vertically centred-ish
+            // in the lower area per the spec.
+            float barW = screenW * 0.55f;
+            float barH = 46f;
+            float barGap = 64f; // gap for the Lock In button
+            float originX = screenW - barW - 40f;
+            float originY = barH + 24f; // defensive bar baseline
+            planningPanel = new com.jjktbf.graphics.ui.battle.PlanningPanel(
+                combatant, originX, originY, barW, barH, barGap);
+            planningPanel.setOnConfirm(() -> { inputConfirmed = true; });
+            Gdx.input.setInputProcessor(planningPanel.inputProcessor());
+            updatePanels();
+            awaitingInput  = true;
+            inputConfirmed = false;
+        });
+
+        while (!inputConfirmed) {
+            sleepMs(16);
+        }
+
+        // Read the plan on the render thread to avoid racing a drag-commit.
+        final java.util.concurrent.atomic.AtomicReference<com.jjktbf.model.combat.BattlePlan> holder =
+            new java.util.concurrent.atomic.AtomicReference<>();
+        Gdx.app.postRunnable(() -> {
+            holder.set(planningPanel == null ? null : planningPanel.getPlan());
+            Gdx.input.setInputProcessor(null);
+            planningPanel = null;
+        });
+        // Wait for the runnable to populate the holder.
+        while (holder.get() == null) { sleepMs(4); }
+        BattlePlan result = holder.get();
+        if (result == null) {
+            // Fallback: empty plan (bank the round) — should not normally happen.
+            result = new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe());
+        }
+        return result;
+    }
+
+
 
     @Override
     public void displayCombatEvents(List<CombatEvent> events, BattleState state) {
