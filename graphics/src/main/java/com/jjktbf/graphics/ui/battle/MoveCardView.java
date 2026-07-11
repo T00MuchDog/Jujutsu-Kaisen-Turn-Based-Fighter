@@ -14,8 +14,8 @@ import java.util.List;
 /** A pixel-art move card in the planner's bottom palette. */
 public class MoveCardView {
 
-    public static final float CARD_W = 176f;
-    public static final float CARD_H = 112f;
+    public static final float CARD_W = 240f;
+    public static final float CARD_H = 224f;
 
     private final Move move;
     private final Rectangle bounds;
@@ -51,7 +51,8 @@ public class MoveCardView {
         };
     }
 
-    public void draw(Batch batch, BitmapFont font, BattleUiAssets ui, int actualCeCost) {
+    public void draw(Batch batch, BitmapFont font, BitmapFont statFont,
+                     BattleUiAssets ui, int actualCeCost) {
         float x = bounds.x;
         float y = bounds.y;
         float w = bounds.width;
@@ -67,27 +68,30 @@ public class MoveCardView {
         Color type = typeColorFor(move.getCategory());
         if (disabled) type = new Color(type).lerp(Color.GRAY, 0.65f);
         batch.setColor(type);
-        batch.draw(ui.pixel, x + 10f, y + 12f, 9f, h - 24f);
+        batch.draw(ui.pixel, x + 10f, y + h / 2f, 9f, h / 2f - 12f);
         batch.setColor(Color.WHITE);
 
         Color ink = disabled ? BattleUiAssets.MUTED : BattleUiAssets.TEXT;
         float textX = x + 30f;
         float textW = w - 40f;
         font.setColor(ink);
-        drawFitted(batch, font, move.getName(), textX, y + h - 16f, textW, 1);
+        drawFitted(batch, font, move.getName(), textX, y + h - 24f, textW, 1);
         font.setColor(disabled ? BattleUiAssets.MUTED : type);
-        drawFitted(batch, font, typeName(move.getCategory()), textX, y + h - 31f, textW, 1);
+        drawFitted(batch, font, typeName(move.getCategory()), textX, y + h - 48f, textW, 1);
 
         font.setColor(ink);
-        drawFitted(batch, font, move.getDescription(), textX, y + h - 50f, textW, 2);
-        drawFitted(batch, font, "AP " + move.getApCost() + "   CE " + actualCeCost, textX, y + 26f, textW, 1);
-        drawFitted(batch, font, detailLabel(), textX, y + 12f, textW, 1);
+        // Description flows from the top-left directly beneath the type tag.
+        drawFitted(batch, font, move.getDescription(), textX, y + h - 74f, textW, 6);
+        statFont.setColor(ink);
+        drawStatRows(batch, statFont, textX, textW, y + 64f, y + 28f,
+            accuracyLabel(), move.getBasePower() > 0 ? "PWR " + move.getBasePower() : null,
+            "AP " + move.getApCost(), move.hasCeCost() ? "CE " + actualCeCost : null);
     }
 
-    private String detailLabel() {
-        if (move.isDefensive()) return "BLOCK";
-        if (move.isNeverMiss()) return "HIT: SURE";
-        return "ACC " + (int) Math.round(move.getBaseAccuracy() * 100d) + "%  PWR " + move.getBasePower();
+    private String accuracyLabel() {
+        return move.isNeverMiss()
+            ? "ACC N/A"
+            : "ACC " + (int) Math.round(move.getBaseAccuracy() * 100d) + "%";
     }
 
     private static String typeName(MoveCategory category) {
@@ -127,6 +131,42 @@ public class MoveCardView {
             font.draw(batch, lines.get(i), x, y - i * lineHeight);
         }
         font.getData().setScale(originalScaleX, originalScaleY);
+    }
+
+    /** Draws the two stat rows at one shared scale, preserving a clear middle gap. */
+    private static void drawStatRows(Batch batch, BitmapFont font, float x, float width,
+                                     float upperY, float lowerY, String upperLeft, String upperRight,
+                                     String lowerLeft, String lowerRight) {
+        float originalScaleX = font.getData().scaleX;
+        float originalScaleY = font.getData().scaleY;
+        float columnWidth = (width - 16f) / 2f;
+
+        for (float scale = 1f; scale >= 0.30f; scale -= 0.10f) {
+            font.getData().setScale(scale);
+            if (fits(font, upperLeft, columnWidth) && fits(font, upperRight, columnWidth)
+                && fits(font, lowerLeft, columnWidth) && fits(font, lowerRight, columnWidth)) {
+                break;
+            }
+        }
+
+        drawStat(batch, font, upperLeft, x, upperY, false, width);
+        drawStat(batch, font, upperRight, x, upperY, true, width);
+        drawStat(batch, font, lowerLeft, x, lowerY, false, width);
+        drawStat(batch, font, lowerRight, x, lowerY, true, width);
+        font.getData().setScale(originalScaleX, originalScaleY);
+    }
+
+    private static boolean fits(BitmapFont font, String value, float maxWidth) {
+        return value == null || width(font, value) <= maxWidth;
+    }
+
+    private static void drawStat(Batch batch, BitmapFont font, String value, float x, float y,
+                                 boolean rightAligned, float rowWidth) {
+        if (value == null) return;
+        float drawX = rightAligned ? x + rowWidth - width(font, value) : x;
+        font.draw(batch, value, drawX, y);
+        // A one-pixel second pass keeps the larger stats legible in pixel art.
+        font.draw(batch, value, drawX + 1f, y);
     }
 
     private static List<String> wrap(BitmapFont font, String text, float maxWidth) {

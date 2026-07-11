@@ -224,7 +224,7 @@ public class BattleScreen implements Screen, BattleView {
         // Planning is a dedicated workspace. Drawing the combat HUD behind it
         // made both the board and the move cards compete for attention.
         if (planningPanel != null) {
-            planningPanel.draw(batch, assets.fontSmall, assets.fontMedium);
+            planningPanel.draw(batch, assets.fontSmall, assets.fontMedium, assets.fontLarge);
             return;
         }
 
@@ -238,7 +238,7 @@ public class BattleScreen implements Screen, BattleView {
         if (playerPanel != null && renderPlayer != null)
             playerPanel.draw(batch, assets.fontSmall, renderPlayer.getCharacter().getName());
         drawLog(sw, sh);
-        if (awaitingInput && planningPanel == null) drawMoveCards();
+        if (awaitingInput && planningPanel == null && !moveCards.isEmpty()) drawMoveCards();
         drawNextRoundButton();
         batch.end();
 
@@ -269,14 +269,14 @@ public class BattleScreen implements Screen, BattleView {
         for (float scale = 1f; scale >= 0.20f; scale -= 0.10f) {
             logFont.getData().setScale(scale);
             wrappedLines = wrappedLogLines(logFont, logBounds.width - 28f);
-            if (wrappedLines.size() * logFont.getLineHeight() <= logBounds.height - 42f) break;
+            if (wrappedLines.size() * logFont.getLineHeight() * 1.35f <= logBounds.height - 42f) break;
         }
 
         float logY = logBounds.y + logBounds.height - 36f;
         logFont.setColor(Color.WHITE);
         for (int i = 0; i < wrappedLines.size(); i++) {
             logFont.draw(batch, wrappedLines.get(i), logBounds.x + 14f,
-                logY - i * logFont.getLineHeight());
+                logY - i * logFont.getLineHeight() * 1.35f);
         }
         logFont.getData().setScale(originalScaleX, originalScaleY);
     }
@@ -450,6 +450,7 @@ public class BattleScreen implements Screen, BattleView {
             holder.set(planningPanel == null ? null : planningPanel.getPlan());
             Gdx.input.setInputProcessor(null);
             planningPanel = null;
+            awaitingInput = false;
             panelClosed.countDown();
         });
         // Wait for the render-thread cleanup, even if the defensive fallback is

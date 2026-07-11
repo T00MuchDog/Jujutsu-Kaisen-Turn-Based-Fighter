@@ -40,6 +40,8 @@ public class MoveData {
     public int     unleashPoint;
 
     public int     baseCeCost     = 0;
+    /** Null in older saves; then inferred from a positive base CE cost on load. */
+    public Boolean hasCeCost;
     public int     minCeCost      = 0;
     public int     maxCeCost      = 0;
 
@@ -167,6 +169,7 @@ public class MoveData {
             .apCost(apCost)
             .unleashPoint(unleashPoint)
             .baseCeCost(baseCeCost)
+            .hasCeCost(hasCeCost != null ? hasCeCost : baseCeCost > 0)
             .minCeCost(minCeCost)
             .maxCeCost(maxCeCost)
             .interruptType(InterruptType.valueOf(interruptType != null ? interruptType : "NONE"))
@@ -236,6 +239,7 @@ public class MoveData {
         d.apCost              = move.getApCost();
         d.unleashPoint        = move.getUnleashPoint();
         d.baseCeCost          = move.getBaseCeCost();
+        d.hasCeCost           = move.hasCeCost();
         d.minCeCost           = move.getMinCeCost();
         d.maxCeCost           = move.getMaxCeCost();
         d.interruptType         = move.getInterruptType().name();

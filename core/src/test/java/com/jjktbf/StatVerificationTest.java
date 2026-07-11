@@ -76,6 +76,23 @@ public class StatVerificationTest {
     }
 
     @Test
+    void zeroCeCostCanStillBeExplicitlyCeBased() {
+        Move move = new Move.Builder("ZERO_CE")
+            .name("Zero CE Technique")
+            .category(MoveCategory.PHYSICAL)
+            .apCost(10)
+            .unleashPoint(1)
+            .baseCeCost(0)
+            .hasCeCost(true)
+            .minCeCost(0)
+            .maxCeCost(0)
+            .build();
+
+        assertTrue(move.hasCeCost());
+        assertEquals(0, CeEfficiencyCalculator.computeActualCost(move, 80));
+    }
+
+    @Test
     void yujiShouldHaveExpectedMoveCount() {
         Character yuji = CharacterFactory.createYuji();
         int moveCount = yuji.getKnownMoves().size();

@@ -43,7 +43,7 @@ public final class CeEfficiencyCalculator {
         int ceEfficiency,
         AbilityApplicator.AbilityFlags flags
     ) {
-        if (move.getBaseCeCost() == 0) return 0; // non-CE move
+        if (!move.hasCeCost()) return 0;
 
         int safeEfficiency = Math.max(1, ceEfficiency);
         double factor  = (double) BASELINE_EFFICIENCY / safeEfficiency;
