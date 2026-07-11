@@ -82,6 +82,26 @@ the full process; the short version:
 - Player data (saves, edits, settings) is stored outside the app, so upgrades
   never delete it.
 
+### How to cut a new release
+
+```bash
+# 1. Bump the version (edit this one value):
+#    pom.xml → <revision>1.1.0</revision>
+git commit -am "Release 1.1.0"
+
+# 2. Run tests to be safe:
+mvn -Drevision=1.1.0 -pl core,graphics -am clean verify
+
+# 3. Tag and push:
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+Pushing the tag triggers GitHub Actions, which builds macOS (arm64 + x64) and
+Windows (x64) installers and attaches them to a new GitHub Release. Players
+download them from the repo's **Releases** page; their saved data from earlier
+versions carries over automatically.
+
 Key files: `release.sh`, `packaging/package.sh`, `packaging/make-icons.py`,
 `.github/workflows/release.yml`.
 
