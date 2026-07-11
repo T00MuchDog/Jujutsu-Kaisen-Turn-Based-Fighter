@@ -10,8 +10,8 @@ import com.jjktbf.model.combat.BattleCombatant;
 /** Pixel-framed portrait, HP, and CE display for one execution combatant. */
 public class CombatantPanel {
 
-    private static final float BAR_HEIGHT = 24f;
-    private static final float BAR_GAP = 6f;
+    private static final float BAR_HEIGHT = 28f;
+    private static final float BAR_GAP = 8f;
 
     private final Texture sprite;
     private final BattleUiAssets ui;
@@ -31,9 +31,9 @@ public class CombatantPanel {
         this.spriteWidth = spriteWidth;
         this.spriteHeight = spriteHeight;
 
-        float barWidth = spriteWidth + 22f;
-        float barX = x - 11f;
-        float barY = y - BAR_HEIGHT * 2f - BAR_GAP - 16f;
+        float barWidth = spriteWidth + 34f;
+        float barX = x - 17f;
+        float barY = y - BAR_HEIGHT * 2f - BAR_GAP - 20f;
         hpBar = new StatusBar("HP", new Color(0.260f, 0.820f, 0.360f, 1f));
         hpBar.setBounds(barX, barY + BAR_HEIGHT + BAR_GAP, barWidth, BAR_HEIGHT);
         ceBar = new StatusBar("CE", new Color(0.220f, 0.500f, 0.940f, 1f));

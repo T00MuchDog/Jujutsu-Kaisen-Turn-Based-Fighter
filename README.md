@@ -61,8 +61,8 @@ These were established deliberately and should be maintained throughout developm
 
 ### Recent engineering update — paced execution and manual round advance
 
-1. What changed: Resolution events now advance at a deliberate 280 ms cadence instead of appearing almost instantly. At round end, the battle waits on a pixel-styled **Next Round** button before returning to planning. The execution HUD now uses the planner's pixel-frame texture kit: larger framed combatant sprites, in-frame HP/CE bars, a central battle log, and a matching phase header.
-2. Architectural/data/API implications: `BattleView` gained blocking `awaitNextRound(BattleState)`, called by `BattleController` after round-end effects. `BattleScreen` owns that interaction on the render thread while the controller continues to block on its battle thread. Execution geometry is rebuilt in `Screen.resize`, so window resize and fullscreen changes re-anchor the portraits, log, header, and round button to the current viewport.
+1. What changed: Resolution events now advance at a deliberate 520 ms cadence instead of appearing almost instantly. At round end, the battle waits on a pixel-styled **Next Round** button before returning to planning. The execution HUD now uses the planner's pixel-frame texture kit: larger framed combatant sprites, in-frame HP/CE bars, a top-left battle log, a top-right enemy portrait, a bottom-left player portrait, and a bottom-right round button.
+2. Architectural/data/API implications: `BattleView` gained blocking `awaitNextRound(BattleState)`, called by `BattleController` after round-end effects. `BattleScreen` owns that interaction on the render thread while the controller continues to block on its battle thread. `GraphicsMain` starts at the primary display's fullscreen mode; execution geometry is rebuilt in `Screen.resize`, with both portrait sizes derived from the same viewport-height scale when returning to a smaller window.
 3. Important files touched:
    - Core: `BattleView.java`, `BattleController.java`
    - Graphics: `BattleScreen.java`, `CombatantPanel.java`, `StatusBar.java`
