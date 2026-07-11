@@ -37,6 +37,9 @@ public class AssetLoader {
     /** Extra-large pixel font — used for prominent page titles (e.g. character name). */
     public BitmapFont fontXLarge;
 
+    /** Medium-plus pixel font — used for the execution battle log body text. */
+    public BitmapFont fontLog;
+
     // ── Sprites ───────────────────────────────────────────────────────────────
 
     public Texture playerSprite;
@@ -107,6 +110,9 @@ public class AssetLoader {
         p.size = 26;
         fontXLarge = fontGenerator.generateFont(p);
 
+        p.size = 16;
+        fontLog = fontGenerator.generateFont(p);
+
         // TTF no longer needed after bitmap generation
         fontGenerator.dispose();
         fontGenerator = null;
@@ -144,6 +150,7 @@ public class AssetLoader {
         if (fontMedium != null) fontMedium.dispose();
         if (fontLarge  != null) fontLarge.dispose();
         if (fontXLarge != null) fontXLarge.dispose();
+        if (fontLog    != null) fontLog.dispose();
 
         if (playerSprite != null) playerSprite.dispose();
         if (enemySprite  != null) enemySprite.dispose();

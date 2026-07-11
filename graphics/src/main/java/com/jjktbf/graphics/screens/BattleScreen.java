@@ -45,9 +45,14 @@ import java.util.List;
  */
 public class BattleScreen implements Screen, BattleView {
 
-    private static final int   LOG_LINES   = 6;
+    /** Max raw messages retained in the battle log; older ones are dropped. */
+    private static final int   LOG_MAX_STORED = 50;
+    /** Vertical spacing multiplier between battle-log lines (1.0 = single line height). */
+    private static final float LOG_LINE_SPACING = 1.8f;
     private static final float CARD_MARGIN = 8f;
     private static final int   EVENT_DELAY_MS = 520;
+    /** Pause applied when the AP tick advances during resolution — slows the sweep. */
+    private static final int   TICK_DELAY_MS = 2000;
 
     private final JJKGame     game;
     private final AssetLoader assets;
@@ -234,9 +239,9 @@ public class BattleScreen implements Screen, BattleView {
         batch.begin();
         drawExecutionChrome(sw, sh);
         if (enemyPanel  != null && renderEnemy  != null)
-            enemyPanel.draw(batch, assets.fontSmall, renderEnemy.getCharacter().getName());
+            enemyPanel.draw(batch, assets.fontLog, assets.fontSmall, renderEnemy.getCharacter().getName());
         if (playerPanel != null && renderPlayer != null)
-            playerPanel.draw(batch, assets.fontSmall, renderPlayer.getCharacter().getName());
+            playerPanel.draw(batch, assets.fontLog, assets.fontSmall, renderPlayer.getCharacter().getName());
         drawLog(sw, sh);
         if (awaitingInput && planningPanel == null && !moveCards.isEmpty()) drawMoveCards();
         drawNextRoundButton();
@@ -257,28 +262,43 @@ public class BattleScreen implements Screen, BattleView {
             executionHeaderBounds.y + 14f);
     }
 
+    /**
+     * Render the battle log: newest entry at the bottom, older entries stacked
+     * above it, and any that no longer fit simply drop off the top. No auto-
+     * resizing — long lines wrap to a new line, and the font stays fixed.
+     */
     private void drawLog(float sw, float sh) {
         assets.battleUi.palette.draw(batch, logBounds.x, logBounds.y, logBounds.width, logBounds.height);
         assets.fontSmall.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
         assets.fontSmall.draw(batch, "BATTLE LOG", logBounds.x + 14f, logBounds.y + logBounds.height - 14f);
 
-        BitmapFont logFont = assets.fontMedium;
-        float originalScaleX = logFont.getData().scaleX;
-        float originalScaleY = logFont.getData().scaleY;
-        List<String> wrappedLines = List.of();
-        for (float scale = 1f; scale >= 0.20f; scale -= 0.10f) {
-            logFont.getData().setScale(scale);
-            wrappedLines = wrappedLogLines(logFont, logBounds.width - 28f);
-            if (wrappedLines.size() * logFont.getLineHeight() * 1.35f <= logBounds.height - 42f) break;
-        }
+        BitmapFont logFont = assets.fontLog;
+        // Wrap the retained messages to the panel width (fixed font; no scaling).
+        List<String> lines = wrapAll(logFont, logBounds.width - 28f);
 
-        float logY = logBounds.y + logBounds.height - 36f;
+        // Usable area sits below the "BATTLE LOG" title.
+        float topY    = logBounds.y + logBounds.height - 34f;
+        float bottomY = logBounds.y + 14f;
+        float lineStep = logFont.getLineHeight() * LOG_LINE_SPACING;
+
+        // Bottom-anchor: walk newest → oldest; stop as soon as a line would clip
+        // the top, so overflowed entries disappear off the top of the box.
         logFont.setColor(Color.WHITE);
-        for (int i = 0; i < wrappedLines.size(); i++) {
-            logFont.draw(batch, wrappedLines.get(i), logBounds.x + 14f,
-                logY - i * logFont.getLineHeight() * 1.35f);
+        float y = bottomY;
+        for (int i = lines.size() - 1; i >= 0; i--) {
+            if (y > topY) break;
+            logFont.draw(batch, lines.get(i), logBounds.x + 14f, y);
+            y += lineStep;
         }
-        logFont.getData().setScale(originalScaleX, originalScaleY);
+    }
+
+    /** Wrap every retained message to {@code width} and return the flat list of lines (oldest first). */
+    private List<String> wrapAll(BitmapFont font, float width) {
+        List<String> all = new ArrayList<>();
+        for (String message : logLines) {
+            all.addAll(wrapText(font, message, width));
+        }
+        return all;
     }
 
     private void drawMoveCards() {
@@ -329,13 +349,10 @@ public class BattleScreen implements Screen, BattleView {
         }
     }
 
-    private List<String> wrappedLogLines(BitmapFont font, float width) {
-        List<String> lines = new ArrayList<>();
-        int start = Math.max(0, logLines.size() - LOG_LINES);
-        for (int i = start; i < logLines.size(); i++) {
-            lines.addAll(wrapText(font, logLines.get(i), width));
-        }
-        return lines;
+    /** Append a message to the log and trim the oldest entries beyond the storage cap. */
+    private void addLogLine(String message) {
+        logLines.add(message);
+        while (logLines.size() > LOG_MAX_STORED) logLines.remove(0);
     }
 
     private static List<String> wrapText(BitmapFont font, String text, float width) {
@@ -469,11 +486,22 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayCombatEvents(List<CombatEvent> events, BattleState state) {
         Gdx.app.postRunnable(() -> phaseLabel = "ROUND " + state.getRoundNumber() + "  —  RESOLVING");
+
+        // Reveal events grouped by AP tick: a longer pause (TICK_DELAY_MS) marks
+        // each tick boundary so the sweep reads at a deliberate cadence, while
+        // individual events within a tick still arrive one at a time (EVENT_DELAY_MS).
+        int lastTick = -1;
         for (CombatEvent e : events) {
+            int tick = e.getTick();
+            // Round-end / system events (tick 0) don't advance the tick counter.
+            if (tick > 0 && tick != lastTick) {
+                if (lastTick > 0) sleepMs(TICK_DELAY_MS);
+                lastTick = tick;
+            }
             if (!e.getMessage().isBlank()) {
                 final String msg = e.getMessage();
                 Gdx.app.postRunnable(() -> {
-                    logLines.add(msg);
+                    addLogLine(msg);
                     updatePanels();
                 });
                 sleepMs(EVENT_DELAY_MS);
@@ -485,7 +513,7 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayRoundEnd(BattleState state) {
         Gdx.app.postRunnable(() -> {
-            phaseLabel = "ROUND " + Math.max(1, state.getRoundNumber() - 1) + "  —  COMPLETE";
+            phaseLabel = "ROUND " + Math.max(1, state.getRoundNumber() - 1) + " COMPLETE";
             updatePanels();
         });
     }
@@ -524,7 +552,7 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public void displayMessage(String message) {
-        Gdx.app.postRunnable(() -> logLines.add(message));
+        Gdx.app.postRunnable(() -> addLogLine(message));
         sleepMs(100);
     }
 

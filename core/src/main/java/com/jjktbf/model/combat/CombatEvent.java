@@ -51,6 +51,7 @@ public class CombatEvent {
     private final BattleCombatant target;     // who was affected (may be null)
     private final Move            move;       // relevant move (may be null)
     private final int             intValue;   // damage, CE amount, etc.
+    private final int             tick;       // AP tick this event occurred on (0 = system/round events)
     private final String          message;    // human-readable description
 
     private CombatEvent(Builder b) {
@@ -59,6 +60,7 @@ public class CombatEvent {
         this.target    = b.target;
         this.move      = b.move;
         this.intValue  = b.intValue;
+        this.tick      = b.tick;
         this.message   = b.message;
     }
 
@@ -67,6 +69,7 @@ public class CombatEvent {
     public BattleCombatant getTarget()   { return target; }
     public Move            getMove()     { return move; }
     public int             getIntValue() { return intValue; }
+    public int             getTick()     { return tick; }
     public String          getMessage()  { return message; }
 
     @Override
@@ -86,6 +89,7 @@ public class CombatEvent {
         private BattleCombatant target;
         private Move            move;
         private int             intValue;
+        private int             tick;
         private String          message = "";
 
         private Builder(Type type) { this.type = type; }
@@ -94,6 +98,7 @@ public class CombatEvent {
         public Builder target(BattleCombatant v)  { this.target   = v; return this; }
         public Builder move(Move v)               { this.move     = v; return this; }
         public Builder intValue(int v)            { this.intValue = v; return this; }
+        public Builder tick(int v)                { this.tick     = v; return this; }
         public Builder message(String v)          { this.message  = v; return this; }
 
         public CombatEvent build() { return new CombatEvent(this); }
