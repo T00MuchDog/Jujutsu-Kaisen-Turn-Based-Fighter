@@ -285,7 +285,7 @@ public class BattleScreen implements Screen, BattleView {
 
         // Usable area sits below the "BATTLE LOG" title.
         float topY    = logBounds.y + logBounds.height - 34f;
-        float bottomY = logBounds.y + 14f;
+        float bottomY = logBounds.y + 22f;
         float lineStep = logFont.getLineHeight() * LOG_LINE_SPACING;
 
         // Bottom-anchor: walk newest → oldest; stop as soon as a line would clip
@@ -608,7 +608,8 @@ public class BattleScreen implements Screen, BattleView {
         float baseLogHeight = Math.min(180f, Math.max(112f, height * 0.28f));
         float logWidth = Math.min(baseLogWidth * 1.8f, width * 0.63f);
         float logHeight = baseLogHeight * 1.4f;
-        logBounds.set(margin, executionHeaderBounds.y - 14f - logHeight, logWidth, logHeight);
+        // Extend the log box a couple of pixels downward so the bottom line isn't clipped.
+        logBounds.set(margin, executionHeaderBounds.y - 14f - logHeight - 2f, logWidth, logHeight + 2f);
         // Align the Next Round button's right edge with the enemy sprite's right edge.
         float enemyRight = enemyX + spriteWidth;
         float nextRoundWidth = 210f;
