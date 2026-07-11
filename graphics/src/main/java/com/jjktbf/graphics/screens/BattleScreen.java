@@ -596,20 +596,29 @@ public class BattleScreen implements Screen, BattleView {
         playerPanel = new CombatantPanel(assets.playerSprite, assets.battleUi,
             playerX, playerY, spriteWidth, spriteHeight, s);
 
-        // Enemy (top-right of screen): pin the panel's top-right corner (name
-        // plate top + frame right) so it grows downward and to the left. At s=1
-        // these reduce to the original enemy positions.
-        float enemyX = width - sideInset + 10f - spriteWidth - 10f * s;
-        float enemyY = executionHeaderBounds.y - 8f - spriteHeight - 42f * s;
-        enemyPanel = new CombatantPanel(assets.enemySprite, assets.battleUi,
-            enemyX, enemyY, spriteWidth, spriteHeight, s);
-
+        // Log box, sized and positioned below the header.
         float baseLogWidth = Math.min(390f, Math.max(220f, width * 0.46f));
         float baseLogHeight = Math.min(180f, Math.max(112f, height * 0.28f));
         float logWidth = Math.min(baseLogWidth * 1.8f, width * 0.63f);
         float logHeight = baseLogHeight * 1.4f;
         // Extend the log box a couple of pixels downward so the bottom line isn't clipped.
         logBounds.set(margin, executionHeaderBounds.y - 14f - logHeight - 2f, logWidth, logHeight + 2f);
+
+        // Symmetric vertical gaps: match the gap between the header and the enemy
+        // name plate to the gap between the log box bottom and the player name plate.
+        // Name plate top = spriteTop + 42*scale (8*scale gap + 34*scale plate height).
+        float namePlateRise = 42f * s;
+        float playerTop = playerY + spriteHeight + namePlateRise;
+        float gap = logBounds.y - playerTop;
+
+        // Enemy (top-right of screen): pin the panel's top-right corner (name
+        // plate top + frame right) so it grows downward and to the left. The
+        // name plate top sits `gap` pixels below the header, mirroring the player.
+        float enemyX = width - sideInset + 10f - spriteWidth - 10f * s;
+        float enemyY = executionHeaderBounds.y - gap - spriteHeight - namePlateRise;
+        enemyPanel = new CombatantPanel(assets.enemySprite, assets.battleUi,
+            enemyX, enemyY, spriteWidth, spriteHeight, s);
+
         // Align the Next Round button's right edge with the enemy sprite's right edge.
         float enemyRight = enemyX + spriteWidth;
         float nextRoundWidth = 210f;
