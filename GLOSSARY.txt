@@ -98,7 +98,7 @@ These are the numbers actually used in combat calculations.
   AP BAR (Maximum AP Bar)
     The total AP available to a combatant for queuing moves each round.
     Formula: AP Bar = (Speed × 15 + Combat Ability × 3) / 18
-    Baseline (both = 80): 80 AP. Maximum (both = 300): ~380 AP.
+    Baseline (both = 80): 80 AP. Maximum (both = 300): 300 AP.
 
   ACCURACY (ACC)
     Used in the hit-chance formula. Higher Accuracy = attacks land more often.

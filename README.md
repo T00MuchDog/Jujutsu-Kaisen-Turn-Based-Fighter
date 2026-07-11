@@ -59,6 +59,16 @@ Black Flash chance, damage range, block timing, block tag filters, and block dam
 
 These were established deliberately and should be maintained throughout development.
 
+### Recent engineering update — 150-dot timeline + planning UI polish
+
+1. What changed: The planning timeline is now 150 ticks instead of 300. The planner renders all 150 AP dots at the correct spacing, draws AP-sized segments at their snapped position, removes instructional copy, wraps move-card text within its card, and wraps narrow segment names. The CE planner readout now reports remaining CE over total CE (`400/400` at a fresh round), rather than CE spent.
+2. Architectural/data/API implications: `Timeline.DEFAULT_GRID_LENGTH` is now 150 and `BattlePlan.GRID_LENGTH` derives from it, so the offensive, defensive, and legacy execution timelines share one source of truth. Planning CE remains a prediction only and does not drain the combatant until resolution.
+3. Important files touched:
+   - Core: `Timeline.java`, `BattlePlan.java`
+   - Graphics: `PlanningPanel.java`, `TimelineBar.java`, `ActionSegmentView.java`, `MoveCardView.java`, `BattleUiAssets.java`
+   - Docs: `GLOSSARY.txt`, this README
+4. Follow-up task: planner chrome is currently generated as nearest-neighbour pixel textures at runtime. Replace the texture kit with checked-in PNG assets when final art direction is ready.
+
 ### Recent engineering update — dead code removal + repository refactor
 
 1. What changed: Removed the obsolete `editor` (CLI editors) and `text` (CLI battler) modules, the orphaned `EditorView` interface, four unused UI textures (`panel`/`button_*`) + their loader fields, the orphaned `uiskin.json`, and a redundant font-fallback line in `AssetLoader`. Extracted `BaseRepository<D>` so the three repositories share load/save/CRUD/ID-resequence behaviour (each now ~55 lines, down from ~170). Documented `MoveData.fromMove()` as lossy-for-editor-drafts to prevent the tag-collapse bug recurring.
@@ -84,12 +94,12 @@ These were established deliberately and should be maintained throughout developm
 
 ### Recent engineering update — battle planning v2 (timeline creation draft)
 
-1. What changed: Rebuilt the round-planning model and UI around a fixed 300-dot two-board timeline (offensive above defensive). `Timeline` is now a free-placement 300-wide spatial board (gaps allowed; no contiguous-packing rule); AP-budget enforcement lifted to a new `BattlePlan` that owns both timelines + shared AP/CE budgets. `BattleView.promptBattlePlan(BattleCombatant, BattleCombatant)` replaces `promptMoveSelection` as the planning contract — the view owns the drag-place UI and returns the finished plan. A new `PlanningPanel` (graphics) renders the two bars + bottom move palette + Lock In button, with drag-to-place, snap-to-grid, attack/defense board gating, and live AP/CE budget greying.
-2. Architectural/data/API implications: **`maxApBar` repurposed** — it no longer sets grid length (now a fixed `BattlePlan.GRID_LENGTH = 300`); it is the *AP budget* spendable across both timelines. CE pool stays a planning budget (the agreed predictor): placing a segment deducts its CE cost; the real `currentCe` is untouched and carries into execution. `hasTag("ATTACK")` (basePower+category heuristic) drives the offensive/defensive board split. **Execution is unchanged** — `BattleController` converts each plan to the legacy single `Timeline` via `BattlePlan.toLegacyTimeline()` so today's `CombatResolver` runs as-is.
+1. What changed: Rebuilt the round-planning model and UI around a fixed 150-dot two-board timeline (offensive above defensive). `Timeline` is now a free-placement 150-wide spatial board (gaps allowed; no contiguous-packing rule); AP-budget enforcement lifted to a new `BattlePlan` that owns both timelines + shared AP/CE budgets. `BattleView.promptBattlePlan(BattleCombatant, BattleCombatant)` replaces `promptMoveSelection` as the planning contract — the view owns the drag-place UI and returns the finished plan. A new `PlanningPanel` (graphics) renders the two bars + bottom move palette + Lock In button, with drag-to-place, snap-to-grid, attack/defense board gating, and live AP/CE budget greying.
+2. Architectural/data/API implications: **`maxApBar` repurposed** — it no longer sets grid length (now a fixed `BattlePlan.GRID_LENGTH = 150`); it is the *AP budget* spendable across both timelines. CE pool stays a planning budget (the agreed predictor): placing a segment deducts its CE cost; the real `currentCe` is untouched and carries into execution. `hasTag("ATTACK")` (basePower+category heuristic) drives the offensive/defensive board split. **Execution is unchanged** — `BattleController` converts each plan to the legacy single `Timeline` via `BattlePlan.toLegacyTimeline()` so today's `CombatResolver` runs as-is.
 3. Important files touched:
    - New (core): `model/combat/BattlePlan.java`
    - New (graphics): `ui/battle/{PlanningPanel, TimelineBar, ActionSegmentView, MoveCardView}.java`
-   - Edited (core): `Timeline.java` (free-placement 300-board; queries preserved), `BattleCombatant.java` (+plan field/accessors), `BattleView.java` (+promptBattlePlan), `BattleController.java` (builds BattlePlan for player + AI, converts to legacy timeline), `CombatResolver.java` (getMaxApBar → getGridLength)
+   - Edited (core): `Timeline.java` (free-placement 150-board; queries preserved), `BattleCombatant.java` (+plan field/accessors), `BattleView.java` (+promptBattlePlan), `BattleController.java` (builds BattlePlan for player + AI, converts to legacy timeline), `CombatResolver.java` (getMaxApBar → getGridLength)
    - Edited (graphics): `BattleScreen.java` (real PlanningPanel flow replaces legacy delegate; planning panel drawn during planning phase)
    - Test: `StatVerificationTest.java` (addMove → placeAt at the three timeline test sites)
 4. Follow-up tasks or risks: **Execution phase** (cross-timeline ticker, same-tick speed tie-breaking, offensive-before-defensive ordering, left-side battle log) is the next major task — `toLegacyTimeline()` is a stopgap. The `PlanningPanel` drag-ghost text rendering is minimal (shapes + snap glow work; full drag-avatar text polish pending). Planning input is raw `InputAdapter` (not Scene2D), consistent with the existing battle render loop. The legacy `promptMoveSelection` is deprecated but retained so the old `MoveCard` flow stays compilable.
@@ -195,7 +205,7 @@ BattleScreen (render)
 - **Library**: LibGDX 1.12.1, LWJGL3 backend
 - **Font**: Press Start 2P (FreeType, generated at runtime from `assets/fonts/PressStart2P-Regular.ttf`)
 - **Placeholder sprites**: `assets/sprites/player_placeholder.png` and `enemy_placeholder.png` — 64×96 solid colour PNGs. Replace with real pixel art when ready.
-- **No core changes required**: `BattleScreen` implements `BattleView`. `JJKGame` wires it to `BattleController`. The entire `core` module is untouched.
+- **Battle planner**: `BattleScreen` implements `BattleView`; the 150-dot planning UI uses runtime-generated nearest-neighbour pixel textures from `ui/battle/BattleUiAssets`.
 - **Thread model**: `BattleController.runBattle()` runs on a daemon background thread (`battle-thread`). All LibGDX render-thread mutations go through `Gdx.app.postRunnable()`.
 - **Editors (Scene2D)**: The three editors (`MoveEditorScreen`, `CharacterEditorScreen`, `AbilityEditorScreen`) and the main menu are Scene2D Stage-based UIs with full CRUD. UI textures are generated in code by `PixelSkin` (no binary assets) in a Gen-3 FireRed/LeafGreen pixel style. The shared chrome lives in `EditorScreenBase<D>`; reusable field widgets (`StatField`, `TagPicker`, `EnumSelectBox`, `AssignmentPanel`, `EffectListEditor`) live in `com.jjktbf.graphics.ui.editor`. Edits are held in an in-memory draft; Save validates and persists, Cancel discards.
 - **Screen background**: All screens clear to `#CDDCFA` (light blue). Button text turns bright yellow (`#FFE32E`) on hover to signal clickability.

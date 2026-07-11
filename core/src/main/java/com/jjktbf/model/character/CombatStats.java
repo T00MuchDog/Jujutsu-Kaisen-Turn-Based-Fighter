@@ -18,11 +18,10 @@ import com.jjktbf.model.move.MoveCategory;
  *
  *  AP BAR SIZE
  *    Baseline (SPD=80, CA=80)   → 80
- *    Max      (SPD=300, CA=300) → ~380
+ *    Max      (SPD=300, CA=300) → 300 AP
  *    Ratio 15:3 Speed to CombatAbility.
  *    Formula: AP = (SPD * 15 + CA * 3) / AP_DIVISOR
- *    AP_DIVISOR placeholder = 19  (gives (80*15+80*3)/19 ≈ 76; tuned to ~80 with constant)
- *    + AP_BASE_CONSTANT = 18 → baseline ≈ 80, max ≈ 380
+ *    AP_DIVISOR = 18 → baseline = 80, max = 300.
  *
  *  ACCURACY  (attacker stat — not a 0-100%, used in hit-roll formula)
  *    Ratio 4:1 CombatAbility to Speed

@@ -32,7 +32,7 @@ import java.util.List;
 public class BattlePlan {
 
     /** Fixed grid length (dot count) for both timelines. */
-    public static final int GRID_LENGTH = 300;
+    public static final int GRID_LENGTH = Timeline.DEFAULT_GRID_LENGTH;
 
     /** Which board a segment lives on. */
     public enum Board { OFFENSIVE, DEFENSIVE }
@@ -168,7 +168,7 @@ public class BattlePlan {
     // -------------------------------------------------------------------------
 
     /**
-     * Merge both boards into a single old-style {@link Timeline} (a 300-wide
+     * Merge both boards into a single old-style {@link Timeline} (a 150-wide
      * grid holding every segment from both boards). This is a stopgap so the
      * current single-timeline resolver can process a two-board plan while the
      * execution refactor (cross-board ticker) is pending.

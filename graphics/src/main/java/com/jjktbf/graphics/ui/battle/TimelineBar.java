@@ -11,7 +11,7 @@ import java.util.List;
  *
  * <p>A pixel-framed dark board containing {@value Timeline#DEFAULT_GRID_LENGTH}
  * equally-spaced AP dots. The frames and dots come from {@link BattleUiAssets},
- * keeping the board readable at the small sizes required by a 300-tick grid.
+ * keeping the board readable at the small sizes required by a 150-tick grid.
  *
  * <p>The bar is a pure spatial board: it maps dot index → pixel x and hosts
  * placed {@link ActionSegmentView}s. Budget/board-assignment logic lives on
@@ -23,7 +23,7 @@ public class TimelineBar {
 
     private final Kind kind;
     private final Rectangle bounds;
-    private final int dotCount;       // 300
+    private final int dotCount;       // 150
     private float dotSpacing;         // px between consecutive dot centres
 
     public TimelineBar(Kind kind, float x, float y, float width, float height) {
