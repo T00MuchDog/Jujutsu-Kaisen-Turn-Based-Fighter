@@ -39,6 +39,8 @@ public class CharacterRepository extends BaseRepository<CharacterData> {
         // 000006 Divergent Fist, 000010 Cursed Energy Armor, 000011 Iron Wall
         CharacterData yuji = new CharacterData();
         yuji.name                  = "Yuji Itadori";
+        yuji.description           = "A close-range fighter with exceptional physical talent and resolve.";
+        yuji.spriteAsset           = "assets/characters/yuji_itadori.png";
         yuji.innateTechniqueName   = null;
         yuji.vitality              = 175;
         yuji.strength              = 210;
@@ -62,6 +64,8 @@ public class CharacterRepository extends BaseRepository<CharacterData> {
         // 000010 Cursed Energy Armor, 000011 Iron Wall
         CharacterData sukuna = new CharacterData();
         sukuna.name                  = "Ryomen Sukuna";
+        sukuna.description           = "The King of Curses, wielding the Shrine innate technique.";
+        sukuna.spriteAsset           = "assets/characters/ryomen_sukuna.png";
         sukuna.innateTechniqueName   = "Shrine";
         sukuna.vitality              = 300;
         sukuna.strength              = 280;

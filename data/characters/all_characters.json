@@ -1,6 +1,8 @@
 [ {
   "id" : "000000",
   "name" : "Test_A",
+  "description" : "A balanced test fighter trained for direct physical combat.",
+  "spriteAsset" : "assets/characters/test_a.png",
   "vitality" : 80,
   "strength" : 80,
   "durability" : 80,
@@ -16,6 +18,8 @@
 }, {
   "id" : "000001",
   "name" : "Test_B",
+  "description" : "A balanced test fighter with a cautious defensive style.",
+  "spriteAsset" : "assets/characters/test_b.png",
   "vitality" : 80,
   "strength" : 80,
   "durability" : 80,
@@ -31,6 +35,8 @@
 }, {
   "id" : "000002",
   "name" : "Test_C",
+  "description" : "A test sorcerer with a developing cursed technique.",
+  "spriteAsset" : "assets/characters/test_c.png",
   "vitality" : 80,
   "strength" : 80,
   "durability" : 80,

@@ -89,6 +89,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     @Override protected CharacterData newDraft() {
         CharacterData cd = new CharacterData();
         cd.name = "New Character";
+        cd.description = "";
+        cd.spriteAsset = null;
         cd.innateTechniqueName = null;
         cd.moveIds    = new ArrayList<>();
         cd.abilityIds = new ArrayList<>();
@@ -100,6 +102,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         CharacterData d = new CharacterData();
         d.id                  = stored.id;
         d.name                = stored.name;
+        d.description         = stored.description;
+        d.spriteAsset         = stored.spriteAsset;
         d.innateTechniqueName = stored.innateTechniqueName;
         for (StatKey sk : STAT_ORDER) sk.set(d, sk.get(stored));
         d.moveIds    = stored.moveIds    != null ? new ArrayList<>(stored.moveIds)    : new ArrayList<>();
@@ -187,6 +191,11 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         form.add(idBadge(cd.id)).colspan(2).padBottom(2).row();
         form.add(labelledField("Name", cd.name,
                 s -> { cd.name = s; })).growX().colspan(2).row();
+        form.add(labelledField("Description", cd.description,
+                s -> { cd.description = s; })).growX().colspan(2).row();
+        form.add(labelledField("Sprite Asset (assets/characters/...)", cd.spriteAsset,
+                s -> { cd.spriteAsset = (s == null || s.isBlank()) ? null : s; }))
+            .growX().colspan(2).row();
         form.add(labelledField("Innate Technique (blank = none)",
                 cd.innateTechniqueName,
                 s -> {

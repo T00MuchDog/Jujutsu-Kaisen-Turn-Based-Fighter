@@ -25,6 +25,10 @@ public class CharacterData {
 
     public String id;       // 6-digit auto-assigned, e.g. "000000"
     public String name;
+    /** Player-facing character flavour text shown on selection pages. */
+    public String description = "";
+    /** Relative graphics resource path, e.g. {@code assets/characters/yuji.png}. */
+    public String spriteAsset;
 
     /**
      * Human-readable innate technique name (e.g. "Shrine", "Blood Manipulation").

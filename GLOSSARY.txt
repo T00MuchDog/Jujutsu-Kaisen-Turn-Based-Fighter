@@ -170,7 +170,11 @@ These are the numbers actually used in combat calculations.
     Unleash point == apCost = full charge (fires on the last tick of the segment).
 
   BASE CE COST
-    CE cost before efficiency scaling. 0 for non-CE moves.
+    CE cost before efficiency scaling. A CE move may intentionally have a cost of 0.
+
+  HAS CE COST (hasCeCost)
+    Whether the move has a CE cost. False means the move has no CE cost and CE
+    is omitted from its card. True permits any base CE cost from 0 upward.
 
   MIN CE COST
     Floor: efficiency scaling cannot reduce CE cost below this value.
