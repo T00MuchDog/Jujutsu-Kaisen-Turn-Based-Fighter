@@ -2,7 +2,6 @@ package com.jjktbf.controller;
 
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.combat.*;
-import com.jjktbf.model.move.Move;
 import com.jjktbf.view.BattleView;
 
 import java.util.List;
@@ -26,6 +25,7 @@ public class BattleController {
     private final BattleView   view;
     private final CombatResolver resolver;
     private final AIStrategy   aiStrategy;
+    private final Random       rng;
 
     public BattleController(BattleView view) {
         this(view, new Random(), new GreedyAIStrategy());
@@ -39,6 +39,7 @@ public class BattleController {
         this.view       = view;
         this.resolver   = new CombatResolver(rng);
         this.aiStrategy = aiStrategy;
+        this.rng        = rng;
     }
 
     /**
@@ -92,33 +93,12 @@ public class BattleController {
     }
 
     /**
-     * Build the enemy's plan from the AI's move selection: place each move at
-     * the first free slot on its assigned board, honouring AP/CE budgets.
-     * Ability-locked and unaffordable moves are skipped.
+     * Build the enemy's plan. Selection and placement are delegated to the
+     * {@link AIStrategy}, which owns both so it can express cross-timeline
+     * behaviour (e.g. defensive moves aligned to offensive fire ticks).
      */
     private BattlePlan buildAiPlan(BattleCombatant ai, BattleCombatant opponent) {
-        BattlePlan plan = new BattlePlan(ai.getMaxApBar(), ai.getCurrentCe());
-        List<Move> moves = aiStrategy.selectMoves(ai, opponent);
-        for (Move move : moves) {
-            if (isLockedByAbility(ai, move)) {
-                view.displayMessage(ai.getCharacter().getName() + "'s "
-                    + move.getName() + " is locked by an ability — skipped.");
-                continue;
-            }
-            int cost = CeEfficiencyCalculator.computeActualCost(
-                move, ai.getEffectiveStats().getCursedEnergyEfficiency(), ai.getAbilityFlags()
-            );
-            ActionSegment segment = plan.placeFirstFit(move, cost);
-            if (segment == null) {
-                view.displayMessage(ai.getCharacter().getName()
-                    + " could not place " + move.getName() + " — skipped.");
-            }
-        }
-        return plan;
-    }
-
-    private boolean isLockedByAbility(BattleCombatant combatant, Move move) {
-        return combatant.getAbilityFlags().lockedMoveTags.stream().anyMatch(move::hasTag);
+        return aiStrategy.selectPlan(ai, opponent, rng);
     }
 
     // -------------------------------------------------------------------------

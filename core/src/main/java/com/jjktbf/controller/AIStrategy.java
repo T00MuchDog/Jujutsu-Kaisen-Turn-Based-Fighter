@@ -1,31 +1,35 @@
 package com.jjktbf.controller;
 
 import com.jjktbf.model.combat.BattleCombatant;
-import com.jjktbf.model.move.Move;
+import com.jjktbf.model.combat.BattlePlan;
 
-import java.util.List;
+import java.util.Random;
 
 /**
- * Strategy interface for enemy AI move selection.
+ * Strategy interface for enemy AI round planning.
  *
- * Each implementation decides which moves the AI queues each round.
- * The BattleController calls selectMoves() during the planning phase
- * and queues whatever this returns.
+ * <p>Each implementation decides which moves the AI commits to a round and
+ * <em>where</em> on the AP timeline those moves are placed. The
+ * {@link BattleController} calls {@link #selectPlan} during the planning phase
+ * and runs whatever plan this returns.
  *
- * Implementations receive the full AI combatant and the opponent, so
- * they can read HP, CE, effective stats, known moves, etc.
+ * <p>Implementations receive the full AI combatant and the opponent, so they
+ * can read HP, CE, effective stats, known moves, etc. The supplied {@link Random}
+ * should be the source of any randomness so the battle's RNG stays centralised.
  *
- * Adding a new AI difficulty or behaviour only requires implementing this
+ * <p>Adding a new AI difficulty or behaviour only requires implementing this
  * interface — the controller does not need to change.
  */
 public interface AIStrategy {
 
     /**
-     * Select moves for the AI combatant to queue this round.
+     * Build the AI's complete round plan: which moves to commit and where to
+     * place them across the offensive and defensive timelines.
      *
      * @param ai        the AI-controlled combatant
      * @param opponent  the opposing combatant (read-only context)
-     * @return ordered list of moves the AI wishes to queue (may be empty)
+     * @param rng       shared battle RNG — the source of any randomness
+     * @return          the finished plan (may be empty if the AI banks the round)
      */
-    List<Move> selectMoves(BattleCombatant ai, BattleCombatant opponent);
+    BattlePlan selectPlan(BattleCombatant ai, BattleCombatant opponent, Random rng);
 }
