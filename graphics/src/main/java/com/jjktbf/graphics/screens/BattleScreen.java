@@ -6,6 +6,8 @@ import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.math.Rectangle;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
@@ -44,7 +46,7 @@ public class BattleScreen implements Screen, BattleView {
 
     private static final int   LOG_LINES   = 6;
     private static final float CARD_MARGIN = 8f;
-    private static final int   EVENT_DELAY_MS = 280;
+    private static final int   EVENT_DELAY_MS = 520;
 
     private final JJKGame     game;
     private final AssetLoader assets;
@@ -259,15 +261,23 @@ public class BattleScreen implements Screen, BattleView {
         assets.fontSmall.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
         assets.fontSmall.draw(batch, "BATTLE LOG", logBounds.x + 14f, logBounds.y + logBounds.height - 14f);
 
-        float logY = logBounds.y + logBounds.height - 34f;
-        float lineH = 17f;
-        assets.fontSmall.setColor(Color.WHITE);
-        int maxVisibleLines = Math.max(1, (int) ((logBounds.height - 42f) / lineH));
-        int start = Math.max(0, logLines.size() - Math.min(LOG_LINES, maxVisibleLines));
-        for (int i = start; i < logLines.size(); i++) {
-            assets.fontSmall.draw(batch, shorten(logLines.get(i), logBounds.width - 28f),
-                logBounds.x + 14f, logY - (i - start) * lineH);
+        BitmapFont logFont = assets.fontMedium;
+        float originalScaleX = logFont.getData().scaleX;
+        float originalScaleY = logFont.getData().scaleY;
+        List<String> wrappedLines = List.of();
+        for (float scale = 1f; scale >= 0.20f; scale -= 0.10f) {
+            logFont.getData().setScale(scale);
+            wrappedLines = wrappedLogLines(logFont, logBounds.width - 28f);
+            if (wrappedLines.size() * logFont.getLineHeight() <= logBounds.height - 42f) break;
         }
+
+        float logY = logBounds.y + logBounds.height - 36f;
+        logFont.setColor(Color.WHITE);
+        for (int i = 0; i < wrappedLines.size(); i++) {
+            logFont.draw(batch, wrappedLines.get(i), logBounds.x + 14f,
+                logY - i * logFont.getLineHeight());
+        }
+        logFont.getData().setScale(originalScaleX, originalScaleY);
     }
 
     private void drawMoveCards() {
@@ -318,10 +328,42 @@ public class BattleScreen implements Screen, BattleView {
         }
     }
 
-    private static String shorten(String text, float width) {
-        int maxCharacters = Math.max(8, (int) (width / 5.5f));
-        if (text.length() <= maxCharacters) return text;
-        return text.substring(0, maxCharacters - 1) + ".";
+    private List<String> wrappedLogLines(BitmapFont font, float width) {
+        List<String> lines = new ArrayList<>();
+        int start = Math.max(0, logLines.size() - LOG_LINES);
+        for (int i = start; i < logLines.size(); i++) {
+            lines.addAll(wrapText(font, logLines.get(i), width));
+        }
+        return lines;
+    }
+
+    private static List<String> wrapText(BitmapFont font, String text, float width) {
+        List<String> lines = new ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        for (String word : text.trim().split("\\s+")) {
+            if (line.isEmpty() && new GlyphLayout(font, word).width > width) {
+                for (int i = 0; i < word.length(); i++) {
+                    String candidate = line + String.valueOf(word.charAt(i));
+                    if (!line.isEmpty() && new GlyphLayout(font, candidate).width > width) {
+                        lines.add(line.toString());
+                        line.setLength(0);
+                    }
+                    line.append(word.charAt(i));
+                }
+                continue;
+            }
+            String candidate = line.isEmpty() ? word : line + " " + word;
+            if (new GlyphLayout(font, candidate).width <= width) {
+                line.setLength(0);
+                line.append(candidate);
+            } else {
+                if (!line.isEmpty()) lines.add(line.toString());
+                line.setLength(0);
+                line.append(word);
+            }
+        }
+        if (!line.isEmpty()) lines.add(line.toString());
+        return lines;
     }
 
     // -------------------------------------------------------------------------
@@ -342,6 +384,7 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public List<Move> promptMoveSelection(BattleCombatant combatant, BattleCombatant opponent) {
+        inputConfirmed = false;
         Gdx.app.postRunnable(() -> {
             renderPlayer  = combatant;
             renderEnemy   = opponent;
@@ -377,6 +420,10 @@ public class BattleScreen implements Screen, BattleView {
      */
     @Override
     public BattlePlan promptBattlePlan(BattleCombatant combatant, BattleCombatant opponent) {
+        // This must happen on the controller thread before its wait loop. If it
+        // only happens in the posted render callback, a prior round's confirmed
+        // value can skip planning entirely.
+        inputConfirmed = false;
         Gdx.app.postRunnable(() -> {
             renderPlayer = combatant;
             renderEnemy  = opponent;
@@ -489,22 +536,27 @@ public class BattleScreen implements Screen, BattleView {
 
     /** Recreates all execution widgets from the live viewport after a resize. */
     private void layoutExecutionUi(float width, float height) {
-        float margin = Math.min(42f, Math.max(22f, width * 0.035f));
-        float headerHeight = 60f;
+        float margin = Math.min(42f, Math.max(26f, width * 0.035f));
+        float headerHeight = 54f;
         executionHeaderBounds.set(margin, height - margin - headerHeight, width - margin * 2f, headerHeight);
 
-        float spriteWidth = Math.min(180f, Math.max(112f, width * 0.16f));
+        float portraitScale = Math.max(0f, Math.min(1f, (height - 600f) / 480f));
+        float spriteWidth = 90f + 160f * portraitScale;
         float spriteHeight = spriteWidth * 1.5f;
-        float spriteY = Math.max(90f, height * 0.40f - spriteHeight * 0.35f);
+        float sideInset = margin + 54f + 36f * portraitScale;
+        float playerY = margin + 66f + 58f * portraitScale;
+        float enemyY = executionHeaderBounds.y - 14f - spriteHeight - 36f;
         playerPanel = new CombatantPanel(assets.playerSprite, assets.battleUi,
-            margin + 26f, spriteY, spriteWidth, spriteHeight);
+            sideInset, playerY, spriteWidth, spriteHeight);
         enemyPanel = new CombatantPanel(assets.enemySprite, assets.battleUi,
-            width - margin - spriteWidth - 26f, spriteY, spriteWidth, spriteHeight);
+            width - sideInset - spriteWidth, enemyY, spriteWidth, spriteHeight);
 
-        float logWidth = Math.max(220f, width * 0.46f);
-        float logHeight = Math.min(180f, Math.max(112f, height * 0.28f));
-        logBounds.set((width - logWidth) / 2f, height * 0.34f, logWidth, logHeight);
-        nextRoundBounds.set(width / 2f - 94f, margin, 188f, 46f);
+        float baseLogWidth = Math.min(390f, Math.max(220f, width * 0.46f));
+        float baseLogHeight = Math.min(180f, Math.max(112f, height * 0.28f));
+        float logWidth = Math.min(baseLogWidth * 1.8f, width * 0.63f);
+        float logHeight = baseLogHeight * 1.4f;
+        logBounds.set(margin, executionHeaderBounds.y - 14f - logHeight, logWidth, logHeight);
+        nextRoundBounds.set(width - margin - 210f, margin, 210f, 52f);
         updatePanels();
     }
 
