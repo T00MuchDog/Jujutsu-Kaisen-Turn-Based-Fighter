@@ -32,8 +32,8 @@ public class CharacterSelectScreen implements Screen {
     private static final String ABILITY_DATA_DIR = "data/abilities";
     private static final float ROW_HEIGHT = 44f;
     private static final String[] STAT_LABELS = {
-        "VIT", "STR", "DUR", "SPD", "CA",
-        "CE RES", "CE EFF", "CE OUT", "JS", "CTM"
+        "Vitality", "Strength", "Durability", "Speed", "Combat Ability",
+        "CE Reserves", "CE Efficiency", "CE Output", "Jujutsu Skill", "CT Mastery"
     };
 
     private enum Phase { PLAYER, CPU }
@@ -215,65 +215,86 @@ public class CharacterSelectScreen implements Screen {
         assets.battleUi.card.draw(batch, detailBounds.x, detailBounds.y,
             detailBounds.width, detailBounds.height);
 
-        float centerX = detailBounds.x + detailBounds.width / 2f;
-        float top = detailBounds.y + detailBounds.height;
-        assets.fontLarge.setColor(BattleUiAssets.TEXT);
-        drawBold(assets.fontLarge, character.name, centerX - textWidth(assets.fontLarge, character.name) / 2f,
-            top - 24f);
+        float pad = 20f;
+        float innerLeft = detailBounds.x + pad;
+        float innerRight = detailBounds.x + detailBounds.width - pad;
+        float innerTop = detailBounds.y + detailBounds.height - pad;
+        float innerWidth = innerRight - innerLeft;
 
-        float spriteWidth = Math.min(112f, detailBounds.width * 0.23f);
-        float spriteHeight = spriteWidth * 1.5f;
-        float spriteX = centerX - spriteWidth / 2f;
-        float spriteY = top - 48f - spriteHeight;
-        assets.battleUi.palette.draw(batch, spriteX - 8f, spriteY - 8f, spriteWidth + 16f, spriteHeight + 16f);
+        // Name — top-left corner, prominent.
+        assets.fontXLarge.setColor(BattleUiAssets.TEXT);
+        drawBold(assets.fontXLarge, character.name, innerLeft, innerTop);
+
+        // Content region sits below the name.
+        float contentTop = innerTop - 48f;
+        float contentBottom = detailBounds.y + pad;
+        float contentHeight = contentTop - contentBottom;
+
+        // Left column: a much larger (~3x) profile sprite with HP/CE bars scaled to match.
+        float leftWidth = Math.min(innerWidth * 0.52f, 360f);
+        float leftCenterX = innerLeft + leftWidth / 2f;
+        float barHeight = 28f;
+        float barGap = 8f;
+        float barsBlock = barHeight * 2f + barGap;
+        float spriteSize = Math.min(leftWidth, contentHeight - barsBlock - 14f);
+        spriteSize = Math.min(spriteSize, 336f); // ~3x the original 112px display width
+        float spriteX = leftCenterX - spriteSize / 2f;
+        float spriteY = contentTop - spriteSize;
+
+        assets.battleUi.palette.draw(batch, spriteX - 10f, spriteY - 10f,
+            spriteSize + 20f, spriteSize + 20f);
         Texture sprite = assets.characterSprite(character.spriteAsset, assets.playerSprite);
-        batch.draw(sprite, spriteX, spriteY, spriteWidth, spriteHeight);
+        batch.draw(sprite, spriteX, spriteY, spriteSize, spriteSize);
 
+        float barWidth = spriteSize; // bars scale with the sprite
+        float barX = leftCenterX - barWidth / 2f;
+        float ceY = spriteY - 16f - barHeight;
         CombatStats combat = character.toCombatStats();
-        float barWidth = Math.min(260f, detailBounds.width * 0.56f);
-        float barX = centerX - barWidth / 2f;
-        float ceY = spriteY - 52f;
         StatusBar hp = new StatusBar("HP", new Color(0.260f, 0.820f, 0.360f, 1f));
-        hp.setBounds(barX, ceY + 30f, barWidth, 24f);
+        hp.setBounds(barX, ceY + barHeight + barGap, barWidth, barHeight);
         hp.setValues(combat.getMaxHp(), combat.getMaxHp());
-        hp.draw(batch, assets.fontSmall, assets.battleUi);
+        hp.draw(batch, assets.fontMedium, assets.battleUi);
         StatusBar ce = new StatusBar("CE", new Color(0.220f, 0.500f, 0.940f, 1f));
-        ce.setBounds(barX, ceY, barWidth, 24f);
+        ce.setBounds(barX, ceY, barWidth, barHeight);
         ce.setValues(combat.getMaxCursedEnergy(), combat.getMaxCursedEnergy());
-        ce.draw(batch, assets.fontSmall, assets.battleUi);
+        ce.draw(batch, assets.fontMedium, assets.battleUi);
 
-        float statsTop = ceY - 20f;
-        drawStats(character, statsTop);
-        drawDescription(character.description, statsTop - 154f);
+        // Right column: full-word stats over a larger description.
+        float rightX = innerLeft + leftWidth + 24f;
+        float rightWidth = innerRight - rightX;
+        float statsRowHeight = 23f;
+        drawStats(character, rightX, rightWidth, contentTop, statsRowHeight);
+        float descriptionTop = contentTop - STAT_LABELS.length * statsRowHeight - 18f;
+        drawDescription(character.description, rightX, rightWidth, descriptionTop);
     }
 
-    private void drawStats(CharacterData character, float topY) {
+    private void drawStats(CharacterData character, float x, float width, float topY, float rowHeight) {
         int[] values = {
             character.vitality, character.strength, character.durability, character.speed, character.combatAbility,
             character.cursedEnergyReserves, character.cursedEnergyEfficiency, character.cursedEnergyOutput,
             character.jujutsuSkill, character.cursedTechniqueMastery
         };
-        float leftX = detailBounds.x + 30f;
-        float rightX = detailBounds.x + detailBounds.width * 0.54f;
         for (int i = 0; i < values.length; i++) {
-            float x = i < 5 ? leftX : rightX;
-            float y = topY - (i % 5) * 25f;
-            assets.fontLarge.setColor(BattleUiAssets.TEXT);
-            drawBold(assets.fontLarge, STAT_LABELS[i] + ": " + values[i], x, y);
+            float y = topY - i * rowHeight;
+            String value = String.valueOf(values[i]);
+            float valueX = x + width - textWidth(assets.fontMedium, value);
+            assets.fontMedium.setColor(BattleUiAssets.TEXT);
+            drawBold(assets.fontMedium, STAT_LABELS[i], x, y);
+            drawBold(assets.fontMedium, value, valueX, y);
         }
     }
 
-    private void drawDescription(String description, float topY) {
+    private void drawDescription(String description, float x, float width, float topY) {
         String text = description == null || description.isBlank() ? "No character description." : description;
-        assets.fontSmall.setColor(BattleUiAssets.MUTED);
-        assets.fontSmall.draw(batch, "DESCRIPTION", detailBounds.x + 30f, topY);
-        assets.fontSmall.setColor(BattleUiAssets.TEXT);
-        List<String> lines = wrap(assets.fontSmall, text, detailBounds.width - 60f);
-        float lineY = topY - 16f;
+        assets.fontMedium.setColor(BattleUiAssets.MUTED);
+        assets.fontMedium.draw(batch, "DESCRIPTION", x, topY);
+        assets.fontMedium.setColor(BattleUiAssets.TEXT);
+        List<String> lines = wrap(assets.fontMedium, text, width);
+        float lineY = topY - 18f;
         for (String line : lines) {
             if (lineY < detailBounds.y + 10f) break;
-            assets.fontSmall.draw(batch, line, detailBounds.x + 30f, lineY);
-            lineY -= assets.fontSmall.getLineHeight() + 3f;
+            assets.fontMedium.draw(batch, line, x, lineY);
+            lineY -= assets.fontMedium.getLineHeight() + 3f;
         }
     }
 

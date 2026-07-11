@@ -34,6 +34,9 @@ public class AssetLoader {
     /** Large pixel font — used for round banners and titles. */
     public BitmapFont fontLarge;
 
+    /** Extra-large pixel font — used for prominent page titles (e.g. character name). */
+    public BitmapFont fontXLarge;
+
     // ── Sprites ───────────────────────────────────────────────────────────────
 
     public Texture playerSprite;
@@ -101,6 +104,9 @@ public class AssetLoader {
         p.size = 18;
         fontLarge = fontGenerator.generateFont(p);
 
+        p.size = 26;
+        fontXLarge = fontGenerator.generateFont(p);
+
         // TTF no longer needed after bitmap generation
         fontGenerator.dispose();
         fontGenerator = null;
@@ -137,6 +143,7 @@ public class AssetLoader {
         if (fontSmall  != null) fontSmall.dispose();
         if (fontMedium != null) fontMedium.dispose();
         if (fontLarge  != null) fontLarge.dispose();
+        if (fontXLarge != null) fontXLarge.dispose();
 
         if (playerSprite != null) playerSprite.dispose();
         if (enemySprite  != null) enemySprite.dispose();
