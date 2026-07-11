@@ -2,6 +2,7 @@ package com.jjktbf.graphics;
 
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
+import com.jjktbf.AppPaths;
 
 /**
  * Desktop entry point for the graphics mode.
@@ -9,21 +10,35 @@ import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
  * Configures the LibGDX LWJGL3 window and launches JJKGame.
  *
  * To run:
- *   mvn package -pl graphics
- *   java -jar graphics/target/graphics-1.0-SNAPSHOT.jar
+ *   mvn -Drevision=1.0.0 -pl core,graphics -am clean verify
+ *   java -XstartOnFirstThread -jar graphics/target/graphics-1.0.0.jar   (macOS)
+ *   java -jar graphics/target/graphics-1.0.0.jar                        (Windows/Linux)
  *
  * Or directly from your IDE by running this class's main() method.
  */
 public class GraphicsMain {
 
     public static void main(String[] args) {
+        // First-run / upgrade-safe seeding: copy the bundled default game-data
+        // JSON from the classpath into the per-user data directory. Existing
+        // files are never overwritten, so player data survives upgrades.
+        // Must run before any repository is constructed (those read the files).
+        try {
+            AppPaths.seedDataIfAbsent();
+        } catch (Throwable t) {
+            // Seeding failure is non-fatal: repositories fall back to their
+            // built-in seeds. Log so it is diagnosable.
+            System.err.println("Warning: could not seed user data dir: " + t);
+        }
+
         // Capture any thread's uncaught exception to a file so crashes (which
         // often die silently or show a native dialog that hides the trace) are
-        // recoverable. Diagnostic.
+        // recoverable. Written to the per-user logs dir so it is reachable from
+        // a packaged app regardless of working directory.
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
             try {
                 java.io.PrintWriter pw = new java.io.PrintWriter(
-                    new java.io.FileWriter("battle_crash.log", true));
+                    new java.io.FileWriter(AppPaths.logFile().toFile(), true));
                 pw.println("===== " + java.time.Instant.now()
                            + "  (thread: " + t.getName() + ") =====");
                 e.printStackTrace(pw);
@@ -33,7 +48,7 @@ public class GraphicsMain {
 
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
 
-        config.setTitle("Jujutsu Kaisen — Turn Based Fighter");
+        config.setTitle(AppPaths.APP_NAME);
         config.setWindowedMode(1024, 600);
         config.setResizable(true);
         config.setForegroundFPS(60);
