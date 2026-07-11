@@ -104,6 +104,7 @@ public class CombatResolver {
                 if (entry.segment.isKnockedOut()) continue;
                 if (state.checkAndResolveBattleOver()) {
                     events.add(CombatEvent.of(CombatEvent.Type.BATTLE_OVER)
+                        .tick(tick)
                         .message("Battle ended during resolution!").build());
                     return events;
                 }
@@ -132,6 +133,7 @@ public class CombatResolver {
                     events.add(CombatEvent.of(CombatEvent.Type.CE_DEPLETED)
                         .source(combatant)
                         .move(segment.getMove())
+                        .tick(tick)
                         .message(combatant.getCharacter().getName() + " does not have enough CE for "
                             + segment.getMove().getName() + "!")
                         .build());
@@ -142,6 +144,7 @@ public class CombatResolver {
                     .source(combatant)
                     .move(segment.getMove())
                     .intValue(drained)
+                    .tick(tick)
                     .message(combatant.getCharacter().getName() + " uses " + drained
                              + " CE for " + segment.getMove().getName())
                     .build());
@@ -149,6 +152,7 @@ public class CombatResolver {
                 if (!combatant.hasAnyCe()) {
                     events.add(CombatEvent.of(CombatEvent.Type.CE_DEPLETED)
                         .source(combatant)
+                        .tick(tick)
                         .message(combatant.getCharacter().getName() + " has exhausted all Cursed Energy!")
                         .build());
                 }
@@ -238,6 +242,7 @@ public class CombatResolver {
         events.add(CombatEvent.of(CombatEvent.Type.MOVE_FIRED)
             .source(attacker)
             .move(move)
+            .tick(tick)
             .message(attacker.getCharacter().getName() + " unleashes " + move.getName() + "!")
             .build());
 
@@ -249,7 +254,7 @@ public class CombatResolver {
 
         // --- Non-damaging utility moves ---
         if (move.getCategory() == MoveCategory.UTILITY) {
-            applySelfEffects(attacker, move, events);
+            applySelfEffects(attacker, move, tick, events);
             return;
         }
 
@@ -261,12 +266,14 @@ public class CombatResolver {
         if (result.isMiss()) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_MISSED)
                 .source(attacker).target(defender).move(move)
+                .tick(tick)
                 .message(move.getName() + " missed " + defender.getCharacter().getName() + "!")
                 .build());
 
         } else if (result.isBlocked()) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_BLOCKED)
                 .source(attacker).target(defender).move(move)
+                .tick(tick)
                 .message(defender.getCharacter().getName() + " blocked " + move.getName() + "!")
                 .build());
 
@@ -280,6 +287,7 @@ public class CombatResolver {
             if (wasBlocked) {
                 events.add(CombatEvent.of(CombatEvent.Type.MOVE_BLOCK_REDUCED)
                     .source(attacker).target(defender).move(move)
+                    .tick(tick)
                     .message(defender.getCharacter().getName()
                              + " blocked " + move.getName() + "! (damage reduced)")
                     .build());
@@ -288,6 +296,7 @@ public class CombatResolver {
             events.add(CombatEvent.of(CombatEvent.Type.DAMAGE_DEALT)
                 .source(attacker).target(defender).move(move)
                 .intValue(result.getFinalDamage())
+                .tick(tick)
                 .message(attacker.getCharacter().getName() + "'s " + move.getName()
                          + " hits " + defender.getCharacter().getName()
                          + " for " + result.getFinalDamage() + " damage!")
@@ -307,17 +316,19 @@ public class CombatResolver {
                 events.add(CombatEvent.of(CombatEvent.Type.BLACK_FLASH)
                     .source(attacker).target(defender).move(move)
                     .intValue(result.getFinalDamage())
+                    .tick(tick)
                     .message("*** BLACK FLASH! *** " + attacker.getCharacter().getName()
                              + " lands a Black Flash! +" + ceRestored + " CE restored!")
                     .build());
                 events.add(CombatEvent.of(CombatEvent.Type.CE_RESTORED)
                     .source(attacker).intValue(ceRestored)
+                    .tick(tick)
                     .message(attacker.getCharacter().getName() + " recovered " + ceRestored + " CE!")
                     .build());
             }
 
             // On-hit status effects
-            applyOnHitEffects(attacker, defender, move, events);
+            applyOnHitEffects(attacker, defender, move, tick, events);
 
             // Interrupt resolution
             if (move.hasInterrupt()) {
@@ -335,10 +346,11 @@ public class CombatResolver {
         if (msg != null) {
             events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                 .source(combatant).move(move)
+                .tick(tick)
                 .message(msg)
                 .build());
         }
-        applySelfEffects(combatant, move, events);
+        applySelfEffects(combatant, move, tick, events);
     }
 
     // -------------------------------------------------------------------------
@@ -349,23 +361,26 @@ public class CombatResolver {
         BattleCombatant attacker,
         BattleCombatant defender,
         Move            move,
+        int             tick,
         List<CombatEvent> events
     ) {
         for (StatusEffect effect : move.getOnHitEffects()) {
             defender.addStatusEffect(effect);
             events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                 .source(attacker).target(defender).move(move)
+                .tick(tick)
                 .message(defender.getCharacter().getName()
                          + " is afflicted with " + effect.getType() + "!")
                 .build());
         }
     }
 
-    private void applySelfEffects(BattleCombatant combatant, Move move, List<CombatEvent> events) {
+    private void applySelfEffects(BattleCombatant combatant, Move move, int tick, List<CombatEvent> events) {
         for (StatusEffect effect : move.getSelfEffects()) {
             combatant.addStatusEffect(effect);
             events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                 .source(combatant).move(move)
+                .tick(tick)
                 .message(combatant.getCharacter().getName()
                          + " applies " + effect.getType() + " to themselves!")
                 .build());
@@ -391,6 +406,7 @@ public class CombatResolver {
         if (targetSegment != null) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_KNOCKED_OUT)
                 .source(attacker).target(defender).move(targetSegment.getMove())
+                .tick(tick)
                 .message(attacker.getCharacter().getName() + "'s " + move.getName()
                           + " knocks out " + defender.getCharacter().getName()
                          + "'s " + targetSegment.getMove().getName() + "!")

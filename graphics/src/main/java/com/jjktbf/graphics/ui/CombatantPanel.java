@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 import com.jjktbf.model.combat.BattleCombatant;
 
@@ -12,6 +13,9 @@ public class CombatantPanel {
 
     private static final float BAR_HEIGHT = 28f;
     private static final float BAR_GAP = 8f;
+    private static final float NAME_PLATE_HEIGHT = 34f;
+    private static final float NAME_PLATE_PAD = 16f;
+    private final GlyphLayout nameLayout = new GlyphLayout();
 
     private final Texture sprite;
     private final BattleUiAssets ui;
@@ -46,15 +50,30 @@ public class CombatantPanel {
     }
 
     public void draw(Batch batch, BitmapFont font, String name) {
+        draw(batch, font, font, name);
+    }
+
+    /**
+     * Draw with separate fonts for the name plate and the resource bars, so the
+     * name can be rendered larger without crowding the HP/CE labels.
+     */
+    public void draw(Batch batch, BitmapFont nameFont, BitmapFont barFont, String name) {
         float frameX = x - 10f;
         float frameY = y - 10f;
         ui.palette.draw(batch, frameX, frameY, spriteWidth + 20f, spriteHeight + 20f);
         batch.draw(sprite, x, y, spriteWidth, spriteHeight);
 
-        ui.header.draw(batch, frameX, y + spriteHeight + 8f, spriteWidth + 20f, 28f);
-        font.setColor(Color.WHITE);
-        font.draw(batch, name, x + 8f, y + spriteHeight + 27f);
-        hpBar.draw(batch, font, ui);
-        ceBar.draw(batch, font, ui);
+        // Name plate sized to the text so a larger name font never truncates.
+        nameLayout.setText(nameFont, name);
+        float plateWidth = Math.max(spriteWidth + 20f, nameLayout.width + NAME_PLATE_PAD * 2f);
+        float plateX = frameX + (spriteWidth + 20f - plateWidth) / 2f;
+        float plateY = y + spriteHeight + 8f;
+        ui.header.draw(batch, plateX, plateY, plateWidth, NAME_PLATE_HEIGHT);
+        nameFont.setColor(Color.WHITE);
+        nameFont.draw(batch, name,
+            frameX + (spriteWidth + 20f - nameLayout.width) / 2f,
+            plateY + NAME_PLATE_HEIGHT / 2f + nameLayout.height / 2f);
+        hpBar.draw(batch, barFont, ui);
+        ceBar.draw(batch, barFont, ui);
     }
 }
