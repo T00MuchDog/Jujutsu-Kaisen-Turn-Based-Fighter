@@ -1,0 +1,11 @@
+===== 2026-07-11T05:50:03.372104Z  (thread: main) =====
+java.lang.IllegalStateException: autoShapeType must be enabled.
+	at com.badlogic.gdx.graphics.glutils.ShapeRenderer.set(ShapeRenderer.java:219)
+	at com.jjktbf.graphics.ui.CombatantPanel.drawShapes(CombatantPanel.java:64)
+	at com.jjktbf.graphics.screens.BattleScreen.drawResolution(BattleScreen.java:145)
+	at com.jjktbf.graphics.screens.BattleScreen.render(BattleScreen.java:101)
+	at com.badlogic.gdx.Game.render(Game.java:48)
+	at com.badlogic.gdx.backends.lwjgl3.Lwjgl3Window.update(Lwjgl3Window.java:387)
+	at com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application.loop(Lwjgl3Application.java:193)
+	at com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application.<init>(Lwjgl3Application.java:167)
+	at com.jjktbf.graphics.GraphicsMain.main(GraphicsMain.java:51)

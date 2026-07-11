@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator.FreeTypeFontParameter;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 import com.jjktbf.graphics.ui.pixel.PixelSkin;
 
 /**
@@ -40,6 +41,9 @@ public class AssetLoader {
     public Texture cardNormal;
     public Texture cardSelected;
     public Texture cardDisabled;
+
+    /** Pixel-art textures dedicated to the drag-and-drop battle planner. */
+    public BattleUiAssets battleUi;
 
     // ── Scene2D skin for the editors ───────────────────────────────────────────
 
@@ -107,6 +111,7 @@ public class AssetLoader {
         cardNormal    = new Texture(Gdx.files.internal("assets/ui/card_normal.png"));
         cardSelected  = new Texture(Gdx.files.internal("assets/ui/card_selected.png"));
         cardDisabled  = new Texture(Gdx.files.internal("assets/ui/card_disabled.png"));
+        battleUi      = new BattleUiAssets();
     }
 
     // -------------------------------------------------------------------------
@@ -127,6 +132,8 @@ public class AssetLoader {
         if (cardNormal    != null) cardNormal.dispose();
         if (cardSelected  != null) cardSelected.dispose();
         if (cardDisabled  != null) cardDisabled.dispose();
+
+        if (battleUi      != null) battleUi.dispose();
 
         if (editorSkin    != null) editorSkin.dispose();
     }
