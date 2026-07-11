@@ -3,9 +3,13 @@ package com.jjktbf.graphics.ui.battle;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.math.Rectangle;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.move.Move;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Visual for an action segment. A segment is intentionally spare: the coloured
@@ -50,23 +54,64 @@ public class ActionSegmentView {
         float h = bounds.height;
         ui.segment(highlighted).draw(batch, x, y, w, h);
 
-        float railW = Math.min(15f, Math.max(5f, w - 8f));
+        float railW = Math.min(10f, Math.max(4f, w * 0.20f));
         batch.setColor(typeColor());
         batch.draw(ui.pixel, x + 5f, y + 5f, railW, Math.max(1f, h - 10f));
         batch.setColor(Color.WHITE);
 
-        if (w < 34f) return;
-        float labelX = x + railW + 10f;
-        float labelW = w - (labelX - x) - 5f;
+        if (w < 18f) return;
+        float labelX = x + railW + 9f;
+        float labelW = w - (labelX - x) - 4f;
         font.setColor(BattleUiAssets.TEXT);
-        font.draw(batch, abbreviated(move.getName(), labelW), labelX,
-            y + h / 2f + font.getCapHeight() / 2f);
+        drawMoveName(batch, font, move.getName(), labelX, y, labelW, h);
     }
 
-    private static String abbreviated(String value, float width) {
-        if (value == null || value.isBlank()) return "MOVE";
-        int maxChars = Math.max(2, (int) (width / 5.5f));
-        if (value.length() <= maxChars) return value;
-        return maxChars < 4 ? value.substring(0, maxChars) : value.substring(0, maxChars - 1) + ".";
+    private static void drawMoveName(Batch batch, BitmapFont font, String value, float x, float y,
+                                     float width, float height) {
+        String name = value == null || value.isBlank() ? "MOVE" : value;
+        float originalScaleX = font.getData().scaleX;
+        float originalScaleY = font.getData().scaleY;
+        List<String> lines = List.of(name);
+        for (float scale = 1f; scale >= 0.30f; scale -= 0.10f) {
+            font.getData().setScale(scale);
+            lines = wrap(font, name, width);
+            if (lines.size() <= 2) break;
+        }
+
+        if (lines.size() > 2) {
+            lines = lines.subList(0, 2);
+            lines.set(1, "...");
+        }
+
+        float lineHeight = font.getLineHeight();
+        float firstY = y + height / 2f + (lines.size() - 1) * lineHeight / 2f;
+        for (int i = 0; i < lines.size(); i++) {
+            font.draw(batch, lines.get(i), x, firstY - i * lineHeight);
+        }
+        font.getData().setScale(originalScaleX, originalScaleY);
+    }
+
+    private static List<String> wrap(BitmapFont font, String value, float width) {
+        List<String> lines = new ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        for (String word : value.trim().split("\\s+")) {
+            String candidate = line.isEmpty() ? word : line + " " + word;
+            if (textWidth(font, candidate) <= width) {
+                line.setLength(0);
+                line.append(candidate);
+                continue;
+            }
+            if (!line.isEmpty()) {
+                lines.add(line.toString());
+                line.setLength(0);
+            }
+            line.append(word);
+        }
+        if (!line.isEmpty()) lines.add(line.toString());
+        return lines;
+    }
+
+    private static float textWidth(BitmapFont font, String value) {
+        return new GlyphLayout(font, value).width;
     }
 }

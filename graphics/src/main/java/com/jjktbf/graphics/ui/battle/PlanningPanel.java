@@ -171,7 +171,6 @@ public class PlanningPanel {
 
         ui.palette.draw(batch, paletteBounds.x, paletteBounds.y, paletteBounds.width, paletteBounds.height);
         for (MoveCardView card : cards) card.draw(batch, font, ui, ceCost(card.getMove()));
-        drawPaletteCaption(batch, font);
         drawDragAvatar(batch, font);
         batch.end();
     }
@@ -181,11 +180,6 @@ public class PlanningPanel {
         titleFont.setColor(Color.WHITE);
         titleFont.draw(batch, compactLayout ? "PLAN ROUND" : "BUILD YOUR TIMELINE",
             headerBounds.x + 18f, headerBounds.y + (compactLayout ? 76f : 39f));
-        if (!compactLayout) {
-            font.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
-            font.draw(batch, "DRAG A MOVE CARD ONTO ITS MATCHING DOTTED TRACK", headerBounds.x + 20f, headerBounds.y + 17f);
-        }
-
         float statX = compactLayout ? headerBounds.x + 12f : headerBounds.x + Math.min(340f, headerBounds.width * 0.42f);
         float statWidth = compactLayout ? 82f : 104f;
         drawStat(batch, font, statX, headerBounds.y + (compactLayout ? 12f : 15f), statWidth, "AP", plan.totalApUsed() + "/" + plan.apBudget());
@@ -224,15 +218,6 @@ public class PlanningPanel {
             font.setColor(BattleUiAssets.MUTED);
             font.draw(batch, detail, x + 23f, y - 7f);
         }
-    }
-
-    private void drawPaletteCaption(Batch batch, BitmapFont font) {
-        font.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
-        String caption = draggingMove != null || draggingSegment != null
-            ? (snapValid ? "RELEASE TO PLACE" : "MOVE TO A FREE SLOT ON THE MATCHING TRACK")
-            : "MOVE CARDS  |  EACH SEGMENT SNAPS TO AP DOTS";
-        if (compactLayout && !snapValid) caption = draggedMove() == null ? "DRAG MOVE CARDS" : "MOVE TO A FREE SLOT";
-        font.draw(batch, caption, paletteBounds.x + 12f, paletteBounds.y + paletteBounds.height - 6f);
     }
 
     private void drawDragAvatar(Batch batch, BitmapFont font) {
