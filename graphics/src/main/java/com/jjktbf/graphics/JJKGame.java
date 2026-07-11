@@ -62,7 +62,7 @@ public class JJKGame extends Game {
     public void dispose() {
         super.dispose();
         assets.dispose();
-        // Individual screens dispose their own SpriteBatches/ShapeRenderers
+        // Individual screens dispose their own rendering resources.
         mainMenuScreen.dispose();
         characterSelectScreen.dispose();
         battleScreen.dispose();

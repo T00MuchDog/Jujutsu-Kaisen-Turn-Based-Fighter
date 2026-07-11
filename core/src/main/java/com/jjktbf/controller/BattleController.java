@@ -142,6 +142,7 @@ public class BattleController {
         List<CombatEvent> events = resolver.processRoundEnd(state);
         view.displayCombatEvents(events, state);
         view.displayRoundEnd(state);
+        if (!state.isBattleOver()) view.awaitNextRound(state);
     }
 
 }

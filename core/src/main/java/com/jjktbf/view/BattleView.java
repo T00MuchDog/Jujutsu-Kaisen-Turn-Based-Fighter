@@ -70,6 +70,12 @@ public interface BattleView {
     void displayRoundEnd(BattleState state);
 
     /**
+     * Hold the round-end view until the player explicitly starts the next round.
+     * This is a blocking call on the controller thread, like plan confirmation.
+     */
+    void awaitNextRound(BattleState state);
+
+    /**
      * Display the battle over screen.
      * @param winner  the winning combatant, or null if a draw
      */

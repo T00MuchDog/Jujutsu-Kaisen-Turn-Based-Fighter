@@ -19,3 +19,42 @@ Caused by: java.lang.ClassNotFoundException: com.badlogic.gdx.backends.lwjgl3.Lw
 	at java.base/jdk.internal.loader.ClassLoaders$AppClassLoader.loadClass(ClassLoaders.java:188)
 	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:525)
 	... 3 more
+===== 2026-07-11T06:37:15.084122Z =====
+java.lang.NoClassDefFoundError: com/jjktbf/model/combat/CombatResolver$FiringEntry
+	at com.jjktbf.model.combat.CombatResolver.sortFiringEntries(CombatResolver.java:205)
+	at com.jjktbf.model.combat.CombatResolver.resolveRound(CombatResolver.java:100)
+	at com.jjktbf.controller.BattleController.runResolutionPhase(BattleController.java:130)
+	at com.jjktbf.controller.BattleController.runBattle(BattleController.java:63)
+	at com.jjktbf.graphics.JJKGame.lambda$startBattle$0(JJKGame.java:120)
+	at java.base/java.lang.Thread.run(Thread.java:842)
+Caused by: java.lang.ClassNotFoundException: com.jjktbf.model.combat.CombatResolver$FiringEntry
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:641)
+	at java.base/jdk.internal.loader.ClassLoaders$AppClassLoader.loadClass(ClassLoaders.java:188)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:525)
+	... 6 more
+===== 2026-07-11T06:37:15.091570Z  (thread: battle-thread) =====
+java.lang.RuntimeException: java.lang.NoClassDefFoundError: com/jjktbf/model/combat/CombatResolver$FiringEntry
+	at com.jjktbf.graphics.JJKGame.lambda$startBattle$0(JJKGame.java:132)
+	at java.base/java.lang.Thread.run(Thread.java:842)
+Caused by: java.lang.NoClassDefFoundError: com/jjktbf/model/combat/CombatResolver$FiringEntry
+	at com.jjktbf.model.combat.CombatResolver.sortFiringEntries(CombatResolver.java:205)
+	at com.jjktbf.model.combat.CombatResolver.resolveRound(CombatResolver.java:100)
+	at com.jjktbf.controller.BattleController.runResolutionPhase(BattleController.java:130)
+	at com.jjktbf.controller.BattleController.runBattle(BattleController.java:63)
+	at com.jjktbf.graphics.JJKGame.lambda$startBattle$0(JJKGame.java:120)
+	... 1 more
+Caused by: java.lang.ClassNotFoundException: com.jjktbf.model.combat.CombatResolver$FiringEntry
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:641)
+	at java.base/jdk.internal.loader.ClassLoaders$AppClassLoader.loadClass(ClassLoaders.java:188)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:525)
+	... 6 more
+===== 2026-07-11T06:37:22.738464Z  (thread: main) =====
+java.lang.NoClassDefFoundError: com/badlogic/gdx/backends/lwjgl3/Lwjgl3Cursor
+	at com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application.cleanup(Lwjgl3Application.java:264)
+	at com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application.<init>(Lwjgl3Application.java:175)
+	at com.jjktbf.graphics.GraphicsMain.main(GraphicsMain.java:44)
+Caused by: java.lang.ClassNotFoundException: com.badlogic.gdx.backends.lwjgl3.Lwjgl3Cursor
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:641)
+	at java.base/jdk.internal.loader.ClassLoaders$AppClassLoader.loadClass(ClassLoaders.java:188)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:525)
+	... 3 more

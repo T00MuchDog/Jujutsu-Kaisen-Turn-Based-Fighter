@@ -6,7 +6,7 @@ import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.Rectangle;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.ui.CombatantPanel;
@@ -44,15 +44,18 @@ public class BattleScreen implements Screen, BattleView {
 
     private static final int   LOG_LINES   = 6;
     private static final float CARD_MARGIN = 8f;
+    private static final int   EVENT_DELAY_MS = 280;
 
     private final JJKGame     game;
     private final AssetLoader assets;
     private final SpriteBatch batch;
-    private final ShapeRenderer sr;
 
     // ── Panels ────────────────────────────────────────────────────────────────
     private CombatantPanel playerPanel;
     private CombatantPanel enemyPanel;
+    private final Rectangle executionHeaderBounds = new Rectangle();
+    private final Rectangle logBounds = new Rectangle();
+    private final Rectangle nextRoundBounds = new Rectangle();
 
     // ── Event log ─────────────────────────────────────────────────────────────
     private final List<String> logLines = new ArrayList<>();
@@ -64,6 +67,9 @@ public class BattleScreen implements Screen, BattleView {
     private int             projectedCe     = 0;
     private volatile boolean awaitingInput  = false;
     private volatile boolean inputConfirmed = false;
+    private volatile boolean awaitingNextRound = false;
+    private volatile boolean nextRoundConfirmed = false;
+    private boolean nextRoundHovered = false;
 
     // ── Planning panel (two-board timeline UI) ─────────────────────────────────
     private com.jjktbf.graphics.ui.battle.PlanningPanel planningPanel;
@@ -79,11 +85,6 @@ public class BattleScreen implements Screen, BattleView {
         this.game   = game;
         this.assets = assets;
         this.batch  = new SpriteBatch();
-        // autoShapeType lets our battle widgets mix filled bodies and line
-        // borders within a single begin block via sr.set(...). Without it,
-        // ShapeRenderer.set() throws "autoShapeType must be enabled."
-        this.sr     = new ShapeRenderer();
-        this.sr.setAutoShapeType(true);
     }
 
     // -------------------------------------------------------------------------
@@ -97,6 +98,8 @@ public class BattleScreen implements Screen, BattleView {
         moveCards.clear();
         awaitingInput  = false;
         inputConfirmed = false;
+        awaitingNextRound = false;
+        nextRoundConfirmed = false;
         battleOver     = false;
     }
 
@@ -109,8 +112,8 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override public void resize(int w, int h) {
         batch.getProjectionMatrix().setToOrtho2D(0, 0, w, h);
-        sr.getProjectionMatrix().setToOrtho2D(0, 0, w, h);
         if (planningPanel != null) planningPanel.resize(w, h);
+        layoutExecutionUi(w, h);
     }
     @Override public void pause()  {}
     @Override public void resume() {}
@@ -119,7 +122,6 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void dispose() {
         batch.dispose();
-        sr.dispose();
     }
 
     // -------------------------------------------------------------------------
@@ -127,11 +129,22 @@ public class BattleScreen implements Screen, BattleView {
     // -------------------------------------------------------------------------
 
     private void handleInput() {
-        if (!awaitingInput) return;
         // The new two-board PlanningPanel owns its own drag input processor and
         // Lock In button — skip the legacy click-to-toggle / ENTER flow entirely
         // while it is active.
         if (planningPanel != null) return;
+
+        if (awaitingNextRound) {
+            float x = Gdx.input.getX();
+            float y = Gdx.graphics.getHeight() - Gdx.input.getY();
+            nextRoundHovered = nextRoundBounds.contains(x, y);
+            if (Gdx.input.justTouched() && nextRoundHovered) {
+                nextRoundConfirmed = true;
+            }
+            return;
+        }
+
+        if (!awaitingInput) return;
 
         // Click or touch on a move card
         if (Gdx.input.justTouched()) {
@@ -215,38 +228,45 @@ public class BattleScreen implements Screen, BattleView {
         float sw = Gdx.graphics.getWidth();
         float sh = Gdx.graphics.getHeight();
 
-        // Shape pass (bars)
-        sr.begin(ShapeRenderer.ShapeType.Filled);
-        if (enemyPanel  != null) enemyPanel.drawShapes(sr);
-        if (playerPanel != null) playerPanel.drawShapes(sr);
-        sr.end();
-
-        // Sprite + text pass
         batch.begin();
-        drawPhaseLabel(sw, sh);
+        drawExecutionChrome(sw, sh);
         if (enemyPanel  != null && renderEnemy  != null)
             enemyPanel.draw(batch, assets.fontSmall, renderEnemy.getCharacter().getName());
         if (playerPanel != null && renderPlayer != null)
             playerPanel.draw(batch, assets.fontSmall, renderPlayer.getCharacter().getName());
         drawLog(sw, sh);
         if (awaitingInput && planningPanel == null) drawMoveCards();
-        drawFooter(sw);
+        drawNextRoundButton();
         batch.end();
 
     }
 
-    private void drawPhaseLabel(float sw, float sh) {
+    private void drawExecutionChrome(float sw, float sh) {
+        if (executionHeaderBounds.width <= 0f) layoutExecutionUi(sw, sh);
+        assets.battleUi.header.draw(batch, executionHeaderBounds.x, executionHeaderBounds.y,
+            executionHeaderBounds.width, executionHeaderBounds.height);
         assets.fontMedium.setColor(Color.WHITE);
-        assets.fontMedium.draw(batch, phaseLabel, 20, sh - 20);
+        assets.fontMedium.draw(batch, phaseLabel, executionHeaderBounds.x + 18f,
+            executionHeaderBounds.y + executionHeaderBounds.height - 18f);
+
+        assets.fontSmall.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
+        assets.fontSmall.draw(batch, "BATTLE EXECUTION", executionHeaderBounds.x + 20f,
+            executionHeaderBounds.y + 14f);
     }
 
     private void drawLog(float sw, float sh) {
-        float logY = sh * 0.42f;
-        float lineH = 14f;
-        assets.fontSmall.setColor(Color.LIGHT_GRAY);
-        int start = Math.max(0, logLines.size() - LOG_LINES);
+        assets.battleUi.palette.draw(batch, logBounds.x, logBounds.y, logBounds.width, logBounds.height);
+        assets.fontSmall.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
+        assets.fontSmall.draw(batch, "BATTLE LOG", logBounds.x + 14f, logBounds.y + logBounds.height - 14f);
+
+        float logY = logBounds.y + logBounds.height - 34f;
+        float lineH = 17f;
+        assets.fontSmall.setColor(Color.WHITE);
+        int maxVisibleLines = Math.max(1, (int) ((logBounds.height - 42f) / lineH));
+        int start = Math.max(0, logLines.size() - Math.min(LOG_LINES, maxVisibleLines));
         for (int i = start; i < logLines.size(); i++) {
-            assets.fontSmall.draw(batch, logLines.get(i), 20, logY - (i - start) * lineH);
+            assets.fontSmall.draw(batch, shorten(logLines.get(i), logBounds.width - 28f),
+                logBounds.x + 14f, logY - (i - start) * lineH);
         }
     }
 
@@ -263,28 +283,45 @@ public class BattleScreen implements Screen, BattleView {
             20, cardRowY);
     }
 
-    private void drawFooter(float sw) {
-        assets.fontSmall.setColor(Color.DARK_GRAY);
-        assets.fontSmall.draw(batch,
-            awaitingInput ? "Click a move to queue. ENTER = confirm." : "",
-            20, 10);
+    private void drawNextRoundButton() {
+        if (!awaitingNextRound) return;
+        if (nextRoundHovered) {
+            assets.battleUi.lockButtonOver.draw(batch, nextRoundBounds.x, nextRoundBounds.y,
+                nextRoundBounds.width, nextRoundBounds.height);
+        } else {
+            assets.battleUi.lockButton.draw(batch, nextRoundBounds.x, nextRoundBounds.y,
+                nextRoundBounds.width, nextRoundBounds.height);
+        }
+        assets.fontMedium.setColor(Color.WHITE);
+        assets.fontMedium.draw(batch, "NEXT ROUND", nextRoundBounds.x + 16f,
+            nextRoundBounds.y + nextRoundBounds.height - 15f);
     }
 
     private void drawBattleOver() {
         float sw = Gdx.graphics.getWidth();
         float sh = Gdx.graphics.getHeight();
         batch.begin();
+        float width = Math.min(420f, sw - 48f);
+        float x = (sw - width) / 2f;
+        float y = sh * 0.35f;
+        assets.battleUi.header.draw(batch, x, y, width, 180f);
         assets.fontLarge.setColor(Color.WHITE);
-        assets.fontLarge.draw(batch, "BATTLE OVER", 20, sh * 0.6f);
+        assets.fontLarge.draw(batch, "BATTLE OVER", x + 36f, y + 132f);
         assets.fontMedium.setColor(Color.YELLOW);
-        assets.fontMedium.draw(batch, battleResult, 20, sh * 0.5f);
+        assets.fontMedium.draw(batch, battleResult, x + 36f, y + 86f);
         assets.fontSmall.setColor(Color.LIGHT_GRAY);
-        assets.fontSmall.draw(batch, "ESC: main menu", 20, sh * 0.35f);
+        assets.fontSmall.draw(batch, "ESC: MAIN MENU", x + 36f, y + 36f);
         batch.end();
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             game.showMainMenu();
         }
+    }
+
+    private static String shorten(String text, float width) {
+        int maxCharacters = Math.max(8, (int) (width / 5.5f));
+        if (text.length() <= maxCharacters) return text;
+        return text.substring(0, maxCharacters - 1) + ".";
     }
 
     // -------------------------------------------------------------------------
@@ -382,6 +419,7 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public void displayCombatEvents(List<CombatEvent> events, BattleState state) {
+        Gdx.app.postRunnable(() -> phaseLabel = "ROUND " + state.getRoundNumber() + "  —  RESOLVING");
         for (CombatEvent e : events) {
             if (!e.getMessage().isBlank()) {
                 final String msg = e.getMessage();
@@ -389,19 +427,37 @@ public class BattleScreen implements Screen, BattleView {
                     logLines.add(msg);
                     updatePanels();
                 });
-                sleepMs(60); // brief pause between events
+                sleepMs(EVENT_DELAY_MS);
             }
         }
-        sleepMs(300);
+        sleepMs(EVENT_DELAY_MS);
     }
 
     @Override
     public void displayRoundEnd(BattleState state) {
         Gdx.app.postRunnable(() -> {
-            phaseLabel = "ROUND END";
+            phaseLabel = "ROUND " + Math.max(1, state.getRoundNumber() - 1) + "  —  COMPLETE";
             updatePanels();
         });
-        sleepMs(500);
+    }
+
+    @Override
+    public void awaitNextRound(BattleState state) {
+        nextRoundConfirmed = false;
+        Gdx.app.postRunnable(() -> {
+            awaitingInput = false;
+            awaitingNextRound = true;
+            nextRoundHovered = false;
+        });
+
+        while (!nextRoundConfirmed) {
+            sleepMs(16);
+        }
+
+        Gdx.app.postRunnable(() -> {
+            awaitingNextRound = false;
+            nextRoundHovered = false;
+        });
     }
 
     @Override
@@ -428,10 +484,28 @@ public class BattleScreen implements Screen, BattleView {
     // -------------------------------------------------------------------------
 
     private void initPanels() {
-        float sw = Gdx.graphics.getWidth();
-        float sh = Gdx.graphics.getHeight();
-        enemyPanel  = new CombatantPanel(assets.enemySprite,  sw * 0.65f, sh * 0.55f);
-        playerPanel = new CombatantPanel(assets.playerSprite, sw * 0.1f,  sh * 0.15f);
+        layoutExecutionUi(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+    }
+
+    /** Recreates all execution widgets from the live viewport after a resize. */
+    private void layoutExecutionUi(float width, float height) {
+        float margin = Math.min(42f, Math.max(22f, width * 0.035f));
+        float headerHeight = 60f;
+        executionHeaderBounds.set(margin, height - margin - headerHeight, width - margin * 2f, headerHeight);
+
+        float spriteWidth = Math.min(180f, Math.max(112f, width * 0.16f));
+        float spriteHeight = spriteWidth * 1.5f;
+        float spriteY = Math.max(90f, height * 0.40f - spriteHeight * 0.35f);
+        playerPanel = new CombatantPanel(assets.playerSprite, assets.battleUi,
+            margin + 26f, spriteY, spriteWidth, spriteHeight);
+        enemyPanel = new CombatantPanel(assets.enemySprite, assets.battleUi,
+            width - margin - spriteWidth - 26f, spriteY, spriteWidth, spriteHeight);
+
+        float logWidth = Math.max(220f, width * 0.46f);
+        float logHeight = Math.min(180f, Math.max(112f, height * 0.28f));
+        logBounds.set((width - logWidth) / 2f, height * 0.34f, logWidth, logHeight);
+        nextRoundBounds.set(width / 2f - 94f, margin, 188f, 46f);
+        updatePanels();
     }
 
     private void updatePanels() {
