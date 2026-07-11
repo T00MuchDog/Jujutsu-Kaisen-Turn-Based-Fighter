@@ -596,11 +596,12 @@ public class BattleScreen implements Screen, BattleView {
         playerPanel = new CombatantPanel(assets.playerSprite, assets.battleUi,
             playerX, playerY, spriteWidth, spriteHeight, s);
 
-        // Log box, sized and positioned below the header.
-        float baseLogWidth = Math.min(390f, Math.max(220f, width * 0.46f));
-        float baseLogHeight = Math.min(180f, Math.max(112f, height * 0.28f));
-        float logWidth = Math.min(baseLogWidth * 1.8f, width * 0.63f);
-        float logHeight = baseLogHeight * 1.4f;
+        // Log box, sized and positioned below the header. Dimensions track the
+        // same height-driven portraitScale the sprites use, so the box shrinks
+        // and grows in lockstep with the combatant panels (no fixed floor that
+        // would leave it oversized on a small window). Capped to the viewport.
+        float logWidth  = Math.min(width * 0.63f, 260f + 420f * portraitScale);
+        float logHeight = 150f + 105f * portraitScale;
         // Extend the log box a couple of pixels downward so the bottom line isn't clipped.
         logBounds.set(margin, executionHeaderBounds.y - 14f - logHeight - 2f, logWidth, logHeight + 2f);
 
