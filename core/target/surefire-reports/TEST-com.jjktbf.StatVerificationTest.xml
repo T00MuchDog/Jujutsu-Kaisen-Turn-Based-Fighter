@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.jjktbf.StatVerificationTest" time="0.058" tests="15" errors="0" skipped="0" failures="0">
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="com.jjktbf.StatVerificationTest" time="0.073" tests="15" errors="0" skipped="0" failures="0">
   <properties>
     <property name="java.specification.version" value="25"/>
     <property name="sun.jnu.encoding" value="UTF-8"/>
@@ -12,7 +12,7 @@
     <property name="sun.java.launcher" value="SUN_STANDARD"/>
     <property name="user.country" value="AU"/>
     <property name="sun.boot.library.path" value="/opt/homebrew/Cellar/openjdk/25.0.2/libexec/openjdk.jdk/Contents/Home/lib"/>
-    <property name="sun.java.command" value="/Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/target/surefire/surefirebooter-20260711224523886_3.jar /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/target/surefire 2026-07-11T22-45-23_828-jvmRun1 surefire-20260711224523886_1tmp surefire_0-20260711224523886_2tmp"/>
+    <property name="sun.java.command" value="/Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/target/surefire/surefirebooter-20260711225954688_3.jar /Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/target/surefire 2026-07-11T22-59-54_618-jvmRun1 surefire-20260711225954688_1tmp surefire_0-20260711225954688_2tmp"/>
     <property name="http.nonProxyHosts" value="local|*.local|169.254/16|*.169.254/16"/>
     <property name="jdk.debug" value="release"/>
     <property name="surefire.test.class.path" value="/Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/target/test-classes:/Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/target/classes:/Users/zgranell/.m2/repository/com/fasterxml/jackson/core/jackson-databind/2.15.2/jackson-databind-2.15.2.jar:/Users/zgranell/.m2/repository/com/fasterxml/jackson/core/jackson-annotations/2.15.2/jackson-annotations-2.15.2.jar:/Users/zgranell/.m2/repository/com/fasterxml/jackson/core/jackson-core/2.15.2/jackson-core-2.15.2.jar:/Users/zgranell/.m2/repository/org/junit/jupiter/junit-jupiter/5.10.0/junit-jupiter-5.10.0.jar:/Users/zgranell/.m2/repository/org/junit/jupiter/junit-jupiter-api/5.10.0/junit-jupiter-api-5.10.0.jar:/Users/zgranell/.m2/repository/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar:/Users/zgranell/.m2/repository/org/junit/platform/junit-platform-commons/1.10.0/junit-platform-commons-1.10.0.jar:/Users/zgranell/.m2/repository/org/apiguardian/apiguardian-api/1.1.2/apiguardian-api-1.1.2.jar:/Users/zgranell/.m2/repository/org/junit/jupiter/junit-jupiter-params/5.10.0/junit-jupiter-params-5.10.0.jar:/Users/zgranell/.m2/repository/org/junit/jupiter/junit-jupiter-engine/5.10.0/junit-jupiter-engine-5.10.0.jar:/Users/zgranell/.m2/repository/org/junit/platform/junit-platform-engine/1.10.0/junit-platform-engine-1.10.0.jar:"/>
@@ -29,7 +29,7 @@
     <property name="java.vm.specification.vendor" value="Oracle Corporation"/>
     <property name="java.specification.name" value="Java Platform API Specification"/>
     <property name="apple.awt.application.name" value="ForkedBooter"/>
-    <property name="surefire.real.class.path" value="/Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/target/surefire/surefirebooter-20260711224523886_3.jar"/>
+    <property name="surefire.real.class.path" value="/Users/zgranell/Desktop/Personnal/Coding/JJKTBF/core/target/surefire/surefirebooter-20260711225954688_3.jar"/>
     <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
     <property name="ftp.nonProxyHosts" value="local|*.local|169.254/16|*.169.254/16"/>
     <property name="java.runtime.version" value="25.0.2"/>
@@ -59,12 +59,12 @@
     <property name="socksNonProxyHosts" value="local|*.local|169.254/16|*.169.254/16"/>
     <property name="java.class.version" value="69.0"/>
   </properties>
-  <testcase name="lowCeEfficiencyShouldIncreaseCost" classname="com.jjktbf.StatVerificationTest" time="0.017">
+  <testcase name="lowCeEfficiencyShouldIncreaseCost" classname="com.jjktbf.StatVerificationTest" time="0.019">
     <system-out><![CDATA[CE cost at efficiency 30: 40
 ]]></system-out>
   </testcase>
   <testcase name="blockDurationStartsAtFireTickAndUsesApCostWhenDurationIsZero" classname="com.jjktbf.StatVerificationTest" time="0.002"/>
-  <testcase name="baselineApBarShouldBeAround80" classname="com.jjktbf.StatVerificationTest" time="0.002">
+  <testcase name="baselineApBarShouldBeAround80" classname="com.jjktbf.StatVerificationTest" time="0.006">
     <system-out><![CDATA[Baseline AP bar: 80
 ]]></system-out>
   </testcase>
@@ -76,18 +76,18 @@
     <system-out><![CDATA[Max AP bar (300/300): 300
 ]]></system-out>
   </testcase>
-  <testcase name="sukunaShouldHaveShrineMovesOnly" classname="com.jjktbf.StatVerificationTest" time="0.005">
+  <testcase name="sukunaShouldHaveShrineMovesOnly" classname="com.jjktbf.StatVerificationTest" time="0.006">
     <system-out><![CDATA[Technique move: Dismantle requires: SHRINE
 Technique move: Cleave requires: SHRINE
 Technique move: Fleshy Strike requires: SHRINE
 ]]></system-out>
   </testcase>
-  <testcase name="blockReductionAppliesBeforeDefenseAndScaleRoll" classname="com.jjktbf.StatVerificationTest" time="0.003"/>
+  <testcase name="blockReductionAppliesBeforeDefenseAndScaleRoll" classname="com.jjktbf.StatVerificationTest" time="0.006"/>
   <testcase name="yujiShouldHaveExpectedMoveCount" classname="com.jjktbf.StatVerificationTest" time="0.001">
     <system-out><![CDATA[Yuji move count: 9
 ]]></system-out>
   </testcase>
-  <testcase name="zeroCeCostCanStillBeExplicitlyCeBased" classname="com.jjktbf.StatVerificationTest" time="0.0"/>
+  <testcase name="zeroCeCostCanStillBeExplicitlyCeBased" classname="com.jjktbf.StatVerificationTest" time="0.001"/>
   <testcase name="sukunaCleaveVsYujiDamageShouldBeReasonable" classname="com.jjktbf.StatVerificationTest" time="0.007">
     <system-out><![CDATA[Sukuna Cleave vs Yuji — power=294 defense=172
 Expected damage range: 79.9 – 94.0

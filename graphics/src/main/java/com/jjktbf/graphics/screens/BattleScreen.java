@@ -568,6 +568,9 @@ public class BattleScreen implements Screen, BattleView {
         layoutExecutionUi(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
     }
 
+    /** Scale applied to both combatant panels (sprites + bars). */
+    private static final float COMBATANT_SCALE = 1.105f;
+
     /** Recreates all execution widgets from the live viewport after a resize. */
     private void layoutExecutionUi(float width, float height) {
         float margin = Math.min(42f, Math.max(26f, width * 0.035f));
@@ -575,22 +578,41 @@ public class BattleScreen implements Screen, BattleView {
         executionHeaderBounds.set(margin, height - margin - headerHeight, width - margin * 2f, headerHeight);
 
         float portraitScale = Math.max(0f, Math.min(1f, (height - 600f) / 480f));
-        float spriteWidth = 90f + 160f * portraitScale;
-        float spriteHeight = spriteWidth * 1.5f;
+        float baseSpriteWidth = 90f + 160f * portraitScale;
+        float baseSpriteHeight = baseSpriteWidth * 1.5f;
+        // Sprites and bars grow by COMBATANT_SCALE.
+        float spriteWidth = baseSpriteWidth * COMBATANT_SCALE;
+        float spriteHeight = baseSpriteHeight * COMBATANT_SCALE;
+
         float sideInset = margin + 54f + 36f * portraitScale;
-        float playerY = margin + 66f + 58f * portraitScale;
-        float enemyY = executionHeaderBounds.y - 14f - spriteHeight - 36f;
+        float s = COMBATANT_SCALE;
+
+        // Player (bottom-left of screen): pin the bar block's bottom-left corner
+        // so the panel grows upward and to the right. The bars hang below the
+        // sprite; pinning their lowest-leftmost point keeps them grounded while
+        // the sprite rises. At s=1 these reduce to the original positions.
+        float playerX = sideInset + 17f * (s - 1f);
+        float playerY = margin + 66f + 58f * portraitScale + 84f * (s - 1f);
         playerPanel = new CombatantPanel(assets.playerSprite, assets.battleUi,
-            sideInset, playerY, spriteWidth, spriteHeight);
+            playerX, playerY, spriteWidth, spriteHeight, s);
+
+        // Enemy (top-right of screen): pin the panel's top-right corner (name
+        // plate top + frame right) so it grows downward and to the left. At s=1
+        // these reduce to the original enemy positions.
+        float enemyX = width - sideInset + 10f - spriteWidth - 10f * s;
+        float enemyY = executionHeaderBounds.y - 8f - spriteHeight - 42f * s;
         enemyPanel = new CombatantPanel(assets.enemySprite, assets.battleUi,
-            width - sideInset - spriteWidth, enemyY, spriteWidth, spriteHeight);
+            enemyX, enemyY, spriteWidth, spriteHeight, s);
 
         float baseLogWidth = Math.min(390f, Math.max(220f, width * 0.46f));
         float baseLogHeight = Math.min(180f, Math.max(112f, height * 0.28f));
         float logWidth = Math.min(baseLogWidth * 1.8f, width * 0.63f);
         float logHeight = baseLogHeight * 1.4f;
         logBounds.set(margin, executionHeaderBounds.y - 14f - logHeight, logWidth, logHeight);
-        nextRoundBounds.set(width - margin - 210f, margin, 210f, 52f);
+        // Align the Next Round button's right edge with the enemy sprite's right edge.
+        float enemyRight = enemyX + spriteWidth;
+        float nextRoundWidth = 210f;
+        nextRoundBounds.set(enemyRight - nextRoundWidth, margin, nextRoundWidth, 52f);
         updatePanels();
     }
 
