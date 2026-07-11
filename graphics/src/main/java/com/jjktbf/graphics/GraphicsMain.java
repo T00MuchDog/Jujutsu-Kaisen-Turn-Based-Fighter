@@ -34,7 +34,7 @@ public class GraphicsMain {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
 
         config.setTitle("Jujutsu Kaisen — Turn Based Fighter");
-        config.setFullscreenMode(Lwjgl3ApplicationConfiguration.getDisplayMode());
+        config.setWindowedMode(1024, 600);
         config.setResizable(true);
         config.setForegroundFPS(60);
         config.useVsync(true);

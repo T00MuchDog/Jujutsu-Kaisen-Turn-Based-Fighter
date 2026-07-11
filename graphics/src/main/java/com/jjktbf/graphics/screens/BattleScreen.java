@@ -13,6 +13,7 @@ import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.ui.CombatantPanel;
 import com.jjktbf.graphics.ui.MoveCard;
+import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
