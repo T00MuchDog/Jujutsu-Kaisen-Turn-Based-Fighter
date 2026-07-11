@@ -6,17 +6,34 @@
 
     <groupId>com.jjktbf</groupId>
     <artifactId>jjktbf-parent</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>${revision}</version>
     <packaging>pom</packaging>
 
     <name>JJK Turn-Based Fighter</name>
 
+    <!--
+        Single source of truth for the application version.
+
+        To cut a release, change ONLY the <revision> value below (or override
+        it on the command line, e.g. mvn -Drevision=1.2.0 ...). It propagates
+        automatically to:
+          * the core/graphics module JARs (graphics-<revision>.jar),
+          * the jpackage app version,
+          * the .dmg / .msi distribution filenames,
+          * the GitHub Release created from a pushed tag.
+
+        Use a release number such as 1.0.0 (NOT a SNAPSHOT) when packaging.
+    -->
     <modules>
         <module>core</module>
         <module>graphics</module>
     </modules>
 
     <properties>
+        <!-- AUTHORITATIVE VERSION: edit this one value to release. -->
+        <revision>1.0.0</revision>
+        <revision>1.0.0</revision>
+
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -83,6 +100,37 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
                     <version>3.1.2</version>
+                </plugin>
+                <!--
+                    CI-friendly versioning: resolve ${revision} in the POM so
+                    published/installed POMs contain a concrete version instead
+                    of the literal property. Must run in the package phase
+                    before shade so the shaded JAR manifest version is correct.
+                -->
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>flatten-maven-plugin</artifactId>
+                    <version>1.6.0</version>
+                    <configuration>
+                        <updatePomFile>true</updatePomFile>
+                        <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>flatten</id>
+                            <phase>process-resources</phase>
+                            <goals>
+                                <goal>flatten</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>flatten.clean</id>
+                            <phase>clean</phase>
+                            <goals>
+                                <goal>clean</goal>
+                            </goals>
+                        </execution>
+                    </executions>
                 </plugin>
             </plugins>
         </pluginManagement>
