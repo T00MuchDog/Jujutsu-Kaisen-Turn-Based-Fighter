@@ -24,7 +24,7 @@ public class TimelineBar {
     private final Kind kind;
     private final Rectangle bounds;
     private final int dotCount;       // 300
-    private final float dotSpacing;   // px between consecutive dot centres
+    private float dotSpacing;         // px between consecutive dot centres
 
     public TimelineBar(Kind kind, float x, float y, float width, float height) {
         this.kind = kind;
@@ -41,6 +41,9 @@ public class TimelineBar {
 
     public void setBounds(float x, float y, float width, float height) {
         bounds.set(x, y, width, height);
+        // Bars are constructed before the screen is laid out, so their initial
+        // placeholder width must never define the real AP grid spacing.
+        dotSpacing = width / dotCount;
     }
 
     /** Pixel x (centre) of dot {@code tick} (1-indexed). */
@@ -70,13 +73,16 @@ public class TimelineBar {
     public void draw(Batch batch, BattleUiAssets ui, boolean isDropTarget) {
         ui.track(kind, isDropTarget).draw(batch, bounds.x, bounds.y, bounds.width, bounds.height);
 
-        float midY = bounds.y + bounds.height / 2f - 1.5f;
+        float dotSize = Math.max(2f, Math.min(4f, dotSpacing * 0.65f));
+        float midY = bounds.y + bounds.height / 2f - dotSize / 2f;
         for (int i = 1; i <= dotCount; i++) {
             boolean major = i == 1 || i == dotCount || i % 25 == 0;
             if (major) {
-                batch.draw(ui.majorDot, dotX(i) - 2.5f, midY - 1f, 5f, 5f);
+                float majorSize = Math.max(3f, dotSize + 1f);
+                batch.draw(ui.majorDot, dotX(i) - majorSize / 2f,
+                    bounds.y + bounds.height / 2f - majorSize / 2f, majorSize, majorSize);
             } else {
-                batch.draw(ui.dot, dotX(i) - 1.5f, midY, 3f, 3f);
+                batch.draw(ui.dot, dotX(i) - dotSize / 2f, midY, dotSize, dotSize);
             }
         }
     }

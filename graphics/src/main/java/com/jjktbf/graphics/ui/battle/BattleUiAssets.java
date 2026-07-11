@@ -137,18 +137,8 @@ public final class BattleUiAssets {
 
     private Texture dotTexture(boolean major) {
         Pixmap pm = new Pixmap(major ? 5 : 3, major ? 5 : 3, Pixmap.Format.RGBA8888);
-        pm.setColor(0f, 0f, 0f, 0f);
+        pm.setColor(major ? Color.WHITE : new Color(0.870f, 0.910f, 1f, 1f));
         pm.fill();
-        pm.setColor(major ? new Color(1f, 0.870f, 0.420f, 1f) : new Color(0.870f, 0.910f, 1f, 0.9f));
-        if (major) {
-            pm.drawPixel(2, 1);
-            pm.drawPixel(1, 2);
-            pm.drawPixel(2, 2);
-            pm.drawPixel(3, 2);
-            pm.drawPixel(2, 3);
-        } else {
-            pm.drawPixel(1, 1);
-        }
         return texture(pm);
     }
 
