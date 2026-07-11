@@ -3,4 +3,6 @@ will contain a defense section and a attack section which contains the customize
 case where details are selected and the tag is unselected then the section disappears from the editor but if it retagged before,
 the move is saved the details reappear, they are only discarded after saving without the tag toggled.
 
-High Priority; Update Battle timeline execution scene
+Medium Priority; Redesign Editor UI to match battle UI. Create basic moves, abilities, techniques, and characters.
+
+High Priority; Create Enemy AI
