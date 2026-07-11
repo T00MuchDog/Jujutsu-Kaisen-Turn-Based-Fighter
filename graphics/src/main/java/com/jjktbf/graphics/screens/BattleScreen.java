@@ -77,6 +77,8 @@ public class BattleScreen implements Screen, BattleView {
     private volatile boolean inputConfirmed = false;
     private volatile boolean awaitingNextRound = false;
     private volatile boolean nextRoundConfirmed = false;
+    /** True while resolution tick calls are streaming; used to pace between ticks. */
+    private volatile boolean resolvingTicks = false;
     private boolean nextRoundHovered = false;
 
     // ── Planning panel (two-board timeline UI) ─────────────────────────────────
@@ -108,11 +110,16 @@ public class BattleScreen implements Screen, BattleView {
         inputConfirmed = false;
         awaitingNextRound = false;
         nextRoundConfirmed = false;
+        resolvingTicks = false;
         battleOver     = false;
     }
 
+    /** Last frame's delta, shared with widgets that animate (e.g. HP bars). */
+    private float frameDelta = 0f;
+
     @Override
     public void render(float delta) {
+        frameDelta = delta;
         clearScreen();
         handleInput();
         drawAll();
@@ -239,9 +246,9 @@ public class BattleScreen implements Screen, BattleView {
         batch.begin();
         drawExecutionChrome(sw, sh);
         if (enemyPanel  != null && renderEnemy  != null)
-            enemyPanel.draw(batch, assets.fontLog, assets.fontSmall, renderEnemy.getCharacter().getName());
+            enemyPanel.draw(batch, assets.fontLog, assets.fontSmall, renderEnemy.getCharacter().getName(), frameDelta);
         if (playerPanel != null && renderPlayer != null)
-            playerPanel.draw(batch, assets.fontLog, assets.fontSmall, renderPlayer.getCharacter().getName());
+            playerPanel.draw(batch, assets.fontLog, assets.fontSmall, renderPlayer.getCharacter().getName(), frameDelta);
         drawLog(sw, sh);
         if (awaitingInput && planningPanel == null && !moveCards.isEmpty()) drawMoveCards();
         drawNextRoundButton();
@@ -487,17 +494,14 @@ public class BattleScreen implements Screen, BattleView {
     public void displayCombatEvents(List<CombatEvent> events, BattleState state) {
         Gdx.app.postRunnable(() -> phaseLabel = "ROUND " + state.getRoundNumber() + "  —  RESOLVING");
 
-        // Reveal events grouped by AP tick: a longer pause (TICK_DELAY_MS) marks
-        // each tick boundary so the sweep reads at a deliberate cadence, while
-        // individual events within a tick still arrive one at a time (EVENT_DELAY_MS).
-        int lastTick = -1;
+        // Each call now corresponds to one tick of real engine progression (the
+        // controller drives the resolver tick-by-tick). Pause between successive
+        // resolution calls so the sweep reads at a deliberate cadence; skip the
+        // pause on the first call of a sequence.
+        if (resolvingTicks) sleepMs(TICK_DELAY_MS);
+        resolvingTicks = true;
+
         for (CombatEvent e : events) {
-            int tick = e.getTick();
-            // Round-end / system events (tick 0) don't advance the tick counter.
-            if (tick > 0 && tick != lastTick) {
-                if (lastTick > 0) sleepMs(TICK_DELAY_MS);
-                lastTick = tick;
-            }
             if (!e.getMessage().isBlank()) {
                 final String msg = e.getMessage();
                 Gdx.app.postRunnable(() -> {
@@ -507,11 +511,11 @@ public class BattleScreen implements Screen, BattleView {
                 sleepMs(EVENT_DELAY_MS);
             }
         }
-        sleepMs(EVENT_DELAY_MS);
     }
 
     @Override
     public void displayRoundEnd(BattleState state) {
+        resolvingTicks = false;
         Gdx.app.postRunnable(() -> {
             phaseLabel = "ROUND " + Math.max(1, state.getRoundNumber() - 1) + " COMPLETE";
             updatePanels();

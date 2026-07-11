@@ -8,6 +8,10 @@ import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 /** A compact pixel-framed resource bar used by the execution combatants. */
 public class StatusBar {
 
+    private static final Color DAMAGE_COLOR = new Color(0.920f, 0.220f, 0.180f, 1f);
+    /** Fraction of the remaining gap eased per second toward the live value. */
+    private static final float EASE_RATE = 1.8f;
+
     private final String label;
     private final Color fillColor;
 
@@ -17,6 +21,9 @@ public class StatusBar {
     private float height;
     private int current;
     private int max;
+
+    /** Smoothed value that trails {@code current}; the gap is drawn red as damage. */
+    private float displayed = -1f;
 
     public StatusBar(String label, Color fillColor) {
         this.label = label;
@@ -35,13 +42,43 @@ public class StatusBar {
         this.max = Math.max(1, max);
     }
 
+    /** Advance the easing animation by {@code delta} seconds. */
+    public void update(float delta) {
+        if (displayed < 0f) {
+            displayed = current; // first frame — snap to the live value
+            return;
+        }
+        if (delta <= 0f) return;
+        if (current > displayed) {
+            // Healing — snap up so recovery reads instantly.
+            displayed = current;
+        } else if (current < displayed) {
+            // Damage — ease the trailing value down toward the new current.
+            float gap = displayed - current;
+            gap -= gap * Math.min(1f, EASE_RATE * delta);
+            displayed = current + gap;
+        }
+    }
+
     public void draw(Batch batch, BitmapFont font, BattleUiAssets ui) {
         ui.header.draw(batch, x, y, width, height);
 
         float inset = 5f;
-        float fillWidth = Math.max(0f, (width - inset * 2f) * current / max);
+        float inner = width - inset * 2f;
+        float fillHeight = height - inset * 2f;
+
+        // Live fill (green/blue) up to the current value.
+        float fillWidth = Math.max(0f, inner * current / max);
         batch.setColor(fillColor);
-        batch.draw(ui.pixel, x + inset, y + inset, fillWidth, height - inset * 2f);
+        batch.draw(ui.pixel, x + inset, y + inset, fillWidth, fillHeight);
+
+        // Damage trail: the portion between current and the still-easing
+        // displayed value flashes red, then shrinks away as it catches up.
+        if (displayed > current) {
+            float trailWidth = Math.max(0f, inner * (displayed - current) / max);
+            batch.setColor(DAMAGE_COLOR);
+            batch.draw(ui.pixel, x + inset + fillWidth, y + inset, trailWidth, fillHeight);
+        }
         batch.setColor(Color.WHITE);
 
         font.setColor(Color.WHITE);

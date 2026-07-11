@@ -10,6 +10,7 @@ com/jjktbf/model/move/MoveCategory.class
 com/jjktbf/model/character/CharacterStats.class
 com/jjktbf/model/move/MoveTag.class
 com/jjktbf/model/technique/InnateTechnique.class
+com/jjktbf/model/combat/CombatResolver$ResolutionCursor.class
 com/jjktbf/model/character/StatKey.class
 com/jjktbf/model/combat/BattlePlan.class
 com/jjktbf/model/character/CharacterFactory.class
