@@ -110,6 +110,7 @@ public class BattleScreen implements Screen, BattleView {
     @Override public void resize(int w, int h) {
         batch.getProjectionMatrix().setToOrtho2D(0, 0, w, h);
         sr.getProjectionMatrix().setToOrtho2D(0, 0, w, h);
+        if (planningPanel != null) planningPanel.resize(w, h);
     }
     @Override public void pause()  {}
     @Override public void resume() {}
@@ -204,6 +205,13 @@ public class BattleScreen implements Screen, BattleView {
     private void drawAll() {
         if (battleOver) { drawBattleOver(); return; }
 
+        // Planning is a dedicated workspace. Drawing the combat HUD behind it
+        // made both the board and the move cards compete for attention.
+        if (planningPanel != null) {
+            planningPanel.draw(batch, assets.fontSmall, assets.fontMedium);
+            return;
+        }
+
         float sw = Gdx.graphics.getWidth();
         float sh = Gdx.graphics.getHeight();
 
@@ -225,11 +233,6 @@ public class BattleScreen implements Screen, BattleView {
         drawFooter(sw);
         batch.end();
 
-        // Planning panel (owns its own shape + batch passes) — drawn last so it
-        // sits on top during the planning phase.
-        if (planningPanel != null) {
-            planningPanel.draw(sr, batch, assets.fontSmall);
-        }
     }
 
     private void drawPhaseLabel(float sw, float sh) {
@@ -337,21 +340,12 @@ public class BattleScreen implements Screen, BattleView {
      */
     @Override
     public BattlePlan promptBattlePlan(BattleCombatant combatant, BattleCombatant opponent) {
-        final int screenW = Gdx.graphics.getWidth();
-        final int screenH = Gdx.graphics.getHeight();
         Gdx.app.postRunnable(() -> {
             renderPlayer = combatant;
             renderEnemy  = opponent;
             phaseLabel   = "PLAN YOUR ROUND";
-            // Bars occupy the right ~55% of the screen, vertically centred-ish
-            // in the lower area per the spec.
-            float barW = screenW * 0.55f;
-            float barH = 46f;
-            float barGap = 64f; // gap for the Lock In button
-            float originX = screenW - barW - 40f;
-            float originY = barH + 24f; // defensive bar baseline
             planningPanel = new com.jjktbf.graphics.ui.battle.PlanningPanel(
-                combatant, originX, originY, barW, barH, barGap);
+                combatant, assets.battleUi, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
             planningPanel.setOnConfirm(() -> { inputConfirmed = true; });
             Gdx.input.setInputProcessor(planningPanel.inputProcessor());
             updatePanels();
@@ -366,13 +360,16 @@ public class BattleScreen implements Screen, BattleView {
         // Read the plan on the render thread to avoid racing a drag-commit.
         final java.util.concurrent.atomic.AtomicReference<com.jjktbf.model.combat.BattlePlan> holder =
             new java.util.concurrent.atomic.AtomicReference<>();
+        final java.util.concurrent.CountDownLatch panelClosed = new java.util.concurrent.CountDownLatch(1);
         Gdx.app.postRunnable(() -> {
             holder.set(planningPanel == null ? null : planningPanel.getPlan());
             Gdx.input.setInputProcessor(null);
             planningPanel = null;
+            panelClosed.countDown();
         });
-        // Wait for the runnable to populate the holder.
-        while (holder.get() == null) { sleepMs(4); }
+        // Wait for the render-thread cleanup, even if the defensive fallback is
+        // needed. Waiting on holder.get() would otherwise spin forever on null.
+        while (panelClosed.getCount() != 0) { sleepMs(4); }
         BattlePlan result = holder.get();
         if (result == null) {
             // Fallback: empty plan (bank the round) — should not normally happen.
