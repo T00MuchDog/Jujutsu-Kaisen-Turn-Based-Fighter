@@ -3,6 +3,7 @@ package com.jjktbf.model.repo;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.jjktbf.AppPaths;
 
 import java.io.File;
 import java.io.IOException;
@@ -47,11 +48,16 @@ public abstract class BaseRepository<D> {
     private final File dataFile;
 
     /**
-     * @param dataDirectory directory holding the JSON file.
+     * @param dataDirectory relative directory holding the JSON file
+     *                      (e.g. {@code "data/characters"}). Resolved against
+     *                      the per-user application-data directory via
+     *                      {@link AppPaths#resolve(String)}, so the game works
+     *                      regardless of the current working directory and
+     *                      player data survives upgrades.
      * @param fileName      the JSON file name (e.g. {@code "all_moves.json"}).
      */
     protected BaseRepository(String dataDirectory, String fileName) {
-        this.dataFile = new File(dataDirectory, fileName);
+        this.dataFile = new File(AppPaths.resolve(dataDirectory), fileName);
     }
 
     // -------------------------------------------------------------------------

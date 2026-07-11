@@ -1,6 +1,7 @@
 package com.jjktbf.graphics;
 
 import com.badlogic.gdx.Game;
+import com.jjktbf.AppPaths;
 import com.jjktbf.controller.BattleController;
 import com.jjktbf.graphics.screens.BattleScreen;
 import com.jjktbf.graphics.screens.CharacterSelectScreen;
@@ -120,11 +121,12 @@ public class JJKGame extends Game {
                 controller.runBattle(player, cpu);
             } catch (Throwable t) {
                 // The battle runs on a daemon thread; an uncaught throw would
-                // otherwise die silently. Write the stack trace to a file so the
-                // cause is recoverable.
+                // otherwise die silently. Write the stack trace to the per-user
+                // logs directory so the cause is recoverable regardless of the
+                // working directory (e.g. from a packaged app).
                 try {
                     java.io.PrintWriter pw = new java.io.PrintWriter(
-                        new java.io.FileWriter("battle_crash.log", true));
+                        new java.io.FileWriter(AppPaths.logFile().toFile(), true));
                     pw.println("===== " + java.time.Instant.now() + " =====");
                     t.printStackTrace(pw);
                     pw.close();

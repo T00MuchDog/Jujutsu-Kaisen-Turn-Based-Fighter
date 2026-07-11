@@ -1,0 +1,237 @@
+package com.jjktbf;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Comparator;
+
+/**
+ * Resolves all on-disk locations the game reads from and writes to, in a way
+ * that is independent of the process <em>current working directory</em>.
+ *
+ * <h3>Why this exists</h3>
+ * Historically the repositories and crash log used relative paths
+ * (e.g. {@code new File("data/characters")}, {@code battle_crash.log}),
+ * resolved against whatever directory the JVM was launched from. That works
+ * when running from the project root in an IDE, but a packaged application
+ * lives in a <b>read-only</b> install directory and can be launched from
+ * anywhere. Writing there fails (or, worse, silently scatters files).
+ *
+ * <h3>Solution</h3>
+ * All mutable state is kept under a per-user application-data directory that
+ * is specific to this game and stable across launches and upgrades:
+ * <ul>
+ *   <li><b>macOS:</b> {@code ~/Library/Application Support/JujutsuKaisenFighter/}</li>
+ *   <li><b>Windows:</b> {@code %APPDATA%\JujutsuKaisenFighter\}</li>
+ *   <li><b>Linux / other:</b> {@code ~/.jujutsukaisenfighter/}</li>
+ * </ul>
+ * Because this directory is outside the install location, installing a newer
+ * version of the game never deletes a player's data.
+ *
+ * <h3>Seeding</h3>
+ * On first launch the bundled default game-data JSON (shipped on the classpath
+ * under {@code data/...}) is copied into the per-user data directory. Existing
+ * files are <b>never</b> overwritten, so player edits survive every upgrade.
+ *
+ * <p>This class is pure Java (no libGDX) so it can live in the {@code core}
+ * module and be used by both the repositories and the desktop launcher.
+ */
+public final class AppPaths {
+
+    /** Display / folder name of the application. */
+    public static final String APP_NAME = "Jujutsu Kaisen Fighter";
+
+    /** Filesystem-safe folder name used under the per-user data root. */
+    private static final String APP_DIR_NAME = "JujutsuKaisenFighter";
+
+    /** Classpath prefix for the bundled default game data. */
+    private static final String BUNDLED_DATA_PREFIX = "data";
+
+    private AppPaths() {}
+
+    // -------------------------------------------------------------------------
+    // Per-user root
+    // -------------------------------------------------------------------------
+
+    /**
+     * The per-user application-data root, created if absent. Stable across
+     * launches and upgrades; outside the (read-only) install directory.
+     */
+    public static Path root() {
+        Path base;
+        String os = System.getProperty("os.name", "").toLowerCase();
+        if (os.contains("mac") || os.contains("darwin")) {
+            base = Paths.get(System.getProperty("user.home"),
+                             "Library", "Application Support", APP_DIR_NAME);
+        } else if (os.contains("win")) {
+            String appdata = System.getenv("APPDATA");
+            if (appdata != null && !appdata.isBlank()) {
+                base = Paths.get(appdata, APP_DIR_NAME);
+            } else {
+                base = Paths.get(System.getProperty("user.home"), APP_DIR_NAME);
+            }
+        } else {
+            // Linux / unspecified Unix.
+            String xdg = System.getenv("XDG_DATA_HOME");
+            if (xdg != null && !xdg.isBlank()) {
+                base = Paths.get(xdg, APP_DIR_NAME.toLowerCase());
+            } else {
+                base = Paths.get(System.getProperty("user.home"),
+                                 "." + APP_DIR_NAME.toLowerCase());
+            }
+        }
+        try {
+            Files.createDirectories(base);
+        } catch (IOException e) {
+            // Falling back to a relative dir keeps the game playable even if
+            // the canonical location is unwritable; the path is still fixed.
+            base = Paths.get(APP_DIR_NAME.toLowerCase());
+        }
+        return base;
+    }
+
+    /** Directory holding the editable game-data JSON ({@code data/...}). */
+    public static Path dataDir() {
+        return root().resolve("data");
+    }
+
+    /**
+     * The crash / diagnostic log file, under {@code <root>/logs/}.
+     */
+    public static Path logFile() {
+        Path logs = root().resolve("logs");
+        try {
+            Files.createDirectories(logs);
+        } catch (IOException ignored) {
+            // Best effort; the caller falls back below if needed.
+        }
+        return logs.resolve("battle_crash.log");
+    }
+
+    // -------------------------------------------------------------------------
+    // Path resolution for the repositories
+    // -------------------------------------------------------------------------
+
+    /**
+     * Map a caller-supplied relative data directory (e.g. {@code "data/characters"})
+     * onto the per-user data directory, returning the absolute path as a
+     * {@link java.io.File} for the existing repository code.
+     *
+     * <p>Callers keep passing the same relative strings they always did; this
+     * method transparently relocates them to a stable, writable location.
+     */
+    public static java.io.File resolve(String relativeDataDir) {
+        if (relativeDataDir == null || relativeDataDir.isBlank()) {
+            return dataDir().toFile();
+        }
+        // The repositories pass paths like "data/characters". Drop a leading
+        // "data/" so it maps under <root>/data/characters rather than
+        // <root>/data/data/characters.
+        String rel = relativeDataDir.replace('\\', '/');
+        String sub = rel;
+        if (rel.equals("data") || rel.startsWith("data/")) {
+            sub = rel.substring("data".length());
+            while (sub.startsWith("/")) sub = sub.substring(1);
+        }
+        Path resolved = sub.isEmpty() ? dataDir() : dataDir().resolve(sub);
+        try {
+            Files.createDirectories(resolved);
+        } catch (IOException ignored) {
+            // Repository load()/save() will surface a clearer error on failure.
+        }
+        return resolved.toFile();
+    }
+
+    // -------------------------------------------------------------------------
+    // First-run seeding from the classpath
+    // -------------------------------------------------------------------------
+
+    /**
+     * Copy the bundled default game-data JSON (classpath {@code data/...}) into
+     * the per-user data directory. Existing files are preserved, so this is
+     * safe to call on every launch and never clobbers player data on upgrade.
+     *
+     * <p>This mirrors the bundled files onto disk using the same classpath
+     * layout (e.g. {@code data/characters/all_characters.json}) by walking the
+     * known data subdirectories and files. Only the JSON shipped under the
+     * classpath {@code data} root is copied.
+     */
+    public static void seedDataIfAbsent() {
+        ClassLoader cl = loader();
+        // Known data files shipped on the classpath under data/ (see graphics
+        // POM resources). Listed explicitly so seeding works without a live
+        // filesystem walk of the jar, which is awkward to do portably.
+        String[] bundled = {
+            "data/characters/all_characters.json",
+            "data/moves/all_moves.json",
+            "data/abilities/all_abilities.json",
+            "data/techniques/all_techniques.json",
+        };
+        for (String resource : bundled) {
+            try {
+                seedOne(cl, resource);
+            } catch (IOException e) {
+                writeSeedError(resource, e);
+            }
+        }
+    }
+
+    private static void seedOne(ClassLoader cl, String resource) throws IOException {
+        Path dest = dataDir().resolve(resource.substring("data/".length()));
+        if (Files.exists(dest)) {
+            return; // never overwrite existing (player-edited) data
+        }
+        try (InputStream in = cl.getResourceAsStream(resource)) {
+            if (in == null) {
+                // The bundled data is missing from this build; the repository
+                // will fall back to its built-in seed. Not fatal.
+                return;
+            }
+            Files.createDirectories(dest.getParent());
+            try (OutputStream out = Files.newOutputStream(dest)) {
+                in.transferTo(out);
+            }
+        }
+    }
+
+    /**
+     * If seeding a data file fails, record the reason next to the data dir so a
+     * player can recover without needing console output. Best-effort only.
+     */
+    private static void writeSeedError(String resource, IOException cause) {
+        try {
+            Path err = root().resolve("seed_error.log");
+            String msg = java.time.Instant.now()
+                + "  could not seed " + resource + " : " + cause + System.lineSeparator();
+            Files.writeString(err, msg,
+                java.nio.file.StandardOpenOption.CREATE,
+                java.nio.file.StandardOpenOption.APPEND);
+        } catch (IOException ignored) {
+            // Nothing more we can do.
+        }
+    }
+
+    /**
+     * Recursively delete a directory tree. Intended for tests and manual reset
+     * only; production code must never wipe the per-user data dir.
+     */
+    public static void deleteRecursively(Path dir) throws IOException {
+        if (!Files.exists(dir)) return;
+        Files.walk(dir)
+             .sorted(Comparator.reverseOrder())
+             .forEach(p -> {
+                 try { Files.deleteIfExists(p); } catch (IOException ignored) {}
+             });
+    }
+
+    private static ClassLoader loader() {
+        ClassLoader cl = Thread.currentThread().getContextClassLoader();
+        return cl != null ? cl : AppPaths.class.getClassLoader();
+    }
+}

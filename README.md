@@ -31,19 +31,26 @@ mvn compile
 
 ### Run graphics mode (macOS — ALWAYS include -XstartOnFirstThread)
 ```bash
-mvn package -pl graphics -am -DskipTests
-java -XstartOnFirstThread -jar graphics/target/graphics-1.0-SNAPSHOT.jar
+mvn -Drevision=1.0.0 -pl core,graphics -am clean verify
+java -XstartOnFirstThread -jar graphics/target/graphics-1.0.0.jar
 ```
 
 > **macOS rule:** Every time you run the graphics JAR on macOS, the
 > `-XstartOnFirstThread` flag is required. GLFW (the windowing library) must
 > run on the main thread on Mac. This is permanent and non-negotiable.
+> (The packaged `.app`/`.dmg` sets this automatically — see Packaging below.)
 
 > **Rebuild rule:** Always repackage before running. Editing a `.java` file does
 > not update the JAR automatically.
 
 > The graphical editors are launched from the main menu inside the graphics
 > front-end — there is no separate editor command anymore.
+
+> **Where data lives:** On first launch the game copies its bundled default
+> data into a per-user directory (`~/Library/Application Support/JujutsuKaisenFighter/`
+> on macOS, `%APPDATA%\JujutsuKaisenFighter\` on Windows). The in-game editors
+> read and write there, so your edits persist across launches and survive
+> upgrades.
 
 ### Run tests
 ```bash
@@ -52,6 +59,31 @@ mvn test
 Tests live in `core/src/test/java/com/jjktbf/StatVerificationTest.java`.
 There are 14 tests covering HP, AP bar, hit chance, CE efficiency, move slots,
 Black Flash chance, damage range, block timing, block tag filters, and block damage ordering.
+
+---
+
+## Packaging & Releases
+
+The game ships as self-contained installers with a bundled Java runtime —
+players need no JDK, Maven, or source. See **[`RELEASE.md`](RELEASE.md)** for
+the full process; the short version:
+
+- The version lives in **one place**: `<revision>` in the root `pom.xml`.
+- Local build for the current OS:
+  ```bash
+  ./release.sh 1.0.0          # or: ./release.sh 1.0.0 fast   (skips tests)
+  ```
+  Output: `dist/JujutsuKaisenFighter-<ver>-<os>-<arch>.dmg` (macOS) / `.msi` (Windows).
+- Automated cross-platform release: push a tag `v1.0.0`. GitHub Actions builds
+  macOS (arm64 + x64) and Windows (x64) installers and attaches them to a
+  GitHub Release.
+- Rebranding: replace `packaging/icon.png` with a 1024×1024 master icon and
+  rebuild — no packaging config edits needed.
+- Player data (saves, edits, settings) is stored outside the app, so upgrades
+  never delete it.
+
+Key files: `release.sh`, `packaging/package.sh`, `packaging/make-icons.py`,
+`.github/workflows/release.yml`.
 
 ---
 
