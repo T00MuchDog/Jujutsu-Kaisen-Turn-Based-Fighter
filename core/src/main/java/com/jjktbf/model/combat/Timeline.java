@@ -28,7 +28,7 @@ import java.util.List;
 public class Timeline {
 
     /** The fixed grid length for production timelines (both offensive & defensive). */
-    public static final int DEFAULT_GRID_LENGTH = 300;
+    public static final int DEFAULT_GRID_LENGTH = 150;
 
     private final int gridLength;
     private final List<ActionSegment> segments = new ArrayList<>();

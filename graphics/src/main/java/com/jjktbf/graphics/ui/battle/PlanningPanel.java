@@ -184,7 +184,7 @@ public class PlanningPanel {
         float statWidth = compactLayout ? 82f : 104f;
         drawStat(batch, font, statX, headerBounds.y + (compactLayout ? 12f : 15f), statWidth, "AP", plan.totalApUsed() + "/" + plan.apBudget());
         drawStat(batch, font, statX + statWidth + 8f, headerBounds.y + (compactLayout ? 12f : 15f),
-            compactLayout ? 82f : 108f, "CE", plan.totalCeUsed() + "/" + plan.ceBudget());
+            compactLayout ? 82f : 108f, "CE", plan.remainingCe() + "/" + plan.ceBudget());
 
         if (confirmed) {
             ui.lockButtonDisabled.draw(batch, lockInBounds.x, lockInBounds.y, lockInBounds.width, lockInBounds.height);
