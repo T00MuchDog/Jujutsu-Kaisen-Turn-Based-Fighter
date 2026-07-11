@@ -1,0 +1,183 @@
+# Release pipeline — builds native macOS + Windows installers on their own
+# runners and attaches them to a GitHub Release.
+#
+# Trigger: push an annotated tag matching v* (e.g. v1.2.0). The version is
+# taken from the tag (the leading 'v' is stripped); you do not need to edit
+# any build file. See RELEASE.md for the full process.
+#
+# Each platform job:
+#   1. sets up JDK 17 (Temurin),
+#   2. runs packaging/package.sh with the tag version, producing one stamped
+#      artifact in dist/,
+#   3. uploads that artifact.
+#
+# The release job downloads all artifacts and publishes them to a GitHub
+# Release via softprops/action-gh-release.
+#
+# Code signing / notarization is OPTIONAL and secret-gated: the build runs
+# unsigned unless the corresponding secrets are present. See RELEASE.md for
+# how to add them later without changing this file.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # Allow manual runs from the Actions tab (use the default branch; no tag).
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g. 1.2.0), without leading v'
+        required: true
+        default: '0.0.0-dev'
+
+permissions:
+  contents: write   # needed by softprops/action-gh-release to create a release
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Determine the version once and share it.
+  # ---------------------------------------------------------------------------
+  context:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - id: ver
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            V="${{ github.event.inputs.version }}"
+          else
+            V="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Building version: $V"
+
+  # ---------------------------------------------------------------------------
+  # macOS (arm64 — Apple Silicon) and macOS (x64 — Intel).
+  # ---------------------------------------------------------------------------
+  build-macos:
+    needs: context
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest      # Apple Silicon (M1) -> arm64 .dmg
+            arch: arm64
+          - runner: macos-15-intel   # Intel -> x64 .dmg
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-m2-${{ matrix.arch }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2-${{ matrix.arch }}-
+
+      - name: Build macOS package
+        shell: bash
+        env:
+          # Signing is only active when ALL of these secrets exist.
+          APPLE_DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
+          APPLE_DEV_ID:       ${{ secrets.APPLE_APPLE_ID }}
+          APPLE_DEV_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_KEYCHAIN:     ${{ secrets.APPLE_KEYCHAIN }}
+        run: |
+          ./packaging/package.sh "${{ needs.context.outputs.version }}"
+
+      - name: Locate artifact
+        id: art
+        shell: bash
+        run: |
+          f="$(find dist -name 'JujutsuKaisenFighter-*.dmg' | head -1)"
+          echo "path=$f" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$f")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.art.outputs.name }}
+          path: ${{ steps.art.outputs.path }}
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Windows (x64).
+  # ---------------------------------------------------------------------------
+  build-windows:
+    needs: context
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # WiX (required by jpackage for MSI) is preinstalled on windows-latest.
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2-
+
+      - name: Build Windows package
+        shell: bash
+        env:
+          WIN_CERT_P12:     ${{ secrets.WIN_CERT_P12 }}
+          WIN_CERT_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+        run: |
+          ./packaging/package.sh "${{ needs.context.outputs.version }}"
+
+      - name: Locate artifact
+        id: art
+        shell: bash
+        run: |
+          f="$(find dist -name 'JujutsuKaisenFighter-*.msi' | head -1)"
+          echo "path=$f" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$f")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.art.outputs.name }}
+          path: ${{ steps.art.outputs.path }}
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Publish: gather all artifacts and attach them to a GitHub Release.
+  # ---------------------------------------------------------------------------
+  release:
+    needs: [context, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la artifacts
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', needs.context.outputs.version) || github.ref_name }}
+          name: ${{ needs.context.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: artifacts/*
