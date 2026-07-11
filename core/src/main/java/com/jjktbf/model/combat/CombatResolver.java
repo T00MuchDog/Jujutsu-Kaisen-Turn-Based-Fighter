@@ -64,14 +64,42 @@ public class CombatResolver {
     // -------------------------------------------------------------------------
 
     /**
-     * Execute the full resolution phase for one round.
+     * Execute the full resolution phase for one round. Convenience method that
+     * resolves every tick at once. Equivalent to calling
+     * {@link #beginResolution(BattleState)} then looping
+     * {@link #resolveTick(BattleState)} until {@link #hasMoreTicks()} is false.
      *
      * @param state     the current battle state (Phase must be RESOLUTION)
      * @return          ordered list of all events that occurred this resolution
      */
     public List<CombatEvent> resolveRound(BattleState state) {
         List<CombatEvent> events = new ArrayList<>();
+        beginResolution(state);
+        while (hasMoreTicks()) {
+            events.addAll(resolveTick(state));
+            if (state.isBattleOver()) break;
+        }
+        return events;
+    }
 
+    // -------------------------------------------------------------------------
+    // Per-tick resolution (driver steps the engine tick by tick)
+    // -------------------------------------------------------------------------
+
+    private static final class ResolutionCursor {
+        int tick;
+        int maxTick;
+        boolean sustainedDrained;
+    }
+
+    private final ThreadLocal<ResolutionCursor> cursor = ThreadLocal.withInitial(ResolutionCursor::new);
+
+    /**
+     * Prepare a resolution sweep. Drains sustained CE once and records the tick
+     * range to sweep. Must be called before {@link #resolveTick(BattleState)}.
+     */
+    public List<CombatEvent> beginResolution(BattleState state) {
+        List<CombatEvent> events = new ArrayList<>();
         BattleCombatant player = state.getPlayerCombatant();
         BattleCombatant enemy  = state.getEnemyCombatant();
 
@@ -83,35 +111,60 @@ public class CombatResolver {
             enemyTimeline  != null ? enemyTimeline.getGridLength()  : 0
         );
 
+        ResolutionCursor c = cursor.get();
+        c.tick = 0;
+        c.maxTick = maxTick;
+        c.sustainedDrained = true;
+
         drainSustainedCe(player, events);
         drainSustainedCe(enemy, events);
+        return events;
+    }
 
-        for (int tick = 1; tick <= maxTick; tick++) {
-            state.advanceTick();
+    /** True while there are still ticks left to resolve in the current sweep. */
+    public boolean hasMoreTicks() {
+        ResolutionCursor c = cursor.get();
+        return c.sustainedDrained && c.tick < c.maxTick;
+    }
 
-            // --- CE drain when a segment starts ---
-            drainCeForStartingSegments(player, tick, events);
-            drainCeForStartingSegments(enemy,  tick, events);
+    /**
+     * Advance the action counter by one tick and resolve everything that fires
+     * on it. Returns the events produced by this tick only (empty if nothing
+     * happened). The sustained-CE drain happens once, in beginResolution.
+     */
+    public List<CombatEvent> resolveTick(BattleState state) {
+        ResolutionCursor c = cursor.get();
+        if (!c.sustainedDrained || c.tick >= c.maxTick) return List.of();
 
-            // --- Collect all moves firing this tick ---
-            List<FiringEntry> firing = collectFiringMoves(player, enemy, tick);
+        c.tick++;
+        int tick = c.tick;
+        List<CombatEvent> events = new ArrayList<>();
 
-            // --- Sort by priority ---
-            sortFiringEntries(firing, player, enemy);
+        BattleCombatant player = state.getPlayerCombatant();
+        BattleCombatant enemy  = state.getEnemyCombatant();
 
-            // --- Resolve each firing move ---
-            for (FiringEntry entry : firing) {
-                if (entry.segment.isKnockedOut()) continue;
-                if (state.checkAndResolveBattleOver()) {
-                    events.add(CombatEvent.of(CombatEvent.Type.BATTLE_OVER)
-                        .tick(tick)
-                        .message("Battle ended during resolution!").build());
-                    return events;
-                }
-                resolveMove(entry, player, enemy, state, tick, events);
+        state.advanceTick();
+
+        // --- CE drain when a segment starts ---
+        drainCeForStartingSegments(player, tick, events);
+        drainCeForStartingSegments(enemy,  tick, events);
+
+        // --- Collect all moves firing this tick ---
+        List<FiringEntry> firing = collectFiringMoves(player, enemy, tick);
+
+        // --- Sort by priority ---
+        sortFiringEntries(firing, player, enemy);
+
+        // --- Resolve each firing move ---
+        for (FiringEntry entry : firing) {
+            if (entry.segment.isKnockedOut()) continue;
+            if (state.checkAndResolveBattleOver()) {
+                events.add(CombatEvent.of(CombatEvent.Type.BATTLE_OVER)
+                    .tick(tick)
+                    .message("Battle ended during resolution!").build());
+                return events;
             }
-
-            if (state.isBattleOver()) break;
+            resolveMove(entry, player, enemy, state, tick, events);
         }
 
         return events;

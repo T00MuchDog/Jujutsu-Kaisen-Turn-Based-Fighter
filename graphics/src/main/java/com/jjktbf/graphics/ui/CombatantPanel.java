@@ -49,15 +49,15 @@ public class CombatantPanel {
         ceBar.setValues(combatant.getCurrentCe(), combatant.getEffectiveCombatStats().getMaxCursedEnergy());
     }
 
-    public void draw(Batch batch, BitmapFont font, String name) {
-        draw(batch, font, font, name);
+    public void draw(Batch batch, BitmapFont font, String name, float delta) {
+        draw(batch, font, font, name, delta);
     }
 
     /**
      * Draw with separate fonts for the name plate and the resource bars, so the
      * name can be rendered larger without crowding the HP/CE labels.
      */
-    public void draw(Batch batch, BitmapFont nameFont, BitmapFont barFont, String name) {
+    public void draw(Batch batch, BitmapFont nameFont, BitmapFont barFont, String name, float delta) {
         float frameX = x - 10f;
         float frameY = y - 10f;
         ui.palette.draw(batch, frameX, frameY, spriteWidth + 20f, spriteHeight + 20f);
@@ -73,6 +73,8 @@ public class CombatantPanel {
         nameFont.draw(batch, name,
             frameX + (spriteWidth + 20f - nameLayout.width) / 2f,
             plateY + NAME_PLATE_HEIGHT / 2f + nameLayout.height / 2f);
+        hpBar.update(delta);
+        ceBar.update(delta);
         hpBar.draw(batch, barFont, ui);
         ceBar.draw(batch, barFont, ui);
     }

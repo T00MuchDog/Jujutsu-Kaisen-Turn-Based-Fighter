@@ -127,8 +127,18 @@ public class BattleController {
 
     private void runResolutionPhase(BattleState state, BattleCombatant player, BattleCombatant enemy) {
         state.transitionTo(BattleState.Phase.RESOLUTION);
-        List<CombatEvent> events = resolver.resolveRound(state);
-        view.displayCombatEvents(events, state);
+
+        // Drive the engine tick by tick so the view's pacing reflects real
+        // progression, not a replay of pre-computed results. Each tick's events
+        // are handed to the view as they are produced.
+        List<CombatEvent> opening = resolver.beginResolution(state);
+        if (!opening.isEmpty()) view.displayCombatEvents(opening, state);
+
+        while (resolver.hasMoreTicks()) {
+            List<CombatEvent> tickEvents = resolver.resolveTick(state);
+            if (!tickEvents.isEmpty()) view.displayCombatEvents(tickEvents, state);
+            if (state.isBattleOver()) break;
+        }
 
         state.checkAndResolveBattleOver();
     }
