@@ -157,12 +157,12 @@ public class PlanningPanel {
         }
     }
 
-    public void draw(Batch batch, BitmapFont font, BitmapFont titleFont) {
+    public void draw(Batch batch, BitmapFont font, BitmapFont titleFont, BitmapFont statFont) {
         refresh();
         batch.begin();
         drawHeader(batch, font, titleFont);
-        drawTimelineLabel(batch, font, offensiveBar, "OFFENSE", "ATTACK MOVES", ui.offenseIcon, BattleUiAssets.OFFENSE);
-        drawTimelineLabel(batch, font, defensiveBar, "DEFENSE", "UTILITY + BLOCK", ui.defenseIcon, BattleUiAssets.DEFENSE);
+        drawTimelineLabel(batch, font, offensiveBar, "OFFENSE", ui.offenseIcon, BattleUiAssets.OFFENSE);
+        drawTimelineLabel(batch, font, defensiveBar, "DEFENSE", ui.defenseIcon, BattleUiAssets.DEFENSE);
 
         offensiveBar.draw(batch, ui, isDropTarget(BattlePlan.Board.OFFENSIVE));
         defensiveBar.draw(batch, ui, isDropTarget(BattlePlan.Board.DEFENSIVE));
@@ -170,7 +170,7 @@ public class PlanningPanel {
         for (ActionSegmentView view : defensiveViews) view.draw(batch, font, ui);
 
         ui.palette.draw(batch, paletteBounds.x, paletteBounds.y, paletteBounds.width, paletteBounds.height);
-        for (MoveCardView card : cards) card.draw(batch, font, ui, ceCost(card.getMove()));
+        for (MoveCardView card : cards) card.draw(batch, titleFont, statFont, ui, ceCost(card.getMove()));
         drawDragAvatar(batch, font);
         batch.end();
     }
@@ -206,7 +206,7 @@ public class PlanningPanel {
         font.draw(batch, value, x + 31f, y + 19f);
     }
 
-    private void drawTimelineLabel(Batch batch, BitmapFont font, TimelineBar bar, String label, String detail,
+    private void drawTimelineLabel(Batch batch, BitmapFont font, TimelineBar bar, String label,
                                    com.badlogic.gdx.graphics.Texture icon, Color color) {
         Rectangle bounds = bar.getBounds();
         float x = compactLayout ? bounds.x + 4f : headerBounds.x + 4f;
@@ -214,10 +214,6 @@ public class PlanningPanel {
         batch.draw(icon, x, y - 8f, 16f, 16f);
         font.setColor(color);
         font.draw(batch, label, x + 23f, y + 8f);
-        if (!compactLayout) {
-            font.setColor(BattleUiAssets.MUTED);
-            font.draw(batch, detail, x + 23f, y - 7f);
-        }
     }
 
     private void drawDragAvatar(Batch batch, BitmapFont font) {

@@ -18,7 +18,7 @@ import java.util.Set;
  * CE cost:
  *  - baseCeCost is modified at use-time by the character's CE Efficiency stat.
  *  - minCeCost / maxCeCost are hard floors/ceilings that efficiency cannot breach.
- *  - Non-CE moves have all CE costs set to 0.
+ *  - hasCeCost distinguishes a CE move costing 0 from a move with no CE cost.
  *
  * Prerequisites:
  *  - A character cannot learn this move unless all prerequisite stat thresholds are met.
@@ -78,8 +78,11 @@ public class Move {
      */
     private final int unleashPoint;
 
-    /** Base CE cost before efficiency scaling. 0 for non-CE moves. */
+    /** Base CE cost before efficiency scaling. May be 0 when {@link #hasCeCost} is true. */
     private final int baseCeCost;
+
+    /** Whether this move has a CE cost at all (including an intentional cost of 0). */
+    private final boolean hasCeCost;
 
     /** Hard minimum CE cost — efficiency cannot reduce below this. */
     private final int minCeCost;
@@ -142,6 +145,7 @@ public class Move {
         this.apCost              = b.apCost;
         this.unleashPoint        = b.unleashPoint;
         this.baseCeCost          = b.baseCeCost;
+        this.hasCeCost           = b.hasCeCost != null ? b.hasCeCost : b.baseCeCost > 0;
         this.minCeCost           = b.minCeCost;
         this.maxCeCost           = b.maxCeCost;
         this.interruptType        = b.interruptType;
@@ -172,6 +176,7 @@ public class Move {
     public int getApCost()                        { return apCost; }
     public int getUnleashPoint()                  { return unleashPoint; }
     public int getBaseCeCost()                    { return baseCeCost; }
+    public boolean hasCeCost()                     { return hasCeCost; }
     public int getMinCeCost()                     { return minCeCost; }
     public int getMaxCeCost()                     { return maxCeCost; }
     public InterruptType getInterruptType()       { return interruptType; }
@@ -324,6 +329,7 @@ public class Move {
         private int apCost                   = 10;
         private int unleashPoint             = 10;
         private int baseCeCost               = 0;
+        private Boolean hasCeCost             = null;
         private int minCeCost                = 0;
         private int maxCeCost                = 0;
         private InterruptType interruptType  = InterruptType.NONE;
@@ -349,6 +355,7 @@ public class Move {
         public Builder apCost(int v)                       { this.apCost = v; return this; }
         public Builder unleashPoint(int v)                 { this.unleashPoint = v; return this; }
         public Builder baseCeCost(int v)                   { this.baseCeCost = v; return this; }
+        public Builder hasCeCost(boolean v)                { this.hasCeCost = v; return this; }
         public Builder minCeCost(int v)                    { this.minCeCost = v; return this; }
         public Builder maxCeCost(int v)                    { this.maxCeCost = v; return this; }
         public Builder interruptType(InterruptType v)      { this.interruptType = v; return this; }

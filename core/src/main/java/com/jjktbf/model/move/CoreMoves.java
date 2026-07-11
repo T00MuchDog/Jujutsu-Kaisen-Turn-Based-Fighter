@@ -122,7 +122,7 @@ public final class CoreMoves {
             .baseAccuracy(0.92)
             .apCost(20)
             .unleashPoint(14)
-            .baseCeCost(20).minCeCost(8).maxCeCost(40)
+            .baseCeCost(20).hasCeCost(true).minCeCost(8).maxCeCost(40)
             .interruptType(InterruptType.NONE)
             .defenseType(DefenseType.NONE)
             .prerequisites(java.util.Map.of("cursedenergyreserves", 60, "jujutsuskill", 50))
@@ -140,7 +140,7 @@ public final class CoreMoves {
             .baseAccuracy(0.90)
             .apCost(25)
             .unleashPoint(20)
-            .baseCeCost(30).minCeCost(15).maxCeCost(55)
+            .baseCeCost(30).hasCeCost(true).minCeCost(15).maxCeCost(55)
             .interruptType(InterruptType.NONE)
             .defenseType(DefenseType.NONE)
             .prerequisites(java.util.Map.of(
@@ -165,7 +165,7 @@ public final class CoreMoves {
             .baseAccuracy(0.95)
             .apCost(20)
             .unleashPoint(15)
-            .baseCeCost(35).minCeCost(20).maxCeCost(60)
+            .baseCeCost(35).hasCeCost(true).minCeCost(20).maxCeCost(60)
             .interruptType(InterruptType.NONE)
             .defenseType(DefenseType.NONE)
             .requiredTechniqueId("SHRINE")
@@ -184,7 +184,7 @@ public final class CoreMoves {
             .baseAccuracy(0.88)
             .apCost(30)
             .unleashPoint(25)
-            .baseCeCost(50).minCeCost(30).maxCeCost(80)
+            .baseCeCost(50).hasCeCost(true).minCeCost(30).maxCeCost(80)
             .interruptType(InterruptType.NONE)
             .defenseType(DefenseType.NONE)
             .requiredTechniqueId("SHRINE")
@@ -203,7 +203,7 @@ public final class CoreMoves {
             .baseAccuracy(0.90)
             .apCost(22)
             .unleashPoint(8)
-            .baseCeCost(25).minCeCost(12).maxCeCost(45)
+            .baseCeCost(25).hasCeCost(true).minCeCost(12).maxCeCost(45)
             .interruptType(InterruptType.KNOCK_NEXT_SEGMENT)
             .defenseType(DefenseType.NONE)
             .requiredTechniqueId("SHRINE")
@@ -227,7 +227,7 @@ public final class CoreMoves {
             .neverMiss(true)
             .apCost(12)
             .unleashPoint(1)          // instant activation
-            .baseCeCost(25).minCeCost(12).maxCeCost(45)
+            .baseCeCost(25).hasCeCost(true).minCeCost(12).maxCeCost(45)
             .defenseType(DefenseType.PERCENTAGE_BLOCK)
             .blockDuration(-1)        // lasts the entire round
             .blockDamageReduction(50) // PLACEHOLDER: 50% damage reduction

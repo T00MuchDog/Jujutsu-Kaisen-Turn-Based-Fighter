@@ -72,6 +72,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         m.apCost = 10;
         m.unleashPoint = 1;
         m.baseCeCost = 0;
+        m.hasCeCost = false;
         m.minCeCost = 0;
         m.maxCeCost = 0;
         m.interruptType = InterruptType.NONE.name();
@@ -109,6 +110,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         d.apCost                = s.apCost;
         d.unleashPoint          = s.unleashPoint;
         d.baseCeCost            = s.baseCeCost;
+        d.hasCeCost             = s.hasCeCost != null ? s.hasCeCost : s.baseCeCost > 0;
         d.minCeCost             = s.minCeCost;
         d.maxCeCost             = s.maxCeCost;
         d.interruptType         = s.interruptType;
@@ -258,10 +260,17 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 v -> { d.apCost = v; })).growX().colspan(2).row();
         form.add(labelledIntField("Unleash Point (1..AP)", d.unleashPoint, 1, 999,
                 v -> { d.unleashPoint = v; })).growX().colspan(2).row();
-        form.add(labelledIntField("Base CE Cost", d.baseCeCost, 0, 99999,
-                v -> { d.baseCeCost = v; refreshConditionalSections(d); })).growX().colspan(2).row();
+        CheckBox hasCeCostCb = new CheckBox(" Has CE cost", skin);
+        hasCeCostCb.setChecked(Boolean.TRUE.equals(d.hasCeCost));
+        hasCeCostCb.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                d.hasCeCost = hasCeCostCb.isChecked();
+                refreshConditionalSections(d);
+            }
+        });
+        form.add(hasCeCostCb).colspan(2).row();
 
-        // CE min/max (shown only when baseCeCost > 0)
+        // CE amount and min/max (shown only when the move has a CE cost).
         ceMinMaxContainer = new Container<>();
         ceMinMaxContainer.setActor(buildCeMinMax(d));
         form.add(ceMinMaxContainer).growX().colspan(2).row();
@@ -277,7 +286,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         neverMissCb.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
                 d.neverMiss = neverMissCb.isChecked();
-                markDirty();
+                refreshConditionalSections(d);
             }
         });
         form.add(neverMissCb).colspan(2).row();
@@ -353,8 +362,12 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         t.defaults().left().pad(4);
         t.add(labelledIntField("Base Power", d.basePower, 0, 99999,
                 v -> { d.basePower = v; })).growX().row();
+        if (d.neverMiss) {
+            t.add(hint("Accuracy is N/A for a never-miss move.")).row();
+            return t;
+        }
         // Accuracy as integer 1..100; stored /100 as double.
-        int acc = d.neverMiss ? 100 : (int) Math.round(d.baseAccuracy * 100.0);
+        int acc = (int) Math.round(d.baseAccuracy * 100.0);
         t.add(labelledIntField("Base Accuracy %", acc, 1, 100,
                 v -> { d.baseAccuracy = v / 100.0; })).growX().row();
         return t;
@@ -363,10 +376,12 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     private Actor buildCeMinMax(MoveData d) {
         Table t = new Table(skin);
         t.defaults().left().pad(4);
-        if (d.baseCeCost <= 0) {
-            t.add(hint("(set Base CE Cost > 0 to enable min/max)")).row();
+        if (!Boolean.TRUE.equals(d.hasCeCost)) {
+            t.add(hint("(this move has no CE cost)")).row();
             return t;
         }
+        t.add(labelledIntField("Base CE Cost", d.baseCeCost, 0, 99999,
+                v -> { d.baseCeCost = v; })).growX().row();
         t.add(labelledIntField("Min CE Cost", d.minCeCost, 0, d.baseCeCost,
                 v -> { d.minCeCost = v; })).growX().row();
         t.add(labelledIntField("Max CE Cost", d.maxCeCost, d.baseCeCost, 99999,
