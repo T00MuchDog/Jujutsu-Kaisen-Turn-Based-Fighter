@@ -68,6 +68,13 @@ These were established deliberately and should be maintained throughout developm
    - Graphics: `CharacterSelectScreen.java`, `CharacterEditorScreen.java`, `AssetLoader.java`, `assets/characters/`
 4. Follow-up task: the initial files under `assets/characters/` are replaceable placeholders. Replace them with authored per-character pixel art as the roster expands.
 
+### Recent engineering update — character dossier layout pass
+
+1. What changed: The dossier (right-hand) page of the character selection screen was re-laid out. The character name now sits in the top-left corner at a larger title size; the profile sprite is roughly three times larger and paired with HP/CE bars scaled to match it; base stats now use full words ("Strength", "Jujutsu Skill", "CE Reserves", …) instead of shorthand ("STR", "JS", …); and the description header and body render at the medium font size for legibility.
+2. Architectural/data/API implications: `AssetLoader` exposes a new `fontXLarge` (size 26) generated from the same bundled TTF and disposed alongside the other fonts. No DTO or persistence changes.
+3. Important files touched:
+   - Graphics: `CharacterSelectScreen.java` (page layout), `AssetLoader.java` (new font).
+
 ### Recent engineering update — paced execution and manual round advance
 
 1. What changed: Resolution events now advance at a deliberate 520 ms cadence instead of appearing almost instantly. At round end, the battle waits on a pixel-styled **Next Round** button before returning to planning. The execution HUD now uses the planner's pixel-frame texture kit: larger framed combatant sprites, in-frame HP/CE bars, a top-left battle log, a top-right enemy portrait, a bottom-left player portrait, and a bottom-right round button.
