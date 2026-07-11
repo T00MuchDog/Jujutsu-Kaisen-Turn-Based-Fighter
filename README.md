@@ -59,6 +59,15 @@ Black Flash chance, damage range, block timing, block tag filters, and block dam
 
 These were established deliberately and should be maintained throughout development.
 
+### Recent engineering update — character dossier selection
+
+1. What changed: Character selection is now a master-detail page: the selectable roster is on the left, while the selected character's sprite, full HP/CE bars, raw base stats, and flavour description render on the right. Selection remains keyboard-driven and can also be changed by clicking a roster row.
+2. Architectural/data/API implications: `CharacterData` now persists `description` and a relative `spriteAsset` path. `AssetLoader.characterSprite()` resolves and caches these textures, falling back to the player placeholder when an authored path is absent. The Character Editor exposes both fields. The domain `Character` remains combat-only; presentation metadata stays on the DTO.
+3. Important files touched:
+   - Core/data: `CharacterData.java`, `CharacterRepository.java`, `data/characters/all_characters.json`
+   - Graphics: `CharacterSelectScreen.java`, `CharacterEditorScreen.java`, `AssetLoader.java`, `assets/characters/`
+4. Follow-up task: the initial files under `assets/characters/` are replaceable placeholders. Replace them with authored per-character pixel art as the roster expands.
+
 ### Recent engineering update — paced execution and manual round advance
 
 1. What changed: Resolution events now advance at a deliberate 520 ms cadence instead of appearing almost instantly. At round end, the battle waits on a pixel-styled **Next Round** button before returning to planning. The execution HUD now uses the planner's pixel-frame texture kit: larger framed combatant sprites, in-frame HP/CE bars, a top-left battle log, a top-right enemy portrait, a bottom-left player portrait, and a bottom-right round button.
@@ -70,11 +79,11 @@ These were established deliberately and should be maintained throughout developm
 
 ### Recent engineering update — 150-dot timeline + planning UI polish
 
-1. What changed: The planning timeline is now 150 ticks instead of 300. The planner renders all 150 AP dots at the correct spacing, draws AP-sized segments at their snapped position, removes instructional copy, wraps move-card text within its card, and wraps narrow segment names. The CE planner readout now reports remaining CE over total CE (`400/400` at a fresh round), rather than CE spent.
-2. Architectural/data/API implications: `Timeline.DEFAULT_GRID_LENGTH` is now 150 and `BattlePlan.GRID_LENGTH` derives from it, so the offensive, defensive, and legacy execution timelines share one source of truth. Planning CE remains a prediction only and does not drain the combatant until resolution.
+1. What changed: The planning timeline is now 150 ticks instead of 300. The planner renders all 150 AP dots at the correct spacing, draws AP-sized segments at their snapped position, removes instructional copy, wraps move-card text within its card, and wraps narrow segment names. Cards now use separate ACC/PWR and AP/CE left-right rows; move descriptions occupy the middle of the card. The CE planner readout now reports remaining CE over total CE (`400/400` at a fresh round), rather than CE spent.
+2. Architectural/data/API implications: `Timeline.DEFAULT_GRID_LENGTH` is now 150 and `BattlePlan.GRID_LENGTH` derives from it, so the offensive, defensive, and legacy execution timelines share one source of truth. `Move.hasCeCost` distinguishes a zero-cost CE move from a move with no CE cost; old JSON without the field infers it from a positive base CE cost. `neverMiss` continues to represent an absent accuracy stat and renders as `ACC N/A`. Planning CE remains a prediction only and does not drain the combatant until resolution.
 3. Important files touched:
-   - Core: `Timeline.java`, `BattlePlan.java`
-   - Graphics: `PlanningPanel.java`, `TimelineBar.java`, `ActionSegmentView.java`, `MoveCardView.java`, `BattleUiAssets.java`
+   - Core: `Timeline.java`, `BattlePlan.java`, `Move.java`, `MoveData.java`, `CeEfficiencyCalculator.java`
+   - Graphics: `PlanningPanel.java`, `TimelineBar.java`, `ActionSegmentView.java`, `MoveCardView.java`, `MoveEditorScreen.java`, `BattleUiAssets.java`
    - Docs: `GLOSSARY.txt`, this README
 4. Follow-up task: planner chrome is currently generated as nearest-neighbour pixel textures at runtime. Replace the texture kit with checked-in PNG assets when final art direction is ready.
 

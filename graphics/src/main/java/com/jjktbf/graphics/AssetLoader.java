@@ -9,6 +9,9 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 import com.jjktbf.graphics.ui.pixel.PixelSkin;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Centralised asset loading and disposal.
  *
@@ -35,6 +38,7 @@ public class AssetLoader {
 
     public Texture playerSprite;
     public Texture enemySprite;
+    private final Map<String, Texture> characterSprites = new HashMap<>();
 
     // ── UI panels ─────────────────────────────────────────────────────────────
 
@@ -107,6 +111,14 @@ public class AssetLoader {
         enemySprite  = new Texture(Gdx.files.internal("assets/sprites/enemy_placeholder.png"));
     }
 
+    /** Load and cache a character sprite by its relative asset path. */
+    public Texture characterSprite(String spriteAsset, Texture fallback) {
+        if (spriteAsset == null || spriteAsset.isBlank()) return fallback;
+        com.badlogic.gdx.files.FileHandle file = Gdx.files.internal(spriteAsset);
+        if (!file.exists()) return fallback;
+        return characterSprites.computeIfAbsent(spriteAsset, ignored -> new Texture(file));
+    }
+
     private void loadUi() {
         cardNormal    = new Texture(Gdx.files.internal("assets/ui/card_normal.png"));
         cardSelected  = new Texture(Gdx.files.internal("assets/ui/card_selected.png"));
@@ -128,6 +140,8 @@ public class AssetLoader {
 
         if (playerSprite != null) playerSprite.dispose();
         if (enemySprite  != null) enemySprite.dispose();
+        characterSprites.values().forEach(Texture::dispose);
+        characterSprites.clear();
 
         if (cardNormal    != null) cardNormal.dispose();
         if (cardSelected  != null) cardSelected.dispose();
