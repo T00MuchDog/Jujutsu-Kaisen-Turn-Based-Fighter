@@ -16,6 +16,9 @@ public class MoveCardView {
 
     public static final float CARD_W = 240f;
     public static final float CARD_H = 224f;
+    private static final Color ACTIVATION_DOT = new Color(0.075f, 0.080f, 0.100f, 1f);
+    private static final Color TIMING_STRIP = new Color(0.270f, 0.305f, 0.375f, 1f);
+    private static final Color TIMING_STRIP_EDGE = new Color(0.075f, 0.095f, 0.145f, 1f);
 
     private final Move move;
     private final Rectangle bounds;
@@ -80,18 +83,57 @@ public class MoveCardView {
         drawFitted(batch, font, typeName(move.getCategory()), textX, y + h - 48f, textW, 1);
 
         font.setColor(ink);
-        // Description flows from the top-left directly beneath the type tag.
-        drawFitted(batch, font, move.getDescription(), textX, y + h - 74f, textW, 6);
+        // The shorter description leaves a clear lower area for move timing.
+        drawFitted(batch, font, move.getDescription(), textX, y + h - 74f, textW, 4);
         statFont.setColor(ink);
-        drawStatRows(batch, statFont, textX, textW, y + 64f, y + 28f,
+        drawStatRows(batch, statFont, textX, textW, y + 84f, y + 48f,
             accuracyLabel(), move.getBasePower() > 0 ? "PWR " + move.getBasePower() : null,
-            "AP " + move.getApCost(), move.hasCeCost() ? "CE " + actualCeCost : null);
+            move.hasCeCost() ? "CE " + actualCeCost : null, null);
+        drawActionPointDots(batch, ui, x + 20f, y + 8f, w - 40f,
+            move.getApCost(), move.getUnleashPoint(), 6f, 4f);
     }
 
     private String accuracyLabel() {
         return move.isNeverMiss()
             ? "ACC N/A"
             : "ACC " + (int) Math.round(move.getBaseAccuracy() * 100d) + "%";
+    }
+
+    /** Draws the AP duration dots and their unleash-point marker. */
+    private static void drawActionPointDots(Batch batch, BattleUiAssets ui, float x, float bottomY,
+                                            float width, int apCost, int unleashPoint,
+                                            float dotSize, float gap) {
+        if (apCost <= 0 || width <= 0f) return;
+
+        float size = Math.min(width, Math.max(1f, dotSize));
+        float spacing = Math.max(0f, gap);
+        int dotsPerRow = Math.max(1, (int) Math.floor((width + spacing) / (size + spacing)));
+        int rowCount = (int) Math.ceil(apCost / (double) dotsPerRow);
+        float rowStep = size + Math.max(1f, spacing);
+        float stripY = bottomY - 3f;
+        float stripHeight = rowCount * size + (rowCount - 1) * Math.max(1f, spacing) + 6f;
+
+        batch.setColor(TIMING_STRIP);
+        batch.draw(ui.pixel, x, stripY, width, stripHeight);
+        batch.setColor(TIMING_STRIP_EDGE);
+        batch.draw(ui.pixel, x, stripY, width, 1f);
+        batch.draw(ui.pixel, x, stripY + stripHeight - 1f, width, 1f);
+
+        for (int row = 0; row < rowCount; row++) {
+            int firstDot = row * dotsPerRow;
+            int dotsInRow = Math.min(dotsPerRow, apCost - firstDot);
+            float rowWidth = dotsInRow * size + (dotsInRow - 1) * spacing;
+            float rowX = x + (width - rowWidth) / 2f;
+            float rowY = bottomY + (rowCount - row - 1) * rowStep;
+
+            for (int column = 0; column < dotsInRow; column++) {
+                int dotNumber = firstDot + column + 1;
+                float dotX = rowX + column * (size + spacing);
+                batch.setColor(dotNumber == unleashPoint ? ACTIVATION_DOT : Color.WHITE);
+                batch.draw(ui.pixel, dotX, rowY, size, size);
+            }
+        }
+        batch.setColor(Color.WHITE);
     }
 
     private static String typeName(MoveCategory category) {
