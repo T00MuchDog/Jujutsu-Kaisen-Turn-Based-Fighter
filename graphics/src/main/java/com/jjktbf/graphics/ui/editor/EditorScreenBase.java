@@ -10,6 +10,7 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
+import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.HorizontalGroup;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
@@ -86,6 +87,8 @@ public abstract class EditorScreenBase<D> implements Screen {
     protected final HoverList<String> masterList;
     /** ScrollPane wrapping the master list. */
     protected ScrollPane masterScroll;
+    /** Layout cell for the master pane, resized with the viewport. */
+    private Cell<?> masterColumn;
     /** Container holding the detail form on the right. Cleared on selection change. */
     protected Container<Actor> detailContainer;
     /** Status / error label at the bottom. */
@@ -124,7 +127,7 @@ public abstract class EditorScreenBase<D> implements Screen {
 
         this.root = new Table();
         this.root.setFillParent(true);
-        this.root.pad(PAD);
+        this.root.pad(20f);
         this.stage.addActor(root);
 
         this.masterList = new HoverList<>(skin);
@@ -192,12 +195,14 @@ public abstract class EditorScreenBase<D> implements Screen {
 
         // ── Toolbar row ────────────────────────────────────────────────────────
         Table toolbar = new Table(skin);
-        toolbar.defaults().pad(PAD).uniform(true).fill(true);
+        toolbar.setBackground(skin.getDrawable("battle-header"));
+        toolbar.pad(10f);
+        toolbar.defaults().pad(4f).fillY();
 
         Label titleLabel = new Label(title(), skin, "title");
         toolbar.add(titleLabel).left().expandX();
 
-        TextButton newBtn  = new TextButton("NEW", skin);
+        TextButton newBtn  = new TextButton("NEW", skin, "primary");
         TextButton dupBtn  = new TextButton("COPY", skin);
         TextButton delBtn  = new TextButton("DELETE", skin);
         TextButton backBtn = new TextButton("BACK", skin);
@@ -223,6 +228,11 @@ public abstract class EditorScreenBase<D> implements Screen {
 
         // Left: search + scrollable list
         Table left = new Table(skin);
+        left.setBackground(skin.getDrawable("battle-palette"));
+        left.pad(10f);
+        Label libraryLabel = new Label("RECORDS", skin, "small");
+        libraryLabel.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
+        left.add(libraryLabel).left().growX().padBottom(6f).row();
         searchField = new TextField("", skin);
         searchField.setMessageText("search...");
         searchField.addListener(new ChangeListener() {
@@ -237,7 +247,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         masterScroll.setScrollingDisabled(true, false);
         left.add(masterScroll).grow();
 
-        body.add(left).width(Gdx.graphics.getWidth() * LIST_W_FRAC).growY();
+        masterColumn = body.add(left).width(Gdx.graphics.getWidth() * LIST_W_FRAC).growY();
 
         // Right: scrollable detail form container
         detailContainer = new Container<>();
@@ -245,18 +255,24 @@ public abstract class EditorScreenBase<D> implements Screen {
         ScrollPane detailScroll = new ScrollPane(detailContainer, skin);
         detailScroll.setFadeScrollBars(false);
         detailScroll.setScrollingDisabled(true, false);
-        body.add(detailScroll).grow().padLeft(PAD);
+        Table detail = new Table(skin);
+        detail.setBackground(skin.getDrawable("battle-card"));
+        detail.pad(8f);
+        detail.add(detailScroll).grow();
+        body.add(detail).grow().padLeft(PAD);
 
         root.add(body).grow().row();
 
         // ── Action bar ─────────────────────────────────────────────────────────
         Table actionBar = new Table(skin);
+        actionBar.setBackground(skin.getDrawable("battle-header"));
+        actionBar.pad(8f);
 
         dirtyLabel = new Label("", skin, "small");
         dirtyLabel.setColor(skin.get("text-dirty", Color.class));
         actionBar.add(dirtyLabel).left().padRight(PAD);
 
-        saveButton = new TextButton("SAVE", skin);
+        saveButton = new TextButton("SAVE", skin, "primary");
         saveButton.addListener(new ClickListener() {
             @Override public void clicked(InputEvent e, float x, float y) { save(); }
         });
@@ -334,6 +350,10 @@ public abstract class EditorScreenBase<D> implements Screen {
     @Override
     public void resize(int width, int height) {
         stage.getViewport().update(width, height, true);
+        if (masterColumn != null) {
+            masterColumn.width(width * LIST_W_FRAC);
+            root.invalidateHierarchy();
+        }
     }
 
     @Override public void pause()  {}

@@ -58,8 +58,8 @@ public class AssetLoader {
     // ── Scene2D skin for the editors ───────────────────────────────────────────
 
     /**
-     * Code-generated FRLG-style Scene2D skin (panels, buttons, sliders,
-     * textfields, scrollbars, etc.). Used by all editor screens.
+     * Code-generated Scene2D skin matching the battle UI (panels, buttons,
+     * sliders, textfields, scrollbars, etc.). Used by the menu and editors.
      */
     public Skin editorSkin;
 
@@ -83,9 +83,8 @@ public class AssetLoader {
     }
 
     /**
-     * Build the code-generated editor skin. Uses the bundled TTF directly —
-     * independent of the battle fonts above, so disposing the skin later
-     * cannot affect the battle UI.
+     * Build the code-generated menu/editor skin. Uses the bundled TTF directly
+     * so disposing the skin later cannot affect the battle UI fonts.
      */
     private void loadSkin() {
         editorSkin = PixelSkin.create();

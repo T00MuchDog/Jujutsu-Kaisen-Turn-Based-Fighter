@@ -21,11 +21,11 @@ import java.util.List;
  * Builds a complete Scene2D {@link Skin} entirely in code, drawing every UI
  * texture as a 9-patch pixel pixmap at startup (no binary asset files required).
  *
- * The visual language is Generation 3 FireRed/LeafGreen:
- *   - Cream / parchment window interiors with thick blue-beveled borders
- *   - Beveled buttons (yellow up, depressed-down)
- *   - Bright blue selection highlight
- *   - Thin pixel scrollbars
+ * The visual language matches the battle planner and character dossier:
+ *   - Ink-blue framed headers and palette surfaces
+ *   - Warm parchment cards with a yellow hover state
+ *   - Green primary action buttons
+ *   - Square, nearest-neighbour pixel details
  *
  * Usage:
  *   Skin skin = PixelSkin.create();
@@ -37,47 +37,45 @@ import java.util.List;
  */
 public final class PixelSkin {
 
-    // ── FRLG-inspired palette ──────────────────────────────────────────────────
+    // ── Battle UI palette ───────────────────────────────────────────────────────
 
-    /** Deep blue used for the outer/thick window border and button bevel. */
-    private static final Color BORDER_OUTER  = new Color(0.078f, 0.176f, 0.337f, 1f);   // #142A56
-    /** Lighter blue inner edge of the bevel. */
-    private static final Color BORDER_INNER  = new Color(0.388f, 0.580f, 0.835f, 1f);   // #6394D5
-    /** Teal accent line just inside the border. */
-    private static final Color BORDER_ACCENT = new Color(0.196f, 0.643f, 0.643f, 1f);   // #32A4A4
-    /** Cream parchment window interior. */
-    private static final Color PANEL_FILL    = new Color(0.973f, 0.949f, 0.808f, 1f);   // #F8F2CE
-    /** Slightly darker parchment for inner panel insets / disabled textfields. */
-    private static final Color PANEL_INSET   = new Color(0.910f, 0.870f, 0.710f, 1f);   // #E8DEB5
-
-    /** Button up face — warm yellow. */
-    private static final Color BUTTON_UP     = new Color(0.992f, 0.835f, 0.314f, 1f);   // #FDD550
-    /** Button down / pressed face. */
-    private static final Color BUTTON_DOWN   = new Color(0.776f, 0.588f, 0.180f, 1f);   // #C6962E
-    /** Button hover rim. */
-    private static final Color BUTTON_HOVER  = new Color(1.000f, 1.000f, 1.000f, 1f);   // white
-
-    /** Vivid blue list/row selection. */
-    private static final Color SELECTION     = new Color(0.247f, 0.498f, 0.835f, 1f);   // #3F7FD5
+    private static final Color HEADER_FILL    = new Color(0.110f, 0.145f, 0.235f, 1f);
+    private static final Color HEADER_BORDER  = new Color(0.035f, 0.050f, 0.095f, 1f);
+    private static final Color HEADER_LIGHT   = new Color(0.390f, 0.610f, 0.940f, 1f);
+    private static final Color HEADER_SHADOW  = new Color(0.030f, 0.045f, 0.085f, 1f);
+    private static final Color PALETTE_FILL   = new Color(0.150f, 0.185f, 0.280f, 1f);
+    private static final Color PALETTE_BORDER = new Color(0.045f, 0.060f, 0.110f, 1f);
+    private static final Color PALETTE_LIGHT  = new Color(0.360f, 0.450f, 0.660f, 1f);
+    private static final Color PALETTE_SHADOW = new Color(0.025f, 0.035f, 0.070f, 1f);
+    private static final Color PAPER          = new Color(0.965f, 0.949f, 0.890f, 1f);
+    private static final Color INK            = new Color(0.055f, 0.075f, 0.125f, 1f);
+    private static final Color TEXT_DARK      = new Color(0.090f, 0.125f, 0.205f, 1f);
+    private static final Color TEXT_MUTED     = new Color(0.400f, 0.445f, 0.545f, 1f);
+    private static final Color YELLOW         = new Color(1.000f, 0.835f, 0.180f, 1f);
+    private static final Color CARD_HOVER     = new Color(1f, 0.985f, 0.840f, 1f);
+    private static final Color PRIMARY         = new Color(0.200f, 0.630f, 0.390f, 1f);
+    private static final Color PRIMARY_BORDER  = new Color(0.030f, 0.180f, 0.090f, 1f);
+    private static final Color PRIMARY_LIGHT   = new Color(0.510f, 0.900f, 0.610f, 1f);
+    private static final Color PRIMARY_SHADOW  = new Color(0.050f, 0.330f, 0.150f, 1f);
+    private static final Color PRIMARY_HOVER   = new Color(0.300f, 0.760f, 0.440f, 1f);
+    private static final Color SELECTION       = new Color(1.000f, 0.835f, 0.180f, 1f);
 
     /** Slider groove. */
-    private static final Color SLIDER_BG     = new Color(0.600f, 0.600f, 0.620f, 1f);
+    private static final Color SLIDER_BG     = new Color(0.070f, 0.085f, 0.135f, 1f);
     /** Slider knob face. */
-    private static final Color SLIDER_KNOB   = new Color(0.247f, 0.498f, 0.835f, 1f);
+    private static final Color SLIDER_KNOB   = PRIMARY;
 
     /** Scrollbar groove. */
-    private static final Color SCROLL_BG     = new Color(0.760f, 0.760f, 0.760f, 1f);
+    private static final Color SCROLL_BG     = new Color(0.250f, 0.290f, 0.390f, 1f);
     /** Scrollbar knob. */
     private static final Color SCROLL_KNOB   = new Color(0.380f, 0.420f, 0.560f, 1f);
 
-    /** Dark navy text on cream panels. */
-    private static final Color TEXT_DARK     = new Color(0.078f, 0.176f, 0.337f, 1f);   // matches BORDER_OUTER
-    /** Bright yellow — used for hover highlight on clickable buttons. */
-    private static final Color TEXT_HOVER    = new Color(1.000f, 0.890f, 0.180f, 1f);   // #FFE32E
+    /** Bright yellow used for hover and selection feedback. */
+    private static final Color TEXT_HOVER    = YELLOW;
     /** Red for error/validation feedback. */
     private static final Color TEXT_ERROR    = new Color(0.760f, 0.090f, 0.090f, 1f);
     /** Green for success / dirty-saved feedback. */
-    private static final Color TEXT_OK       = new Color(0.090f, 0.470f, 0.180f, 1f);
+    private static final Color TEXT_OK       = PRIMARY;
     /** Amber for dirty-indicator. */
     private static final Color TEXT_DIRTY    = new Color(0.760f, 0.490f, 0.090f, 1f);
 
@@ -126,26 +124,32 @@ public final class PixelSkin {
 
         addColors(skin);
 
-        // Drawable registry. nine() now takes a *pad* (border thickness) and
-        // generates a texture large enough that every border ring is a complete
-        // rectangle — no more "4 dots" corner artefacts.
-        Drawable panel        = nine("panel",       3, PANEL_FILL,   BORDER_OUTER, BORDER_INNER, BORDER_ACCENT);
-        Drawable panelInset   = nine("panel-inset", 2, PANEL_INSET,  BORDER_OUTER, BORDER_INNER, null);
-        Drawable buttonUp     = nine("btn-up",      2, BUTTON_UP,    BORDER_OUTER, BORDER_INNER, null);
-        Drawable buttonDown   = nine("btn-down",    1, BUTTON_DOWN,  BORDER_OUTER, null,         null);
-        // Hover only changes the text colour (set on the style), not the box.
-        Drawable buttonHover  = buttonUp;
-        Drawable buttonCheck  = nine("btn-checked", 2, BUTTON_DOWN,  BORDER_OUTER, BORDER_INNER, null);
-        Drawable textfield    = nine("textfield",   2, Color.WHITE,  BORDER_OUTER, BORDER_INNER, null);
-        Drawable selection    = patch("sel",        SELECTION);
-        Drawable selectionRow = patch("sel-row",    new Color(SELECTION.r, SELECTION.g, SELECTION.b, 0.35f));
+        // These frames intentionally use the same stepped-corner construction as
+        // BattleUiAssets, keeping Scene2D controls visually aligned with the
+        // hand-drawn battle and dossier screens.
+        Drawable header       = battleFrame("battle-header", HEADER_FILL, HEADER_BORDER, HEADER_LIGHT, HEADER_SHADOW);
+        Drawable palette      = battleFrame("battle-palette", PALETTE_FILL, PALETTE_BORDER, PALETTE_LIGHT, PALETTE_SHADOW);
+        Drawable card         = battleFrame("battle-card", PAPER, new Color(0.105f, 0.135f, 0.205f, 1f),
+            Color.WHITE, new Color(0.700f, 0.680f, 0.590f, 1f));
+        Drawable cardOver     = battleFrame("battle-card-over", CARD_HOVER, new Color(0.965f, 0.670f, 0.120f, 1f),
+            new Color(1f, 1f, 0.780f, 1f), new Color(0.720f, 0.420f, 0.080f, 1f));
+        Drawable cardDisabled = battleFrame("battle-card-disabled", new Color(0.660f, 0.670f, 0.700f, 1f),
+            new Color(0.300f, 0.320f, 0.380f, 1f), new Color(0.800f, 0.810f, 0.840f, 1f),
+            new Color(0.440f, 0.450f, 0.500f, 1f));
+        Drawable primary      = battleFrame("battle-primary", PRIMARY, PRIMARY_BORDER, PRIMARY_LIGHT, PRIMARY_SHADOW);
+        Drawable primaryOver  = battleFrame("battle-primary-over", PRIMARY_HOVER, YELLOW,
+            new Color(0.780f, 1f, 0.730f, 1f), new Color(0.100f, 0.430f, 0.180f, 1f));
+        Drawable textfield    = battleFrame("textfield", new Color(1f, 1f, 0.980f, 1f),
+            new Color(0.075f, 0.095f, 0.145f, 1f), Color.WHITE, new Color(0.630f, 0.650f, 0.720f, 1f));
+        Drawable selection    = patch("sel", SELECTION);
+        Drawable selectionRow = patch("sel-row", new Color(SELECTION.r, SELECTION.g, SELECTION.b, 0.35f));
         Drawable sliderH      = patch("slider-bg-h",SLIDER_BG);
         Drawable sliderKnobH  = patch("slider-knob",SLIDER_KNOB);
-        Drawable checkboxOn   = flat("chk-on",      11, Color.WHITE, BORDER_OUTER);
-        Drawable checkboxOff  = flat("chk-off",     11, PANEL_INSET, BORDER_OUTER);
+        Drawable checkboxOn   = flat("chk-on",      11, PRIMARY, PRIMARY_BORDER);
+        Drawable checkboxOff  = flat("chk-off",     11, PAPER, INK);
         // Light-grey "locked-on" checkbox — signals a tag that's selected by
         // rule (not manual choice) and can't be toggled.
-        Drawable checkboxLocked = flat("chk-locked", 11, new Color(0.78f, 0.78f, 0.82f, 1f), BORDER_OUTER);
+        Drawable checkboxLocked = flat("chk-locked", 11, new Color(0.78f, 0.78f, 0.82f, 1f), INK);
         Drawable scrollH      = patch("scroll-h",   SCROLL_BG);
         Drawable scrollV      = patch("scroll-v",   SCROLL_BG);
         Drawable scrollKnobH  = patch("scroll-knob-h", SCROLL_KNOB);
@@ -153,15 +157,20 @@ public final class PixelSkin {
         Drawable listSel      = patch("list-sel",   new Color(SELECTION.r, SELECTION.g, SELECTION.b, 0.85f));
         // Pure-white dropdown + list background (was parchment, which let the
         // screen colour bleed through).
-        Drawable whitePanel   = nine("white-panel", 2, Color.WHITE, BORDER_OUTER, BORDER_INNER, null);
+        Drawable whitePanel   = textfield;
 
-        skin.add("panel",         panel,        Drawable.class);
-        skin.add("panel-inset",   panelInset,   Drawable.class);
+        skin.add("panel",         card,         Drawable.class);
+        skin.add("panel-inset",   card,         Drawable.class);
+        skin.add("battle-header", header,       Drawable.class);
+        skin.add("battle-palette", palette,     Drawable.class);
+        skin.add("battle-card",   card,         Drawable.class);
+        skin.add("battle-card-over", cardOver,  Drawable.class);
+        skin.add("battle-primary", primary,     Drawable.class);
         skin.add("white-panel",   whitePanel,   Drawable.class);
-        skin.add("button-up",     buttonUp,     Drawable.class);
-        skin.add("button-down",   buttonDown,   Drawable.class);
-        skin.add("button-hover",  buttonHover,  Drawable.class);
-        skin.add("button-checked",buttonCheck,  Drawable.class);
+        skin.add("button-up",     card,         Drawable.class);
+        skin.add("button-down",   cardOver,     Drawable.class);
+        skin.add("button-hover",  cardOver,     Drawable.class);
+        skin.add("button-checked",cardOver,     Drawable.class);
         skin.add("textfield",     textfield,    Drawable.class);
         skin.add("selection",     selection,    Drawable.class);
         skin.add("selection-row", selectionRow, Drawable.class);
@@ -177,15 +186,15 @@ public final class PixelSkin {
         skin.add("list-sel",      listSel,      Drawable.class);
 
         registerLabelStyles(skin);
-        registerTextButtonStyles(skin, buttonUp, buttonDown, buttonHover, buttonCheck);
-        registerButtonStyles(skin, buttonUp, buttonDown, buttonHover);
+        registerTextButtonStyles(skin, card, cardOver, cardDisabled, primary, primaryOver);
+        registerButtonStyles(skin, card, cardOver, cardOver);
         registerTextFieldStyles(skin, textfield);
         registerSliderStyles(skin, sliderH, sliderKnobH);
         registerScrollPaneStyles(skin);
         registerSelectBoxStyles(skin, textfield, listSel);
         registerListStyles(skin, listSel);
         registerCheckBoxStyles(skin, checkboxOn, checkboxOff);
-        registerWindowStyles(skin, panel);
+        registerWindowStyles(skin, card);
 
         // Attach disposal tracking onto the skin via a tiny subclass is not
         // possible because we return a bare Skin. Instead we store the textures
@@ -203,6 +212,39 @@ public final class PixelSkin {
     // =========================================================================
     // Pixmap drawing primitives
     // =========================================================================
+
+    /** Create the stepped, four-tone frame used by the battle UI texture kit. */
+    private NinePatchDrawable battleFrame(String name, Color fill, Color outer, Color light, Color shadow) {
+        final int size = 18;
+        Pixmap pm = new Pixmap(size, size, Pixmap.Format.RGBA8888);
+        pm.setColor(fill);
+        pm.fill();
+        pm.setColor(outer);
+        pm.drawRectangle(0, 0, size, size);
+        pm.drawRectangle(1, 1, size - 2, size - 2);
+        pm.setColor(light);
+        pm.drawLine(3, size - 3, size - 4, size - 3);
+        pm.drawLine(2, 3, 2, size - 4);
+        pm.setColor(shadow);
+        pm.drawLine(3, 2, size - 4, 2);
+        pm.drawLine(size - 3, 3, size - 3, size - 4);
+
+        pm.setColor(0f, 0f, 0f, 0f);
+        pm.drawPixel(0, 0);
+        pm.drawPixel(1, 0);
+        pm.drawPixel(0, 1);
+        pm.drawPixel(size - 1, 0);
+        pm.drawPixel(size - 2, 0);
+        pm.drawPixel(size - 1, 1);
+        pm.drawPixel(0, size - 1);
+        pm.drawPixel(1, size - 1);
+        pm.drawPixel(0, size - 2);
+        pm.drawPixel(size - 1, size - 1);
+        pm.drawPixel(size - 2, size - 1);
+        pm.drawPixel(size - 1, size - 2);
+
+        return new NinePatchDrawable(new NinePatch(toTexture(pm, name), 5, 5, 5, 5));
+    }
 
     /**
      * Draw a beveled 9-patch into a fresh Pixmap and return a NinePatchDrawable.
@@ -278,7 +320,7 @@ public final class PixelSkin {
         skin.add("text-error", TEXT_ERROR, Color.class);
         skin.add("text-ok",    TEXT_OK,    Color.class);
         skin.add("text-dirty", TEXT_DIRTY, Color.class);
-        skin.add("text-dim",   new Color(0.42f, 0.42f, 0.46f, 1f), Color.class);
+        skin.add("text-dim",   TEXT_MUTED, Color.class);
         skin.add("text-hover", TEXT_HOVER, Color.class);
         skin.add("white",      Color.WHITE, Color.class);
         skin.add("black",      Color.BLACK, Color.class);
@@ -298,7 +340,7 @@ public final class PixelSkin {
         skin.add("small", small, com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle.class);
 
         com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle title =
-            new com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle(fontLarge, new Color(0.078f, 0.176f, 0.337f, 1f));
+            new com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle(fontLarge, Color.WHITE);
         skin.add("title", title, com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle.class);
 
         com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle error =
@@ -314,23 +356,35 @@ public final class PixelSkin {
         skin.add("white", white, com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle.class);
     }
 
-    private void registerTextButtonStyles(Skin skin, Drawable up, Drawable down, Drawable hover, Drawable checked) {
+    private void registerTextButtonStyles(Skin skin, Drawable card, Drawable cardOver, Drawable cardDisabled,
+                                          Drawable primary, Drawable primaryOver) {
         com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle def =
-            new com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle(up, down, up, font);
+            new com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle(card, cardOver, cardOver, font);
         def.fontColor = TEXT_DARK;
-        def.downFontColor = Color.WHITE;
-        // Hover highlights the TEXT only (bright yellow), not the whole box —
-        // no `over` drawable is set.
-        def.overFontColor = TEXT_HOVER;
+        def.downFontColor = TEXT_DARK;
+        def.over = cardOver;
+        def.overFontColor = TEXT_DARK;
+        def.disabled = cardDisabled;
         skin.add("default", def, com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle.class);
 
-        // Toggle variant — same look, checked shows pressed state.
         com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle toggle =
-            new com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle(up, down, checked, font);
+            new com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle(card, cardOver, cardOver, font);
         toggle.fontColor = TEXT_DARK;
-        toggle.checkedFontColor = Color.WHITE;
-        toggle.overFontColor = TEXT_HOVER;
+        toggle.checkedFontColor = TEXT_DARK;
+        toggle.over = cardOver;
+        toggle.overFontColor = TEXT_DARK;
+        toggle.disabled = cardDisabled;
         skin.add("toggle", toggle, com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle.class);
+
+        com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle primaryStyle =
+            new com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle(primary, primary, primary, font);
+        primaryStyle.fontColor = Color.WHITE;
+        primaryStyle.downFontColor = Color.WHITE;
+        primaryStyle.over = primaryOver;
+        primaryStyle.overFontColor = Color.WHITE;
+        primaryStyle.disabled = cardDisabled;
+        primaryStyle.disabledFontColor = new Color(0.850f, 0.860f, 0.880f, 1f);
+        skin.add("primary", primaryStyle, com.badlogic.gdx.scenes.scene2d.ui.TextButton.TextButtonStyle.class);
     }
 
     private void registerButtonStyles(Skin skin, Drawable up, Drawable down, Drawable hover) {
@@ -367,7 +421,7 @@ public final class PixelSkin {
 
     private void registerSelectBoxStyles(Skin skin, Drawable bg, Drawable listSel) {
         com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle listStyle =
-            new com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle(font, Color.WHITE, TEXT_DARK, listSel);
+            new com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle(font, TEXT_DARK, TEXT_DARK, listSel);
         // Pure-white list background (was parchment, which let the screen colour
         // bleed through).
         listStyle.background = skin.getDrawable("white-panel");
@@ -411,7 +465,7 @@ public final class PixelSkin {
 
     private void registerWindowStyles(Skin skin, Drawable panel) {
         com.badlogic.gdx.scenes.scene2d.ui.Window.WindowStyle def =
-            new com.badlogic.gdx.scenes.scene2d.ui.Window.WindowStyle(font, Color.WHITE, panel);
+            new com.badlogic.gdx.scenes.scene2d.ui.Window.WindowStyle(font, TEXT_DARK, panel);
         skin.add("default", def, com.badlogic.gdx.scenes.scene2d.ui.Window.WindowStyle.class);
     }
 

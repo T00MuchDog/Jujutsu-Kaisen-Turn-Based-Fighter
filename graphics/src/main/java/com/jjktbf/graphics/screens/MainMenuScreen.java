@@ -18,7 +18,7 @@ import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 
 /**
- * Main menu screen — pixel-art themed, mouse + keyboard driven.
+ * Main menu screen, using the same framed command palette as battle planning.
  *
  * Options (clickable TextButtons; number keys also work):
  *   1  NEW GAME          → CharacterSelectScreen
@@ -43,30 +43,50 @@ public class MainMenuScreen implements Screen {
 
         this.root = new Table();
         root.setFillParent(true);
-        root.pad(20);
+        root.pad(28);
         stage.addActor(root);
 
         buildMenu();
     }
 
     private void buildMenu() {
-        // Title (uses the "title" style — large font)
+        Table header = new Table(assets.editorSkin);
+        header.setBackground(assets.editorSkin.getDrawable("battle-header"));
+        header.pad(14);
+
         Label title = new Label("JJK TURN BASED FIGHTER", assets.editorSkin, "title");
-        title.setAlignment(Align.center);
-        title.setColor(new Color(0.992f, 0.835f, 0.314f, 1f)); // warm yellow
-        root.add(title).colspan(2).padBottom(40).row();
+        title.setAlignment(Align.left);
+        Label subtitle = new Label("TURN-BASED COMBAT COMMAND CENTER", assets.editorSkin, "small");
+        subtitle.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
+        header.add(title).left().row();
+        header.add(subtitle).left().padTop(5);
+        root.add(header).growX().padBottom(18).row();
 
-        TextButton newGame   = makeButton("1. NEW GAME",         game::showCharacterSelect);
-        TextButton moveEd    = makeButton("2. MOVE EDITOR",      game::showMoveEditor);
-        TextButton charEd    = makeButton("3. CHARACTER EDITOR", game::showCharacterEditor);
-        TextButton abilityEd = makeButton("4. ABILITY EDITOR",   game::showAbilityEditor);
-        TextButton techEd    = makeButton("5. TECHNIQUE EDITOR", game::showTechniqueEditor);
-        TextButton quit      = makeButton("ESC. QUIT",           () -> Gdx.app.exit());
+        Table commands = new Table(assets.editorSkin);
+        commands.setBackground(assets.editorSkin.getDrawable("battle-palette"));
+        commands.pad(16);
+        Label commandTitle = new Label("SELECT MODE", assets.editorSkin, "title");
+        commandTitle.setColor(new Color(1.000f, 0.835f, 0.180f, 1f));
+        commands.add(commandTitle).left().padBottom(10).row();
 
-        // Lay the buttons out in a centered vertical stack, sized generously.
+        TextButton newGame   = makeButton("1  START BATTLE",      "primary", game::showCharacterSelect);
+        TextButton moveEd    = makeButton("2  MOVE EDITOR",       "default", game::showMoveEditor);
+        TextButton charEd    = makeButton("3  CHARACTER EDITOR",  "default", game::showCharacterEditor);
+        TextButton abilityEd = makeButton("4  ABILITY EDITOR",    "default", game::showAbilityEditor);
+        TextButton techEd    = makeButton("5  TECHNIQUE EDITOR",  "default", game::showTechniqueEditor);
+        TextButton quit      = makeButton("ESC  QUIT",             "default", () -> Gdx.app.exit());
+
+        // The command cards echo the battle planner's move palette: a primary
+        // green action followed by parchment navigation cards.
         for (TextButton b : new TextButton[]{ newGame, moveEd, charEd, abilityEd, techEd, quit }) {
-            root.add(b).width(360).height(44).pad(5).colspan(2).row();
+            commands.add(b).growX().height(46).pad(4).row();
         }
+        root.add(commands).growX().maxWidth(540).top().expandY().row();
+
+        Label help = new Label("NUMBER KEYS: OPEN MODE   |   ESC: QUIT", assets.editorSkin, "small");
+        help.setColor(assets.editorSkin.get("text-dim", Color.class));
+        help.setAlignment(Align.center);
+        root.add(help).growX().padTop(14);
 
         // Keyboard shortcuts
         stage.addListener(new InputListener() {
@@ -82,11 +102,10 @@ public class MainMenuScreen implements Screen {
             }
         });
 
-        return;
     }
 
-    private TextButton makeButton(String label, Runnable onClick) {
-        TextButton b = new TextButton(label, assets.editorSkin);
+    private TextButton makeButton(String label, String style, Runnable onClick) {
+        TextButton b = new TextButton(label, assets.editorSkin, style);
         b.addListener(new ClickListener() {
             @Override public void clicked(InputEvent e, float x, float y) { onClick.run(); }
         });
