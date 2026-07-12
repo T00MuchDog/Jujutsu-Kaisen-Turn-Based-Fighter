@@ -3,7 +3,6 @@ package com.jjktbf.graphics.screens.editors;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
-import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
@@ -123,20 +122,18 @@ public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData>
 
     @Override
     protected Actor buildDetailForm(InnateTechniqueData d) {
-        Table form = new Table(skin);
-        form.defaults().left().pad(4);
-        form.pad(8);
+        Table form = formRoot();
 
-        form.add(sectionHeader("IDENTITY")).growX().colspan(2).row();
-        form.add(idBadge(d.id)).colspan(2).padBottom(2).row();
-        form.add(labelledField("Name", d.name,
-                s -> { d.name = s; })).growX().colspan(2).row();
-        form.add(labelledField("Description", d.description,
-                s -> { d.description = s; })).growX().colspan(2).row();
+        Table identity = formSection(form, "IDENTITY");
+        identity.add(idBadge(d.id)).left().row();
+        identity.add(labelledField("Name", d.name,
+                s -> { d.name = s; })).growX().row();
+        identity.add(labelledField("Description", d.description,
+                s -> { d.description = s; })).growX().row();
 
-        form.add(sectionHeader("REFERENCING MOVES & ABILITIES")).growX().colspan(2).row();
-        form.add(hint("(discovered at runtime from the move/ability editors — read-only here)"))
-            .growX().colspan(2).row();
+        Table refs = formSection(form, "REFERENCING MOVES & ABILITIES");
+        refs.add(formHint("(discovered at runtime from the move/ability editors — read-only here)"))
+            .left().row();
 
         // Read-only list of moves that reference this technique. Computed live
         // from a fresh MoveRepository so editor-side move edits are reflected.
@@ -146,15 +143,15 @@ public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData>
             moveRepo.load();
             for (com.jjktbf.model.move.MoveData md : moveRepo.getAll()) {
                 if (md.requiredTechniqueId != null && md.requiredTechniqueId.equalsIgnoreCase(d.name)) {
-                    form.add(referenceLabel(md.name + "  (move)")).colspan(2).row();
+                    refs.add(referenceLabel(md.name + "  (move)")).left().row();
                     moveCount++;
                 }
             }
         } catch (IOException e) {
-            form.add(hint("(could not load moves: " + e.getMessage() + ")")).colspan(2).row();
+            refs.add(formHint("(could not load moves: " + e.getMessage() + ")")).left().row();
         }
         if (moveCount == 0) {
-            form.add(hint("(no moves reference this technique yet)")).colspan(2).row();
+            refs.add(formHint("(no moves reference this technique yet)")).left().row();
         }
 
         // Read-only list of abilities sourced from this technique.
@@ -166,16 +163,16 @@ public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData>
             for (com.jjktbf.model.character.AbilityData ad : abilityRepo.getAll()) {
                 if ("TECHNIQUE".equalsIgnoreCase(ad.sourceType)
                     && ad.sourceValue != null && ad.sourceValue.equalsIgnoreCase(d.name)) {
-                    form.add(referenceLabel(ad.name + "  (ability, mastery ≥ " + ad.masteryThreshold + ")"))
-                        .colspan(2).row();
+                    refs.add(referenceLabel(ad.name + "  (ability, mastery ≥ " + ad.masteryThreshold + ")"))
+                        .left().row();
                     abilityCount++;
                 }
             }
         } catch (IOException e) {
-            form.add(hint("(could not load abilities: " + e.getMessage() + ")")).colspan(2).row();
+            refs.add(formHint("(could not load abilities: " + e.getMessage() + ")")).left().row();
         }
         if (abilityCount == 0) {
-            form.add(hint("(no abilities reference this technique yet)")).colspan(2).row();
+            refs.add(formHint("(no abilities reference this technique yet)")).left().row();
         }
 
         return form;
@@ -184,19 +181,6 @@ public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData>
     // =========================================================================
     // Helpers
     // =========================================================================
-
-    private Label sectionHeader(String text) {
-        Label l = new Label(text, skin, "title");
-        l.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
-        l.setAlignment(Align.left);
-        return l;
-    }
-
-    private Label hint(String text) {
-        Label l = new Label(text, skin, "small");
-        l.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
-        return l;
-    }
 
     private Label referenceLabel(String text) {
         Label l = new Label("• " + text, skin, "small");

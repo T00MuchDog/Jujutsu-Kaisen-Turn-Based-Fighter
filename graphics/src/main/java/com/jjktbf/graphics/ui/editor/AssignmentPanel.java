@@ -93,14 +93,22 @@ public class AssignmentPanel extends Table {
         add(hintLabel).colspan(2).left().padBottom(4).row();
 
         // Column headers
-        add(new Label("AVAILABLE", skin, "title")).left().padRight(8);
-        add(new Label("ASSIGNED",  skin, "title")).left().row();
+        Label availableHeader = new Label("AVAILABLE", skin);
+        availableHeader.setColor(skin.get("text-dark", com.badlogic.gdx.graphics.Color.class));
+        Label assignedHeader = new Label("ASSIGNED", skin);
+        assignedHeader.setColor(skin.get("text-dark", com.badlogic.gdx.graphics.Color.class));
+        add(availableHeader).left().padRight(8);
+        add(assignedHeader).left().row();
 
-        // Two scrollable columns
+        // Two scrollable columns; rows fill the column width so the cards align.
         availableCol = new VerticalGroup();
         availableCol.columnLeft();
+        availableCol.grow();
+        availableCol.space(4f);
         assignedCol  = new VerticalGroup();
         assignedCol.columnLeft();
+        assignedCol.grow();
+        assignedCol.space(4f);
 
         ScrollPane availableScroll = new ScrollPane(availableCol, skin);
         ScrollPane assignedScroll  = new ScrollPane(assignedCol,  skin);
@@ -167,8 +175,8 @@ public class AssignmentPanel extends Table {
 
     private Actor makeRow(Item item, String side) {
         Table row = new Table(skin);
-        row.setBackground(skin.getDrawable("panel-inset"));
-        row.pad(4);
+        row.setBackground(skin.getDrawable(item.locked ? "battle-card-disabled" : "white-panel"));
+        row.pad(5);
 
         final Label name = new Label(item.label, skin, "small");
         name.setAlignment(Align.left);
@@ -194,18 +202,14 @@ public class AssignmentPanel extends Table {
             return row;
         }
 
-        // Hover highlight: text turns bright yellow on enter, restored on exit.
-        final com.badlogic.gdx.graphics.Color hover = skin.get("text-hover", com.badlogic.gdx.graphics.Color.class);
-        final com.badlogic.gdx.graphics.Color nameBase = name.getColor();
-        final com.badlogic.gdx.graphics.Color subBase = sub != null ? sub.getColor() : null;
+        // Hover highlight: the row's border glows yellow (same treatment as
+        // hovered text boxes), matching the battle-card hover state.
         row.addListener(new InputListener() {
             @Override public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
-                name.setColor(hover);
-                if (sub != null) sub.setColor(hover);
+                row.setBackground(skin.getDrawable("battle-card-over"));
             }
             @Override public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
-                name.setColor(nameBase);
-                if (sub != null) sub.setColor(subBase);
+                row.setBackground(skin.getDrawable("white-panel"));
             }
         });
 

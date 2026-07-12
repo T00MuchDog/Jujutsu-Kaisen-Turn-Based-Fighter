@@ -3,7 +3,6 @@ package com.jjktbf.graphics.ui.editor;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
-import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
@@ -54,8 +53,8 @@ public class TagPicker extends Table {
         this.onChange = onChange;
         if (initial != null) this.selected.addAll(initial);
 
+        // No internal "Tags" heading — the form section strip already names it.
         defaults().pad(4);
-        add(new Label("Tags", skin)).left().colspan(99).row();
 
         int perRow = 3;
         int col = 0;

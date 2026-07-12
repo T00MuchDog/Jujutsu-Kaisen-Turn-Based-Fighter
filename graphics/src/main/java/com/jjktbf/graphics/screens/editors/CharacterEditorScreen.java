@@ -182,21 +182,19 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
     @Override
     protected Actor buildDetailForm(CharacterData cd) {
-        Table form = new Table(skin);
-        form.defaults().left().pad(4);
-        form.pad(8);
+        Table form = formRoot();
 
         // ── Identity ───────────────────────────────────────────────────────────
-        form.add(sectionHeader("IDENTITY")).growX().colspan(2).row();
-        form.add(idBadge(cd.id)).colspan(2).padBottom(2).row();
-        form.add(labelledField("Name", cd.name,
-                s -> { cd.name = s; })).growX().colspan(2).row();
-        form.add(labelledField("Description", cd.description,
-                s -> { cd.description = s; })).growX().colspan(2).row();
-        form.add(labelledField("Sprite Asset (assets/characters/...)", cd.spriteAsset,
+        Table identity = formSection(form, "IDENTITY");
+        identity.add(idBadge(cd.id)).left().row();
+        identity.add(labelledField("Name", cd.name,
+                s -> { cd.name = s; })).growX().row();
+        identity.add(labelledField("Description", cd.description,
+                s -> { cd.description = s; })).growX().row();
+        identity.add(labelledField("Sprite Asset (assets/characters/...)", cd.spriteAsset,
                 s -> { cd.spriteAsset = (s == null || s.isBlank()) ? null : s; }))
-            .growX().colspan(2).row();
-        form.add(labelledField("Innate Technique (blank = none)",
+            .growX().row();
+        identity.add(labelledField("Innate Technique (blank = none)",
                 cd.innateTechniqueName,
                 s -> {
                     cd.innateTechniqueName = (s == null || s.isBlank()) ? null : s;
@@ -208,10 +206,10 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                         statFields[StatKey.CURSED_TECHNIQUE_MASTERY.ordinal()]
                             .setValueProgrammatic(0);
                     }
-                })).growX().colspan(2).row();
+                })).growX().row();
 
-        // ── Mode toggle ─────────────────────────────────────────────────────────
-        form.add(sectionHeader("STATS")).growX().colspan(2).row();
+        // ── Stats (mode toggle + sliders) ───────────────────────────────────────
+        Table stats = formSection(form, "STATS");
         pointBuyToggle = new CheckBox(" Point-Buy mode (1000 pts)", skin);
         pointBuyToggle.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
@@ -223,14 +221,13 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 markDirty();
             }
         });
-        form.add(pointBuyToggle).colspan(2).row();
+        stats.add(pointBuyToggle).left().row();
 
         // Budget label (point-buy only)
         budgetLabel = new Label("", skin, "small");
         budgetLabel.setColor(skin.get("text-dirty", com.badlogic.gdx.graphics.Color.class));
-        form.add(budgetLabel).colspan(2).row();
+        stats.add(budgetLabel).left().row();
 
-        // ── Stat sliders ─────────────────────────────────────────────────────────
         statFields = new StatField[STAT_ORDER.length];
         boolean hasTechnique = cd.innateTechniqueName != null;
         for (int i = 0; i < STAT_ORDER.length; i++) {
@@ -244,26 +241,26 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 markDirty();
             }, locked, skin);
             statFields[i] = sf;
-            form.add(sf).growX().colspan(2).row();
+            stats.add(sf).growX().row();
         }
 
         // ── Derived preview ──────────────────────────────────────────────────────
-        form.add(sectionHeader("DERIVED STATS (live)")).growX().colspan(2).row();
+        Table derived = formSection(form, "DERIVED STATS (LIVE)");
         derivedPreview = new Label("", skin, "small");
         derivedPreview.setAlignment(Align.left);
-        form.add(derivedPreview).growX().colspan(2).row();
+        derived.add(derivedPreview).growX().row();
         refreshDerivedPreview(cd);
 
         // ── Move assignment ────────────────────────────────────────────────────
-        form.add(sectionHeader("MOVE ASSIGNMENT")).growX().colspan(2).row();
+        Table movesSection = formSection(form, "MOVE ASSIGNMENT");
         moveAssignmentContainer = new Container<>();
-        form.add(moveAssignmentContainer).growX().colspan(2).row();
+        movesSection.add(moveAssignmentContainer).growX().row();
         rebuildMoveAssignment(cd);
 
         // ── Ability assignment ──────────────────────────────────────────────────
-        form.add(sectionHeader("ABILITY ASSIGNMENT")).growX().colspan(2).row();
+        Table abilitiesSection = formSection(form, "ABILITY ASSIGNMENT");
         abilityAssignmentContainer = new Container<>();
-        form.add(abilityAssignmentContainer).growX().colspan(2).row();
+        abilitiesSection.add(abilityAssignmentContainer).growX().row();
         rebuildAbilityAssignment(cd);
 
         return form;
@@ -557,14 +554,4 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         }, skin);
     }
 
-    // =========================================================================
-    // Helpers
-    // =========================================================================
-
-    private Label sectionHeader(String text) {
-        Label l = new Label(text, skin, "title");
-        l.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
-        l.setAlignment(Align.left);
-        return l;
-    }
 }

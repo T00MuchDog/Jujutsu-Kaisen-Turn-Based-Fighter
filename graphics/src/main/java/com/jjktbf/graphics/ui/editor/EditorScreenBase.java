@@ -67,6 +67,8 @@ public abstract class EditorScreenBase<D> implements Screen {
     /** Width fraction of the master list (left). */
     private static final float LIST_W_FRAC = 0.30f;
     private static final float PAD = 8f;
+    /** Minimum width of the label column in form rows, for cross-row alignment. */
+    private static final float FORM_LABEL_WIDTH = 200f;
 
     // ── Injected deps ──────────────────────────────────────────────────────────
 
@@ -249,15 +251,20 @@ public abstract class EditorScreenBase<D> implements Screen {
 
         masterColumn = body.add(left).width(Gdx.graphics.getWidth() * LIST_W_FRAC).growY();
 
-        // Right: scrollable detail form container
+        // Right: scrollable detail form container. The pane itself is a navy
+        // palette; each form section renders as a parchment card on top of it,
+        // mirroring the character-select master/detail look.
         detailContainer = new Container<>();
         detailContainer.fill(true, true);
-        ScrollPane detailScroll = new ScrollPane(detailContainer, skin);
+        ScrollPane.ScrollPaneStyle detailScrollStyle =
+            new ScrollPane.ScrollPaneStyle(skin.get(ScrollPane.ScrollPaneStyle.class));
+        detailScrollStyle.background = null;
+        ScrollPane detailScroll = new ScrollPane(detailContainer, detailScrollStyle);
         detailScroll.setFadeScrollBars(false);
         detailScroll.setScrollingDisabled(true, false);
         Table detail = new Table(skin);
-        detail.setBackground(skin.getDrawable("battle-card"));
-        detail.pad(8f);
+        detail.setBackground(skin.getDrawable("battle-palette"));
+        detail.pad(10f);
         detail.add(detailScroll).grow();
         body.add(detail).grow().padLeft(PAD);
 
@@ -513,7 +520,8 @@ public abstract class EditorScreenBase<D> implements Screen {
         Table t = new Table(skin);
         Label l = new Label("No record selected.\nClick NEW, or select a record from the list.", skin, "small");
         l.setAlignment(Align.center);
-        l.setColor(skin.get("text-dim", Color.class));
+        // Light periwinkle: readable over the navy palette background.
+        l.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
         t.add(l).expand().center();
         return t;
     }
@@ -639,21 +647,73 @@ public abstract class EditorScreenBase<D> implements Screen {
     }
 
     // =========================================================================
-    // Field-builder helpers for subclasses
+    // Form kit — shared section/row builders for the detail forms
     // =========================================================================
 
     /**
-     * A non-interactive {@code #id} badge — small black text, shown directly
-     * below an "IDENTITY" section header and above the Name field. Scaled-down
-     * version of the section-header font. Not clickable / not hover-highlighted.
+     * Root table for a detail form: a single top-aligned column of section
+     * cards. Add sections with {@link #formSection(Table, String)}.
+     */
+    protected Table formRoot() {
+        Table form = new Table(skin);
+        form.top();
+        form.defaults().growX().padBottom(10f);
+        form.pad(2f);
+        return form;
+    }
+
+    /**
+     * Append a parchment section card with a navy title strip to the form.
+     * Returns the section body table; add field rows to it.
+     */
+    protected Table formSection(Table form, String title) {
+        Table card = new Table(skin);
+        card.setBackground(skin.getDrawable("battle-card"));
+        card.top();
+        card.pad(10f);
+
+        Table strip = new Table(skin);
+        strip.setBackground(skin.getDrawable("battle-header"));
+        strip.pad(6f, 10f, 6f, 10f);
+        Label t = new Label(title, skin, "small");
+        t.setColor(skin.get("text-hover", Color.class)); // battle yellow
+        strip.add(t).left().growX();
+        card.add(strip).growX().padBottom(8f).row();
+
+        Table body = new Table(skin);
+        body.top().left();
+        body.defaults().left().pad(3f);
+        card.add(body).growX();
+
+        form.add(card).growX();
+        form.row();
+        return body;
+    }
+
+    /** Muted helper text for use inside form sections. */
+    protected Label formHint(String text) {
+        Label l = new Label(text, skin, "small");
+        l.setColor(skin.get("text-dim", Color.class));
+        return l;
+    }
+
+    /** A row pairing an aligned label column with an arbitrary field actor. */
+    protected Table labelledRow(String label, Actor field) {
+        Table row = new Table(skin);
+        row.add(new Label(label, skin)).left().minWidth(FORM_LABEL_WIDTH).padRight(PAD);
+        row.add(field).growX();
+        return row;
+    }
+
+    /**
+     * A non-interactive {@code #id} badge — small muted text shown at the top
+     * of the IDENTITY section. Not clickable / not hover-highlighted.
      *
      * @param id the record id (e.g. "000007"), or null for an unsaved new record
      */
     protected Label idBadge(String id) {
         Label l = new Label("#" + (id == null ? "—" : id), skin, "small");
-        l.setColor(com.badlogic.gdx.graphics.Color.BLACK);
-        // Scale down a touch so it reads as subordinate to the header.
-        l.setFontScale(0.85f);
+        l.setColor(skin.get("text-dim", Color.class));
         return l;
     }
 
@@ -665,7 +725,7 @@ public abstract class EditorScreenBase<D> implements Screen {
     protected Table labelledField(String label, String initial,
                                   java.util.function.Consumer<String> onChange) {
         Table row = new Table(skin);
-        row.add(new Label(label, skin)).left().padRight(PAD);
+        row.add(new Label(label, skin)).left().minWidth(FORM_LABEL_WIDTH).padRight(PAD);
         TextField tf = new HoverTextField(initial == null ? "" : initial, skin);
         tf.setTextFieldFilter((TextField textField, char c) -> true);
         tf.addListener(new ChangeListener() {
@@ -679,12 +739,13 @@ public abstract class EditorScreenBase<D> implements Screen {
     }
 
     /**
-     * A labelled integer text field with min/max clamping on edit.
+     * A labelled integer text field with min/max clamping on edit. The field
+     * is fixed-width — numeric entry does not need a full-width box.
      */
     protected Table labelledIntField(String label, int initial, int min, int max,
                                      java.util.function.IntConsumer onChange) {
         Table row = new Table(skin);
-        row.add(new Label(label, skin)).left().padRight(PAD);
+        row.add(new Label(label, skin)).left().minWidth(FORM_LABEL_WIDTH).padRight(PAD);
         TextField tf = new HoverTextField(String.valueOf(initial), skin);
         tf.setTextFieldFilter((TextField textField, char c) ->
             Character.isDigit(c) || c == '-');
@@ -703,7 +764,8 @@ public abstract class EditorScreenBase<D> implements Screen {
                 } catch (NumberFormatException ignored) { /* keep editing */ }
             }
         });
-        row.add(tf).growX();
+        row.add(tf).left().width(120f);
+        row.add().growX(); // spacer keeps the field left-anchored
         return row;
     }
 }

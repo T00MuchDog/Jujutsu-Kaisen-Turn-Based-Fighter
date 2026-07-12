@@ -167,6 +167,7 @@ public final class PixelSkin {
         skin.add("battle-palette", palette,     Drawable.class);
         skin.add("battle-card",   card,         Drawable.class);
         skin.add("battle-card-over", cardOver,  Drawable.class);
+        skin.add("battle-card-disabled", cardDisabled, Drawable.class);
         skin.add("battle-primary", primary,     Drawable.class);
         skin.add("white-panel",   whitePanel,   Drawable.class);
         skin.add("button-up",     card,         Drawable.class);

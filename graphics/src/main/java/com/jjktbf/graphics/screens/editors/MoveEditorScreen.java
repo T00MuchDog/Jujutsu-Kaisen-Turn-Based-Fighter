@@ -8,7 +8,6 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
-import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
@@ -224,21 +223,18 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
     @Override
     protected Actor buildDetailForm(MoveData d) {
-        Table form = new Table(skin);
-        form.defaults().left().pad(4);
-        form.columnDefaults(0).left();
-        form.pad(8);
+        Table form = formRoot();
 
         // ── Identity ───────────────────────────────────────────────────────────
-        form.add(sectionHeader("IDENTITY")).growX().colspan(2).row();
-        form.add(idBadge(d.id)).colspan(2).padBottom(2).row();
-        form.add(labelledField("Name", d.name,
-                s -> { d.name = s; })).growX().colspan(2).row();
-        form.add(labelledField("Description", d.description,
-                s -> { d.description = s; })).growX().colspan(2).row();
+        Table identity = formSection(form, "IDENTITY");
+        identity.add(idBadge(d.id)).left().row();
+        identity.add(labelledField("Name", d.name,
+                s -> { d.name = s; })).growX().row();
+        identity.add(labelledField("Description", d.description,
+                s -> { d.description = s; })).growX().row();
 
         // ── Tags ───────────────────────────────────────────────────────────────
-        form.add(sectionHeader("TAGS / CATEGORY")).growX().colspan(2).row();
+        Table tagsSection = formSection(form, "TAGS / CATEGORY");
         Set<MoveTag> initialTags = new LinkedHashSet<>();
         if (d.tags != null) {
             for (String t : d.tags) {
@@ -253,14 +249,14 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         // (e.g. a technique tag implies CURSED_ENERGY). suppressDirty is on
         // during build, so this won't mark the record dirty on load.
         d.tags = tagPicker.getSelected().stream().map(MoveTag::name).toList();
-        form.add(tagPicker).growX().colspan(2).row();
+        tagsSection.add(tagPicker).growX().row();
 
         // ── Cost ───────────────────────────────────────────────────────────────
-        form.add(sectionHeader("COST")).growX().colspan(2).row();
-        form.add(labelledIntField("AP Cost", d.apCost, 1, 999,
-                v -> { d.apCost = v; })).growX().colspan(2).row();
-        form.add(labelledIntField("Unleash Point (1..AP)", d.unleashPoint, 1, 999,
-                v -> { d.unleashPoint = v; })).growX().colspan(2).row();
+        Table cost = formSection(form, "COST");
+        cost.add(labelledIntField("AP Cost", d.apCost, 1, 999,
+                v -> { d.apCost = v; })).growX().row();
+        cost.add(labelledIntField("Unleash Point (1..AP)", d.unleashPoint, 1, 999,
+                v -> { d.unleashPoint = v; })).growX().row();
         CheckBox hasCeCostCb = new CheckBox(" Has CE cost", skin);
         hasCeCostCb.setChecked(Boolean.TRUE.equals(d.hasCeCost));
         hasCeCostCb.addListener(new ChangeListener() {
@@ -269,18 +265,18 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 refreshConditionalSections(d);
             }
         });
-        form.add(hasCeCostCb).colspan(2).row();
+        cost.add(hasCeCostCb).left().row();
 
         // CE amount and min/max (shown only when the move has a CE cost).
         ceMinMaxContainer = new Container<>();
         ceMinMaxContainer.setActor(buildCeMinMax(d));
-        form.add(ceMinMaxContainer).growX().colspan(2).row();
+        cost.add(ceMinMaxContainer).growX().row();
 
         // ── Power / accuracy ───────────────────────────────────────────────────
-        form.add(sectionHeader("POWER / ACCURACY")).growX().colspan(2).row();
+        Table power = formSection(form, "POWER / ACCURACY");
         powerFieldsContainer = new Container<>();
         powerFieldsContainer.setActor(buildPowerFields(d));
-        form.add(powerFieldsContainer).growX().colspan(2).row();
+        power.add(powerFieldsContainer).growX().row();
 
         CheckBox neverMissCb = new CheckBox(" Never-miss (ignore accuracy roll)", skin);
         neverMissCb.setChecked(d.neverMiss);
@@ -290,57 +286,55 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 refreshConditionalSections(d);
             }
         });
-        form.add(neverMissCb).colspan(2).row();
+        power.add(neverMissCb).left().row();
 
         // ── Interrupt ──────────────────────────────────────────────────────────
-        form.add(sectionHeader("INTERRUPT")).growX().colspan(2).row();
-        form.add(new Label("Type", skin)).padRight(8);
-        form.add(new EnumSelectBox<>(InterruptType.class, d.interruptType, false,
-                s -> { d.interruptType = s; }, skin)).growX().row();
+        Table interrupt = formSection(form, "INTERRUPT");
+        interrupt.add(labelledRow("Type", new EnumSelectBox<>(InterruptType.class, d.interruptType, false,
+                s -> { d.interruptType = s; }, skin))).growX().row();
 
         // ── Defense ────────────────────────────────────────────────────────────
-        form.add(sectionHeader("DEFENSE")).growX().colspan(2).row();
-        form.add(new Label("Type", skin)).padRight(8);
-        form.add(new EnumSelectBox<>(DefenseType.class, d.defenseType, false,
-                s -> { d.defenseType = s; refreshConditionalSections(d); }, skin)).growX().row();
+        Table defense = formSection(form, "DEFENSE");
+        defense.add(labelledRow("Type", new EnumSelectBox<>(DefenseType.class, d.defenseType, false,
+                s -> { d.defenseType = s; refreshConditionalSections(d); }, skin))).growX().row();
 
         // Conditional block fields
         blockFieldsContainer = new Container<>();
         blockFieldsContainer.setActor(buildBlockFields(d));
-        form.add(blockFieldsContainer).growX().colspan(2).row();
+        defense.add(blockFieldsContainer).growX().row();
 
         // ── Technique requirement ──────────────────────────────────────────────
-        form.add(sectionHeader("TECHNIQUE REQUIREMENT")).growX().colspan(2).row();
-        form.add(labelledField("Required Technique (name or blank)",
+        Table technique = formSection(form, "TECHNIQUE REQUIREMENT");
+        technique.add(labelledField("Required Technique (name or blank)",
                 d.requiredTechniqueId,
                 s -> { d.requiredTechniqueId = (s == null || s.isBlank()) ? null : s; }))
-            .growX().colspan(2).row();
+            .growX().row();
         // Read-only hint: does the named technique exist in the TechniqueRepository?
         // Warns (does not block) — a move may legitimately predate its technique.
         if (d.requiredTechniqueId != null && !d.requiredTechniqueId.isBlank()) {
             boolean exists = techniqueExists(d.requiredTechniqueId);
             Label techHint = exists
-                ? hint("✓ technique \"" + d.requiredTechniqueId + "\" found")
-                : hint("⚠ no technique named \"" + d.requiredTechniqueId + "\" — create it in the Technique Editor");
+                ? formHint("✓ technique \"" + d.requiredTechniqueId + "\" found")
+                : formHint("⚠ no technique named \"" + d.requiredTechniqueId + "\" — create it in the Technique Editor");
             techHint.setColor(exists
                 ? skin.get("text-ok", com.badlogic.gdx.graphics.Color.class)
                 : skin.get("text-error", com.badlogic.gdx.graphics.Color.class));
-            form.add(techHint).colspan(2).padBottom(4).row();
+            technique.add(techHint).left().row();
         }
 
         // ── Prerequisites ──────────────────────────────────────────────────────
-        form.add(sectionHeader("STAT PREREQUISITES")).growX().colspan(2).row();
-        form.add(buildPrerequisitesEditor(d)).growX().colspan(2).row();
+        Table prereqs = formSection(form, "STAT PREREQUISITES");
+        prereqs.add(buildPrerequisitesEditor(d)).growX().row();
 
         // ── Status effects ──────────────────────────────────────────────────────
-        form.add(sectionHeader("ON-HIT EFFECTS")).growX().colspan(2).row();
-        form.add(buildEffectsEditor("onHit", d)).growX().colspan(2).row();
+        Table onHit = formSection(form, "ON-HIT EFFECTS");
+        onHit.add(buildEffectsEditor("onHit", d)).growX().row();
 
-        form.add(sectionHeader("SELF EFFECTS")).growX().colspan(2).row();
-        form.add(buildEffectsEditor("self", d)).growX().colspan(2).row();
+        Table selfFx = formSection(form, "SELF EFFECTS");
+        selfFx.add(buildEffectsEditor("self", d)).growX().row();
 
         // ── Free-move ───────────────────────────────────────────────────────────
-        form.add(sectionHeader("MISC")).growX().colspan(2).row();
+        Table misc = formSection(form, "MISC");
         CheckBox freeCb = new CheckBox(" Free move (does not consume a slot)", skin);
         freeCb.setChecked(d.isFreeMove);
         freeCb.addListener(new ChangeListener() {
@@ -349,7 +343,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 markDirty();
             }
         });
-        form.add(freeCb).colspan(2).row();
+        misc.add(freeCb).left().row();
 
         return form;
     }
@@ -364,7 +358,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         t.add(labelledIntField("Base Power", d.basePower, 0, 99999,
                 v -> { d.basePower = v; })).growX().row();
         if (d.neverMiss) {
-            t.add(hint("Accuracy is N/A for a never-miss move.")).row();
+            t.add(formHint("Accuracy is N/A for a never-miss move.")).row();
             return t;
         }
         // Accuracy as integer 1..100; stored /100 as double.
@@ -378,7 +372,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         Table t = new Table(skin);
         t.defaults().left().pad(4);
         if (!Boolean.TRUE.equals(d.hasCeCost)) {
-            t.add(hint("(this move has no CE cost)")).row();
+            t.add(formHint("(this move has no CE cost)")).row();
             return t;
         }
         t.add(labelledIntField("Base CE Cost", d.baseCeCost, 0, 99999,
@@ -398,7 +392,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         catch (Exception e) { dt = DefenseType.NONE; }
 
         if (dt == DefenseType.NONE) {
-            t.add(hint("(no defense — select PERCENTAGE_BLOCK or FLAT_BLOCK)")).row();
+            t.add(formHint("(no defense — select PERCENTAGE_BLOCK or FLAT_BLOCK)")).row();
             return t;
         }
 
@@ -460,7 +454,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         t.add(count).colspan(4).row();
 
         if (map.isEmpty()) {
-            t.add(hint("(none — add one below)")).colspan(4).row();
+            t.add(formHint("(none — add one below)")).colspan(4).row();
         } else {
             // Snapshot the keys to avoid CME while rebuilding on remove.
             for (String stat : new ArrayList<>(map.keySet())) {
@@ -527,7 +521,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         t.defaults().left().pad(3);
 
         if (list.isEmpty()) {
-            t.add(hint("(none)")).colspan(5).row();
+            t.add(formHint("(none)")).colspan(5).row();
         } else {
             // Snapshot for safe iteration during rebuild.
             for (int i = 0; i < list.size(); i++) {
@@ -651,19 +645,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         } catch (java.io.IOException e) {
             return false; // can't confirm — don't block
         }
-    }
-
-    private Label sectionHeader(String text) {
-        Label l = new Label(text, skin, "title");
-        l.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
-        l.setAlignment(Align.left);
-        return l;
-    }
-
-    private Label hint(String text) {
-        Label l = new Label(text, skin, "small");
-        l.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
-        return l;
     }
 
     private static String pretty(String enumName) {

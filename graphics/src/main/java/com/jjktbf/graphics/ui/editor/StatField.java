@@ -51,8 +51,10 @@ public class StatField extends Table {
         this.max      = max;
         this.onChange = onChange;
 
+        // Fixed minimum label width keeps every slider's left edge aligned when
+        // several StatFields stack vertically in the stats section.
         Label nameLabel = new Label(name, skin);
-        add(nameLabel).left().padRight(8);
+        add(nameLabel).left().minWidth(190f).padRight(8);
 
         // Min edge label
         Label minLabel = new Label(String.valueOf(min), skin, "small");

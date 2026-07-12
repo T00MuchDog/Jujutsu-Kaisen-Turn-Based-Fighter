@@ -4,7 +4,6 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
-import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
@@ -173,57 +172,54 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
 
     @Override
     protected Actor buildDetailForm(AbilityData d) {
-        Table form = new Table(skin);
-        form.defaults().left().pad(4);
-        form.pad(8);
+        Table form = formRoot();
 
         // ── Identity ───────────────────────────────────────────────────────────
-        form.add(sectionHeader("IDENTITY")).growX().colspan(2).row();
-        form.add(idBadge(d.id)).colspan(2).padBottom(2).row();
-        form.add(labelledField("Name", d.name,
-                s -> { d.name = s; })).growX().colspan(2).row();
-        form.add(labelledField("Flavour Text", d.flavourText,
-                s -> { d.flavourText = s; })).growX().colspan(2).row();
-        form.add(labelledField("Mechanic Text", d.mechanicText,
-                s -> { d.mechanicText = s; })).growX().colspan(2).row();
+        Table identity = formSection(form, "IDENTITY");
+        identity.add(idBadge(d.id)).left().row();
+        identity.add(labelledField("Name", d.name,
+                s -> { d.name = s; })).growX().row();
+        identity.add(labelledField("Flavour Text", d.flavourText,
+                s -> { d.flavourText = s; })).growX().row();
+        identity.add(labelledField("Mechanic Text", d.mechanicText,
+                s -> { d.mechanicText = s; })).growX().row();
 
         // ── Category ───────────────────────────────────────────────────────────
-        form.add(sectionHeader("CATEGORY")).growX().colspan(2).row();
-        form.add(new Label("Category", skin)).padRight(8);
-        form.add(new EnumSelectBox<>(CategoryEnum.class, d.category, false,
-                s -> { d.category = s; refreshConditionalSections(d); }, skin)).growX().row();
+        Table category = formSection(form, "CATEGORY");
+        category.add(labelledRow("Category", new EnumSelectBox<>(CategoryEnum.class, d.category, false,
+                s -> { d.category = s; refreshConditionalSections(d); }, skin))).growX().row();
 
         // ── Source ──────────────────────────────────────────────────────────────
-        form.add(sectionHeader("SOURCE")).growX().colspan(2).row();
-        form.add(new Label("Source Type", skin)).padRight(8);
-        form.add(new EnumSelectBox<>(SourceTypeEnum.class, d.sourceType, false,
-                s -> { d.sourceType = s; refreshConditionalSections(d); }, skin)).growX().row();
+        Table source = formSection(form, "SOURCE");
+        source.add(labelledRow("Source Type", new EnumSelectBox<>(SourceTypeEnum.class, d.sourceType, false,
+                s -> { d.sourceType = s; refreshConditionalSections(d); }, skin))).growX().row();
         sourceValueContainer = new Container<>();
         sourceValueContainer.setActor(buildSourceValue(d));
-        form.add(sourceValueContainer).growX().colspan(2).row();
+        source.add(sourceValueContainer).growX().row();
 
         // Mastery threshold — when this ability is technique-sourced
         // (sourceType=TECHNIQUE), this is the cursed-technique-mastery value at
         // which the technique auto-grants it. Ignored for other source types.
-        form.add(labelledIntField("Mastery Threshold (TECHNIQUE abilities)", d.masteryThreshold, 0, 999,
-                v -> { d.masteryThreshold = v; })).growX().colspan(2).row();
+        source.add(labelledIntField("Mastery Threshold (TECHNIQUE abilities)", d.masteryThreshold, 0, 999,
+                v -> { d.masteryThreshold = v; })).growX().row();
 
         // ── Active sub-fields (only when ACTIVE) ────────────────────────────────
-        form.add(sectionHeader("ACTIVE SETTINGS")).growX().colspan(2).row();
+        Table active = formSection(form, "ACTIVE SETTINGS");
         activeSubContainer = new Container<>();
         activeSubContainer.setActor(buildActiveSub(d));
-        form.add(activeSubContainer).growX().colspan(2).row();
+        active.add(activeSubContainer).growX().row();
 
         // Move list hint (useful when source/active references a move id)
         moveListHint = new Label("", skin, "small");
         moveListHint.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
-        form.add(moveListHint).growX().colspan(2).row();
+        moveListHint.setWrap(true);
+        active.add(moveListHint).growX().row();
         refreshMoveHint();
 
         // ── Effects ──────────────────────────────────────────────────────────────
-        form.add(sectionHeader("EFFECTS")).growX().colspan(2).row();
-        form.add(new EffectListEditor(d.effects, this::markDirty, this::rebuildDetail, skin))
-            .growX().colspan(2).row();
+        Table effects = formSection(form, "EFFECTS");
+        effects.add(new EffectListEditor(d.effects, this::markDirty, this::rebuildDetail, skin))
+            .growX().row();
 
         return form;
     }
@@ -240,27 +236,27 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             case "TECHNIQUE":
                 t.add(labelledField("Technique Name", d.sourceValue,
                         s -> { d.sourceValue = s; })).growX().row();
-                t.add(hint("(match a character's innate technique name)")).row();
+                t.add(formHint("(match a character's innate technique name)")).row();
                 break;
             case "MOVE":
                 t.add(labelledField("Move ID (6-digit)", d.sourceValue,
                         s -> { d.sourceValue = s; })).growX().row();
-                t.add(hint("(see move list below)")).row();
+                t.add(formHint("(see move list below)")).row();
                 break;
             case "STAT_THRESHOLD":
                 t.add(labelledField("Threshold (e.g. cursedTechniqueMastery>=200)",
                         d.sourceValue,
                         s -> { d.sourceValue = s; })).growX().row();
-                t.add(hint("(format: stat>=value)")).row();
+                t.add(formHint("(format: stat>=value)")).row();
                 break;
             case "ABILITY":
                 t.add(labelledField("Ability ID or Name", d.sourceValue,
                         s -> { d.sourceValue = s; })).growX().row();
-                t.add(hint("(see ability list on the left)")).row();
+                t.add(formHint("(see ability list on the left)")).row();
                 break;
             case "CHARACTER":
             default:
-                t.add(hint("(no source value needed for CHARACTER source)")).row();
+                t.add(formHint("(no source value needed for CHARACTER source)")).row();
                 d.sourceValue = null;
                 break;
         }
@@ -271,7 +267,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         Table t = new Table(skin);
         t.defaults().left().pad(4);
         if (!d.isActive()) {
-            t.add(hint("(active settings apply only to ACTIVE abilities)")).row();
+            t.add(formHint("(active settings apply only to ACTIVE abilities)")).row();
             return t;
         }
         // Sub-type
@@ -282,7 +278,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         if (d.isQueued()) {
             t.add(labelledField("Active Move ID (queued move)", d.activeMoveId,
                     s -> { d.activeMoveId = s; })).growX().row();
-            t.add(hint("(see move list below)")).row();
+            t.add(formHint("(see move list below)")).row();
         } else if (d.isTriggered()) {
             t.add(new Label("Trigger Condition", skin)).padRight(8);
             t.add(new EnumSelectBox<>(AbilityTrigger.class, d.triggerCondition, false,
@@ -314,23 +310,6 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         markDirty();
         if (sourceValueContainer != null) sourceValueContainer.setActor(buildSourceValue(d));
         if (activeSubContainer  != null) activeSubContainer.setActor(buildActiveSub(d));
-    }
-
-    // =========================================================================
-    // Helpers
-    // =========================================================================
-
-    private Label sectionHeader(String text) {
-        Label l = new Label(text, skin, "title");
-        l.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
-        l.setAlignment(Align.left);
-        return l;
-    }
-
-    private Label hint(String text) {
-        Label l = new Label(text, skin, "small");
-        l.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
-        return l;
     }
 
     // ── Placeholder enums to drive the String-backed category/source/sub fields ─
