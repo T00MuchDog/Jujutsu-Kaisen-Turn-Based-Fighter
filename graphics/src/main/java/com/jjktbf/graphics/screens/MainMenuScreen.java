@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
@@ -17,15 +18,13 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Main menu screen, using the same framed command palette as battle planning.
  *
- * Options (clickable TextButtons; number keys also work):
- *   1  NEW GAME          → CharacterSelectScreen
- *   2  MOVE EDITOR       → MoveEditorScreen
- *   3  CHARACTER EDITOR  → CharacterEditorScreen
- *   4  ABILITY EDITOR    → AbilityEditorScreen
- *   Esc / Q              Quit
+ * Options are clickable; number keys remain available as shortcuts.
  *
  * Mouse cursor is visible here (Scene2D Stage handles hit-testing).
  */
@@ -35,6 +34,10 @@ public class MainMenuScreen implements Screen {
     private final AssetLoader assets;
     private final Stage       stage;
     private final Table       root;
+    private final List<MenuButton> menuButtons = new ArrayList<>();
+    private final List<Cell<MenuButton>> menuButtonCells = new ArrayList<>();
+    private Table commands;
+    private Cell<?> commandsCell;
 
     public MainMenuScreen(JJKGame game, AssetLoader assets) {
         this.game   = game;
@@ -47,6 +50,7 @@ public class MainMenuScreen implements Screen {
         stage.addActor(root);
 
         buildMenu();
+        layoutMenu(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
     }
 
     private void buildMenu() {
@@ -56,37 +60,30 @@ public class MainMenuScreen implements Screen {
 
         Label title = new Label("JJK TURN BASED FIGHTER", assets.editorSkin, "title");
         title.setAlignment(Align.left);
-        Label subtitle = new Label("TURN-BASED COMBAT COMMAND CENTER", assets.editorSkin, "small");
-        subtitle.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
-        header.add(title).left().row();
-        header.add(subtitle).left().padTop(5);
+        header.add(title).left();
         root.add(header).growX().padBottom(18).row();
 
-        Table commands = new Table(assets.editorSkin);
+        commands = new Table(assets.editorSkin);
         commands.setBackground(assets.editorSkin.getDrawable("battle-palette"));
         commands.pad(16);
         Label commandTitle = new Label("SELECT MODE", assets.editorSkin, "title");
         commandTitle.setColor(new Color(1.000f, 0.835f, 0.180f, 1f));
         commands.add(commandTitle).left().padBottom(10).row();
 
-        TextButton newGame   = makeButton("1  START BATTLE",      "primary", game::showCharacterSelect);
-        TextButton moveEd    = makeButton("2  MOVE EDITOR",       "default", game::showMoveEditor);
-        TextButton charEd    = makeButton("3  CHARACTER EDITOR",  "default", game::showCharacterEditor);
-        TextButton abilityEd = makeButton("4  ABILITY EDITOR",    "default", game::showAbilityEditor);
-        TextButton techEd    = makeButton("5  TECHNIQUE EDITOR",  "default", game::showTechniqueEditor);
-        TextButton quit      = makeButton("ESC  QUIT",             "default", () -> Gdx.app.exit());
+        MenuButton newGame   = makeButton("START BATTLE", game::showCharacterSelect);
+        MenuButton moveEd    = makeButton("MOVE EDITOR", game::showMoveEditor);
+        MenuButton charEd    = makeButton("CHARACTER EDITOR", game::showCharacterEditor);
+        MenuButton abilityEd = makeButton("ABILITY EDITOR", game::showAbilityEditor);
+        MenuButton techEd    = makeButton("TECHNIQUE EDITOR", game::showTechniqueEditor);
+        MenuButton quit      = makeButton("QUIT", () -> Gdx.app.exit());
 
-        // The command cards echo the battle planner's move palette: a primary
-        // green action followed by parchment navigation cards.
-        for (TextButton b : new TextButton[]{ newGame, moveEd, charEd, abilityEd, techEd, quit }) {
-            commands.add(b).growX().height(46).pad(4).row();
+        for (MenuButton button : new MenuButton[]{ newGame, moveEd, charEd, abilityEd, techEd, quit }) {
+            menuButtons.add(button);
+            menuButtonCells.add(commands.add(button).growX().height(46).pad(4));
+            commands.row();
         }
-        root.add(commands).growX().maxWidth(540).top().expandY().row();
-
-        Label help = new Label("NUMBER KEYS: OPEN MODE   |   ESC: QUIT", assets.editorSkin, "small");
-        help.setColor(assets.editorSkin.get("text-dim", Color.class));
-        help.setAlignment(Align.center);
-        root.add(help).growX().padTop(14);
+        commandsCell = root.add(commands).width(540).top().expandY();
+        root.row();
 
         // Keyboard shortcuts
         stage.addListener(new InputListener() {
@@ -104,12 +101,26 @@ public class MainMenuScreen implements Screen {
 
     }
 
-    private TextButton makeButton(String label, String style, Runnable onClick) {
-        TextButton b = new TextButton(label, assets.editorSkin, style);
+    private MenuButton makeButton(String label, Runnable onClick) {
+        MenuButton b = new MenuButton(label, assets.editorSkin);
         b.addListener(new ClickListener() {
             @Override public void clicked(InputEvent e, float x, float y) { onClick.run(); }
         });
         return b;
+    }
+
+    private void layoutMenu(int width, int height) {
+        float scale = Math.min(1.75f, Math.max(0.80f,
+            Math.min(width / 1024f, height / 600f)));
+        float panelWidth = Math.min(width - 56f * scale, 540f * scale);
+        root.pad(28f * scale);
+        commands.pad(16f * scale);
+        commandsCell.width(panelWidth);
+        for (int i = 0; i < menuButtons.size(); i++) {
+            menuButtons.get(i).getLabel().setFontScale(scale);
+            menuButtonCells.get(i).height(46f * scale).pad(4f * scale);
+        }
+        root.invalidateHierarchy();
     }
 
     // -------------------------------------------------------------------------
@@ -118,6 +129,8 @@ public class MainMenuScreen implements Screen {
 
     @Override
     public void show() {
+        stage.unfocusAll();
+        for (MenuButton button : menuButtons) button.clearHover();
         Gdx.input.setInputProcessor(stage);
     }
 
@@ -130,7 +143,10 @@ public class MainMenuScreen implements Screen {
         stage.draw();
     }
 
-    @Override public void resize(int width, int height) { stage.getViewport().update(width, height, true); }
+    @Override public void resize(int width, int height) {
+        stage.getViewport().update(width, height, true);
+        layoutMenu(width, height);
+    }
     @Override public void pause()  {}
     @Override public void resume() {}
     @Override public void hide()   {}
@@ -138,5 +154,35 @@ public class MainMenuScreen implements Screen {
     @Override
     public void dispose() {
         stage.dispose();
+    }
+
+    /** Prevents a reused menu button retaining its prior screen's hover state. */
+    private static final class MenuButton extends TextButton {
+        private boolean suppressHover;
+
+        private MenuButton(String text, com.badlogic.gdx.scenes.scene2d.ui.Skin skin) {
+            super(text, skin, "primary");
+            addListener(new InputListener() {
+                @Override
+                public void enter(InputEvent event, float x, float y, int pointer, com.badlogic.gdx.scenes.scene2d.Actor fromActor) {
+                    suppressHover = false;
+                }
+
+                @Override
+                public boolean mouseMoved(InputEvent event, float x, float y) {
+                    suppressHover = false;
+                    return false;
+                }
+            });
+        }
+
+        private void clearHover() {
+            suppressHover = true;
+        }
+
+        @Override
+        public boolean isOver() {
+            return !suppressHover && super.isOver();
+        }
     }
 }
