@@ -675,8 +675,8 @@ public abstract class EditorScreenBase<D> implements Screen {
         Table strip = new Table(skin);
         strip.setBackground(skin.getDrawable("battle-header"));
         strip.pad(6f, 10f, 6f, 10f);
-        Label t = new Label(title, skin, "small");
-        t.setColor(skin.get("text-hover", Color.class)); // battle yellow
+        Label t = new Label(title, skin, "white");
+        t.setColor(new Color(1f, 1f, 1f, 1f));
         strip.add(t).left().growX();
         card.add(strip).growX().padBottom(8f).row();
 

@@ -185,7 +185,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         Table form = formRoot();
 
         // ── Identity ───────────────────────────────────────────────────────────
-        Table identity = formSection(form, "IDENTITY");
+        Table identity = formSection(form, "NAME");
         identity.add(idBadge(cd.id)).left().row();
         identity.add(labelledField("Name", cd.name,
                 s -> { cd.name = s; })).growX().row();

@@ -124,7 +124,7 @@ public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData>
     protected Actor buildDetailForm(InnateTechniqueData d) {
         Table form = formRoot();
 
-        Table identity = formSection(form, "IDENTITY");
+        Table identity = formSection(form, "NAME");
         identity.add(idBadge(d.id)).left().row();
         identity.add(labelledField("Name", d.name,
                 s -> { d.name = s; })).growX().row();
