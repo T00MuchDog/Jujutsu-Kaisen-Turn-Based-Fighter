@@ -44,3 +44,8 @@ graphics/dependency-reduced-pom.xml
 
 ### Per-user runtime data (written at launch) ###
 battle_crash.log
+
+### Local-only planning / private notes (never commit) ###
+.zcode/
+game_design_decisions
+stuff_to_do
