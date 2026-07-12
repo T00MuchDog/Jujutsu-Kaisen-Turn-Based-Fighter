@@ -248,6 +248,16 @@ public class PlanningPanel {
         return draggedMove() != null && draggingBoard == board && barFor(board).getBounds().contains(dragMouseX, dragMouseY);
     }
 
+    /** Returns the first AP tick at or to the right of {@code startTick} that fits the move. */
+    private int firstAvailableTick(BattlePlan.Board board, int startTick, int apCost) {
+        TimelineBar bar = barFor(board);
+        int lastStart = bar.getDotCount() - apCost + 1;
+        for (int tick = startTick; tick <= lastStart; tick++) {
+            if (plan.boardTimeline(board).isRangeFree(tick, tick + apCost - 1)) return tick;
+        }
+        return -1;
+    }
+
     public class PlanningInputProcessor extends InputAdapter {
         @Override
         public boolean touchDown(int screenX, int screenY, int pointer, int button) {
@@ -298,12 +308,16 @@ public class PlanningPanel {
             updateSnap();
 
             Move move = draggedMove();
-            ActionSegment placed = snapValid ? plan.place(move, draggingTick, ceCost(move)) : null;
+            boolean droppedOnTimeline = barFor(draggingBoard).getBounds().contains(dragMouseX, dragMouseY);
+            ActionSegment placed = droppedOnTimeline && snapValid
+                ? plan.place(move, draggingTick, ceCost(move)) : null;
             if (placed != null) {
                 selectedSegment = placed;
-            } else if (draggingSegment != null) {
+            } else if (droppedOnTimeline && draggingSegment != null) {
                 // A cancelled relocation must never destroy an already planned move.
                 selectedSegment = plan.place(draggingSegment.getMove(), originalTick, originalCeCost);
+            } else if (!droppedOnTimeline) {
+                selectedSegment = null;
             }
             clearDrag();
             return true;
@@ -351,11 +365,10 @@ public class PlanningPanel {
                 snapValid = false;
                 return;
             }
-            draggingTick = bar.tickAtX(dragMouseX);
-            int endTick = draggingTick + move.getApCost() - 1;
-            snapValid = endTick <= bar.getDotCount()
-                && plan.boardTimeline(draggingBoard).isRangeFree(draggingTick, endTick)
-                && plan.fitsBudgets(move, ceCost(move));
+            int requestedTick = bar.tickAtX(dragMouseX);
+            int availableTick = firstAvailableTick(draggingBoard, requestedTick, move.getApCost());
+            draggingTick = availableTick > 0 ? availableTick : requestedTick;
+            snapValid = availableTick > 0 && plan.fitsBudgets(move, ceCost(move));
         }
 
         private void updateHover() {
