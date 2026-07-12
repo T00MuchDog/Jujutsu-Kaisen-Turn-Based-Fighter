@@ -85,4 +85,20 @@ public interface BattleView {
      * Display a generic message (used for system-level info, errors, etc.)
      */
     void displayMessage(String message);
+
+    /**
+     * Whether the player has asked to leave the battle early (e.g. pressed
+     * Escape). The {@link com.jjktbf.controller.BattleController} polls this
+     * between phases so an abort unwinds the loop instead of running to a
+     * knockout, and skips the battle-over screen since the player has already
+     * navigated away.
+     *
+     * <p>Defaulted to {@code false} so views that never abort need no change.
+     * Implementations backing this must be safe to read from the controller
+     * (battle) thread while the flag is set on the render thread — a volatile
+     * boolean is the usual choice.
+     *
+     * @return {@code true} once an abort has been requested
+     */
+    default boolean isAborted() { return false; }
 }

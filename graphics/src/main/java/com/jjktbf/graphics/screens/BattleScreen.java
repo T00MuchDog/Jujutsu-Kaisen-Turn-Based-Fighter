@@ -81,6 +81,14 @@ public class BattleScreen implements Screen, BattleView {
     private volatile boolean resolvingTicks = false;
     private boolean nextRoundHovered = false;
 
+    /**
+     * Set on the render thread when the player presses Escape to leave a battle
+     * early. Read by the controller (battle) thread via {@link #isAborted()} to
+     * unwind the loop, and polled by this screen's own blocking spin-waits and
+     * paced sleeps so an abort unblocks promptly instead of running to a KO.
+     */
+    private volatile boolean abortRequested = false;
+
     // ── Planning panel (two-board timeline UI) ─────────────────────────────────
     private com.jjktbf.graphics.ui.battle.PlanningPanel planningPanel;
 
@@ -112,6 +120,7 @@ public class BattleScreen implements Screen, BattleView {
         nextRoundConfirmed = false;
         resolvingTicks = false;
         battleOver     = false;
+        abortRequested = false;
     }
 
     /** Last frame's delta, shared with widgets that animate (e.g. HP bars). */
@@ -121,8 +130,39 @@ public class BattleScreen implements Screen, BattleView {
     public void render(float delta) {
         frameDelta = delta;
         clearScreen();
+        // Escape aborts from any phase, including planning (where the
+        // PlanningInputProcessor owns Gdx.input, so handleInput() never runs).
+        // isKeyJustPressed() is polled, so it fires regardless of the active
+        // input processor.
+        if (!battleOver && Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            abortBattle();
+        }
         handleInput();
         drawAll();
+    }
+
+    /**
+     * Leave the battle early and return to the main menu. Sets the abort flag
+     * (polled by the controller thread to unwind the loop) and, since the
+     * controller may be blocked in one of our own view calls, unblocks those
+     * spins too. The actual screen switch happens via postRunnable so it lands
+     * on the render thread; hide()/show() tear the planning panel down.
+     */
+    private void abortBattle() {
+        if (abortRequested) return; // already leaving — don't re-trigger
+        abortRequested = true;
+
+        // Unblock whichever controller-thread view call is parked right now.
+        inputConfirmed    = true; // promptBattlePlan / promptMoveSelection
+        nextRoundConfirmed = true; // awaitNextRound
+
+        // If the planning panel holds the input processor, release it so the
+        // main menu's own processor takes over cleanly on the next screen.
+        Gdx.app.postRunnable(() -> {
+            planningPanel = null;
+            Gdx.input.setInputProcessor(null);
+            game.showMainMenu();
+        });
     }
 
     @Override public void resize(int w, int h) {
@@ -423,9 +463,14 @@ public class BattleScreen implements Screen, BattleView {
             inputConfirmed = false;
         });
 
-        // Block the controller thread until the player confirms
-        while (!inputConfirmed) {
+        // Block the controller thread until the player confirms or aborts
+        while (!inputConfirmed && !abortRequested) {
             sleepMs(16);
+        }
+
+        if (abortRequested) {
+            awaitingInput = false;
+            return new ArrayList<>();
         }
 
         List<Move> result = new ArrayList<>(selectedQueue);
@@ -462,8 +507,15 @@ public class BattleScreen implements Screen, BattleView {
             inputConfirmed = false;
         });
 
-        while (!inputConfirmed) {
+        while (!inputConfirmed && !abortRequested) {
             sleepMs(16);
+        }
+
+        // On abort, return an empty plan immediately — the controller will see
+        // isAborted() and unwind without ever running this plan.
+        if (abortRequested) {
+            awaitingInput = false;
+            return new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe());
         }
 
         // Read the plan on the render thread to avoid racing a drag-commit.
@@ -492,23 +544,26 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public void displayCombatEvents(List<CombatEvent> events, BattleState state) {
+        if (abortRequested) return;
         Gdx.app.postRunnable(() -> phaseLabel = "ROUND " + state.getRoundNumber() + "  —  RESOLVING");
 
         // Each call now corresponds to one tick of real engine progression (the
         // controller drives the resolver tick-by-tick). Pause between successive
         // resolution calls so the sweep reads at a deliberate cadence; skip the
-        // pause on the first call of a sequence.
-        if (resolvingTicks) sleepMs(TICK_DELAY_MS);
+        // pause on the first call of a sequence. Paced via abortableSleepMs so
+        // an Escape abort cuts the pause short rather than running it out.
+        if (resolvingTicks) abortableSleepMs(TICK_DELAY_MS);
         resolvingTicks = true;
 
         for (CombatEvent e : events) {
+            if (abortRequested) return;
             if (!e.getMessage().isBlank()) {
                 final String msg = e.getMessage();
                 Gdx.app.postRunnable(() -> {
                     addLogLine(msg);
                     updatePanels();
                 });
-                sleepMs(EVENT_DELAY_MS);
+                abortableSleepMs(EVENT_DELAY_MS);
             }
         }
     }
@@ -531,7 +586,7 @@ public class BattleScreen implements Screen, BattleView {
             nextRoundHovered = false;
         });
 
-        while (!nextRoundConfirmed) {
+        while (!nextRoundConfirmed && !abortRequested) {
             sleepMs(16);
         }
 
@@ -556,8 +611,15 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public void displayMessage(String message) {
+        if (abortRequested) return;
         Gdx.app.postRunnable(() -> addLogLine(message));
-        sleepMs(100);
+        abortableSleepMs(100);
+    }
+
+    /** Polled by the controller thread to unwind the loop on an Escape abort. */
+    @Override
+    public boolean isAborted() {
+        return abortRequested;
     }
 
     // -------------------------------------------------------------------------
@@ -648,5 +710,19 @@ public class BattleScreen implements Screen, BattleView {
 
     private static void sleepMs(long ms) {
         try { Thread.sleep(ms); } catch (InterruptedException ignored) {}
+    }
+
+    /**
+     * Sleep that wakes promptly on an abort. Used for the paced pauses during
+     * resolution (event delay, tick delay) and message display — without it, an
+     * Escape press during a multi-tick resolution would leave the battle thread
+     * grinding through long sleeps in the background after the player has
+     * already returned to the menu.
+     */
+    private void abortableSleepMs(long ms) {
+        long deadline = System.currentTimeMillis() + ms;
+        while (!abortRequested && System.currentTimeMillis() < deadline) {
+            sleepMs(Math.min(40L, deadline - System.currentTimeMillis() + 1));
+        }
     }
 }

@@ -58,15 +58,21 @@ public class BattleController {
             + playerCharacter.getName() + " vs " + enemyCharacter.getName() + " ===");
 
         while (!state.isBattleOver()) {
+            // An abort (e.g. the player pressed Escape) surfaces from whichever
+            // blocking view call was active. Break before the battle-over screen
+            // — the view has already navigated the player away.
+            if (view.isAborted()) return;
+
             runPlanningPhase(state, player, enemy);
-            if (state.isBattleOver()) break;
+            if (state.isBattleOver() || view.isAborted()) break;
 
             runResolutionPhase(state, player, enemy);
-            if (state.isBattleOver()) break;
+            if (state.isBattleOver() || view.isAborted()) break;
 
             runRoundEndPhase(state, player, enemy);
         }
 
+        if (view.isAborted()) return;
         view.displayBattleOver(state.getWinner(), state);
     }
 

@@ -47,6 +47,6 @@
   "jujutsuSkill" : 80,
   "combatAbility" : 80,
   "cursedTechniqueMastery" : 80,
-  "moveIds" : [ ],
+  "moveIds" : [ "000000", "000001" ],
   "abilityIds" : [ ]
 } ]
