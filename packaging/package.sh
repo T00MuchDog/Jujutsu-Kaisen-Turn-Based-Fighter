@@ -178,12 +178,16 @@ case "$PLATFORM" in
                --icon "$ICON"
                --mac-package-name "$APP_NAME"
                --mac-package-identifier "$APP_IDENTIFIER")
-        # Signing (gated on secrets; ad-hoc/unsigned by default).
+        # Code signing (gated on secrets; ad-hoc/unsigned by default).
+        # NOTE: jpackage --mac-sign is wired here, but notarization/stapling is
+        # NOT yet implemented. Signing only takes effect if you have a Developer
+        # ID certificate in the runner's keychain AND the APPLE_* secrets set;
+        # otherwise the build is unsigned. See RELEASE.md §7. Until then,
+        # releases rely on published SHA-256 checksums (see the release workflow).
         if [ -n "${APPLE_DEV_ID:-}" ] && [ -n "${APPLE_DEV_PASSWORD:-}" ] && [ -n "${APPLE_DEVELOPER_ID:-}" ]; then
             JPKG+=(--mac-sign
                    --mac-signing-key-user-name "$APPLE_DEVELOPER_ID"
                    --mac-signing-keychain "$APPLE_KEYCHAIN")
-            SIGN_MAC=1
         fi
         ;;
     windows)
@@ -197,8 +201,11 @@ case "$PLATFORM" in
                --win-menu-group "$APP_NAME"
                --win-upgrade-uuid "$WIN_UPGRADE_UUID")
         if [ -n "${WIN_CERT_P12:-}" ] && [ -n "${WIN_CERT_PASSWORD:-}" ]; then
-            # jpackage Wix signs via --app-content (signing handled post-build).
-            SIGN_WIN=1
+            # NOTE: MSI signing is NOT yet implemented. The WIN_CERT_* secrets
+            # are accepted for forward compatibility, but no signtool step runs
+            # today. Until a signing step is added here, Windows builds are
+            # unsigned and rely on published SHA-256 checksums. See RELEASE.md §7.
+            : # signing intentionally a no-op until signtool is wired in
         fi
         ;;
     linux)

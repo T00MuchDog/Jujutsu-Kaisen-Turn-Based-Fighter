@@ -1,5 +1,5 @@
 # Release pipeline — builds native macOS + Windows installers on their own
-# runners and attaches them to a GitHub Release.
+# runners and attaches them (plus SHA-256 checksums) to a GitHub Release.
 #
 # Trigger: push an annotated tag matching v* (e.g. v1.2.0). The version is
 # taken from the tag (the leading 'v' is stripped); you do not need to edit
@@ -11,8 +11,13 @@
 #      artifact in dist/,
 #   3. uploads that artifact.
 #
-# The release job downloads all artifacts and publishes them to a GitHub
-# Release via softprops/action-gh-release.
+# The release job (tag pushes only) downloads all artifacts, generates a
+# SHA256SUMS file, and publishes them to a GitHub Release via
+# softprops/action-gh-release.
+#
+# Manual runs (workflow_dispatch) are BUILD-ONLY: they build and upload
+# artifacts to the Actions run for testing, but the release job is skipped
+# (it is gated on github.event_name == 'push'). Only a real tag publishes.
 #
 # Code signing / notarization is OPTIONAL and secret-gated: the build runs
 # unsigned unless the corresponding secrets are present. See RELEASE.md for
@@ -24,16 +29,20 @@ on:
   push:
     tags:
       - 'v*'
-  # Allow manual runs from the Actions tab (use the default branch; no tag).
+  # Allow manual runs from the Actions tab. These are BUILD-ONLY: the release
+  # job is skipped, so no release is published. The version must be strict
+  # SemVer (MAJOR.MINOR.PATCH) or the run fails — see the context job below.
   workflow_dispatch:
     inputs:
       version:
         description: 'Version to build (e.g. 1.2.0), without leading v'
         required: true
-        default: '0.0.0-dev'
+        default: '0.0.0'
 
+# Least privilege by default. The release job below escalates to
+# contents: write, which is the only thing that needs it.
 permissions:
-  contents: write   # needed by softprops/action-gh-release to create a release
+  contents: read
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -46,11 +55,21 @@ jobs:
     steps:
       - id: ver
         shell: bash
+        # NEVER interpolate github.event.inputs.* directly into a shell command:
+        # that is shell injection. Pass it through the environment, then
+        # validate it against strict SemVer before it reaches anything.
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            V="${{ github.event.inputs.version }}"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            V="$INPUT_VERSION"
           else
             V="${GITHUB_REF_NAME#v}"
+          fi
+          if ! printf '%s' "$V" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "ERROR: version '$V' is not strict SemVer (MAJOR.MINOR.PATCH)." >&2
+            exit 1
           fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "Building version: $V"
@@ -70,16 +89,18 @@ jobs:
             arch: x64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9  # actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Cache Maven dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # actions/cache@v4
         with:
           path: ~/.m2/repository
           key: ${{ runner.os }}-m2-${{ matrix.arch }}-${{ hashFiles('**/pom.xml') }}
@@ -93,6 +114,7 @@ jobs:
           APPLE_DEV_ID:       ${{ secrets.APPLE_APPLE_ID }}
           APPLE_DEV_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_KEYCHAIN:     ${{ secrets.APPLE_KEYCHAIN }}
+        # needs.context.outputs.version is the validated SemVer from above.
         run: |
           ./packaging/package.sh "${{ needs.context.outputs.version }}"
 
@@ -105,7 +127,7 @@ jobs:
           echo "name=$(basename "$f")" >> "$GITHUB_OUTPUT"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # actions/upload-artifact@v4
         with:
           name: ${{ steps.art.outputs.name }}
           path: ${{ steps.art.outputs.path }}
@@ -118,17 +140,19 @@ jobs:
     needs: context
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9  # actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
       # WiX (required by jpackage for MSI) is preinstalled on windows-latest.
       - name: Cache Maven dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # actions/cache@v4
         with:
           path: ~/.m2/repository
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
@@ -139,6 +163,7 @@ jobs:
         env:
           WIN_CERT_P12:     ${{ secrets.WIN_CERT_P12 }}
           WIN_CERT_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+        # needs.context.outputs.version is the validated SemVer from above.
         run: |
           ./packaging/package.sh "${{ needs.context.outputs.version }}"
 
@@ -151,7 +176,7 @@ jobs:
           echo "name=$(basename "$f")" >> "$GITHUB_OUTPUT"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # actions/upload-artifact@v4
         with:
           name: ${{ steps.art.outputs.name }}
           path: ${{ steps.art.outputs.path }}
@@ -161,11 +186,19 @@ jobs:
   # Publish: gather all artifacts and attach them to a GitHub Release.
   # ---------------------------------------------------------------------------
   release:
+    # Manual workflow_dispatch runs are BUILD-ONLY: they produce artifacts
+    # (downloadable from the Actions run) but never publish a release.
+    # Only a real tag push (v*) reaches this job. This prevents an unreviewed
+    # manual run from creating a public release.
+    if: ${{ github.event_name == 'push' }}
     needs: [context, build-macos, build-windows]
     runs-on: ubuntu-latest
+    # This is the ONLY job that needs to create a release.
+    permissions:
+      contents: write
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
@@ -173,10 +206,26 @@ jobs:
       - name: List artifacts
         run: ls -la artifacts
 
+      # Publish SHA-256 checksums alongside the installers so users can verify
+      # download integrity. Especially important while installers are unsigned.
+      - name: Generate SHA-256 checksums
+        shell: bash
+        run: |
+          cd artifacts
+          # Hash every installer file. Write to a temp first, then move into
+          # place, so SHA256SUMS is never an input to its own generation.
+          find . -type f ! -name SHA256SUMS -print0 \
+            | sort -z \
+            | xargs -0 sha256sum > SHA256SUMS.tmp
+          mv SHA256SUMS.tmp SHA256SUMS
+          echo "::group::SHA-256 checksums"
+          cat SHA256SUMS
+          echo "::endgroup::"
+
       - name: Create / update GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@7c4723f7a335432393329f8f1c564994ce50185d  # softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', needs.context.outputs.version) || github.ref_name }}
+          tag_name: ${{ github.ref_name }}
           name: ${{ needs.context.outputs.version }}
           generate_release_notes: true
           fail_on_unmatched_files: true

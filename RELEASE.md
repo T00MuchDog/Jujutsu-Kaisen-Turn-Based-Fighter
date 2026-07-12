@@ -106,8 +106,8 @@ attaches them to a GitHub Release.
 ### One-time setup
 - The workflow (`.github/workflows/release.yml`) needs no configuration to run
   **unsigned**. Just push a tag.
-- (Optional, later) To enable signing, add repository secrets — see
-  [§7 Code signing & notarization](#7-code-signing--notarization).
+- (Optional, later) To enable signing, add repository secrets and complete the
+  signing steps — see [§7 Verifying downloads & code signing](#7-verifying-downloads--code-signing).
 
 ### Cutting the release
 
@@ -130,17 +130,22 @@ Pushing the tag triggers `.github/workflows/release.yml`, which:
   (x64), `windows-latest` (x64).
 - Each checks out the code, sets up JDK 17 (Temurin), and runs
   `packaging/package.sh` with the tag's version.
-- A final `release` job downloads all three artifacts and creates a GitHub
-  Release named `<version>` with auto-generated notes, attaching the `.dmg`
-  and `.msi` files.
+- A final `release` job (tag pushes only) downloads all three artifacts,
+  generates a `SHA256SUMS` checksum file, and creates a GitHub Release named
+  `<version>` with auto-generated notes, attaching the `.dmg` and `.msi` files
+  plus the checksums.
 
 You can watch progress under **Actions** in the GitHub UI. When it finishes,
-the release appears under **Releases** with the installers attached.
+the release appears under **Releases** with the installers and `SHA256SUMS`
+attached.
 
-> You can also trigger a build manually from the Actions tab
-> (**Run workflow** → enter a version) without creating a tag. This is useful
-> for testing the pipeline; it will not produce a public release until you
-> push a real tag.
+> You can also trigger a build manually from the Actions tab (**Run workflow**
+> → enter a version) without creating a tag. This is useful for testing the
+> pipeline. **Manual runs are build-only**: they build the installers and
+> attach them to the Actions run for download, but the release job is skipped
+> — no GitHub Release is published until you push a real `v*` tag. The
+> version you enter must be strict [SemVer](https://semver.org)
+> (`MAJOR.MINOR.PATCH`, e.g. `1.2.0`); anything else fails the run.
 
 ---
 
@@ -213,19 +218,64 @@ per-user data is unaffected (it lives outside the app).
 
 ---
 
-## 7. Code signing & notarization
+## 7. Verifying downloads & code signing
 
-> Builds are **unsigned by default**. Unsigned apps work, but:
+### 7a. Verifying a download (always available)
+
+Every release includes a `SHA256SUMS` file listing the SHA-256 hash of each
+installer. **Verify your download before installing** — this confirms the file
+wasn't corrupted or tampered with in transit. Download both the installer and
+`SHA256SUMS` from the release, then from the directory containing both:
+
+**macOS / Linux:**
+
+```bash
+# Check just the file you downloaded:
+shasum -a 256 JujutsuKaisenFighter-1.2.0-macos-arm64.dmg
+
+# Or verify against the published list (expects all files present):
+shasum -a 256 -c SHA256SUMS
+```
+
+**Windows (Command Prompt):**
+
+```cmd
+certutil -hashfile JujutsuKaisenFighter-1.2.0-windows-x64.msi SHA256
+```
+
+Compare the printed hash to the matching line in `SHA256SUMS`. They must match
+exactly.
+
+> **Why checksums and not a signature?** A SHA-256 hash proves integrity (the
+> file is unchanged) but not authenticity (it doesn't prove *who* made it),
+> because both the installer and the checksums travel through the same GitHub
+> release. Full authenticity requires code signing (below). Until signing is
+> set up, treat checksums as the primary verification mechanism.
+
+### 7b. Code signing status (unsigned by default)
+
+> Builds are **currently unsigned**. Unsigned apps work, but:
 > - **macOS:** Gatekeeper blocks first launch. Users must right-click →
 >   **Open** (or `xattr -d com.apple.quarantine /path/to.app`) the first time.
 > - **Windows:** SmartScreen shows a "Windows protected your PC" warning on
 >   first run; users click **More info → Run anyway**.
 
-To enable signing later, add these **repository secrets** (GitHub → Settings →
-Secrets and variables → Actions). The workflow activates signing automatically
-when they are present — **no code changes are required**.
+The scaffolding exists to enable signing later without code changes, but it is
+**not yet complete**:
 
-### macOS (Apple Developer ID + notarization)
+- **macOS:** `jpackage --mac-sign` is wired in `packaging/package.sh` and
+  activates when the `APPLE_*` secrets are present, **but notarization and
+  stapling are not implemented yet** — signing alone still trips Gatekeeper
+  until the build is notarized.
+- **Windows:** the `WIN_CERT_*` secrets are accepted for forward
+  compatibility, **but no `signtool` step runs yet** — the MSI is always
+  unsigned today.
+
+To complete signing later, add these **repository secrets** (GitHub → Settings
+→ Secrets and variables → Actions), and then implement the missing notarization
+(macOS) and `signtool` (Windows) steps:
+
+#### macOS (Apple Developer ID + notarization)
 | Secret                       | Value                                              |
 |------------------------------|----------------------------------------------------|
 | `APPLE_DEVELOPER_ID`         | "Developer ID Application: Your Name (TEAMID)"    |
@@ -234,19 +284,19 @@ when they are present — **no code changes are required**.
 | `APPLE_KEYCHAIN`             | keychain name holding the signing identity         |
 
 The signing identity must be installed on the runner; for CI this usually
-means importing a `.p12` into a temporary keychain in a preceding step
-(add that step to the workflow when you have the certificate). Notarization
-(stapling the ticket) is performed after signing.
+means importing a `.p12` into a temporary keychain in a preceding step, then
+running `xcrun notarytool submit` + `xcrun stapler staple` on the `.app`
+inside the `.dmg` after `jpackage` completes.
 
-### Windows (code-signing certificate)
+#### Windows (code-signing certificate)
 | Secret              | Value                                        |
 |---------------------|----------------------------------------------|
 | `WIN_CERT_P12`      | base64-encoded `.pfx`/`.p12` certificate     |
 | `WIN_CERT_PASSWORD` | the certificate's export password            |
 
-The MSI is then signed with `signtool` in a post-build step.
-
-Until these secrets exist, the workflow produces ad-hoc/unsigned builds and
+This requires decoding `WIN_CERT_P12` to a `.pfx` on the runner and signing the
+MSI with `signtool sign /f cert.pfx /p <password> /fd sha256 ...` after
+`jpackage` produces it. Until then, the workflow produces unsigned builds and
 the warnings above apply.
 
 ---
