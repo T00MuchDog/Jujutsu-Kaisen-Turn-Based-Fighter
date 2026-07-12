@@ -233,7 +233,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         Label libraryLabel = new Label("RECORDS", skin, "small");
         libraryLabel.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
         left.add(libraryLabel).left().growX().padBottom(6f).row();
-        searchField = new TextField("", skin);
+        searchField = new HoverTextField("", skin);
         searchField.setMessageText("search...");
         searchField.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) { refreshMasterList(); }
@@ -666,7 +666,7 @@ public abstract class EditorScreenBase<D> implements Screen {
                                   java.util.function.Consumer<String> onChange) {
         Table row = new Table(skin);
         row.add(new Label(label, skin)).left().padRight(PAD);
-        TextField tf = new TextField(initial == null ? "" : initial, skin);
+        TextField tf = new HoverTextField(initial == null ? "" : initial, skin);
         tf.setTextFieldFilter((TextField textField, char c) -> true);
         tf.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
@@ -685,7 +685,7 @@ public abstract class EditorScreenBase<D> implements Screen {
                                      java.util.function.IntConsumer onChange) {
         Table row = new Table(skin);
         row.add(new Label(label, skin)).left().padRight(PAD);
-        TextField tf = new TextField(String.valueOf(initial), skin);
+        TextField tf = new HoverTextField(String.valueOf(initial), skin);
         tf.setTextFieldFilter((TextField textField, char c) ->
             Character.isDigit(c) || c == '-');
         tf.setTextFieldListener((TextField textField, char c) -> {

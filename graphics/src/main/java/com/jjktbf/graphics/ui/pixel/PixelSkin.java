@@ -141,6 +141,8 @@ public final class PixelSkin {
             new Color(0.780f, 1f, 0.730f, 1f), new Color(0.100f, 0.430f, 0.180f, 1f));
         Drawable textfield    = battleFrame("textfield", new Color(1f, 1f, 0.980f, 1f),
             new Color(0.075f, 0.095f, 0.145f, 1f), Color.WHITE, new Color(0.630f, 0.650f, 0.720f, 1f));
+        Drawable textfieldOver = battleFrame("textfield-over", new Color(1f, 1f, 0.980f, 1f), YELLOW,
+            new Color(1f, 1f, 0.780f, 1f), new Color(0.720f, 0.420f, 0.080f, 1f));
         Drawable selection    = patch("sel", SELECTION);
         Drawable selectionRow = patch("sel-row", new Color(SELECTION.r, SELECTION.g, SELECTION.b, 0.35f));
         Drawable sliderH      = patch("slider-bg-h",SLIDER_BG);
@@ -172,6 +174,7 @@ public final class PixelSkin {
         skin.add("button-hover",  cardOver,     Drawable.class);
         skin.add("button-checked",cardOver,     Drawable.class);
         skin.add("textfield",     textfield,    Drawable.class);
+        skin.add("textfield-over", textfieldOver, Drawable.class);
         skin.add("selection",     selection,    Drawable.class);
         skin.add("selection-row", selectionRow, Drawable.class);
         skin.add("slider-h",      sliderH,      Drawable.class);
@@ -188,10 +191,10 @@ public final class PixelSkin {
         registerLabelStyles(skin);
         registerTextButtonStyles(skin, card, cardOver, cardDisabled, primary, primaryOver);
         registerButtonStyles(skin, card, cardOver, cardOver);
-        registerTextFieldStyles(skin, textfield);
+        registerTextFieldStyles(skin, textfield, textfieldOver);
         registerSliderStyles(skin, sliderH, sliderKnobH);
         registerScrollPaneStyles(skin);
-        registerSelectBoxStyles(skin, textfield, listSel);
+        registerSelectBoxStyles(skin, textfield, textfieldOver, listSel);
         registerListStyles(skin, listSel);
         registerCheckBoxStyles(skin, checkboxOn, checkboxOff);
         registerWindowStyles(skin, card);
@@ -393,10 +396,11 @@ public final class PixelSkin {
         skin.add("default", def, com.badlogic.gdx.scenes.scene2d.ui.Button.ButtonStyle.class);
     }
 
-    private void registerTextFieldStyles(Skin skin, Drawable bg) {
+    private void registerTextFieldStyles(Skin skin, Drawable bg, Drawable hoverBg) {
         com.badlogic.gdx.scenes.scene2d.ui.TextField.TextFieldStyle def =
             new com.badlogic.gdx.scenes.scene2d.ui.TextField.TextFieldStyle(font, TEXT_DARK, null, null, bg);
         def.messageFontColor = new Color(0.45f, 0.45f, 0.45f, 1f);
+        def.focusedBackground = hoverBg;
         // Use a 1-pixel selection drawable we already have
         def.selection = skin.getDrawable("selection");
         skin.add("default", def, com.badlogic.gdx.scenes.scene2d.ui.TextField.TextFieldStyle.class);
@@ -419,7 +423,7 @@ public final class PixelSkin {
         skin.add("default", def, com.badlogic.gdx.scenes.scene2d.ui.ScrollPane.ScrollPaneStyle.class);
     }
 
-    private void registerSelectBoxStyles(Skin skin, Drawable bg, Drawable listSel) {
+    private void registerSelectBoxStyles(Skin skin, Drawable bg, Drawable hoverBg, Drawable listSel) {
         com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle listStyle =
             new com.badlogic.gdx.scenes.scene2d.ui.List.ListStyle(font, TEXT_DARK, TEXT_DARK, listSel);
         // Pure-white list background (was parchment, which let the screen colour
@@ -443,8 +447,8 @@ public final class PixelSkin {
         com.badlogic.gdx.scenes.scene2d.ui.SelectBox.SelectBoxStyle def =
             new com.badlogic.gdx.scenes.scene2d.ui.SelectBox.SelectBoxStyle(
                 font, TEXT_DARK, skin.getDrawable("white-panel"), dropdownScroll, listStyle);
-        def.backgroundOver  = skin.getDrawable("white-panel");
-        def.backgroundOpen  = skin.getDrawable("white-panel");
+        def.backgroundOver  = hoverBg;
+        def.backgroundOpen  = hoverBg;
         def.overFontColor   = TEXT_HOVER;
         skin.add("default", def, com.badlogic.gdx.scenes.scene2d.ui.SelectBox.SelectBoxStyle.class);
     }

@@ -132,15 +132,15 @@ public class EffectListEditor extends Table {
         tagBox.setItems(moveTagNames());
         tagBox.setSelected(e.moveTag != null ? e.moveTag : "ALL");
 
-        final TextField intField = new TextField(e.intValue == null ? "" : String.valueOf(e.intValue), skin);
+        final TextField intField = new HoverTextField(e.intValue == null ? "" : String.valueOf(e.intValue), skin);
         intField.setTextFieldFilter((tf, c) -> Character.isDigit(c) || c == '-');
 
-        final TextField dblField = new TextField(e.doubleValue == null ? "" : String.valueOf(e.doubleValue), skin);
+        final TextField dblField = new HoverTextField(e.doubleValue == null ? "" : String.valueOf(e.doubleValue), skin);
         dblField.setTextFieldFilter((tf, c) -> Character.isDigit(c) || c == '-' || c == '.');
 
-        final TextField moveIdField = new TextField(e.moveId == null ? "" : e.moveId, skin);
+        final TextField moveIdField = new HoverTextField(e.moveId == null ? "" : e.moveId, skin);
 
-        final TextField strField = new TextField(e.stringValue == null ? "" : e.stringValue, skin);
+        final TextField strField = new HoverTextField(e.stringValue == null ? "" : e.stringValue, skin);
 
         final SelectBox<String> targetBox = new SelectBox<>(skin);
         targetBox.setItems("SELF", "ENEMY");

@@ -13,6 +13,7 @@ import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
 import com.jjktbf.graphics.ui.editor.EnumSelectBox;
+import com.jjktbf.graphics.ui.editor.HoverTextField;
 import com.jjktbf.graphics.ui.editor.TagPicker;
 import com.jjktbf.graphics.ui.editor.ValidationResult;
 import com.jjktbf.model.move.DefenseType;
@@ -482,9 +483,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         // Add row: stat name + value + Add button
         Table addRow = new Table(skin);
         addRow.defaults().pad(3);
-        TextField statField = new TextField("", skin);
+        TextField statField = new HoverTextField("", skin);
         statField.setMessageText("stat (e.g. strength)");
-        TextField valField = new TextField("", skin);
+        TextField valField = new HoverTextField("", skin);
         valField.setMessageText("value");
         valField.setTextFieldFilter((TextField tf, char c) -> Character.isDigit(c) || c == '-');
         TextButton addBtn = new TextButton("Add", skin);
@@ -594,7 +595,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         content.add(typeBox).growX().row();
 
         // Duration
-        TextField durField = new TextField(String.valueOf(eff.durationRounds), skin);
+        TextField durField = new HoverTextField(String.valueOf(eff.durationRounds), skin);
         durField.setTextFieldFilter((tf, c) -> Character.isDigit(c) || c == '-');
         durField.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent e, Actor a) {
@@ -606,7 +607,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         content.add(durField).growX().row();
 
         // Magnitude
-        TextField magField = new TextField(String.valueOf(eff.magnitude), skin);
+        TextField magField = new HoverTextField(String.valueOf(eff.magnitude), skin);
         magField.setTextFieldFilter((tf, c) ->
             Character.isDigit(c) || c == '-' || c == '.');
         magField.addListener(new ChangeListener() {

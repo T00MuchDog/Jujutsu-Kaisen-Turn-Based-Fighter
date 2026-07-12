@@ -71,7 +71,7 @@ public class StatField extends Table {
         add(maxLabel).padRight(6);
 
         // Numeric text field (type a value)
-        valueField = new TextField(String.valueOf(clamp(initial)), skin);
+        valueField = new HoverTextField(String.valueOf(clamp(initial)), skin);
         valueField.setTextFieldFilter((TextField tf, char c) ->
             Character.isDigit(c) || (c == '-' && tf.getCursorPosition() == 0));
         valueField.setDisabled(disabled);
