@@ -47,8 +47,13 @@ public class BattleScreen implements Screen, BattleView {
 
     /** Max raw messages retained in the battle log; older ones are dropped. */
     private static final int   LOG_MAX_STORED = 50;
-    /** Vertical spacing multiplier between battle-log lines (1.0 = single line height). */
-    private static final float LOG_LINE_SPACING = 1.8f;
+    /**
+     * Vertical spacing multiplier between battle-log lines (1.0 = single line height).
+     * Press Start 2P has tall line metrics, so even at 1.5 there is comfortable
+     * breathing room between lines; this keeps one extra line visible before the
+     * oldest entry scrolls off the top.
+     */
+    private static final float LOG_LINE_SPACING = 1.5f;
     private static final float CARD_MARGIN = 8f;
     private static final int   EVENT_DELAY_MS = 520;
     /** Pause applied when the AP tick advances during resolution — slows the sweep. */
@@ -98,6 +103,13 @@ public class BattleScreen implements Screen, BattleView {
     private volatile String          phaseLabel = "";
     private volatile boolean         battleOver  = false;
     private volatile String          battleResult = "";
+    /**
+     * Latched true the first time the planning panel is created, and stays true
+     * afterwards. Until then we draw nothing — the battle thread hasn't reached
+     * planning yet, so showing the execution HUD would flash it for a frame
+     * before the planning panel appears.
+     */
+    private volatile boolean         executionUiActive = false;
 
     public BattleScreen(JJKGame game, AssetLoader assets) {
         this.game   = game;
@@ -121,6 +133,7 @@ public class BattleScreen implements Screen, BattleView {
         resolvingTicks = false;
         battleOver     = false;
         abortRequested = false;
+        executionUiActive = false;
     }
 
     /** Last frame's delta, shared with widgets that animate (e.g. HP bars). */
@@ -272,6 +285,11 @@ public class BattleScreen implements Screen, BattleView {
 
     private void drawAll() {
         if (battleOver) { drawBattleOver(); return; }
+
+        // Until the battle thread reaches the first planning phase there is
+        // nothing to show — drawing the execution HUD here would flash it for a
+        // few frames before the planning panel appears.
+        if (!executionUiActive) return;
 
         // Planning is a dedicated workspace. Drawing the combat HUD behind it
         // made both the board and the move cards compete for attention.
@@ -498,6 +516,7 @@ public class BattleScreen implements Screen, BattleView {
             renderPlayer = combatant;
             renderEnemy  = opponent;
             phaseLabel   = "PLAN YOUR ROUND";
+            executionUiActive = true;
             planningPanel = new com.jjktbf.graphics.ui.battle.PlanningPanel(
                 combatant, assets.battleUi, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
             planningPanel.setOnConfirm(() -> { inputConfirmed = true; });
