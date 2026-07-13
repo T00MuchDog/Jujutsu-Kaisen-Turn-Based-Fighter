@@ -19,6 +19,10 @@ public class MoveCardView {
     private static final Color ACTIVATION_DOT = new Color(0.075f, 0.080f, 0.100f, 1f);
     private static final Color TIMING_STRIP = new Color(0.270f, 0.305f, 0.375f, 1f);
     private static final Color TIMING_STRIP_EDGE = new Color(0.075f, 0.095f, 0.145f, 1f);
+    private static final Color CE_BAR = new Color(0.160f, 0.430f, 0.810f, 1f);
+    private static final float CE_BAR_W = 36f;
+    private static final float CE_BAR_H = 38f;
+    private static final float ACTION_BAR_MAX_H = 24f;
 
     private final Move move;
     private final Rectangle bounds;
@@ -83,14 +87,16 @@ public class MoveCardView {
         drawFitted(batch, font, typeName(move.getCategory()), textX, y + h - 48f, textW, 1);
 
         font.setColor(ink);
-        // The shorter description leaves a clear lower area for move timing.
-        drawFitted(batch, font, move.getDescription(), textX, y + h - 74f, textW, 4);
-        statFont.setColor(ink);
-        drawStatRows(batch, statFont, textX, textW, y + 84f, y + 48f,
-            accuracyLabel(), move.getBasePower() > 0 ? "PWR " + move.getBasePower() : null,
-            move.hasCeCost() ? "CE " + actualCeCost : null, null);
+        drawFitted(batch, font, move.getDescription(), textX, y + h - 74f, textW, 5);
         drawActionPointDots(batch, ui, x + 20f, y + 8f, w - 40f,
             move.getApCost(), move.getUnleashPoint(), 6f, 4f);
+
+        statFont.setColor(ink);
+        drawStatColumn(batch, statFont, textX, y + 55f, y + 35f,
+            accuracyLabel(), move.getBasePower() > 0 ? "PWR " + move.getBasePower() : null);
+        if (move.hasCeCost()) {
+            drawCeCostBar(batch, statFont, ui, x + w - 48f, y + 31f, actualCeCost);
+        }
     }
 
     private String accuracyLabel() {
@@ -112,6 +118,16 @@ public class MoveCardView {
         float rowStep = size + Math.max(1f, spacing);
         float stripY = bottomY - 3f;
         float stripHeight = rowCount * size + (rowCount - 1) * Math.max(1f, spacing) + 6f;
+
+        // Long custom moves use smaller dots so the AP strip stays below the stat area.
+        while (stripHeight > ACTION_BAR_MAX_H && size > 1f) {
+            size = size > 2f ? 2f : 1f;
+            spacing = 1f;
+            dotsPerRow = Math.max(1, (int) Math.floor((width + spacing) / (size + spacing)));
+            rowCount = (int) Math.ceil(apCost / (double) dotsPerRow);
+            rowStep = size + spacing;
+            stripHeight = rowCount * size + (rowCount - 1) * spacing + 6f;
+        }
 
         batch.setColor(TIMING_STRIP);
         batch.draw(ui.pixel, x, stripY, width, stripHeight);
@@ -175,26 +191,50 @@ public class MoveCardView {
         font.getData().setScale(originalScaleX, originalScaleY);
     }
 
-    /** Draws the two stat rows at one shared scale, preserving a clear middle gap. */
-    private static void drawStatRows(Batch batch, BitmapFont font, float x, float width,
-                                     float upperY, float lowerY, String upperLeft, String upperRight,
-                                     String lowerLeft, String lowerRight) {
+    /** Draws the accuracy and power stats in the left side of the stat area. */
+    private static void drawStatColumn(Batch batch, BitmapFont font, float x,
+                                       float upperY, float lowerY, String upper, String lower) {
         float originalScaleX = font.getData().scaleX;
         float originalScaleY = font.getData().scaleY;
-        float columnWidth = (width - 16f) / 2f;
+        float columnWidth = 120f;
 
-        for (float scale = 1f; scale >= 0.30f; scale -= 0.10f) {
+        for (float scale = 0.70f; scale >= 0.30f; scale -= 0.10f) {
             font.getData().setScale(scale);
-            if (fits(font, upperLeft, columnWidth) && fits(font, upperRight, columnWidth)
-                && fits(font, lowerLeft, columnWidth) && fits(font, lowerRight, columnWidth)) {
+            if (fits(font, upper, columnWidth) && fits(font, lower, columnWidth)) {
                 break;
             }
         }
 
-        drawStat(batch, font, upperLeft, x, upperY, false, width);
-        drawStat(batch, font, upperRight, x, upperY, true, width);
-        drawStat(batch, font, lowerLeft, x, lowerY, false, width);
-        drawStat(batch, font, lowerRight, x, lowerY, true, width);
+        drawStat(batch, font, upper, x, upperY, false, columnWidth);
+        drawStat(batch, font, lower, x, lowerY, false, columnWidth);
+        font.getData().setScale(originalScaleX, originalScaleY);
+    }
+
+    /** Draws the CE label and its cost in the reserved right-hand stat area. */
+    private static void drawCeCostBar(Batch batch, BitmapFont font, BattleUiAssets ui,
+                                      float x, float y, int cost) {
+        batch.setColor(Color.BLACK);
+        batch.draw(ui.pixel, x, y, CE_BAR_W, CE_BAR_H);
+        batch.setColor(CE_BAR);
+        batch.draw(ui.pixel, x + 2f, y + 2f, CE_BAR_W - 4f, CE_BAR_H - 4f);
+        batch.setColor(Color.WHITE);
+
+        font.setColor(Color.BLACK);
+        drawCentered(batch, font, "CE", x, y + CE_BAR_H + 10f, CE_BAR_W, CE_BAR_W);
+        font.setColor(Color.WHITE);
+        drawCentered(batch, font, String.valueOf(cost), x,
+            y + (CE_BAR_H + font.getCapHeight()) / 2f, CE_BAR_W, CE_BAR_W - 6f);
+    }
+
+    private static void drawCentered(Batch batch, BitmapFont font, String value, float x, float y,
+                                     float width, float maxTextWidth) {
+        float originalScaleX = font.getData().scaleX;
+        float originalScaleY = font.getData().scaleY;
+        for (float scale = 1f; scale >= 0.30f; scale -= 0.10f) {
+            font.getData().setScale(scale);
+            if (width(font, value) <= maxTextWidth) break;
+        }
+        font.draw(batch, value, x + (width - width(font, value)) / 2f, y);
         font.getData().setScale(originalScaleX, originalScaleY);
     }
 
