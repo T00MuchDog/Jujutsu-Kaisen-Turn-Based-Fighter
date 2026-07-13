@@ -258,6 +258,15 @@ public class PlanningPanel {
         return -1;
     }
 
+    /** Returns the nearest AP tick at or to the left of {@code startTick} that fits the move. */
+    private int lastAvailableTick(BattlePlan.Board board, int startTick, int apCost) {
+        int lastStart = barFor(board).getDotCount() - apCost + 1;
+        for (int tick = Math.min(startTick, lastStart); tick >= 1; tick--) {
+            if (plan.boardTimeline(board).isRangeFree(tick, tick + apCost - 1)) return tick;
+        }
+        return -1;
+    }
+
     public class PlanningInputProcessor extends InputAdapter {
         @Override
         public boolean touchDown(int screenX, int screenY, int pointer, int button) {
@@ -366,7 +375,23 @@ public class PlanningPanel {
                 return;
             }
             int requestedTick = bar.tickAtX(dragMouseX);
-            int availableTick = firstAvailableTick(draggingBoard, requestedTick, move.getApCost());
+            int requestedEnd = requestedTick + move.getApCost() - 1;
+            int availableTick;
+            if (requestedEnd <= bar.getDotCount()
+                && plan.boardTimeline(draggingBoard).isRangeFree(requestedTick, requestedEnd)) {
+                availableTick = requestedTick;
+            } else {
+                int leftTick = lastAvailableTick(draggingBoard, requestedTick, move.getApCost());
+                int rightTick = firstAvailableTick(draggingBoard, requestedTick, move.getApCost());
+                if (leftTick < 0) {
+                    availableTick = rightTick;
+                } else if (rightTick < 0) {
+                    availableTick = leftTick;
+                } else {
+                    float snapMidpoint = (leftTick + rightTick + move.getApCost() - 1) / 2f;
+                    availableTick = requestedTick <= snapMidpoint ? leftTick : rightTick;
+                }
+            }
             draggingTick = availableTick > 0 ? availableTick : requestedTick;
             snapValid = availableTick > 0 && plan.fitsBudgets(move, ceCost(move));
         }
