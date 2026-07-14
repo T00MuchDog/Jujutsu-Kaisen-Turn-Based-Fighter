@@ -19,7 +19,6 @@ public class MoveCardView {
     private static final Color ACTIVATION_DOT = new Color(0.075f, 0.080f, 0.100f, 1f);
     private static final Color TIMING_STRIP = new Color(0.270f, 0.305f, 0.375f, 1f);
     private static final Color TIMING_STRIP_EDGE = new Color(0.075f, 0.095f, 0.145f, 1f);
-    private static final Color CE_BAR = new Color(0.160f, 0.430f, 0.810f, 1f);
     private static final float CE_BAR_W = 36f;
     private static final float CE_BAR_H = 38f;
     private static final float ACTION_BAR_MAX_H = 24f;
@@ -217,7 +216,7 @@ public class MoveCardView {
                                       float x, float y, int cost) {
         batch.setColor(Color.BLACK);
         batch.draw(ui.pixel, x, y, CE_BAR_W, CE_BAR_H);
-        batch.setColor(CE_BAR);
+        batch.setColor(BattleUiAssets.CURSED_ENERGY);
         batch.draw(ui.pixel, x + 2f, y + 2f, CE_BAR_W - 4f, CE_BAR_H - 4f);
         batch.setColor(Color.WHITE);
 

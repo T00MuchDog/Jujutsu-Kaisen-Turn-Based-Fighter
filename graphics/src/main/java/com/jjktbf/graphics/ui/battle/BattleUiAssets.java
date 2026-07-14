@@ -22,6 +22,7 @@ public final class BattleUiAssets {
     public static final Color TEXT = new Color(0.090f, 0.125f, 0.205f, 1f);
     public static final Color MUTED = new Color(0.400f, 0.445f, 0.545f, 1f);
     public static final Color YELLOW = new Color(1.000f, 0.835f, 0.180f, 1f);
+    public static final Color CURSED_ENERGY = new Color(0.160f, 0.430f, 0.810f, 1f);
     public static final Color OFFENSE = new Color(0.920f, 0.350f, 0.180f, 1f);
     public static final Color DEFENSE = new Color(0.220f, 0.470f, 0.920f, 1f);
 

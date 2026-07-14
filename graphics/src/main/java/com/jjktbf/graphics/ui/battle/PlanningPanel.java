@@ -182,9 +182,10 @@ public class PlanningPanel {
             headerBounds.x + 18f, headerBounds.y + (compactLayout ? 76f : 39f));
         float statX = compactLayout ? headerBounds.x + 12f : headerBounds.x + Math.min(340f, headerBounds.width * 0.42f);
         float statWidth = compactLayout ? 82f : 104f;
-        drawStat(batch, font, statX, headerBounds.y + (compactLayout ? 12f : 15f), statWidth, "AP", plan.totalApUsed() + "/" + plan.apBudget());
+        drawStat(batch, font, statX, headerBounds.y + (compactLayout ? 12f : 15f), statWidth,
+            "AP", plan.remainingApBudget(), plan.apBudget(), BattleUiAssets.YELLOW);
         drawStat(batch, font, statX + statWidth + 8f, headerBounds.y + (compactLayout ? 12f : 15f),
-            compactLayout ? 82f : 108f, "CE", plan.remainingCe() + "/" + plan.ceBudget());
+            compactLayout ? 82f : 108f, "CE", plan.remainingCe(), plan.ceBudget(), BattleUiAssets.CURSED_ENERGY);
 
         if (confirmed) {
             ui.lockButtonDisabled.draw(batch, lockInBounds.x, lockInBounds.y, lockInBounds.width, lockInBounds.height);
@@ -198,12 +199,17 @@ public class PlanningPanel {
             lockInBounds.x + (compactLayout ? 17f : 22f), lockInBounds.y + (compactLayout ? 19f : 25f));
     }
 
-    private void drawStat(Batch batch, BitmapFont font, float x, float y, float width, String label, String value) {
+    private void drawStat(Batch batch, BitmapFont font, float x, float y, float width, String label,
+                          int current, int maximum, Color fillColor) {
         ui.statPill.draw(batch, x, y, width, 29f);
+        float fillRatio = maximum <= 0 ? 0f : Math.max(0f, Math.min(1f, current / (float) maximum));
+        batch.setColor(fillColor);
+        batch.draw(ui.pixel, x + 4f, y + 4f, (width - 8f) * fillRatio, 21f);
+        batch.setColor(Color.WHITE);
         font.setColor(BattleUiAssets.MUTED);
         font.draw(batch, label, x + 8f, y + 19f);
         font.setColor(BattleUiAssets.TEXT);
-        font.draw(batch, value, x + 31f, y + 19f);
+        font.draw(batch, current + "/" + maximum, x + 31f, y + 19f);
     }
 
     private void drawTimelineLabel(Batch batch, BitmapFont font, TimelineBar bar, String label,
