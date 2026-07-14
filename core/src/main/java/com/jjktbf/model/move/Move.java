@@ -65,6 +65,13 @@ public class Move {
     private final boolean neverMiss;
 
     /**
+     * If true, a successful hit stuns the defender's action segment(s) on the current
+     * tick (removes them from the timeline). A modifier flag backing the STUN move tag;
+     * not derived from {@link #category}.
+     */
+    private final boolean stun;
+
+    /**
      * Size of the action segment this move occupies on the AP timeline.
      * Min: 5,  Max: ~100.
      */
@@ -142,6 +149,7 @@ public class Move {
         this.basePower           = b.basePower;
         this.baseAccuracy        = b.baseAccuracy;
         this.neverMiss           = b.neverMiss;
+        this.stun                = b.stun;
         this.apCost              = b.apCost;
         this.unleashPoint        = b.unleashPoint;
         this.baseCeCost          = b.baseCeCost;
@@ -173,6 +181,7 @@ public class Move {
     public int getBasePower()                     { return basePower; }
     public double getBaseAccuracy()               { return baseAccuracy; }
     public boolean isNeverMiss()                  { return neverMiss; }
+    public boolean isStun()                       { return stun; }
     public int getApCost()                        { return apCost; }
     public int getUnleashPoint()                  { return unleashPoint; }
     public int getBaseCeCost()                    { return baseCeCost; }
@@ -199,6 +208,7 @@ public class Move {
         if (tagName == null || tagName.isBlank()) return true;
         String normalized = tagName.trim().toUpperCase();
         if ("ATTACK".equals(normalized)) return basePower > 0 && category != MoveCategory.DEFENSIVE && category != MoveCategory.UTILITY;
+        if ("STUN".equals(normalized)) return stun;
         if ("CURSED_ENERGY".equals(normalized)) {
             return category == MoveCategory.PHYSICAL_CURSED_ENERGY
                 || category == MoveCategory.INNATE_TECHNIQUE
@@ -289,7 +299,7 @@ public class Move {
 
     /**
      * Resolve this move's interrupt effect against the defender's timeline at the given tick.
-     * Returns the ActionSegment that was knocked out, or null if no segment was targeted.
+     * Returns the ActionSegment that was stunned, or null if no segment was targeted.
      *
      * Should only be called if hasInterrupt() is true.
      */
@@ -302,8 +312,8 @@ public class Move {
             case KNOCK_NEXT_SEGMENT    -> defenderTimeline.nextSegmentAfter(tick);
             case NONE                  -> null;
         };
-        if (target != null && !target.isKnockedOut()) {
-            target.knockOut();
+        if (target != null && !target.isStunned()) {
+            target.stun();
             return target;
         }
         return null;
@@ -326,6 +336,7 @@ public class Move {
         private int basePower                = 0;
         private double baseAccuracy          = 1.0;
         private boolean neverMiss            = false;
+        private boolean stun                 = false;
         private int apCost                   = 10;
         private int unleashPoint             = 10;
         private int baseCeCost               = 0;
@@ -352,6 +363,7 @@ public class Move {
         public Builder basePower(int v)                    { this.basePower = v; return this; }
         public Builder baseAccuracy(double v)              { this.baseAccuracy = v; return this; }
         public Builder neverMiss(boolean v)                { this.neverMiss = v; return this; }
+        public Builder stun(boolean v)                     { this.stun = v; return this; }
         public Builder apCost(int v)                       { this.apCost = v; return this; }
         public Builder unleashPoint(int v)                 { this.unleashPoint = v; return this; }
         public Builder baseCeCost(int v)                   { this.baseCeCost = v; return this; }

@@ -76,5 +76,20 @@ public enum MoveTag {
     UTILITY,
 
     /** Defensive move that reduces or blocks incoming damage. */
-    DEFENSIVE
+    DEFENSIVE,
+
+    /**
+     * Stun modifier — on a successful hit, the defender's action segment(s) on the
+     * current tick are stunned (removed from the timeline and prevented from firing).
+     *
+     * A modifier tag like {@link #ATTACK}: it does not affect the Power formula, is
+     * not part of any {@link com.jjktbf.model.move.MoveCategory}'s tag set, and does
+     * not change Black Flash eligibility. It is stored as a dedicated flag on
+     * {@link com.jjktbf.model.move.Move} (see {@link Move#isStun()}), not derived
+     * from the category.
+     *
+     * Only meaningful on offensive moves: defensive and utility moves return before
+     * the stun effect is applied.
+     */
+    STUN
 }

@@ -36,6 +36,13 @@ public class MoveData {
     public double  baseAccuracy   = 1.0;
     public boolean neverMiss      = false;
 
+    /**
+     * Backs the STUN move tag. When true, a successful hit stuns the defender's
+     * segment(s) on the current tick. Not part of {@link MoveCategory}; stored as a
+     * dedicated flag so it survives the DTO↔domain round-trip.
+     */
+    public boolean stun           = false;
+
     public int     apCost;
     public int     unleashPoint;
 
@@ -166,6 +173,7 @@ public class MoveData {
             .basePower(basePower)
             .baseAccuracy(baseAccuracy)
             .neverMiss(neverMiss)
+            .stun(stun)
             .apCost(apCost)
             .unleashPoint(unleashPoint)
             .baseCeCost(baseCeCost)
@@ -236,6 +244,7 @@ public class MoveData {
         d.basePower           = move.getBasePower();
         d.baseAccuracy        = move.getBaseAccuracy();
         d.neverMiss           = move.isNeverMiss();
+        d.stun                = move.isStun();
         d.apCost              = move.getApCost();
         d.unleashPoint        = move.getUnleashPoint();
         d.baseCeCost          = move.getBaseCeCost();

@@ -10,7 +10,7 @@ import com.jjktbf.model.move.Move;
  *  - Where on the AP bar it starts (startTick, 1-indexed)
  *  - Its total AP width (== move.getApCost())
  *  - The absolute tick at which it fires (startTick + unleashPoint - 1)
- *  - Whether it has been knocked out by an interrupt
+ *  - Whether it has been stunned (removed from the timeline by an interrupt or stun-tag hit)
  *
  * The "action counter" sweeps from tick 1 to the end of the AP bar.
  * When the counter reaches a segment's fireTick, the move resolves.
@@ -24,7 +24,7 @@ public class ActionSegment {
     private final Move   move;
     private final int    startTick;
     private final int    fireTick;       // absolute tick: startTick + unleashPoint - 1
-    private boolean      knockedOut;     // set true when interrupted
+    private boolean      stunned;        // set true when interrupted or hit by a stun-tag move
 
     /**
      * The CE cost actually charged for this segment (after efficiency scaling).
@@ -37,7 +37,7 @@ public class ActionSegment {
         this.startTick     = startTick;
         this.fireTick      = startTick + move.getUnleashPoint() - 1;
         this.actualCeCost  = actualCeCost;
-        this.knockedOut    = false;
+        this.stunned       = false;
     }
 
     public Move    getMove()          { return move; }
@@ -45,16 +45,16 @@ public class ActionSegment {
     public int     getEndTick()       { return startTick + move.getApCost() - 1; }
     public int     getFireTick()      { return fireTick; }
     public int     getActualCeCost()  { return actualCeCost; }
-    public boolean isKnockedOut()     { return knockedOut; }
+    public boolean isStunned()        { return stunned; }
     public boolean isInstant()        { return move.getUnleashPoint() == 1; }
 
-    /** Mark this segment as knocked out by an interrupt. */
-    public void knockOut()            { this.knockedOut = true; }
+    /** Mark this segment as stunned (removed from the timeline). */
+    public void stun()                { this.stunned = true; }
 
     @Override
     public String toString() {
         return String.format("ActionSegment{%s ticks=[%d-%d] fire=%d CE=%d %s}",
             move.getName(), startTick, getEndTick(), fireTick, actualCeCost,
-            knockedOut ? "KNOCKED_OUT" : "");
+            stunned ? "STUNNED" : "");
     }
 }

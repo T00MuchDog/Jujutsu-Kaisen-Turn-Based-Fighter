@@ -157,7 +157,7 @@ public class CombatResolver {
 
         // --- Resolve each firing move ---
         for (FiringEntry entry : firing) {
-            if (entry.segment.isKnockedOut()) continue;
+            if (entry.segment.isStunned()) continue;
             if (state.checkAndResolveBattleOver()) {
                 events.add(CombatEvent.of(CombatEvent.Type.BATTLE_OVER)
                     .tick(tick)
@@ -179,10 +179,10 @@ public class CombatResolver {
         if (tl == null) return;
 
         for (ActionSegment segment : tl.getSegments()) {
-            if (segment.isKnockedOut()) continue;
+            if (segment.isStunned()) continue;
             if (segment.getStartTick() == tick && segment.getActualCeCost() > 0) {
                 if (!combatant.hasCe(segment.getActualCeCost())) {
-                    segment.knockOut();
+                    segment.stun();
                     events.add(CombatEvent.of(CombatEvent.Type.CE_DEPLETED)
                         .source(combatant)
                         .move(segment.getMove())
@@ -387,6 +387,61 @@ public class CombatResolver {
             if (move.hasInterrupt()) {
                 resolveInterrupt(attacker, defender, move, tick, events);
             }
+
+            // Stun tag: stun the defender's action segment(s) on the current tick.
+            // Segments that already fired this tick are unaffected (the loop passed
+            // them); segments queued later this tick are skipped at the firing loop's
+            // isStunned() check, so they don't fire — emerging as "<defender> was
+            // stunned and could not move."
+            if (move.isStun()) {
+                resolveStunTag(defender, tick, events);
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Stun-tag resolution
+    // -------------------------------------------------------------------------
+
+    /**
+     * Apply the STUN move tag's on-hit effect: stun every non-stunned action
+     * segment of the defender that is on the current tick — both the segment
+     * currently being occupied and any segment firing this tick (the "moves
+     * second" case).
+     *
+     * <p>This sweeps the defender's (merged legacy) timeline, which already
+     * flattens both the offensive and defensive boards, so both are covered.
+     *
+     * <p>No special handling is needed for already-fired segments: stunning them
+     * is a harmless no-op for the rest of this tick.
+     */
+    private void resolveStunTag(
+        BattleCombatant   defender,
+        int               tick,
+        List<CombatEvent> events
+    ) {
+        Timeline defenderTimeline = defender.getTimeline();
+        if (defenderTimeline == null) return;
+
+        boolean stunnedAny = false;
+        for (ActionSegment segment : defenderTimeline.getSegments()) {
+            if (segment.isStunned()) continue;
+            boolean onCurrentTick =
+                (tick >= segment.getStartTick() && tick <= segment.getEndTick())
+                || segment.getFireTick() == tick;
+            if (onCurrentTick) {
+                segment.stun();
+                stunnedAny = true;
+            }
+        }
+
+        if (stunnedAny) {
+            events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
+                .target(defender)
+                .tick(tick)
+                .message(defender.getCharacter().getName()
+                         + " was stunned and could not move.")
+                .build());
         }
     }
 
@@ -457,12 +512,12 @@ public class CombatResolver {
         ActionSegment targetSegment = move.resolveInterruptOn(tick, defenderTimeline);
 
         if (targetSegment != null) {
-            events.add(CombatEvent.of(CombatEvent.Type.MOVE_KNOCKED_OUT)
+            events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
                 .source(attacker).target(defender).move(targetSegment.getMove())
                 .tick(tick)
                 .message(attacker.getCharacter().getName() + "'s " + move.getName()
-                          + " knocks out " + defender.getCharacter().getName()
-                         + "'s " + targetSegment.getMove().getName() + "!")
+                          + " stuns " + defender.getCharacter().getName()
+                         + ", interrupting " + targetSegment.getMove().getName() + "!")
                 .build());
         }
     }

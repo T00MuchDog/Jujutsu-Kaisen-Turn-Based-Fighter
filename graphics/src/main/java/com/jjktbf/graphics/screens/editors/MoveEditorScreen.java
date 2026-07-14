@@ -243,12 +243,16 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         }
         TagPicker tagPicker = new TagPicker(initialTags, tags -> {
             d.tags = tags.stream().map(MoveTag::name).toList();
+            // STUN is a modifier tag backed by a dedicated flag (not part of any
+            // MoveCategory), so keep d.stun in sync with the tag selection.
+            d.stun = tags.contains(MoveTag.STUN);
             refreshConditionalSections(d);
         }, skin);
         // Sync the draft's tags with the picker's coupling-enforced initial set
         // (e.g. a technique tag implies CURSED_ENERGY). suppressDirty is on
         // during build, so this won't mark the record dirty on load.
         d.tags = tagPicker.getSelected().stream().map(MoveTag::name).toList();
+        d.stun = tagPicker.getSelected().contains(MoveTag.STUN);
         tagsSection.add(tagPicker).growX().row();
 
         // ── Cost ───────────────────────────────────────────────────────────────
@@ -555,7 +559,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         addBtn.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
                 MoveData.StatusEffectData eff = new MoveData.StatusEffectData();
-                eff.type = StatusEffectType.STUN.name();
+                eff.type = StatusEffectType.POISON.name();
                 eff.durationRounds = 1;
                 eff.magnitude = 1.0;
                 list.add(eff);

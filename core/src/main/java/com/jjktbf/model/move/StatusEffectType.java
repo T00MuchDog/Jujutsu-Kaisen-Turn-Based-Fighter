@@ -7,9 +7,6 @@ package com.jjktbf.model.move;
 public enum StatusEffectType {
 
     // --- Debilitating ---
-    /** Prevents the target from acting on their next queued action segment. */
-    STUN,
-
     /** Deals damage at the start of each round tick for a duration. */
     POISON,
 

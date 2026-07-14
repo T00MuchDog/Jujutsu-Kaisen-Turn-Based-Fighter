@@ -21,7 +21,7 @@ public class CombatEvent {
         MOVE_MISSED,
         MOVE_BLOCKED,        // block fully negated the damage (PERCENTAGE_BLOCK at 100%)
         MOVE_BLOCK_REDUCED,  // block reduced but did not fully negate damage
-        MOVE_KNOCKED_OUT,   // interrupt removed this action segment
+        MOVE_STUNNED,       // interrupt or stun tag removed this action segment
 
         // Damage
         DAMAGE_DEALT,

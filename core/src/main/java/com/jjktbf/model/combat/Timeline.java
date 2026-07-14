@@ -125,11 +125,11 @@ public class Timeline {
         return null;
     }
 
-    /** All non-knocked-out segments that fire at the given tick. */
+    /** All non-stunned segments that fire at the given tick. */
     public List<ActionSegment> firingAt(int tick) {
         List<ActionSegment> firing = new ArrayList<>();
         for (ActionSegment s : segments) {
-            if (!s.isKnockedOut() && s.getFireTick() == tick) firing.add(s);
+            if (!s.isStunned() && s.getFireTick() == tick) firing.add(s);
         }
         return firing;
     }
@@ -141,7 +141,7 @@ public class Timeline {
     public ActionSegment activeBlockAt(int tick, Move incomingMove) {
         for (ActionSegment s : segments) {
             Move move = s.getMove();
-            if (s.isKnockedOut() || !move.isActiveBlock()) continue;
+            if (s.isStunned() || !move.isActiveBlock()) continue;
             if (incomingMove != null && !incomingMove.hasAllTags(move.getBlockAffectedTags())) continue;
 
             int start = s.getFireTick();
@@ -159,7 +159,7 @@ public class Timeline {
     // Accessors
     // -------------------------------------------------------------------------
 
-    /** Sum of every placed segment's AP cost (regardless of knockout). */
+    /** Sum of every placed segment's AP cost (regardless of stun). */
     public int totalApUsed() {
         int sum = 0;
         for (ActionSegment s : segments) sum += s.getMove().getApCost();

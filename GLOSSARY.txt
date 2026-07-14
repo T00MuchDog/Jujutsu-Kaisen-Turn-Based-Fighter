@@ -232,6 +232,17 @@ The canonical terms for describing a move's type are the tag names below.
     A move that reduces or blocks incoming damage (PERCENTAGE_BLOCK, FLAT_BLOCK).
     Applied BEFORE the defender's Defense stat in the damage pipeline. Not slot-gated.
 
+  STUN
+    Modifier tag (like ATTACK): does not affect the Power formula, is not part of any
+    MoveCategory, and does not change Black Flash eligibility. Backed by a dedicated
+    flag on Move (Move.isStun()), not derived from the category.
+    Effect: when a STUN-tagged OFFENSIVE move HITS (not miss, not fully blocked), every
+    action segment of the defender that is on the current game tick is stunned (removed
+    from the timeline). Segments that already fired this tick are unaffected; segments
+    queued later this tick are skipped by the firing loop's stunned check and do not fire.
+    Only meaningful on offensive moves — defensive and utility moves return before the
+    stun effect is applied.
+
 ================================================================================
   5. MOVE CATEGORIES  (MoveCategory.java)
 ================================================================================
@@ -331,13 +342,15 @@ Utility and Defensive moves have no slot limit.
     No interrupt capability.
 
   KNOCK_CURRENT_SEGMENT
-    On unleash, removes the action segment the action counter is currently occupying
-    on the opponent's AP Timeline. CE for the knocked segment has already been
-    paid (CE is drained when a segment begins its startTick).
+    On unleash, stuns (removes) the action segment the action counter is currently
+    occupying on the opponent's AP Timeline. CE for the stunned segment has already
+    been paid (CE is drained when a segment begins its startTick).
 
   KNOCK_NEXT_SEGMENT
-    On unleash, removes the next action segment in the opponent's queue —
+    On unleash, stuns (removes) the next action segment in the opponent's queue —
     the segment immediately after the current position on their timeline.
+    (The constant name retains "KNOCK" for the interrupt's targeting logic; the
+    resulting segment state is "stunned".)
 
 ================================================================================
   9. AP TIMELINE  (Timeline.java, ActionSegment.java, BattleState.java)
@@ -365,7 +378,8 @@ Utility and Defensive moves have no slot limit.
 
   ACTION SEGMENT
     One move's occupancy on the AP timeline. Has a startTick, endTick,
-    fireTick, and an actualCeCost. Can be knocked out by interrupts.
+    fireTick, and an actualCeCost. Can be stunned (removed) by interrupts or by
+    a hit from a STUN-tagged move.
 
   START TICK
     The AP tick at which an action segment begins. CE is drained here.
@@ -383,9 +397,12 @@ Utility and Defensive moves have no slot limit.
     A move with unleashPoint == 1. Its fireTick equals its startTick.
     Highest priority in tie-breaking — fires before all same-tick moves.
 
-  KNOCKED OUT
-    An action segment that was removed by an interrupt. Its AP slot is still spent;
-    the move simply does not fire or take effect.
+  STUNNED
+    An action segment that has been removed from the timeline — either by an
+    interrupt (KNOCK_CURRENT_SEGMENT / KNOCK_NEXT_SEGMENT) or by a hit from a
+    STUN-tagged move. Its AP slot is still spent and any CE already drained remains
+    spent; the move simply does not fire or take effect. Log line: "<combatant>
+    was stunned and could not move."
 
 ================================================================================
   10. COMBAT PHASES  (BattleState.java)
@@ -592,7 +609,6 @@ Utility and Defensive moves have no slot limit.
   Each effect has a duration in rounds and a magnitude.
 
   Debilitating (applied to opponent):
-    STUN              — prevents the target from acting on their next queued action segment
     POISON            — deals damage at the start of each round tick for a duration
     BIND              — reduces the target's Evasion for a duration
     CURSED_SEAL       — reduces CE Efficiency (moves cost more CE)
@@ -622,7 +638,7 @@ These are the canonical names for what happened in a given tick.
   MOVE_BLOCKED        — block fully negated incoming damage (PERCENTAGE_BLOCK at 100%)
   MOVE_BLOCK_REDUCED  — block reduced but did not fully negate damage
                         (PERCENTAGE_BLOCK < 100%, or FLAT_BLOCK)
-  MOVE_KNOCKED_OUT    — interrupt removed this action segment
+  MOVE_STUNNED        — interrupt or STUN tag removed this action segment
   DAMAGE_DEALT        — HP was deducted from a combatant
   BLACK_FLASH         — BF proc; includes BF damage value
   CE_DRAINED          — CE was spent on a move
