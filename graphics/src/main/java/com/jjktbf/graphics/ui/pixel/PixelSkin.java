@@ -480,7 +480,7 @@ public final class PixelSkin {
 
     private BitmapFont[] generateFonts() {
         com.badlogic.gdx.files.FileHandle ttf =
-            Gdx.files.internal("assets/fonts/PressStart2P-Regular.ttf");
+            Gdx.files.internal("assets/fonts/AtlantisInternational-jen0.ttf");
 
         FreeTypeFontGenerator gen = new FreeTypeFontGenerator(ttf);
         FreeTypeFontParameter p = new FreeTypeFontParameter();
@@ -489,19 +489,21 @@ public final class PixelSkin {
         p.minFilter = Texture.TextureFilter.Nearest;
         p.magFilter = Texture.TextureFilter.Nearest;
 
+        // Atlantis International glyphs are ~52% of the em vs Press Start 2P's
+        // ~87%; sizes scaled ~1.93x to preserve on-screen text size.
         // Editor body font
-        p.size = 10;
+        p.size = 19;
         BitmapFont body = gen.generateFont(p);
         body.setUseIntegerPositions(true);
         body.getData().setScale(1f);
 
         // Smaller font for tight UI (stat numbers, hints)
-        p.size = 8;
+        p.size = 15;
         BitmapFont small = gen.generateFont(p);
         small.setUseIntegerPositions(true);
 
         // Large font for titles / banners
-        p.size = 18;
+        p.size = 35;
         BitmapFont large = gen.generateFont(p);
         large.setUseIntegerPositions(true);
 

@@ -92,24 +92,28 @@ public class AssetLoader {
 
     private void loadFonts() {
         com.badlogic.gdx.files.FileHandle ttf =
-            Gdx.files.internal("assets/fonts/PressStart2P-Regular.ttf");
+            Gdx.files.internal("assets/fonts/AtlantisInternational-jen0.ttf");
         fontGenerator = new FreeTypeFontGenerator(ttf);
 
         FreeTypeFontParameter p = new FreeTypeFontParameter();
 
-        p.size = 8;
+        // Atlantis International has standard glyph proportions, so the actual
+        // capital height is ~52% of the em versus Press Start 2P's ~87%. The
+        // old Press Start 2P sizes are scaled up ~1.93x to keep the on-screen
+        // text size identical after the font swap.
+        p.size = 15;
         fontSmall = fontGenerator.generateFont(p);
 
-        p.size = 12;
+        p.size = 23;
         fontMedium = fontGenerator.generateFont(p);
 
-        p.size = 18;
+        p.size = 35;
         fontLarge = fontGenerator.generateFont(p);
 
-        p.size = 26;
+        p.size = 50;
         fontXLarge = fontGenerator.generateFont(p);
 
-        p.size = 16;
+        p.size = 31;
         fontLog = fontGenerator.generateFont(p);
 
         // TTF no longer needed after bitmap generation
