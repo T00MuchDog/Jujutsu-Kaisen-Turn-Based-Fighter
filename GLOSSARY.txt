@@ -252,6 +252,15 @@ The canonical terms for describing a move's type are the tag names below.
     cannot fully negate the hit. Dodges and parries are unaffected; only blocks are
     bypassed.
 
+  HEAVY
+    Modifier tag (like ATTACK / STUN / GUARD_BREAK): does not affect the Power formula,
+    is not part of any MoveCategory, and does not change Black Flash eligibility. Backed
+    by a dedicated flag on Move (Move.isHeavy()), not derived from the category.
+    Effect: an action segment carrying this move is IMMUNE to being stunned by a
+    STUN-tagged hit (it is skipped by the stun effect and still fires). Interrupts are
+    unaffected — HEAVY only resists the STUN tag. This is the "heavy beats stun" half of
+    the rock-paper-scissors trio (stun > base > heavy > stun).
+
 ================================================================================
   5. MOVE CATEGORIES  (MoveCategory.java)
 ================================================================================

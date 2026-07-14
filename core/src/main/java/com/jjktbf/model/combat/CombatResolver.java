@@ -414,6 +414,9 @@ public class CombatResolver {
      * <p>This sweeps the defender's (merged legacy) timeline, which already
      * flattens both the offensive and defensive boards, so both are covered.
      *
+     * <p>Segments whose move is HEAVY are immune and are skipped — heavy moves
+     * cannot be stunned by a STUN-tagged hit. Interrupts are unaffected.
+     *
      * <p>No special handling is needed for already-fired segments: stunning them
      * is a harmless no-op for the rest of this tick.
      */
@@ -428,6 +431,7 @@ public class CombatResolver {
         boolean stunnedAny = false;
         for (ActionSegment segment : defenderTimeline.getSegments()) {
             if (segment.isStunned()) continue;
+            if (segment.getMove().isHeavy()) continue; // HEAVY moves resist the stun tag
             boolean onCurrentTick =
                 (tick >= segment.getStartTick() && tick <= segment.getEndTick())
                 || segment.getFireTick() == tick;

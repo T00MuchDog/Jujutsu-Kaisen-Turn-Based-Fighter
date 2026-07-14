@@ -79,6 +79,13 @@ public class Move {
     private final boolean guardBreak;
 
     /**
+     * If true, an action segment carrying this move cannot be stunned by a STUN-tagged
+     * hit (it is skipped by the stun effect). Interrupts are unaffected. Backs the
+     * HEAVY move tag; not derived from {@link #category}.
+     */
+    private final boolean heavy;
+
+    /**
      * Size of the action segment this move occupies on the AP timeline.
      * Min: 5,  Max: ~100.
      */
@@ -158,6 +165,7 @@ public class Move {
         this.neverMiss           = b.neverMiss;
         this.stun                = b.stun;
         this.guardBreak          = b.guardBreak;
+        this.heavy               = b.heavy;
         this.apCost              = b.apCost;
         this.unleashPoint        = b.unleashPoint;
         this.baseCeCost          = b.baseCeCost;
@@ -191,6 +199,7 @@ public class Move {
     public boolean isNeverMiss()                  { return neverMiss; }
     public boolean isStun()                       { return stun; }
     public boolean isGuardBreak()                 { return guardBreak; }
+    public boolean isHeavy()                      { return heavy; }
     public int getApCost()                        { return apCost; }
     public int getUnleashPoint()                  { return unleashPoint; }
     public int getBaseCeCost()                    { return baseCeCost; }
@@ -219,6 +228,7 @@ public class Move {
         if ("ATTACK".equals(normalized)) return basePower > 0 && category != MoveCategory.DEFENSIVE && category != MoveCategory.UTILITY;
         if ("STUN".equals(normalized)) return stun;
         if ("GUARD_BREAK".equals(normalized)) return guardBreak;
+        if ("HEAVY".equals(normalized)) return heavy;
         if ("CURSED_ENERGY".equals(normalized)) {
             return category == MoveCategory.PHYSICAL_CURSED_ENERGY
                 || category == MoveCategory.INNATE_TECHNIQUE
@@ -348,6 +358,7 @@ public class Move {
         private boolean neverMiss            = false;
         private boolean stun                 = false;
         private boolean guardBreak           = false;
+        private boolean heavy                = false;
         private int apCost                   = 10;
         private int unleashPoint             = 10;
         private int baseCeCost               = 0;
@@ -376,6 +387,7 @@ public class Move {
         public Builder neverMiss(boolean v)                { this.neverMiss = v; return this; }
         public Builder stun(boolean v)                     { this.stun = v; return this; }
         public Builder guardBreak(boolean v)               { this.guardBreak = v; return this; }
+        public Builder heavy(boolean v)                    { this.heavy = v; return this; }
         public Builder apCost(int v)                       { this.apCost = v; return this; }
         public Builder unleashPoint(int v)                 { this.unleashPoint = v; return this; }
         public Builder baseCeCost(int v)                   { this.baseCeCost = v; return this; }

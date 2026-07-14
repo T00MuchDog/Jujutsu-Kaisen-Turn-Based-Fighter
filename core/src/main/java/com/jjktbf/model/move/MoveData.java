@@ -49,6 +49,12 @@ public class MoveData {
      */
     public boolean guardBreak     = false;
 
+    /**
+     * Backs the HEAVY move tag. When true, an action segment carrying this move
+     * cannot be stunned by a STUN-tagged hit.
+     */
+    public boolean heavy          = false;
+
     public int     apCost;
     public int     unleashPoint;
 
@@ -181,6 +187,7 @@ public class MoveData {
             .neverMiss(neverMiss)
             .stun(stun)
             .guardBreak(guardBreak)
+            .heavy(heavy)
             .apCost(apCost)
             .unleashPoint(unleashPoint)
             .baseCeCost(baseCeCost)
@@ -253,6 +260,7 @@ public class MoveData {
         d.neverMiss           = move.isNeverMiss();
         d.stun                = move.isStun();
         d.guardBreak          = move.isGuardBreak();
+        d.heavy               = move.isHeavy();
         d.apCost              = move.getApCost();
         d.unleashPoint        = move.getUnleashPoint();
         d.baseCeCost          = move.getBaseCeCost();

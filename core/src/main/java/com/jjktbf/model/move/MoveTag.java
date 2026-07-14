@@ -104,5 +104,19 @@ public enum MoveTag {
      * flag on {@link com.jjktbf.model.move.Move} (see {@link Move#isGuardBreak()}),
      * not derived from the category.
      */
-    GUARD_BREAK
+    GUARD_BREAK,
+
+    /**
+     * Heavy modifier — an action segment carrying this move cannot be stunned
+     * (removed from the timeline) by a STUN-tagged hit. Interrupts are unaffected;
+     * only the STUN tag's effect is resisted.
+     *
+     * A modifier tag like {@link #ATTACK}, {@link #STUN} and {@link #GUARD_BREAK}:
+     * it does not affect the Power formula, is not part of any
+     * {@link com.jjktbf.model.move.MoveCategory}'s tag set, and does not change
+     * Black Flash eligibility. It is stored as a dedicated flag on
+     * {@link com.jjktbf.model.move.Move} (see {@link Move#isHeavy()}), not derived
+     * from the category.
+     */
+    HEAVY
 }
