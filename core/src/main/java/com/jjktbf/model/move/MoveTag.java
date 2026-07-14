@@ -91,5 +91,18 @@ public enum MoveTag {
      * Only meaningful on offensive moves: defensive and utility moves return before
      * the stun effect is applied.
      */
-    STUN
+    STUN,
+
+    /**
+     * Guard break modifier — a successful hit from this move ignores the defender's
+     * blocking defensive moves (PERCENTAGE_BLOCK / FLAT_BLOCK). Dodges and parries are
+     * unaffected; only blocks are bypassed.
+     *
+     * A modifier tag like {@link #ATTACK} and {@link #STUN}: it does not affect the
+     * Power formula, is not part of any {@link com.jjktbf.model.move.MoveCategory}'s
+     * tag set, and does not change Black Flash eligibility. It is stored as a dedicated
+     * flag on {@link com.jjktbf.model.move.Move} (see {@link Move#isGuardBreak()}),
+     * not derived from the category.
+     */
+    GUARD_BREAK
 }

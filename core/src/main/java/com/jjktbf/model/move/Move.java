@@ -72,6 +72,13 @@ public class Move {
     private final boolean stun;
 
     /**
+     * If true, a successful hit ignores the defender's blocking defensive moves
+     * (PERCENTAGE_BLOCK / FLAT_BLOCK). Dodges and parries are unaffected; only blocks
+     * are bypassed. Backs the GUARD_BREAK move tag; not derived from {@link #category}.
+     */
+    private final boolean guardBreak;
+
+    /**
      * Size of the action segment this move occupies on the AP timeline.
      * Min: 5,  Max: ~100.
      */
@@ -150,6 +157,7 @@ public class Move {
         this.baseAccuracy        = b.baseAccuracy;
         this.neverMiss           = b.neverMiss;
         this.stun                = b.stun;
+        this.guardBreak          = b.guardBreak;
         this.apCost              = b.apCost;
         this.unleashPoint        = b.unleashPoint;
         this.baseCeCost          = b.baseCeCost;
@@ -182,6 +190,7 @@ public class Move {
     public double getBaseAccuracy()               { return baseAccuracy; }
     public boolean isNeverMiss()                  { return neverMiss; }
     public boolean isStun()                       { return stun; }
+    public boolean isGuardBreak()                 { return guardBreak; }
     public int getApCost()                        { return apCost; }
     public int getUnleashPoint()                  { return unleashPoint; }
     public int getBaseCeCost()                    { return baseCeCost; }
@@ -209,6 +218,7 @@ public class Move {
         String normalized = tagName.trim().toUpperCase();
         if ("ATTACK".equals(normalized)) return basePower > 0 && category != MoveCategory.DEFENSIVE && category != MoveCategory.UTILITY;
         if ("STUN".equals(normalized)) return stun;
+        if ("GUARD_BREAK".equals(normalized)) return guardBreak;
         if ("CURSED_ENERGY".equals(normalized)) {
             return category == MoveCategory.PHYSICAL_CURSED_ENERGY
                 || category == MoveCategory.INNATE_TECHNIQUE
@@ -337,6 +347,7 @@ public class Move {
         private double baseAccuracy          = 1.0;
         private boolean neverMiss            = false;
         private boolean stun                 = false;
+        private boolean guardBreak           = false;
         private int apCost                   = 10;
         private int unleashPoint             = 10;
         private int baseCeCost               = 0;
@@ -364,6 +375,7 @@ public class Move {
         public Builder baseAccuracy(double v)              { this.baseAccuracy = v; return this; }
         public Builder neverMiss(boolean v)                { this.neverMiss = v; return this; }
         public Builder stun(boolean v)                     { this.stun = v; return this; }
+        public Builder guardBreak(boolean v)               { this.guardBreak = v; return this; }
         public Builder apCost(int v)                       { this.apCost = v; return this; }
         public Builder unleashPoint(int v)                 { this.unleashPoint = v; return this; }
         public Builder baseCeCost(int v)                   { this.baseCeCost = v; return this; }

@@ -43,6 +43,12 @@ public class MoveData {
      */
     public boolean stun           = false;
 
+    /**
+     * Backs the GUARD_BREAK move tag. When true, a successful hit ignores the
+     * defender's blocking defensive moves (PERCENTAGE_BLOCK / FLAT_BLOCK).
+     */
+    public boolean guardBreak     = false;
+
     public int     apCost;
     public int     unleashPoint;
 
@@ -174,6 +180,7 @@ public class MoveData {
             .baseAccuracy(baseAccuracy)
             .neverMiss(neverMiss)
             .stun(stun)
+            .guardBreak(guardBreak)
             .apCost(apCost)
             .unleashPoint(unleashPoint)
             .baseCeCost(baseCeCost)
@@ -245,6 +252,7 @@ public class MoveData {
         d.baseAccuracy        = move.getBaseAccuracy();
         d.neverMiss           = move.isNeverMiss();
         d.stun                = move.isStun();
+        d.guardBreak          = move.isGuardBreak();
         d.apCost              = move.getApCost();
         d.unleashPoint        = move.getUnleashPoint();
         d.baseCeCost          = move.getBaseCeCost();

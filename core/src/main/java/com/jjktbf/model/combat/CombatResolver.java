@@ -331,8 +331,10 @@ public class CombatResolver {
                 .build());
 
         } else {
-            // Hit — check whether a block softened it
-            boolean wasBlocked = defender.getTimeline() != null
+            // Hit — check whether a block softened it.
+            // GUARD_BREAK moves ignore blocking defensive moves entirely.
+            boolean wasBlocked = !move.isGuardBreak()
+                && defender.getTimeline() != null
                 && defender.getTimeline().activeBlockAt(tick, move) != null;
 
             defender.applyDamage(result.getFinalDamage());

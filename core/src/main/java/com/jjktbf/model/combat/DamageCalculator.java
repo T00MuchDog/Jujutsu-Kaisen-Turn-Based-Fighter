@@ -92,8 +92,11 @@ public final class DamageCalculator {
         }
 
         // --- 2. Check block ---
+        // A GUARD_BREAK move ignores blocking defensive moves (PERCENTAGE_BLOCK /
+        // FLAT_BLOCK). Dodges and parries are unaffected; only blocks are bypassed.
         Timeline defTimeline = defender.getTimeline();
-        ActionSegment activeBlockSegment = defTimeline != null ? defTimeline.activeBlockAt(currentTick, move) : null;
+        ActionSegment activeBlockSegment = (!move.isGuardBreak() && defTimeline != null)
+            ? defTimeline.activeBlockAt(currentTick, move) : null;
 
         // --- 3. Power ---
         int power   = PowerCalculator.compute(move.getCategory(), acs);

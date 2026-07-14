@@ -243,9 +243,10 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         }
         TagPicker tagPicker = new TagPicker(initialTags, tags -> {
             d.tags = tags.stream().map(MoveTag::name).toList();
-            // STUN is a modifier tag backed by a dedicated flag (not part of any
-            // MoveCategory), so keep d.stun in sync with the tag selection.
+            // STUN/GUARD_BREAK are modifier tags backed by dedicated flags (not part
+            // of any MoveCategory), so keep them in sync with the tag selection.
             d.stun = tags.contains(MoveTag.STUN);
+            d.guardBreak = tags.contains(MoveTag.GUARD_BREAK);
             refreshConditionalSections(d);
         }, skin);
         // Sync the draft's tags with the picker's coupling-enforced initial set
@@ -253,6 +254,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         // during build, so this won't mark the record dirty on load.
         d.tags = tagPicker.getSelected().stream().map(MoveTag::name).toList();
         d.stun = tagPicker.getSelected().contains(MoveTag.STUN);
+        d.guardBreak = tagPicker.getSelected().contains(MoveTag.GUARD_BREAK);
         tagsSection.add(tagPicker).growX().row();
 
         // ── Cost ───────────────────────────────────────────────────────────────

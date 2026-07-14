@@ -243,6 +243,15 @@ The canonical terms for describing a move's type are the tag names below.
     Only meaningful on offensive moves — defensive and utility moves return before the
     stun effect is applied.
 
+  GUARD_BREAK
+    Modifier tag (like ATTACK / STUN): does not affect the Power formula, is not part
+    of any MoveCategory, and does not change Black Flash eligibility. Backed by a
+    dedicated flag on Move (Move.isGuardBreak()), not derived from the category.
+    Effect: a successful hit from a GUARD_BREAK move ignores the defender's blocking
+    defensive moves (PERCENTAGE_BLOCK / FLAT_BLOCK) — the block applies no reduction and
+    cannot fully negate the hit. Dodges and parries are unaffected; only blocks are
+    bypassed.
+
 ================================================================================
   5. MOVE CATEGORIES  (MoveCategory.java)
 ================================================================================
