@@ -65,6 +65,11 @@ public class CharacterSelectScreen implements Screen {
 
     @Override
     public void show() {
+        // This screen reads input purely by polling Gdx.input and uses no Stage,
+        // so claim the input processor and drop the previous screen's (the main
+        // menu sets its own Stage, which would otherwise keep receiving key
+        // events — e.g. ESCAPE → quit the game — while this screen is shown).
+        Gdx.input.setInputProcessor(null);
         phase = Phase.PLAYER;
         cursorIndex = 0;
         playerChoice = null;
