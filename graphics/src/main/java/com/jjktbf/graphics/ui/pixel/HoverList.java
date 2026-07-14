@@ -77,7 +77,11 @@ public class HoverList<T> extends List<T> {
     @Override
     protected GlyphLayout drawItem(Batch batch, BitmapFont font, int index, T item,
                                    float x, float y, float width) {
-        Color prev = font.getColor();
+        // font.getColor() returns a live reference to the font's internal Color,
+        // not a copy — so capture by value, otherwise setColor(hoverColor) below
+        // also overwrites prev and the restore becomes a no-op (leaking the hover
+        // colour onto every item drawn after this one).
+        Color prev = new Color(font.getColor());
         if (index == hoverIndex && index != getSelectedIndex()) {
             font.setColor(hoverColor);
         }

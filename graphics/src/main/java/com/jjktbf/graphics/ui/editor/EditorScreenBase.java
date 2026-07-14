@@ -312,14 +312,22 @@ public abstract class EditorScreenBase<D> implements Screen {
             }
         });
 
-        // Arrow-key navigation of the list (with focus), plus global hotkeys
-        stage.addListener(new InputListener() {
+        // Arrow-key navigation of the list (with focus), plus global hotkeys.
+        //
+        // Registered as a CAPTURE listener so it runs before LibGDX's stock
+        // List keyboard handler (which also moves selection on UP/DOWN/HOME/END
+        // when the list has keyboard focus). Without the capture phase + cancel,
+        // both handlers fire on a single keypress and the selection jumps by 2.
+        // We keep our own nudgeSelection because it wraps around and handles the
+        // no-selection (selectedIndex < 0) case, then cancel() the event so the
+        // stock List handler never sees it.
+        stage.addCaptureListener(new InputListener() {
             @Override public boolean keyDown(InputEvent event, int keycode) {
-                if (keycode == Input.Keys.ESCAPE) { game.showMainMenu(); return true; }
+                if (keycode == Input.Keys.ESCAPE) { game.showMainMenu(); event.cancel(); return true; }
                 if (stage.getKeyboardFocus() == searchField) return false;
-                if (keycode == Input.Keys.UP)   { nudgeSelection(-1); return true; }
-                if (keycode == Input.Keys.DOWN) { nudgeSelection(+1); return true; }
-                if (keycode == Input.Keys.S && Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)) { save(); return true; }
+                if (keycode == Input.Keys.UP)   { nudgeSelection(-1); event.cancel(); return true; }
+                if (keycode == Input.Keys.DOWN) { nudgeSelection(+1); event.cancel(); return true; }
+                if (keycode == Input.Keys.S && Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)) { save(); event.cancel(); return true; }
                 return false;
             }
         });
