@@ -32,6 +32,9 @@ public enum StatusEffectType {
     /** Boosts the user's Speed (affects next round's AP bar). */
     SPEED_UP,
 
+    /** Raises the user's Cursed Energy Output by a flat amount for the duration. */
+    CE_OUTPUT_UP,
+
     // --- Special ---
     /** Marks the target — certain follow-up moves deal bonus damage to marked targets. */
     MARKED,

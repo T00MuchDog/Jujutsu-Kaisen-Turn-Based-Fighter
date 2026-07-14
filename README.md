@@ -50,7 +50,8 @@ java -XstartOnFirstThread -jar graphics/target/graphics-1.0.0.jar
 > data into a per-user directory (`~/Library/Application Support/JujutsuKaisenFighter/`
 > on macOS, `%APPDATA%\JujutsuKaisenFighter\` on Windows). The in-game editors
 > read and write there, so your edits persist across launches and survive
-> upgrades.
+> upgrades. On launch, newly bundled move definitions are appended by name
+> without overwriting existing player moves.
 
 ### Run tests
 ```bash

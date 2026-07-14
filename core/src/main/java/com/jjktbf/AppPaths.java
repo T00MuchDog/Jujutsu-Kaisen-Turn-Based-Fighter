@@ -1,5 +1,9 @@
 package com.jjktbf;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -10,6 +14,12 @@ import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Resolves all on-disk locations the game reads from and writes to, in a way
@@ -36,8 +46,10 @@ import java.util.Comparator;
  *
  * <h3>Seeding</h3>
  * On first launch the bundled default game-data JSON (shipped on the classpath
- * under {@code data/...}) is copied into the per-user data directory. Existing
- * files are <b>never</b> overwritten, so player edits survive every upgrade.
+     * under {@code data/...}) is copied into the per-user data directory. Existing
+     * files are never overwritten. Missing bundled move definitions are appended
+     * by name on later launches, so player edits survive upgrades while new default
+     * moves become available.
  *
  * <p>This class is pure Java (no libGDX) so it can live in the {@code core}
  * module and be used by both the repositories and the desktop launcher.
@@ -52,6 +64,11 @@ public final class AppPaths {
 
     /** Classpath prefix for the bundled default game data. */
     private static final String BUNDLED_DATA_PREFIX = "data";
+
+    private static final String BUNDLED_MOVES = "data/moves/all_moves.json";
+
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+        .enable(SerializationFeature.INDENT_OUTPUT);
 
     private AppPaths() {}
 
@@ -169,7 +186,7 @@ public final class AppPaths {
         // filesystem walk of the jar, which is awkward to do portably.
         String[] bundled = {
             "data/characters/all_characters.json",
-            "data/moves/all_moves.json",
+            BUNDLED_MOVES,
             "data/abilities/all_abilities.json",
             "data/techniques/all_techniques.json",
         };
@@ -184,10 +201,13 @@ public final class AppPaths {
 
     private static void seedOne(ClassLoader cl, String resource) throws IOException {
         Path dest = dataDir().resolve(resource.substring("data/".length()));
-        if (Files.exists(dest)) {
-            return; // never overwrite existing (player-edited) data
-        }
         try (InputStream in = cl.getResourceAsStream(resource)) {
+            if (Files.exists(dest)) {
+                if (BUNDLED_MOVES.equals(resource) && in != null) {
+                    mergeBundledMoves(dest, in);
+                }
+                return;
+            }
             if (in == null) {
                 // The bundled data is missing from this build; the repository
                 // will fall back to its built-in seed. Not fatal.
@@ -198,6 +218,45 @@ public final class AppPaths {
                 in.transferTo(out);
             }
         }
+    }
+
+    /**
+     * Append default moves that do not already exist in a player's saved list.
+     * Name matching is case-insensitive so player-edited moves are preserved.
+     *
+     * @return true when at least one bundled move was appended
+     */
+    static boolean mergeBundledMoves(Path destination, InputStream bundledMoves) throws IOException {
+        List<LinkedHashMap<String, Object>> saved = MAPPER.readValue(
+            destination.toFile(), new TypeReference<>() {});
+        List<LinkedHashMap<String, Object>> bundled = MAPPER.readValue(
+            bundledMoves, new TypeReference<>() {});
+
+        Set<String> savedNames = new HashSet<>();
+        for (Map<String, Object> move : saved) {
+            String name = normalizedMoveName(move);
+            if (name != null) savedNames.add(name);
+        }
+
+        boolean changed = false;
+        for (LinkedHashMap<String, Object> move : bundled) {
+            String name = normalizedMoveName(move);
+            if (name == null || !savedNames.add(name)) continue;
+
+            LinkedHashMap<String, Object> copy = new LinkedHashMap<>(move);
+            copy.put("id", String.format("%06d", saved.size()));
+            saved.add(copy);
+            changed = true;
+        }
+
+        if (changed) MAPPER.writeValue(destination.toFile(), saved);
+        return changed;
+    }
+
+    private static String normalizedMoveName(Map<String, Object> move) {
+        Object name = move.get("name");
+        if (!(name instanceof String text) || text.isBlank()) return null;
+        return text.trim().toLowerCase(Locale.ROOT);
     }
 
     /**

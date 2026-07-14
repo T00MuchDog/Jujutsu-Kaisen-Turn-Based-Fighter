@@ -1,11 +1,18 @@
 package com.jjktbf;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jjktbf.model.character.*;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CombatStats;
 import com.jjktbf.model.combat.*;
 import com.jjktbf.model.move.*;
 import org.junit.jupiter.api.Test;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Random;
 import static org.junit.jupiter.api.Assertions.*;
@@ -90,6 +97,87 @@ public class StatVerificationTest {
 
         assertTrue(move.hasCeCost());
         assertEquals(0, CeEfficiencyCalculator.computeActualCost(move, 80));
+    }
+
+    @Test
+    void ceOutputUpTemporarilyRaisesCursedEnergyOutput() {
+        CharacterStats stats = new CharacterStats.Builder().cursedEnergyOutput(80).build();
+        Character character = new SorcererCharacter("CE_OUT", "Output Test", stats, null, List.of());
+        BattleCombatant combatant = new BattleCombatant(character);
+
+        combatant.addStatusEffect(new StatusEffect(StatusEffectType.CE_OUTPUT_UP, 1, 15));
+
+        assertEquals(95, combatant.getEffectiveStats().getCursedEnergyOutput());
+        combatant.tickStatusEffects();
+        assertEquals(80, combatant.getEffectiveStats().getCursedEnergyOutput());
+    }
+
+    @Test
+    void focusTemporarilyRaisesBaseAccuracy() {
+        Character character = new SorcererCharacter(
+            "FOCUS", "Focus Test", new CharacterStats.Builder().build(), null, List.of());
+        BattleCombatant combatant = new BattleCombatant(character);
+
+        combatant.addStatusEffect(new StatusEffect(StatusEffectType.FOCUS, 1, 0.1));
+
+        assertEquals(0.1, combatant.getStatusBaseAccuracyBonus(), 0.0001);
+        combatant.tickStatusEffects();
+        assertEquals(0.0, combatant.getStatusBaseAccuracyBonus(), 0.0001);
+    }
+
+    @Test
+    void bundledMoveDataLoadsAndBuilds() throws IOException {
+        Path movesPath = List.of(
+                Path.of("data", "moves", "all_moves.json"),
+                Path.of("..", "data", "moves", "all_moves.json"))
+            .stream()
+            .filter(Files::isRegularFile)
+            .findFirst()
+            .orElseThrow(() -> new IOException("Could not locate bundled move data"));
+
+        List<MoveData> moves = new ObjectMapper().readValue(
+            movesPath.toFile(), new TypeReference<List<MoveData>>() {});
+
+        assertEquals(22, moves.size());
+        moves.forEach(move -> assertDoesNotThrow(move::toMove, move.name));
+
+        MoveData surge = moves.stream()
+            .filter(move -> "Cursed Energy Surge".equals(move.name))
+            .findFirst()
+            .orElseThrow();
+        assertEquals(StatusEffectType.CE_OUTPUT_UP.name(), surge.selfEffects.get(0).type);
+        assertEquals(15.0, surge.selfEffects.get(0).magnitude);
+    }
+
+    @Test
+    void bundledMoveMigrationAddsMissingMovesWithoutOverwritingPlayerMoves() throws IOException {
+        Path savedMoves = Files.createTempFile("moves", ".json");
+        try {
+            Files.writeString(savedMoves, """
+                [
+                  { "id": "000000", "name": "Basic Strike", "description": "Player edit" },
+                  { "id": "000001", "name": "Custom Move" }
+                ]
+                """);
+            String bundled = """
+                [
+                  { "id": "000000", "name": "Basic Strike", "description": "Bundled default" },
+                  { "id": "000001", "name": "Jab" }
+                ]
+                """;
+
+            assertTrue(AppPaths.mergeBundledMoves(savedMoves,
+                new ByteArrayInputStream(bundled.getBytes(StandardCharsets.UTF_8))));
+
+            List<MoveData> migrated = new ObjectMapper().readValue(
+                savedMoves.toFile(), new TypeReference<List<MoveData>>() {});
+            assertEquals(3, migrated.size());
+            assertEquals("Player edit", migrated.get(0).description);
+            assertEquals("000002", migrated.get(2).id);
+            assertEquals("Jab", migrated.get(2).name);
+        } finally {
+            Files.deleteIfExists(savedMoves);
+        }
     }
 
     @Test

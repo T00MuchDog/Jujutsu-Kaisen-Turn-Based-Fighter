@@ -324,7 +324,21 @@ public class BattleCombatant {
     // -------------------------------------------------------------------------
 
     public Character getCharacter()                        { return character; }
-    public CharacterStats getEffectiveStats()              { return effectiveStats; }
+    public CharacterStats getEffectiveStats() {
+        int ceOutputBonus = activeEffects.stream()
+            .filter(effect -> effect.getType() == StatusEffectType.CE_OUTPUT_UP)
+            .mapToInt(effect -> (int) Math.round(effect.getMagnitude()))
+            .sum();
+        return ceOutputBonus == 0
+            ? effectiveStats
+            : effectiveStats.withCursedEnergyOutput(effectiveStats.getCursedEnergyOutput() + ceOutputBonus);
+    }
+    public double getStatusBaseAccuracyBonus() {
+        return activeEffects.stream()
+            .filter(effect -> effect.getType() == StatusEffectType.FOCUS)
+            .mapToDouble(StatusEffect::getMagnitude)
+            .sum();
+    }
     public CombatStats getEffectiveCombatStats()           { return effectiveCombatStats; }
     public AbilityApplicator.AbilityFlags getAbilityFlags(){ return abilityFlags; }
     public int getMaxApBar()                              { return Math.max(0, effectiveCombatStats.getMaxApBar() + abilityFlags.apBarBonus); }

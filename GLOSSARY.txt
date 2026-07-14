@@ -637,6 +637,7 @@ Utility and Defensive moves have no slot limit.
     DEFENSE_UP        — boosts the user's Defense for a duration
     FOCUS             — boosts the user's Accuracy for a duration
     SPEED_UP          — boosts Speed (affects next round's AP bar)
+    CE_OUTPUT_UP      — raises Cursed Energy Output by a flat amount for a duration
 
   Special:
     MARKED            — marks the target; certain follow-up moves deal bonus damage

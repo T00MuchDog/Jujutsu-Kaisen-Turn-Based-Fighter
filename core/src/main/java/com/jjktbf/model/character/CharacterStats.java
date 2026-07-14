@@ -124,6 +124,18 @@ public class CharacterStats {
     public int getCursedTechniqueMastery() { return cursedTechniqueMastery; }
 
     /**
+     * Returns a copy with a temporary cursed-energy-output adjustment. This uses
+     * the unclamped constructor so battle-only effects do not alter other stats.
+     */
+    public CharacterStats withCursedEnergyOutput(int value) {
+        return new CharacterStats(
+            vitality, strength, durability, speed,
+            cursedEnergyReserves, cursedEnergyEfficiency, value,
+            jujutsuSkill, combatAbility, cursedTechniqueMastery
+        );
+    }
+
+    /**
      * Look up a stat by any recognised name alias.
      * Delegates to StatKey — the single source of truth for stat name mapping.
      */

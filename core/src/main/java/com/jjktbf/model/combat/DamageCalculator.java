@@ -82,7 +82,8 @@ public final class DamageCalculator {
             double hitChance = CombatStats.computeHitChance(
                 attackerAccuracy,
                 defender.getEffectiveCombatStats().getEvasion(),
-                move.getBaseAccuracy()
+                Math.min(1.0, Math.max(0.0,
+                    move.getBaseAccuracy() + attacker.getStatusBaseAccuracyBonus()))
             );
             hit = rng.nextDouble() < hitChance;
         }
