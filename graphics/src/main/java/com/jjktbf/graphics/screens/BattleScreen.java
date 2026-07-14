@@ -48,12 +48,14 @@ public class BattleScreen implements Screen, BattleView {
     /** Max raw messages retained in the battle log; older ones are dropped. */
     private static final int   LOG_MAX_STORED = 50;
     /**
-     * Vertical spacing multiplier between battle-log lines (1.0 = single line height).
-     * Press Start 2P has tall line metrics, so even at 1.5 there is comfortable
-     * breathing room between lines; this keeps one extra line visible before the
-     * oldest entry scrolls off the top.
+     * Vertical step between battle-log lines, as a multiple of the font's cap
+     * height (the visible glyph height). Cap height is used rather than line
+     * height because the ratio of line-height to cap-height varies a lot between
+     * fonts (Press Start 2P ≈ 1.15, Atlantis International ≈ 1.8), so spacing
+     * relative to line height would drift whenever the font changes. Cap height
+     * tracks the actual on-screen text size, keeping the gap consistent.
      */
-    private static final float LOG_LINE_SPACING = 1.5f;
+    private static final float LOG_LINE_SPACING = 1.7f;
     private static final float CARD_MARGIN = 8f;
     private static final int   EVENT_DELAY_MS = 520;
     /** Pause applied when the AP tick advances during resolution — slows the sweep. */
@@ -344,7 +346,7 @@ public class BattleScreen implements Screen, BattleView {
         // Usable area sits below the "BATTLE LOG" title.
         float topY    = logBounds.y + logBounds.height - 34f;
         float bottomY = logBounds.y + 22f;
-        float lineStep = logFont.getLineHeight() * LOG_LINE_SPACING;
+        float lineStep = logFont.getCapHeight() * LOG_LINE_SPACING;
 
         // Bottom-anchor: walk newest → oldest; stop as soon as a line would clip
         // the top, so overflowed entries disappear off the top of the box.
