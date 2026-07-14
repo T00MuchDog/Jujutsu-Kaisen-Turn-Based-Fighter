@@ -28,6 +28,17 @@ public enum MoveCategory {
         false   // No BF — no CE component
     ),
 
+    /**
+     * Raw cursed-energy attack only (no technique, no physical contact).
+     * A dedicated damaging category for pure-CE output. Slot governed by
+     * JujutsuSkill. Black-Flash ineligible (no physical contact component).
+     */
+    CURSED_ENERGY(
+        EnumSet.of(MoveTag.CURSED_ENERGY),
+        SlotStat.JUJUTSU_SKILL,
+        false
+    ),
+
     /** Innate Technique only (CE implied). Slot governed by CursedTechniqueMastery. */
     INNATE_TECHNIQUE(
         EnumSet.of(MoveTag.INNATE_TECHNIQUE),

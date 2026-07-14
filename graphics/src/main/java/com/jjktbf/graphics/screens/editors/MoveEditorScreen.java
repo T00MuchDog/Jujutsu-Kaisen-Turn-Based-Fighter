@@ -120,11 +120,16 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                                   ? new ArrayList<>(s.blockAffectedTags) : null;
         d.blockDamageReduction  = s.blockDamageReduction;
         d.blockFlatReduction    = s.blockFlatReduction;
+        // Effect lists MUST be mutable ArrayLists — the "+ Add effect" handlers
+        // call list.add(...). Stream.toList() returns an immutable list which
+        // throws UnsupportedOperationException on add (the editor crash bug).
         d.onHitEffects          = s.onHitEffects != null
-                                  ? s.onHitEffects.stream().map(MoveEditorScreen::copyEffect).toList()
+                                  ? s.onHitEffects.stream().map(MoveEditorScreen::copyEffect)
+                                      .collect(java.util.stream.Collectors.toCollection(ArrayList::new))
                                   : new ArrayList<>();
         d.selfEffects           = s.selfEffects != null
-                                  ? s.selfEffects.stream().map(MoveEditorScreen::copyEffect).toList()
+                                  ? s.selfEffects.stream().map(MoveEditorScreen::copyEffect)
+                                      .collect(java.util.stream.Collectors.toCollection(ArrayList::new))
                                   : new ArrayList<>();
         d.prerequisites         = s.prerequisites != null
                                   ? new LinkedHashMap<>(s.prerequisites) : null;

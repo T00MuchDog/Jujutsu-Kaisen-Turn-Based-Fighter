@@ -299,6 +299,12 @@ public class CombatResolver {
             .message(attacker.getCharacter().getName() + " unleashes " + move.getName() + "!")
             .build());
 
+        // --- Self-effects apply on unleash, for every move type (damaging,
+        // defensive, and utility alike). A move that buffs its user when cast
+        // (e.g. a CE strike that raises Power) fires the buff here, regardless
+        // of whether the attack later hits, misses, or is blocked.
+        applySelfEffects(attacker, move, tick, events);
+
         // --- Defensive moves: apply buff or register full block ---
         if (move.isDefensive()) {
             resolveDefensiveMove(attacker, move, tick, events);
@@ -307,7 +313,6 @@ public class CombatResolver {
 
         // --- Non-damaging utility moves ---
         if (move.getCategory() == MoveCategory.UTILITY) {
-            applySelfEffects(attacker, move, tick, events);
             return;
         }
 
@@ -464,7 +469,8 @@ public class CombatResolver {
                 .message(msg)
                 .build());
         }
-        applySelfEffects(combatant, move, tick, events);
+        // Self-effects are applied by the caller (resolveMove) on unleash for
+        // all move types, so are not re-applied here.
     }
 
     // -------------------------------------------------------------------------

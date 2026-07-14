@@ -215,6 +215,28 @@ public final class CoreMoves {
     }
 
     // -------------------------------------------------------------------------
+    // Raw cursed-energy attacks (CURSED_ENERGY category — pure CE, no technique)
+    // -------------------------------------------------------------------------
+
+    public static Move rawCursedEnergyStrike() {
+        return new Move.Builder("RAW_CE_STRIKE")
+            .name("Cursed Energy Blast")
+            .description(
+                "A pure blast of raw cursed energy. No technique, no physical contact — "
+                + "just directed CE output. Cannot proc Black Flash.")
+            .category(MoveCategory.CURSED_ENERGY)
+            .basePower(60)
+            .baseAccuracy(0.95)
+            .apCost(16)
+            .unleashPoint(10)
+            .baseCeCost(25).hasCeCost(true).minCeCost(12).maxCeCost(45)
+            .interruptType(InterruptType.NONE)
+            .defenseType(DefenseType.NONE)
+            .prerequisites(java.util.Map.of("jujutsuskill", 50, "cursedenergyreserves", 60))
+            .build();
+    }
+
+    // -------------------------------------------------------------------------
     // Utility / defensive
     // -------------------------------------------------------------------------
 

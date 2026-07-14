@@ -142,7 +142,9 @@ public class Timeline {
         for (ActionSegment s : segments) {
             Move move = s.getMove();
             if (s.isStunned() || !move.isActiveBlock()) continue;
-            if (incomingMove != null && !incomingMove.hasAllTags(move.getBlockAffectedTags())) continue;
+            // A block fires iff it COVERS every damage tag the incoming attack
+            // uses (attack tags ⊆ block tags). See Move#coveredByBlockTags.
+            if (incomingMove != null && !incomingMove.coveredByBlockTags(move.getBlockAffectedTags())) continue;
 
             int start = s.getFireTick();
             int end = switch (move.getBlockDuration()) {

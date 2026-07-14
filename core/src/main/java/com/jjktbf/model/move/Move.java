@@ -120,7 +120,12 @@ public class Move {
     /** Duration in AP ticks. 0 = use move's apCost. -1 = end of round. Applies to PERCENTAGE_BLOCK and FLAT_BLOCK. */
     private final int blockDuration;
 
-    /** Tags this block affects. Null = all damage types. Applies to PERCENTAGE_BLOCK and FLAT_BLOCK. */
+    /**
+     * The full set of damage tags this block can stop (null/empty = all). The
+     * block fires against an incoming attack iff it COVERS every damage tag the
+     * attack uses — i.e. the attack's category tags are a subset of this list.
+     * See {@link #coveredByBlockTags(List)}. Applies to PERCENTAGE_BLOCK / FLAT_BLOCK.
+     */
     private final List<String> blockAffectedTags;
 
     /** Percentage of damage reduced (0-100). 100 = full block. Used by PERCENTAGE_BLOCK. */
@@ -132,7 +137,12 @@ public class Move {
     /** Status effects this move applies on hit (may be empty). */
     private final List<StatusEffect> onHitEffects;
 
-    /** Status effects this move applies to the user on unleash (may be empty). */
+    /**
+     * Status effects this move applies to the user on unleash (may be empty).
+     * Applied by the combat engine when the move fires, for every move type
+     * (damaging, defensive, and utility) — independent of whether the attack
+     * later hits, misses, or is blocked.
+     */
     private final List<StatusEffect> selfEffects;
 
     /**
@@ -230,7 +240,8 @@ public class Move {
         if ("GUARD_BREAK".equals(normalized)) return guardBreak;
         if ("HEAVY".equals(normalized)) return heavy;
         if ("CURSED_ENERGY".equals(normalized)) {
-            return category == MoveCategory.PHYSICAL_CURSED_ENERGY
+            return category == MoveCategory.CURSED_ENERGY
+                || category == MoveCategory.PHYSICAL_CURSED_ENERGY
                 || category == MoveCategory.INNATE_TECHNIQUE
                 || category == MoveCategory.NON_INNATE_TECHNIQUE
                 || category == MoveCategory.PHYSICAL_INNATE_TECHNIQUE
@@ -249,6 +260,40 @@ public class Move {
         if (tagNames == null || tagNames.isEmpty()) return true;
         for (String tagName : tagNames) {
             if (!hasTag(tagName)) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Block-tag coverage check — the inverse direction of {@link #hasAllTags}.
+     *
+     * <p>A block with {@code blockAffectedTags} fires against this incoming move
+     * iff the block <b>covers every damage tag the attack actually uses</b> —
+     * i.e. this move's {@link MoveCategory#getTags() category tags} are a
+     * <em>subset</em> of {@code blockTags}.
+     *
+     * <p>Why subset direction: a block declares the full set of damage types it
+     * can stop. An attack slips through if it uses even one tag the block does
+     * not cover.
+     * <ul>
+     *   <li>Block = {@code [PHYSICAL]} vs attack {@code PHYSICAL+CURSED_ENERGY}
+     *       → not covered (CE slips through).</li>
+     *   <li>Block = {@code [PHYSICAL, CURSED_ENERGY]} vs a pure {@code PHYSICAL}
+     *       attack → covered (the block's coverage is a superset of the attack).</li>
+     * </ul>
+     *
+     * @param blockTags  the block's affected-tags list (null/empty = covers all)
+     * @return true if this attack is fully covered by the block's tag set
+     */
+    public boolean coveredByBlockTags(List<String> blockTags) {
+        if (blockTags == null || blockTags.isEmpty()) return true;
+        // Normalise the block's tags once for cheap contains() checks.
+        java.util.Set<String> covered = new java.util.HashSet<>();
+        for (String t : blockTags) covered.add(t.trim().toUpperCase());
+
+        // Only the move's category (damage-type) tags matter for coverage.
+        for (MoveTag attackTag : category.getTags()) {
+            if (!covered.contains(attackTag.name())) return false;
         }
         return true;
     }

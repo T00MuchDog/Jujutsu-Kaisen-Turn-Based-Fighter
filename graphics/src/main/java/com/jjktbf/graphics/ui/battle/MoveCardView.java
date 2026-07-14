@@ -48,6 +48,7 @@ public class MoveCardView {
             case PHYSICAL -> new Color(0.850f, 0.380f, 0.190f, 1f);
             case INNATE_TECHNIQUE -> new Color(0.560f, 0.280f, 0.820f, 1f);
             case NON_INNATE_TECHNIQUE -> new Color(0.220f, 0.530f, 0.900f, 1f);
+            case CURSED_ENERGY -> new Color(0.150f, 0.620f, 0.910f, 1f);
             case PHYSICAL_CURSED_ENERGY,
                 PHYSICAL_INNATE_TECHNIQUE,
                 PHYSICAL_NON_INNATE_TECHNIQUE,
@@ -158,6 +159,7 @@ public class MoveCardView {
             case PHYSICAL -> "PHYSICAL";
             case INNATE_TECHNIQUE -> "INNATE";
             case NON_INNATE_TECHNIQUE -> "TECHNIQUE";
+            case CURSED_ENERGY -> "CURSED ENERGY";
             case UTILITY -> "UTILITY";
             case DEFENSIVE -> "DEFENSIVE";
             default -> "HYBRID";

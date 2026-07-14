@@ -22,7 +22,9 @@ public enum DefenseType {
      *  -1  = lasts until end of round
      *  >0  = that many AP ticks from the block's unleash point
      *
-     * Tag filtering via blockAffectedTags (null = all damage types).
+     * Tag filtering via blockAffectedTags: a block fires iff it covers every
+     * damage tag the incoming attack uses (attack tags ⊆ block tags). null/empty
+     * = covers all damage types. See {@link com.jjktbf.model.move.Move#coveredByBlockTags}.
      */
     PERCENTAGE_BLOCK,
 

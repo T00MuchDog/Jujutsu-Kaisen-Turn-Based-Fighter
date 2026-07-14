@@ -29,7 +29,8 @@ public final class SlotBudgetEnforcer {
         return switch (cat) {
             case PHYSICAL             -> cs.getPhysicalMoveSlots();
             case INNATE_TECHNIQUE     -> cs.getCursedTechniqueSlots();
-            case NON_INNATE_TECHNIQUE -> cs.getJujutsuTechniqueSlots();
+            case NON_INNATE_TECHNIQUE,
+                 CURSED_ENERGY        -> cs.getJujutsuTechniqueSlots();
             default                   -> cs.hybridSlots(stats, cat);
         };
     }

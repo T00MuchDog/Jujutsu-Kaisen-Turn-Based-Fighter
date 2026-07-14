@@ -26,6 +26,7 @@ public final class PowerCalculator {
     public static int compute(MoveCategory category, CharacterStats cs) {
         return switch (category) {
             case PHYSICAL                         -> physical(cs);
+            case CURSED_ENERGY                    -> cursedEnergyBase(cs);
             case INNATE_TECHNIQUE                 -> innateTechnique(cs);
             case NON_INNATE_TECHNIQUE             -> nonInnateTechnique(cs);
             case PHYSICAL_CURSED_ENERGY           -> physicalCursedEnergy(cs);

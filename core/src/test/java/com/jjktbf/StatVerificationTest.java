@@ -221,6 +221,96 @@ public class StatVerificationTest {
         assertNull(timeline.activeBlockAt(10, innateAttack));
     }
 
+    /**
+     * Block coverage is subset-direction: a block fires iff it covers every
+     * damage tag the incoming attack uses (attack tags ⊆ block tags).
+     *
+     * Example 1: a PHYSICAL-only block does NOT stop a PHYSICAL+CURSED_ENERGY
+     * attack — the CE component slips through.
+     */
+    @Test
+    void physicalBlockDoesNotCoverHybridAttack() {
+        Move hybridAttack = new Move.Builder("HYBRID_ATK")
+            .name("Hybrid Attack")
+            .category(MoveCategory.PHYSICAL_CURSED_ENERGY)
+            .basePower(50)
+            .apCost(10).unleashPoint(1)
+            .build();
+        Move physicalBlock = new Move.Builder("PHYS_ONLY_BLOCK")
+            .name("Physical Only Block")
+            .category(MoveCategory.DEFENSIVE)
+            .defenseType(DefenseType.PERCENTAGE_BLOCK)
+            .apCost(10).unleashPoint(1)
+            .blockAffectedTags(List.of("PHYSICAL"))
+            .blockDamageReduction(50)
+            .build();
+
+        Timeline timeline = new Timeline(30);
+        timeline.placeAt(physicalBlock, 1, 0);
+
+        assertNull(timeline.activeBlockAt(5, hybridAttack),
+            "A [PHYSICAL]-only block must NOT cover a PHYSICAL+CURSED_ENERGY attack.");
+    }
+
+    /**
+     * Example 2: a [PHYSICAL, CURSED_ENERGY] block DOES stop a pure-PHYSICAL
+     * attack — the block's coverage is a superset of the attack's tags.
+     */
+    @Test
+    void dualTagBlockCoversPhysicalSubset() {
+        Move physicalAttack = new Move.Builder("PURE_PHYS")
+            .name("Pure Physical")
+            .category(MoveCategory.PHYSICAL)
+            .basePower(50)
+            .apCost(10).unleashPoint(1)
+            .build();
+        Move dualBlock = new Move.Builder("DUAL_BLOCK")
+            .name("Dual Block")
+            .category(MoveCategory.DEFENSIVE)
+            .defenseType(DefenseType.PERCENTAGE_BLOCK)
+            .apCost(10).unleashPoint(1)
+            .blockAffectedTags(List.of("PHYSICAL", "CURSED_ENERGY"))
+            .blockDamageReduction(50)
+            .build();
+
+        Timeline timeline = new Timeline(30);
+        timeline.placeAt(dualBlock, 1, 0);
+
+        assertNotNull(timeline.activeBlockAt(5, physicalAttack),
+            "A [PHYSICAL, CURSED_ENERGY] block MUST cover a pure-PHYSICAL attack.");
+    }
+
+    /**
+     * Raw CE-only attacks now resolve to the dedicated CURSED_ENERGY category
+     * (previously degraded to UTILITY), and compute Power via the CE base formula.
+     */
+    @Test
+    void cursedEnergyOnlyIsADedicatedDamagingCategory() {
+        MoveData d = new MoveData();
+        d.tags = List.of("CURSED_ENERGY", "ATTACK");
+        assertEquals(MoveCategory.CURSED_ENERGY, d.derivedCategory(),
+            "A CE-only tag set must derive to the CURSED_ENERGY category.");
+
+        // CURSED_ENERGY is damaging (not UTILITY) and slot-gated.
+        assertTrue(SlotBudgetEnforcer.isSlotGated(MoveCategory.CURSED_ENERGY));
+
+        Move ceAttack = new Move.Builder("CE_TEST")
+            .name("CE Test")
+            .category(MoveCategory.CURSED_ENERGY)
+            .basePower(50)
+            .apCost(10).unleashPoint(1)
+            .build();
+        assertTrue(ceAttack.hasTag("CURSED_ENERGY"));
+        assertFalse(ceAttack.isBlackFlashEligible(),
+            "A CE-only move has no physical contact and cannot Black Flash.");
+
+        // Power uses the 3:2:1 CE base formula: (OUT*3 + RES*2 + EFF)/6.
+        CharacterStats stats = new CharacterStats.Builder()
+            .cursedEnergyOutput(80).cursedEnergyReserves(80).cursedEnergyEfficiency(80).build();
+        assertEquals((80 * 3 + 80 * 2 + 80) / 6,
+            PowerCalculator.compute(MoveCategory.CURSED_ENERGY, stats));
+    }
+
     @Test
     void blockReductionAppliesBeforeDefenseAndScaleRoll() {
         Move attack = new Move.Builder("TEST_ATTACK")

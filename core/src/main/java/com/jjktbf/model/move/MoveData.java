@@ -148,7 +148,10 @@ public class MoveData {
         if (hasNonInnate) return MoveCategory.NON_INNATE_TECHNIQUE;
         if (hasPhysical)  return MoveCategory.PHYSICAL;
 
-        // CE-only moves are not supported standalone; treat as UTILITY
+        // Raw cursed-energy attacks are a standalone damaging category.
+        if (hasCe) return MoveCategory.CURSED_ENERGY;
+
+        // Unknown tag combinations degrade to UTILITY.
         return MoveCategory.UTILITY;
     }
 

@@ -13,7 +13,7 @@ package com.jjktbf.model.move;
  *  PHYSICAL only
  *      Power = (Strength × CombatAbility)  [4:1 ratio]
  *
- *  CURSED_ENERGY only  (no standalone CE-only moves; CE is always paired)
+ *  CURSED_ENERGY only  (raw CE attack — dedicated CURSED_ENERGY category)
  *      Power = (CE_Output × CE_Reserves × CE_Efficiency)  [3:2:1 ratio]
  *
  *  INNATE_TECHNIQUE  (implies CURSED_ENERGY tag for BF purposes)
@@ -48,7 +48,8 @@ public enum MoveTag {
     /**
      * Cursed energy infused move (not technique-specific).
      * Governed by CE_Output, CE_Reserves, CE_Efficiency.
-     * Note: no move carries CURSED_ENERGY as its sole tag; it always pairs with others.
+     * May appear alone as a raw CE attack (the dedicated CURSED_ENERGY
+     * {@link MoveCategory}), or paired with PHYSICAL / technique tags.
      */
     CURSED_ENERGY,
 

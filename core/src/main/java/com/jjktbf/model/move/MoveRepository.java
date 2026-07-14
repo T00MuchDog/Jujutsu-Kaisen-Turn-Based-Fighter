@@ -38,6 +38,7 @@ public class MoveRepository extends BaseRepository<MoveData> {
             CoreMoves.divekick(),
             CoreMoves.cursedStrike(),
             CoreMoves.divergentFist(),
+            CoreMoves.rawCursedEnergyStrike(),
             CoreMoves.dismantle(),
             CoreMoves.cleave(),
             CoreMoves.sukunaFleshyStrike(),
