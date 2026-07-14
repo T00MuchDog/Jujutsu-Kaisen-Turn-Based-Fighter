@@ -13,6 +13,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.NinePatchDrawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.jjktbf.graphics.AssetLoader;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -485,26 +486,19 @@ public final class PixelSkin {
         FreeTypeFontGenerator gen = new FreeTypeFontGenerator(ttf);
         FreeTypeFontParameter p = new FreeTypeFontParameter();
         p.borderWidth = 0f;
-        p.genMipMaps = false;
-        p.minFilter = Texture.TextureFilter.Nearest;
-        p.magFilter = Texture.TextureFilter.Nearest;
 
-        // Atlantis International glyphs are ~52% of the em vs Press Start 2P's
-        // ~87%; sizes scaled ~1.93x to preserve on-screen text size.
+        // Oversampled (4x render + mipmap/linear downscale) so small editor text
+        // keeps every stroke. Logical sizes match the previous on-screen size.
         // Editor body font
-        p.size = 19;
-        BitmapFont body = gen.generateFont(p);
+        BitmapFont body = AssetLoader.generateOversampled(gen, p, 19);
         body.setUseIntegerPositions(true);
-        body.getData().setScale(1f);
 
         // Smaller font for tight UI (stat numbers, hints)
-        p.size = 15;
-        BitmapFont small = gen.generateFont(p);
+        BitmapFont small = AssetLoader.generateOversampled(gen, p, 15);
         small.setUseIntegerPositions(true);
 
         // Large font for titles / banners
-        p.size = 35;
-        BitmapFont large = gen.generateFont(p);
+        BitmapFont large = AssetLoader.generateOversampled(gen, p, 35);
         large.setUseIntegerPositions(true);
 
         gen.dispose();

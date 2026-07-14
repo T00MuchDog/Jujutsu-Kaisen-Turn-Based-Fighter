@@ -117,7 +117,10 @@ public class MainMenuScreen implements Screen {
         commands.pad(16f * scale);
         commandsCell.width(panelWidth);
         for (int i = 0; i < menuButtons.size(); i++) {
-            menuButtons.get(i).getLabel().setFontScale(scale);
+            // Editor fonts are oversampled (glyphs rendered FONT_OVERSAMPLE× too
+            // large). Scene2D's setFontScale is absolute and overwrites the font's
+            // base scale, so divide by FONT_OVERSAMPLE to keep on-screen size correct.
+            menuButtons.get(i).getLabel().setFontScale(scale / AssetLoader.FONT_OVERSAMPLE);
             menuButtonCells.get(i).height(46f * scale).pad(4f * scale);
         }
         root.invalidateHierarchy();

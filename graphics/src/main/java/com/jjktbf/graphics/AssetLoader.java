@@ -90,31 +90,62 @@ public class AssetLoader {
         editorSkin = PixelSkin.create();
     }
 
+    /**
+     * Glyphs are rendered this many times larger than their logical size, then
+     * downscaled by the GPU so small text keeps every stroke. Exposed because
+     * Scene2D's {@code setFontScale} is absolute (it overwrites the font's base
+     * scale), so callers must multiply their layout scale by {@code 1/this} to
+     * stay relative to the oversampled base.
+     */
+    public static final float FONT_OVERSAMPLE = 4f;
+
+    /**
+     * Generates a font oversampled so small text keeps every stroke.
+     *
+     * <p>FreeType rasters each glyph into a bitmap exactly {@code p.size} pixels
+     * tall. At small sizes the pixel grid cannot represent thin strokes, so
+     * crossbars and dots get dropped. To avoid this we render the glyphs
+     * {@code FONT_OVERSAMPLE}× larger than requested (where the grid has ample
+     * resolution), then set the font's base scale to {@code 1/FONT_OVERSAMPLE}
+     * so its logical/visual size is unchanged, and let the GPU downscale with
+     * mipmap + linear filtering for clean edges. Logical font sizes and all
+     * layout stay identical to the non-oversampled case; only rendering quality
+     * improves.
+     *
+     * <p>This is a stateless helper: it touches neither AssetLoader fields nor
+     * the PixelSkin's private generator, so it does not break the existing
+     * isolation between the two font owners.
+     */
+    public static BitmapFont generateOversampled(FreeTypeFontGenerator gen,
+                                                 FreeTypeFontParameter p,
+                                                 int logicalSize) {
+        final float OVERSAMPLE = FONT_OVERSAMPLE;
+        p.size = Math.round(logicalSize * OVERSAMPLE);
+        p.genMipMaps = true;
+        p.minFilter = Texture.TextureFilter.MipMapLinearNearest;
+        p.magFilter = Texture.TextureFilter.Linear;
+        BitmapFont font = gen.generateFont(p);
+        // Restore logical size: glyphs were rendered OVERSAMPLE× too large.
+        font.getData().setScale(1f / OVERSAMPLE);
+        return font;
+    }
+
     private void loadFonts() {
         com.badlogic.gdx.files.FileHandle ttf =
             Gdx.files.internal("assets/fonts/AtlantisInternational-jen0.ttf");
         fontGenerator = new FreeTypeFontGenerator(ttf);
 
+        // One shared parameter; generateOversampled sets size + filtering per call.
         FreeTypeFontParameter p = new FreeTypeFontParameter();
+        p.borderWidth = 0f;
 
-        // Atlantis International has standard glyph proportions, so the actual
-        // capital height is ~52% of the em versus Press Start 2P's ~87%. The
-        // old Press Start 2P sizes are scaled up ~1.93x to keep the on-screen
-        // text size identical after the font swap.
-        p.size = 15;
-        fontSmall = fontGenerator.generateFont(p);
-
-        p.size = 23;
-        fontMedium = fontGenerator.generateFont(p);
-
-        p.size = 35;
-        fontLarge = fontGenerator.generateFont(p);
-
-        p.size = 50;
-        fontXLarge = fontGenerator.generateFont(p);
-
-        p.size = 31;
-        fontLog = fontGenerator.generateFont(p);
+        // Logical sizes match the on-screen size of the previous font; layout is
+        // unchanged. generateOversampled renders them at 4x for crisp small text.
+        fontSmall  = generateOversampled(fontGenerator, p, 15);
+        fontMedium = generateOversampled(fontGenerator, p, 23);
+        fontLarge  = generateOversampled(fontGenerator, p, 35);
+        fontXLarge = generateOversampled(fontGenerator, p, 50);
+        fontLog    = generateOversampled(fontGenerator, p, 31);
 
         // TTF no longer needed after bitmap generation
         fontGenerator.dispose();

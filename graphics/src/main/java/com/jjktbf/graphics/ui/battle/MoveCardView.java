@@ -175,7 +175,7 @@ public class MoveCardView {
         List<String> lines = List.of(text);
 
         for (float scale = 1f; scale >= 0.30f; scale -= 0.10f) {
-            font.getData().setScale(scale);
+            font.getData().setScale(originalScaleX * scale, originalScaleY * scale);
             lines = wrap(font, text, maxWidth);
             if (lines.size() <= maxLines) break;
         }
@@ -201,7 +201,7 @@ public class MoveCardView {
         float columnWidth = 120f;
 
         for (float scale = 0.70f; scale >= 0.30f; scale -= 0.10f) {
-            font.getData().setScale(scale);
+            font.getData().setScale(originalScaleX * scale, originalScaleY * scale);
             if (fits(font, upper, columnWidth) && fits(font, lower, columnWidth)) {
                 break;
             }
@@ -233,7 +233,7 @@ public class MoveCardView {
         float originalScaleX = font.getData().scaleX;
         float originalScaleY = font.getData().scaleY;
         for (float scale = 1f; scale >= 0.30f; scale -= 0.10f) {
-            font.getData().setScale(scale);
+            font.getData().setScale(originalScaleX * scale, originalScaleY * scale);
             if (width(font, value) <= maxTextWidth) break;
         }
         font.draw(batch, value, x + (width - width(font, value)) / 2f, y);

@@ -73,7 +73,7 @@ public class ActionSegmentView {
         float originalScaleY = font.getData().scaleY;
         List<String> lines = List.of(name);
         for (float scale = 1f; scale >= 0.30f; scale -= 0.10f) {
-            font.getData().setScale(scale);
+            font.getData().setScale(originalScaleX * scale, originalScaleY * scale);
             lines = wrap(font, name, width);
             if (lines.size() <= 2) break;
         }
