@@ -379,8 +379,10 @@ public class StatVerificationTest {
         assertEquals(MoveCategory.CURSED_ENERGY, d.derivedCategory(),
             "A CE-only tag set must derive to the CURSED_ENERGY category.");
 
-        // CURSED_ENERGY is damaging (not UTILITY) and slot-gated.
-        assertTrue(SlotBudgetEnforcer.isSlotGated(MoveCategory.CURSED_ENERGY));
+        // A CE-only move (no PHYSICAL tag) is a Jujutsu Art — slots granted
+        // by Jujutsu Skill, not Combat Ability.
+        assertEquals(MovePool.JUJUTSU_ARTS, d.derivedPool(),
+            "A CE-only (no PHYSICAL) move must be a Jujutsu Art.");
 
         Move ceAttack = new Move.Builder("CE_TEST")
             .name("CE Test")

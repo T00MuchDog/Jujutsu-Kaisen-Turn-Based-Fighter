@@ -1,7 +1,5 @@
 package com.jjktbf.model.character;
 
-import com.jjktbf.model.move.MoveCategory;
-
 /**
  * Derived combat stats — computed from CharacterStats via the agreed formulae.
  * These values are read-only snapshots; they are recomputed whenever base stats change.
@@ -43,11 +41,13 @@ import com.jjktbf.model.move.MoveCategory;
  *    CE_MAX = CE_RESERVES (the stat value is the pool size)
  *    Placeholder scale: multiply by CE_POOL_SCALE = 5  (baseline 80 → 400 CE units)
  *
- *  MOVE SLOTS (per category)
+ *  MOVE SLOTS (two pools)
  *    1 slot per 20 stat points.
  *    Formula: slots = stat / MOVES_PER_STAT_POINTS  (integer division)
  *    MOVES_PER_STAT_POINTS = 20  → baseline 80 → 4 slots
- *    Basic Punch and Basic Block are stored separately and always available.
+ *    Combat Arts slots   ← Combat Ability   (moves containing the PHYSICAL tag)
+ *    Jujutsu Arts slots  ← Jujutsu Skill    (moves without the PHYSICAL tag)
+ *    Free moves (isFreeMove = true) never consume a slot.
  *
  *  BLACK FLASH CHANCE
  *    Base: 3% (BF_BASE_CHANCE)
@@ -135,10 +135,9 @@ public class CombatStats {
     private final int evasion;
     private final int maxCursedEnergy;
 
-    // Move slot counts
-    private final int physicalMoveSlots;
-    private final int jujutsuTechniqueSlots;   // also governs CE-tagged move slots
-    private final int cursedTechniqueSlots;
+    // Move slot counts (two pools)
+    private final int combatArtsSlots;     // ← Combat Ability  (moves with PHYSICAL tag)
+    private final int jujutsuArtsSlots;    // ← Jujutsu Skill   (moves without PHYSICAL tag)
 
     // Cached physical and CE power components (move-type power uses PowerCalculator)
     private final int physicalPowerComponent;
@@ -154,9 +153,8 @@ public class CombatStats {
         this.accuracy                 = computeAccuracy(cs);
         this.evasion                  = computeEvasion(cs);
         this.maxCursedEnergy          = computeMaxCursedEnergy(cs);
-        this.physicalMoveSlots        = computePhysicalSlots(cs);
-        this.jujutsuTechniqueSlots    = computeJujutsuSlots(cs);
-        this.cursedTechniqueSlots     = computeCursedTechniqueSlots(cs);
+        this.combatArtsSlots         = computeCombatArtsSlots(cs);
+        this.jujutsuArtsSlots        = computeJujutsuArtsSlots(cs);
         this.physicalPowerComponent   = computePhysicalPower(cs);
         this.cursedEnergyPowerComponent = computeCursedEnergyPower(cs);
     }
@@ -185,16 +183,12 @@ public class CombatStats {
         return cs.getCursedEnergyReserves() * CE_POOL_SCALE;
     }
 
-    private static int computePhysicalSlots(CharacterStats cs) {
+    private static int computeCombatArtsSlots(CharacterStats cs) {
         return cs.getCombatAbility() / MOVES_PER_STAT_POINTS;
     }
 
-    private static int computeJujutsuSlots(CharacterStats cs) {
+    private static int computeJujutsuArtsSlots(CharacterStats cs) {
         return cs.getJujutsuSkill() / MOVES_PER_STAT_POINTS;
-    }
-
-    private static int computeCursedTechniqueSlots(CharacterStats cs) {
-        return cs.getCursedTechniqueMastery() / MOVES_PER_STAT_POINTS;
     }
 
     private static int computePhysicalPower(CharacterStats cs) {
@@ -244,21 +238,6 @@ public class CombatStats {
         return Math.min(1.0, baseMoveAccuracy * hitRatio);
     }
 
-    /**
-     * Compute how many move slots a hybrid category grants.
-     * Hybrid slots are gated by the lesser of the relevant governing stats.
-     */
-    public int hybridSlots(CharacterStats cs, MoveCategory category) {
-        return switch (category.getSlotStat()) {
-            case LESSER_CA_JS       -> Math.min(cs.getCombatAbility(), cs.getJujutsuSkill()) / MOVES_PER_STAT_POINTS;
-            case LESSER_CA_CTM      -> Math.min(cs.getCombatAbility(), cs.getCursedTechniqueMastery()) / MOVES_PER_STAT_POINTS;
-            case LESSER_CTM_JS      -> Math.min(cs.getCursedTechniqueMastery(), cs.getJujutsuSkill()) / MOVES_PER_STAT_POINTS;
-            case LESSER_ALL_THREE   -> Math.min(cs.getCombatAbility(),
-                                         Math.min(cs.getCursedTechniqueMastery(), cs.getJujutsuSkill())) / MOVES_PER_STAT_POINTS;
-            default -> 0;
-        };
-    }
-
     // -------------------------------------------------------------------------
     // Accessors
     // -------------------------------------------------------------------------
@@ -268,18 +247,17 @@ public class CombatStats {
     public int getAccuracy()                    { return accuracy; }
     public int getEvasion()                     { return evasion; }
     public int getMaxCursedEnergy()             { return maxCursedEnergy; }
-    public int getPhysicalMoveSlots()           { return physicalMoveSlots; }
-    public int getJujutsuTechniqueSlots()       { return jujutsuTechniqueSlots; }
-    public int getCursedTechniqueSlots()        { return cursedTechniqueSlots; }
+    public int getCombatArtsSlots()             { return combatArtsSlots; }
+    public int getJujutsuArtsSlots()            { return jujutsuArtsSlots; }
     public int getPhysicalPowerComponent()      { return physicalPowerComponent; }
     public int getCursedEnergyPowerComponent()  { return cursedEnergyPowerComponent; }
 
     @Override
     public String toString() {
         return String.format(
-            "CombatStats{HP=%d AP=%d ACC=%d EVA=%d CE_MAX=%d PhysSlots=%d JJSlots=%d CTSlots=%d}",
+            "CombatStats{HP=%d AP=%d ACC=%d EVA=%d CE_MAX=%d CombatArtsSlots=%d JujutsuArtsSlots=%d}",
             maxHp, maxApBar, accuracy, evasion, maxCursedEnergy,
-            physicalMoveSlots, jujutsuTechniqueSlots, cursedTechniqueSlots
+            combatArtsSlots, jujutsuArtsSlots
         );
     }
 }

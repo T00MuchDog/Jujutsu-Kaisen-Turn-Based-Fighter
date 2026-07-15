@@ -1,7 +1,7 @@
 package com.jjktbf.model.character;
 
 import com.jjktbf.model.move.Move;
-import com.jjktbf.model.move.MoveCategory;
+import com.jjktbf.model.move.MovePool;
 
 import java.util.*;
 
@@ -149,7 +149,7 @@ public abstract class Character extends Entity {
     ) {
         if (moves == null) return List.of();
 
-        Map<MoveCategory, Integer> slotUsed = new EnumMap<>(MoveCategory.class);
+        Map<MovePool, Integer> slotUsed = new EnumMap<>(MovePool.class);
         List<Move> validated = new ArrayList<>();
 
         for (Move move : moves) {
@@ -181,20 +181,21 @@ public abstract class Character extends Entity {
                 }
             }
 
-            // --- 3. Slot budget — free moves and non-slot-gated categories are exempt ---
+            // --- 3. Slot budget — only free moves are exempt ---
+            // Every non-free move consumes a slot in its pool (Combat Arts or
+            // Jujutsu Arts), regardless of whether it is offensive, defensive,
+            // or utility.
             if (!move.isFreeMove()) {
-                MoveCategory cat = move.getCategory();
-                if (SlotBudgetEnforcer.isSlotGated(cat)) {
-                    int used      = slotUsed.getOrDefault(cat, 0);
-                    int available = SlotBudgetEnforcer.slotBudgetFor(combatStats, cs, cat);
-                    if (used >= available) {
-                        throw new IllegalArgumentException(
-                            "Character has no available slots for category " + cat
-                            + " (budget=" + available + ") when trying to add move '" + move.getName() + "'"
-                        );
-                    }
-                    slotUsed.put(cat, used + 1);
+                MovePool pool = move.getPool();
+                int used      = slotUsed.getOrDefault(pool, 0);
+                int available = SlotBudgetEnforcer.slotBudgetFor(combatStats, pool);
+                if (used >= available) {
+                    throw new IllegalArgumentException(
+                        "Character has no available slots for pool " + pool
+                        + " (budget=" + available + ") when trying to add move '" + move.getName() + "'"
+                    );
                 }
+                slotUsed.put(pool, used + 1);
             }
 
             validated.add(move);

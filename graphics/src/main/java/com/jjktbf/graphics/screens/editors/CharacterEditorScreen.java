@@ -22,12 +22,11 @@ import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.CombatStats;
 import com.jjktbf.model.character.CharacterRepository;
-import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.character.SlotBudgetEnforcer;
 import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.move.Move;
-import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveData;
+import com.jjktbf.model.move.MovePool;
 import com.jjktbf.model.move.MoveRepository;
 import com.jjktbf.model.move.MoveTag;
 
@@ -324,9 +323,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             sb.append("Phys power: ").append(cs.getPhysicalPowerComponent());
             sb.append("  |  CE power: ").append(cs.getCursedEnergyPowerComponent());
             sb.append('\n');
-            sb.append("Move slots  —  Phys: ").append(cs.getPhysicalMoveSlots());
-            sb.append("  |  Jujutsu: ").append(cs.getJujutsuTechniqueSlots());
-            sb.append("  |  CT: ").append(cs.getCursedTechniqueSlots());
+            sb.append("Move slots  —  Combat Arts: ").append(cs.getCombatArtsSlots());
+            sb.append("  |  Jujutsu Arts: ").append(cs.getJujutsuArtsSlots());
 
             derivedPreview.setText(sb.toString());
         } catch (Exception e) {
@@ -403,20 +401,17 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                         }
                     }
                 }
-                // Slot budget (only for slot-gated, non-free moves)
+                // Slot budget (every non-free move consumes a pool slot).
                 if (md.isFreeMove) return true;
                 try {
-                    Move move = md.toMove();
-                    MoveCategory cat = move.getCategory();
-                    if (!SlotBudgetEnforcer.isSlotGated(cat)) return true;
+                    MovePool pool = md.derivedPool();
                     CombatStats combat = cd.toCombatStats();
-                    int budget = SlotBudgetEnforcer.slotBudgetFor(
-                        combat, cd.toCharacterStats(), cat);
+                    int budget = SlotBudgetEnforcer.slotBudgetFor(combat, pool);
                     int used = SlotBudgetEnforcer.countUsage(
-                        getAssignedMoveCategoryList(cd)).getOrDefault(cat, 0);
+                        getAssignedMovePoolList(cd)).getOrDefault(pool, 0);
                     return used < budget;
                 } catch (Exception e) {
-                    // Can't compute category — allow (will be caught on save).
+                    // Can't compute pool — allow (will be caught on save).
                     return true;
                 }
             }
@@ -439,19 +434,12 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             @Override public String budgetSummary() {
                 try {
                     CombatStats cs = cd.toCombatStats();
-                    Map<MoveCategory, Integer> usage =
-                        SlotBudgetEnforcer.countUsage(getAssignedMoveCategoryList(cd));
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("Slots —  Phys: ").append(cs.getPhysicalMoveSlots())
-                      .append("  Jujutsu: ").append(cs.getJujutsuTechniqueSlots())
-                      .append("  CT: ").append(cs.getCursedTechniqueSlots());
-                    for (MoveCategory cat : usage.keySet()) {
-                        int used = usage.get(cat);
-                        int budget = SlotBudgetEnforcer.slotBudgetFor(
-                            cs, cd.toCharacterStats(), cat);
-                        sb.append("  |  ").append(cat.name()).append(": ").append(used).append('/').append(budget);
-                    }
-                    return sb.toString();
+                    Map<MovePool, Integer> usage =
+                        SlotBudgetEnforcer.countUsage(getAssignedMovePoolList(cd));
+                    int combatUsed  = usage.getOrDefault(MovePool.COMBAT_ARTS, 0);
+                    int jujutsuUsed = usage.getOrDefault(MovePool.JUJUTSU_ARTS, 0);
+                    return "Slots —  Combat Arts: " + combatUsed + '/' + cs.getCombatArtsSlots()
+                        + "  |  Jujutsu Arts: " + jujutsuUsed + '/' + cs.getJujutsuArtsSlots();
                 } catch (Exception e) {
                     return "(slot computation error)";
                 }
@@ -479,23 +467,19 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         return s == null ? "" : s.toLowerCase().replace("_", "").replace(" ", "");
     }
 
-    /** Collect MoveCategory for every assigned, slot-gated, non-free move. */
-    private List<MoveCategory> getAssignedMoveCategoryList(CharacterData cd) {
-        List<MoveCategory> cats = new ArrayList<>();
-        if (cd.moveIds == null) return cats;
+    /** Collect the {@link MovePool} of every assigned non-free move. */
+    private List<MovePool> getAssignedMovePoolList(CharacterData cd) {
+        List<MovePool> pools = new ArrayList<>();
+        if (cd.moveIds == null) return pools;
         for (String mid : cd.moveIds) {
             MoveData md = moveRepo.findById(mid).orElse(null);
             if (md != null && !md.isFreeMove) {
                 try {
-                    Move move = md.toMove();
-                    MoveCategory cat = move.getCategory();
-                    if (SlotBudgetEnforcer.isSlotGated(cat)) {
-                        cats.add(cat);
-                    }
+                    pools.add(md.derivedPool());
                 } catch (Exception ignored) {}
             }
         }
-        return cats;
+        return pools;
     }
 
     // =========================================================================

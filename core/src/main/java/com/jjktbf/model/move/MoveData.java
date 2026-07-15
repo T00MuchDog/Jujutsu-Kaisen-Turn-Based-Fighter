@@ -155,6 +155,20 @@ public class MoveData {
         return MoveCategory.UTILITY;
     }
 
+    /**
+     * Resolve the {@link MovePool} from the stored tags list.
+     *
+     * <p>Authoritative pool derivation: Combat Arts iff the raw tag set contains
+     * PHYSICAL, else Jujutsu Arts. This is read directly from {@code tags}
+     * (rather than from {@link #derivedCategory()}) because category collapses
+     * away the PHYSICAL tag for defensive/utility moves — e.g. a
+     * {@code [PHYSICAL, DEFENSIVE]} block derives to category {@code DEFENSIVE}
+     * but must still count as a Combat Art for slot purposes.
+     */
+    public MovePool derivedPool() {
+        return MovePool.fromTags(tags);
+    }
+
     // -------------------------------------------------------------------------
     // Defense type helpers — use these instead of raw string comparisons
     // -------------------------------------------------------------------------
@@ -185,6 +199,7 @@ public class MoveData {
             .name(name)
             .description(description != null ? description : "")
             .category(cat)
+            .pool(derivedPool())
             .basePower(basePower)
             .baseAccuracy(baseAccuracy)
             .neverMiss(neverMiss)

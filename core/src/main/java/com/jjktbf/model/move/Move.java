@@ -46,6 +46,13 @@ public class Move {
     private final MoveCategory category;
 
     /**
+     * Which move pool (Combat Arts / Jujutsu Arts) this move draws its slot from.
+     * Orthogonal to {@link #category} — derived from the raw PHYSICAL tag.
+     * @see MovePool
+     */
+    private final MovePool pool;
+
+    /**
      * Base power of the move.
      * This raw number is scaled by the attacker's Power (from PowerCalculator)
      * and reduced by the defender's Defense inside DamageCalculator.
@@ -170,6 +177,7 @@ public class Move {
         this.name                = b.name;
         this.description         = b.description;
         this.category            = b.category;
+        this.pool                = b.pool != null ? b.pool : MovePool.fromCategory(b.category);
         this.basePower           = b.basePower;
         this.baseAccuracy        = b.baseAccuracy;
         this.neverMiss           = b.neverMiss;
@@ -204,6 +212,7 @@ public class Move {
     public String getName()                       { return name; }
     public String getDescription()                { return description; }
     public MoveCategory getCategory()             { return category; }
+    public MovePool getPool()                     { return pool; }
     public int getBasePower()                     { return basePower; }
     public double getBaseAccuracy()               { return baseAccuracy; }
     public boolean isNeverMiss()                  { return neverMiss; }
@@ -398,6 +407,7 @@ public class Move {
         private String name                  = "";
         private String description           = "";
         private MoveCategory category        = MoveCategory.PHYSICAL;
+        private MovePool pool;
         private int basePower                = 0;
         private double baseAccuracy          = 1.0;
         private boolean neverMiss            = false;
@@ -427,6 +437,7 @@ public class Move {
         public Builder name(String v)                      { this.name = v; return this; }
         public Builder description(String v)               { this.description = v; return this; }
         public Builder category(MoveCategory v)            { this.category = v; return this; }
+        public Builder pool(MovePool v)                    { this.pool = v; return this; }
         public Builder basePower(int v)                    { this.basePower = v; return this; }
         public Builder baseAccuracy(double v)              { this.baseAccuracy = v; return this; }
         public Builder neverMiss(boolean v)                { this.neverMiss = v; return this; }
