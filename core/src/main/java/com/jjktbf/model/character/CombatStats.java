@@ -62,11 +62,21 @@ package com.jjktbf.model.character;
  *  DEFENSE (computed combat stat — applied on each hit AFTER defensive moves)
  *    Defense is computed during damage calculation, after PERCENTAGE_BLOCK and FLAT_BLOCK
  *    have already been applied to the incoming damage. It is NOT a raw base stat but
- *    is derived from Durability, CE Reserves, and the current CE pool at the moment of
- *    resolution. Utility moves that raise Durability (e.g. via STATUS_EFFECT DEFENSE_UP)
- *    will indirectly increase Defense.
- *    Formula: DEF = (CE_remaining_fraction * CE_RESERVES * 3 + DUR * 2) / 5
- *    where CE_remaining_fraction = currentCE / maxCE
+ *    is derived from Durability, CE Reserves, the current CE pool, and CE Output at the
+ *    moment of resolution. Utility moves that raise Durability (e.g. via STATUS_EFFECT
+ *    DEFENSE_UP) will indirectly increase Defense.
+ *
+ *    CE reinforcement (the CE contribution to Defense) is CAPPED by CE Output, not by
+ *    pool size. While the pool can supply at least the cap, Defense holds at a plateau —
+ *    so spending CE early in a round costs no Defense. Only once the pool drops below the
+ *    cap does Defense degrade (steeply, since the CE term is weighted 6). This is lore
+ *    accurate: a bottomless-CE character (e.g. Yuta, Hakari) still has finite Defense
+ *    because their OUTPUT, not their pool size, limits their reinforcement.
+ *
+ *    Formula: ceFromPool      = CE_RESERVES * (currentCE / maxCE)
+ *             reinforcementCap = CE_OUTPUT * DEFENSE_CE_CAP_FACTOR
+ *             ceReinforcement  = min(ceFromPool, reinforcementCap)
+ *             DEF = (ceReinforcement * 6 + DUR * 2) / 6
  *    Note: DEF is dynamic — recalculated each hit based on current CE.
  *    Pipeline: incoming damage → DEFENSIVE move reduction → Defense stat → final damage.
  *
@@ -124,6 +134,15 @@ public class CombatStats {
 
     /** CE restored on a Black Flash proc (fraction of max CE pool). */
     public static final double BF_CE_RESTORE_FRACTION = 0.05;
+
+    /**
+     * PLACEHOLDER: Caps CE reinforcement for Defense at this factor × Cursed Energy Output.
+     * While the CE pool can supply at least (CE_OUTPUT × this factor), Defense holds at a
+     * plateau — spending CE early costs no Defense. Below that, Defense degrades with the
+     * pool. Lore: output (not pool size) limits reinforcement, so bottomless-CE fighters
+     * still have finite Defense. Raise to widen the plateau / recover peak; lower to narrow it.
+     */
+    public static final double DEFENSE_CE_CAP_FACTOR = 0.5;
 
     // ------------------------------------------------------------------
     // Derived values computed at construction time
@@ -203,25 +222,30 @@ public class CombatStats {
     }
 
     /**
-     * Compute the dynamic Defense value at the moment of a hit.
-     * @param cs           the character's base stats
-     * @param currentCe    the character's remaining CE pool units at this moment
-     * @param maxCe        the character's max CE pool units
-     */
-    /**
      * Compute the Defense value at the moment of a hit.
      *
      * Defense is a combat stat (not a base stat) applied AFTER defensive moves
      * (PERCENTAGE_BLOCK / FLAT_BLOCK) have already reduced incoming damage.
-     * It is derived from Durability and the fraction of CE Reserves remaining.
-     * As CE is spent during a round, Defense falls — a depleted fighter is easier to damage.
-     * Stat enhancements that increase Durability (e.g. from utility moves) raise Defense.
+     *
+     * The CE contribution is CAPPED by Cursed Energy Output: while the pool can supply at
+     * least (CE_OUTPUT × DEFENSE_CE_CAP_FACTOR), Defense holds at a plateau and spending CE
+     * early is free; only once the pool drops below that cap does Defense degrade. This is
+     * lore accurate — output, not pool size, limits reinforcement, so even bottomless-CE
+     * fighters have finite Defense. Stat enhancements that raise Durability raise Defense;
+     * CE_OUTPUT_UP buffs raise the reinforcement cap (pass effective stats to benefit).
+     *
+     * @param cs           the character's (effective) stats
+     * @param currentCe    the character's remaining CE pool units at this moment
+     * @param maxCe        the character's max CE pool units
      */
     public static int computeDefense(CharacterStats cs, int currentCe, int maxCe) {
-        // 3:2 RemainingCE_Reserves : Durability
-        double ceReserveFraction = (maxCe > 0) ? (double) currentCe / maxCe : 0.0;
-        double scaledCeReserves  = cs.getCursedEnergyReserves() * ceReserveFraction;
-        return (int) Math.round((scaledCeReserves * 3 + cs.getDurability() * 2) / 5.0);
+        // 6:2 CE reinforcement : Durability; CE reinforcement capped by CE Output.
+        double ceFromPool       = (maxCe > 0)
+            ? cs.getCursedEnergyReserves() * ((double) currentCe / maxCe)
+            : 0.0;
+        double reinforcementCap = cs.getCursedEnergyOutput() * DEFENSE_CE_CAP_FACTOR;
+        double ceReinforcement  = Math.min(ceFromPool, reinforcementCap);
+        return (int) Math.round((ceReinforcement * 6 + cs.getDurability() * 2) / 6.0);
     }
 
     /**

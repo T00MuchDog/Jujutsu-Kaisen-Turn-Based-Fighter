@@ -353,7 +353,7 @@ public class BattleCombatant {
      */
     public int computeCurrentDefense(int currentTick) {
         int baseDefense = CombatStats.computeDefense(
-            effectiveStats,
+            getEffectiveStats(),
             currentCe,
             effectiveCombatStats.getMaxCursedEnergy()
         );

@@ -127,15 +127,24 @@ These are the numbers actually used in combat calculations.
     A value computed during damage calculation, applied AFTER defensive moves
     (PERCENTAGE_BLOCK / FLAT_BLOCK) have already reduced incoming damage.
     Defense represents the defender's current resilience at the moment of each hit.
-    It falls as CE is spent — a depleted fighter is easier to damage.
-    Formula: Defense = (CE_remaining_fraction × Cursed Energy Reserves × 3
-                        + Durability × 2) / 5
-    where CE_remaining_fraction = currentCE / maxCE.
+
+    The CE contribution to Defense (CE reinforcement) is CAPPED by Cursed Energy
+    Output, NOT by pool size. While the pool can supply at least the cap, Defense
+    holds at a plateau — spending CE early in a round costs no Defense. Only once
+    the pool drops below the cap does Defense degrade (steeply, since the CE term
+    is weighted 6). This is lore accurate: a bottomless-CE character (e.g. Yuta,
+    Hakari) still has finite Defense because their OUTPUT, not their pool size,
+    limits their reinforcement.
+    Formula: ceFromPool       = Cursed Energy Reserves × (currentCE / maxCE)
+             reinforcementCap = Cursed Energy Output × DEFENSE_CE_CAP_FACTOR
+             ceReinforcement  = min(ceFromPool, reinforcementCap)
+             Defense = (ceReinforcement × 6 + Durability × 2) / 6
 
     Key clarifications:
     - Defense IS a combat stat (computed, not stored as a base stat).
     - "Defense stat" is acceptable terminology — it refers to this computed value.
     - Utility moves that raise Durability (via stat enhancements) indirectly raise Defense.
+    - CE_OUTPUT_UP status buffs raise the reinforcement cap (pass effective stats).
     - Do NOT confuse with DEFENSIVE (a MoveTag for blocking moves).
     - Do NOT confuse blockDamageReduction (block %) with Defense.
     - Pipeline: incoming damage → DEFENSIVE move reduction → Defense → final damage.
@@ -538,7 +547,8 @@ Utility and Defensive moves have no slot limit.
 
   CURSED ENERGY (CE)
     A combat resource. Spent when CE-tagged action segments begin their startTick.
-    Not regenerated during a fight. Running out weakens the character's Defense.
+    Not regenerated during a fight. Defense holds at a plateau while the pool can
+    supply the CE Output cap; once the pool drops below that cap, Defense degrades.
 
   CE POOL (Max Cursed Energy)
     Total CE available at fight start.

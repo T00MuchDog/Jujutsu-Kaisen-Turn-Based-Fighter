@@ -355,11 +355,15 @@ public class StatVerificationTest {
      * Verify the damage formula is in a reasonable range.
      * Sukuna Cleave (basePower=110, INNATE_TECHNIQUE) vs Yuji at full CE.
      *
-     * Expected: 80–100 damage on Yuji (467 HP) = ~17–21% HP per hit.
+     * Expected: ~107–126 damage on Yuji (467 HP).
      * Formula: basePower × (power/defense) × 0.5 × roll[0.85,1.0]
      *   power  = (CE_base + CTM) / 2 = (289 + 300) / 2 = 294
-     *   defense = (CE_RES*3 + DUR*2) / 5 = (160*3 + 190*2)/5 = (480+380)/5 = 172
-     *   damage = 110 × (294/172) × 0.5 × ~0.925 ≈ 87
+     *   Defense caps CE reinforcement by CE Output (DEFENSE_CE_CAP_FACTOR=0.5):
+     *     ceFromPool      = CE_RES * 1.0              = 160        (full CE)
+     *     reinforcementCap = CE_OUT * 0.5             = 130 * 0.5 = 65
+     *     ceReinforcement  = min(ceFromPool, cap)     = 65
+     *     defense = (ceReinforcement*6 + DUR*2) / 6   = (65*6 + 190*2)/6 = 770/6 = 128
+     *   damage = 110 × (294/128) × 0.5 × ~0.925 ≈ 117
      */
     @Test
     void sukunaCleaveVsYujiDamageShouldBeReasonable() {
@@ -374,9 +378,14 @@ public class StatVerificationTest {
         int ceBase    = (ceOut * 3 + ceRes * 2 + ceEff) / 6;
         int power     = (ceBase + sukunaCTM) / 2;
 
+        // Defense: CE reinforcement capped by CE Output, then 6:2 weighted with Durability.
         int yujiDur   = yuji.getBaseStats().getDurability();              // 190
         int yujiCeRes = yuji.getBaseStats().getCursedEnergyReserves();    // 160
-        int defense   = (yujiCeRes * 3 + yujiDur * 2) / 5;               // full CE
+        int yujiCeOut = yuji.getBaseStats().getCursedEnergyOutput();      // 130
+        double ceFromPool      = yujiCeRes;                               // full CE → fraction 1.0
+        double reinforcementCap = yujiCeOut * CombatStats.DEFENSE_CE_CAP_FACTOR;
+        int defense   = (int) Math.round(
+            (Math.min(ceFromPool, reinforcementCap) * 6 + yujiDur * 2) / 6.0);
 
         int basePower = 110; // Cleave
         // damage = basePower × (power/defense) × 0.5 × 1.0 (max roll, no variance)
@@ -387,8 +396,8 @@ public class StatVerificationTest {
         System.out.printf("Expected damage range: %.1f – %.1f%n", minDamage, maxDamage);
         System.out.printf("Yuji HP: %d%n", yuji.getCombatStats().getMaxHp());
 
-        // Should deal between 70 and 115 (allowing for formula rounding)
-        assertTrue(minDamage >= 70 && maxDamage <= 115,
+        // Should deal between 100 and 135 (allowing for formula rounding)
+        assertTrue(minDamage >= 100 && maxDamage <= 135,
             String.format("Damage out of expected range: %.1f–%.1f", minDamage, maxDamage));
     }
 
@@ -575,7 +584,9 @@ public class StatVerificationTest {
             attacker, defender, attack, 1, new FixedRandom(0.0), 1
         );
 
-        assertEquals(21, result.getFinalDamage());
+        // Baseline stats (all 80), full CE. Defense caps CE reinforcement by Output:
+        //   ceReinf = min(80, 80*0.5=40) = 40; DEF = (40*6 + 80*2)/6 = 67
+        assertEquals(25, result.getFinalDamage());
     }
 
     private static final class FixedRandom extends Random {
