@@ -105,7 +105,9 @@ public abstract class Character extends Entity {
         this.combatStats        = new CombatStats(baseStats);
         this.innateTechniqueName = innateTechniqueName;
         this.knownMoves         = Collections.unmodifiableList(
-            validateAndBuildMoveList(knownMoves, baseStats, combatStats, accessibleTechniques)
+            validateAndBuildMoveList(
+                knownMoves, baseStats, combatStats, accessibleTechniques,
+                grantedMoveIdsOf(abilities), lockedMoveTagsOf(abilities))
         );
         this.abilities          = abilities != null
             ? Collections.unmodifiableList(new ArrayList<>(abilities)) : List.of();
@@ -124,10 +126,11 @@ public abstract class Character extends Entity {
         }
         if (abilities != null) {
             for (Ability a : abilities) {
+                if (!a.isPassive()) continue;
                 var effects = a.getEffects();
                 if (effects == null) continue;
                 for (var e : effects) {
-                    if (com.jjktbf.model.character.AbilityEffectType.UNLOCK_TECHNIQUE.name().equals(e.type)
+                    if (com.jjktbf.model.character.AbilityEffectType.UNLOCK_TECHNIQUE.name().equalsIgnoreCase(e.type)
                         && e.stringValue != null && !e.stringValue.isBlank()) {
                         set.add(e.stringValue.toLowerCase());
                     }
@@ -135,6 +138,43 @@ public abstract class Character extends Entity {
             }
         }
         return set;
+    }
+
+    /** Moves granted by passives or represented by a queued active ability. */
+    private static java.util.Set<String> grantedMoveIdsOf(List<Ability> abilities) {
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        if (abilities == null) return ids;
+        for (Ability ability : abilities) {
+            if (ability.isActive()
+                && "QUEUED".equalsIgnoreCase(ability.getActiveSubType())
+                && ability.getActiveMoveId() != null
+                && !ability.getActiveMoveId().isBlank()) {
+                ids.add(ability.getActiveMoveId());
+            }
+            if (!ability.isPassive()) continue;
+            for (AbilityEffectData effect : ability.getEffects()) {
+                if (AbilityEffectType.GRANT_MOVE.name().equalsIgnoreCase(effect.type)
+                    && effect.moveId != null && !effect.moveId.isBlank()) {
+                    ids.add(effect.moveId);
+                }
+            }
+        }
+        return ids;
+    }
+
+    private static java.util.Set<String> lockedMoveTagsOf(List<Ability> abilities) {
+        java.util.Set<String> tags = new java.util.HashSet<>();
+        if (abilities == null) return tags;
+        for (Ability ability : abilities) {
+            if (!ability.isPassive()) continue;
+            for (AbilityEffectData effect : ability.getEffects()) {
+                if (AbilityEffectType.LOCK_MOVE_TAG.name().equalsIgnoreCase(effect.type)
+                    && effect.moveTag != null && !effect.moveTag.isBlank()) {
+                    tags.add(effect.moveTag);
+                }
+            }
+        }
+        return tags;
     }
 
     // -------------------------------------------------------------------------
@@ -145,7 +185,9 @@ public abstract class Character extends Entity {
         List<Move>     moves,
         CharacterStats cs,
         CombatStats    combatStats,
-        java.util.Set<String> accessibleTechniques
+        java.util.Set<String> accessibleTechniques,
+        java.util.Set<String> grantedMoveIds,
+        java.util.Set<String> lockedMoveTags
     ) {
         if (moves == null) return List.of();
 
@@ -153,16 +195,25 @@ public abstract class Character extends Entity {
         List<Move> validated = new ArrayList<>();
 
         for (Move move : moves) {
+            boolean granted = grantedMoveIds != null && grantedMoveIds.contains(move.getId());
+
+            if (!granted && lockedMoveTags != null
+                && lockedMoveTags.stream().anyMatch(move::hasTag)) {
+                throw new IllegalArgumentException(
+                    "Ability restrictions prevent learning move '" + move.getName() + "'");
+            }
 
             // --- 1. Prerequisite stats ---
-            for (Map.Entry<String, Integer> prereq : move.getPrerequisites().entrySet()) {
-                int actual = getStatByName(cs, prereq.getKey());
-                if (actual < prereq.getValue()) {
-                    throw new IllegalArgumentException(
-                        "Character does not meet prerequisite for move '" + move.getName()
-                        + "': needs " + prereq.getKey() + " >= " + prereq.getValue()
-                        + " but has " + actual
-                    );
+            if (!granted) {
+                for (Map.Entry<String, Integer> prereq : move.getPrerequisites().entrySet()) {
+                    int actual = getStatByName(cs, prereq.getKey());
+                    if (actual < prereq.getValue()) {
+                        throw new IllegalArgumentException(
+                            "Character does not meet prerequisite for move '" + move.getName()
+                            + "': needs " + prereq.getKey() + " >= " + prereq.getValue()
+                            + " but has " + actual
+                        );
+                    }
                 }
             }
 
@@ -170,7 +221,7 @@ public abstract class Character extends Entity {
             // A move is usable if its required technique is the character's
             // innate technique OR was granted by an UNLOCK_TECHNIQUE ability
             // effect (e.g. Six Eyes → Limitless, or a Copy ability). Case-insensitive.
-            if (move.getRequiredTechniqueId() != null) {
+            if (!granted && move.getRequiredTechniqueId() != null) {
                 if (accessibleTechniques == null
                     || !accessibleTechniques.contains(move.getRequiredTechniqueId().toLowerCase())) {
                     throw new IllegalArgumentException(
@@ -185,7 +236,7 @@ public abstract class Character extends Entity {
             // Every non-free move consumes a slot in its pool (Combat Arts or
             // Jujutsu Arts), regardless of whether it is offensive, defensive,
             // or utility.
-            if (!move.isFreeMove()) {
+            if (!granted && !move.isFreeMove()) {
                 MovePool pool = move.getPool();
                 int used      = slotUsed.getOrDefault(pool, 0);
                 int available = SlotBudgetEnforcer.slotBudgetFor(combatStats, pool);

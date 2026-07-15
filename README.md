@@ -31,8 +31,8 @@ mvn compile
 
 ### Run graphics mode (macOS — ALWAYS include -XstartOnFirstThread)
 ```bash
-mvn -Drevision=1.0.0 -pl core,graphics -am clean verify
-java -XstartOnFirstThread -jar graphics/target/graphics-1.0.0.jar
+mvn -Drevision=1.1.1 -pl core,graphics -am clean verify
+java -XstartOnFirstThread -jar graphics/target/graphics-1.1.1.jar
 ```
 
 > **macOS rule:** Every time you run the graphics JAR on macOS, the

@@ -97,10 +97,27 @@ public class CharacterData {
     public Character toCharacter(MoveRepository moveRepo, AbilityRepository abilityRepo) {
         CharacterStats stats = toCharacterStats();
         List<Move> moves = new ArrayList<>();
-        List<Ability> abilities = new ArrayList<>();
+        AbilityResolver.Result resolvedAbilities = AbilityResolver.resolve(
+            this, abilityRepo, moveId -> moveId != null && moveRepo.findById(moveId)
+                .map(move -> {
+                    try {
+                        move.toMove();
+                        return true;
+                    } catch (Exception ex) {
+                        return false;
+                    }
+                })
+                .orElse(false));
+        List<Ability> abilities = resolvedAbilities.toDomainAbilities();
+        Set<String> resolvedMoveIds = new LinkedHashSet<>();
+        if (moveIds != null) resolvedMoveIds.addAll(moveIds);
+        resolvedMoveIds.addAll(resolvedAbilities.grantedMoveIds());
 
-        if (moveIds != null) {
-            for (String moveId : moveIds) {
+        for (String moveId : resolvedMoveIds) {
+                if (moveId == null || moveId.isBlank()) {
+                    System.err.println("[WARN] Blank move ID skipped for character '" + name + "'");
+                    continue;
+                }
                 var found = moveRepo.findById(moveId);
                 if (found.isPresent()) {
                     try {
@@ -111,18 +128,6 @@ public class CharacterData {
                 } else {
                     System.err.println("[WARN] Move ID " + moveId + " not found in repository — skipped for character '" + name + "'");
                 }
-            }
-        }
-
-        if (abilityRepo != null && abilityIds != null) {
-            for (String abilityId : abilityIds) {
-                var found = abilityRepo.findById(abilityId);
-                if (found.isPresent()) {
-                    abilities.add(new Ability(found.get()));
-                } else {
-                    System.err.println("[WARN] Ability ID " + abilityId + " not found in repository — skipped for character '" + name + "'");
-                }
-            }
         }
 
         return new SorcererCharacter(id, name, stats, innateTechniqueName, moves, abilities);
@@ -152,6 +157,9 @@ public class CharacterData {
 
         d.moveIds = character.getKnownMoves().stream()
             .map(Move::getId)
+            .toList();
+        d.abilityIds = character.getAbilities().stream()
+            .map(Ability::getId)
             .toList();
 
         return d;

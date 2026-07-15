@@ -2,6 +2,7 @@ package com.jjktbf.model.combat;
 
 import com.jjktbf.model.character.Ability;
 import com.jjktbf.model.character.AbilityApplicator;
+import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.CombatStats;
 // Explicit import to avoid ambiguity with java.lang.Character
@@ -55,6 +56,7 @@ public class BattleCombatant {
     // --- Mutable battle state ---
     private int currentHp;
     private int currentCe;
+    private int lastAbilityCostRound;
 
     private final List<StatusEffect> activeEffects;
 
@@ -93,7 +95,7 @@ public class BattleCombatant {
     // -------------------------------------------------------------------------
 
     public BattleCombatant(Character character) {
-        this(character, List.of());
+        this(character, character.getAbilities());
     }
 
     /**
@@ -115,6 +117,7 @@ public class BattleCombatant {
         // HP and CE derived from effective (ability-modified) stats
         this.currentHp               = effectiveCombatStats.getMaxHp();
         this.currentCe               = effectiveCombatStats.getMaxCursedEnergy();
+        this.lastAbilityCostRound    = 0;
         this.activeEffects           = new ArrayList<>();
         this.inBlackFlashState       = false;
         this.consecutiveBfsHits   = 0;
@@ -173,6 +176,13 @@ public class BattleCombatant {
         return currentCe >= amount;
     }
 
+    /** Return true once per round so passive CE costs cannot be charged twice. */
+    public boolean beginAbilityRoundCost(int roundNumber) {
+        if (roundNumber <= lastAbilityCostRound) return false;
+        lastAbilityCostRound = roundNumber;
+        return true;
+    }
+
     // -------------------------------------------------------------------------
     // Black Flash State
     // -------------------------------------------------------------------------
@@ -226,7 +236,7 @@ public class BattleCombatant {
             ? CombatStats.BFS_BF_CHANCES[Math.min(consecutiveBfsHits, CombatStats.BFS_BF_CHANCES.length - 1)]
             : CombatStats.BF_BASE_CHANCE;
         // Add ability BF bonus, cap at 1.0
-        return Math.min(1.0, base + abilityFlags.bfChanceBonus);
+        return Math.max(0.0, Math.min(1.0, base + abilityFlags.bfChanceBonus));
     }
 
     // -------------------------------------------------------------------------
@@ -263,6 +273,21 @@ public class BattleCombatant {
 
     public void addStatusEffect(StatusEffect effect) {
         activeEffects.add(effect);
+    }
+
+    /** Convert a validated AUTO_STATUS_APPLY descriptor into a live status. */
+    public boolean addAutomaticStatusEffect(AbilityEffectData effect) {
+        if (effect == null || effect.stringValue == null) return false;
+        try {
+            StatusEffectType type = StatusEffectType.valueOf(effect.stringValue);
+            int duration = effect.durationRounds != null ? effect.durationRounds : 1;
+            double magnitude = effect.magnitude != null ? effect.magnitude : 0.0;
+            addStatusEffect(new StatusEffect(type, duration, magnitude));
+            return true;
+        } catch (IllegalArgumentException ex) {
+            System.err.println("[WARN] Invalid automatic status: " + effect.stringValue);
+            return false;
+        }
     }
 
     public boolean hasEffect(StatusEffectType type) {

@@ -26,7 +26,7 @@ import java.util.function.Supplier;
  * drag-and-drop and click-to-toggle.
  *
  * Used by the Character editor for both moves (slot-gated, eligibility-filtered)
- * and abilities (ungated). The screen supplies a {@link Controller} that owns
+ * and abilities (source/conflict-gated). The screen supplies a {@link Controller} that owns
  * the data and the gating rules; this widget is purely presentational.
  *
  * Interaction:
@@ -62,7 +62,7 @@ public class AssignmentPanel extends Table {
     public interface Controller {
         List<Item> availableItems();
         List<Item> assignedItems();
-        boolean canAssign(String id);     // slot-gate check (abilities always true)
+        boolean canAssign(String id);     // slot/source/conflict gate
         void onAssign(String id);
         void onUnassign(String id);
         String budgetSummary();           // text shown above the columns, or ""

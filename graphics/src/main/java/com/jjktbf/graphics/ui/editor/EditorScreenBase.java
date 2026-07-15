@@ -12,6 +12,7 @@ import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
+import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
 import com.badlogic.gdx.scenes.scene2d.ui.HorizontalGroup;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
@@ -220,7 +221,7 @@ public abstract class EditorScreenBase<D> implements Screen {
             @Override public void clicked(InputEvent e, float x, float y) { deleteCurrent(); }
         });
         backBtn.addListener(new ClickListener() {
-            @Override public void clicked(InputEvent e, float x, float y) { game.showMainMenu(); }
+            @Override public void clicked(InputEvent e, float x, float y) { leaveEditor(); }
         });
 
         root.add(toolbar).growX().row();
@@ -323,7 +324,18 @@ public abstract class EditorScreenBase<D> implements Screen {
         // stock List handler never sees it.
         stage.addCaptureListener(new InputListener() {
             @Override public boolean keyDown(InputEvent event, int keycode) {
-                if (keycode == Input.Keys.ESCAPE) { game.showMainMenu(); event.cancel(); return true; }
+                Dialog dialog = topmostDialog();
+                if (dialog != null) {
+                    if (keycode == Input.Keys.ESCAPE) {
+                        dialog.hide();
+                        event.cancel();
+                        return true;
+                    }
+                    // Let the modal's controls receive input, but do not run
+                    // editor-level navigation or save shortcuts behind it.
+                    return false;
+                }
+                if (keycode == Input.Keys.ESCAPE) { leaveEditor(); event.cancel(); return true; }
                 if (stage.getKeyboardFocus() == searchField) return false;
                 if (keycode == Input.Keys.UP)   { nudgeSelection(-1); event.cancel(); return true; }
                 if (keycode == Input.Keys.DOWN) { nudgeSelection(+1); event.cancel(); return true; }
@@ -339,6 +351,7 @@ public abstract class EditorScreenBase<D> implements Screen {
 
     @Override
     public void show() {
+        removeDialogs();
         Gdx.input.setInputProcessor(stage);
         try {
             reloadRecords();
@@ -373,11 +386,34 @@ public abstract class EditorScreenBase<D> implements Screen {
 
     @Override public void pause()  {}
     @Override public void resume() {}
-    @Override public void hide()   {}
+    @Override public void hide()   { removeDialogs(); }
 
     @Override
     public void dispose() {
         stage.dispose();
+    }
+
+    private Dialog topmostDialog() {
+        for (int i = stage.getActors().size - 1; i >= 0; i--) {
+            Actor actor = stage.getActors().get(i);
+            if (actor instanceof Dialog dialog && dialog.isVisible()) return dialog;
+        }
+        return null;
+    }
+
+    private void removeDialogs() {
+        for (int i = stage.getActors().size - 1; i >= 0; i--) {
+            Actor actor = stage.getActors().get(i);
+            if (actor instanceof Dialog) actor.remove();
+        }
+    }
+
+    private void leaveEditor() {
+        if (dirty) {
+            confirmDiscard(game::showMainMenu);
+        } else {
+            game.showMainMenu();
+        }
     }
 
     // =========================================================================

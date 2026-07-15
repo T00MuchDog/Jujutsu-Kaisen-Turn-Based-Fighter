@@ -53,16 +53,13 @@ public class AbilityRepository extends BaseRepository<AbilityData> {
         infinity.flavourText = "The core application of Limitless — an invisible wall of slowed space "
             + "that surrounds the user at all times. Attacks approach but never arrive, "
             + "asymptotically closing the distance without ever reaching their target.";
-        infinity.mechanicText = "Requires the LIMITLESS technique. At the start of each round, "
-            + "automatically applies BARRIER to self (FIGHT_START). Drains 15 CE at the start of "
-            + "each round (COST_CE_PER_ROUND) to sustain.";
+        infinity.mechanicText = "Requires the LIMITLESS technique. Multiplies enemy ACCURACY "
+            + "by 0.10 against all moves. Drains 15 CE before planning each round.";
         infinity.category    = "PASSIVE";
         infinity.sourceType  = "TECHNIQUE";
         infinity.sourceValue = "Limitless";
         infinity.effects = List.of(
-            eff(AbilityEffectType.AUTO_STATUS_APPLY, e -> {
-                e.stringValue = "BARRIER"; e.target = "SELF"; e.timing = "ROUND_START";
-            }),
+            eff(AbilityEffectType.OPPONENT_ACCURACY_MULTIPLY, e -> e.doubleValue = 0.10),
             eff(AbilityEffectType.COST_CE_PER_ROUND, e -> e.intValue = 15)
         );
         super.add(infinity);

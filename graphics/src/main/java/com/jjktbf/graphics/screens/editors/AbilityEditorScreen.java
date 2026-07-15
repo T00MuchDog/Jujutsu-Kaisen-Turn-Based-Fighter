@@ -1,321 +1,691 @@
 package com.jjktbf.graphics.screens.editors;
 
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
 import com.jjktbf.graphics.ui.editor.EffectListEditor;
 import com.jjktbf.graphics.ui.editor.EnumSelectBox;
+import com.jjktbf.graphics.ui.editor.HoverTextField;
 import com.jjktbf.graphics.ui.editor.ValidationResult;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.AbilityRepository;
-import com.jjktbf.model.character.AbilityTrigger;
+import com.jjktbf.model.character.AbilityResolver;
+import com.jjktbf.model.character.CharacterData;
+import com.jjktbf.model.character.CharacterRepository;
+import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveRepository;
+import com.jjktbf.model.technique.InnateTechniqueData;
+import com.jjktbf.model.technique.TechniqueRepository;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
 
-/**
- * Graphical CRUD editor for {@link AbilityData}. Master-detail layout with:
- *   - Name / flavour / mechanic text
- *   - Category (PASSIVE/ACTIVE)
- *   - Source type + value (conditional fields)
- *   - Active sub-fields (queued move-id, trigger condition + threshold)
- *   - Effect list editor (the 22 AbilityEffectType values)
- *
- * Save validates name, category consistency, and that each effect's type
- * resolves via {@link AbilityEffectType#valueOf(String)}.
- */
+/** Graphical CRUD editor for passive abilities and move-backed active abilities. */
 public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
 
-    private final AbilityRepository repo;
-    private final MoveRepository     moveRepo;
+    private static final String SELECT_MOVE = "[select a move]";
+    private static final String SELECT_TECHNIQUE = "[select a technique]";
+    private static final String SELECT_ABILITY = "[select an ability]";
 
-    // Handles for conditional sub-sections
+    private final AbilityRepository repo;
+    private final MoveRepository moveRepo;
+    private final TechniqueRepository techniqueRepo;
+
     private Container<Actor> sourceValueContainer;
     private Container<Actor> activeSubContainer;
-    private Label moveListHint;
+    private Container<Actor> effectsContainer;
+    private Label modeHint;
 
     public AbilityEditorScreen(JJKGame game, AssetLoader assets) {
         super(game, assets);
-        repo     = new AbilityRepository("data/abilities");
+        repo = new AbilityRepository("data/abilities");
         moveRepo = new MoveRepository("data/moves");
+        techniqueRepo = new TechniqueRepository("data/techniques");
     }
-
-    // =========================================================================
-    // Abstract hooks
-    // =========================================================================
 
     @Override protected String title() { return "ABILITY EDITOR"; }
 
-    @Override protected AbilityData newDraft() {
-        AbilityData a = new AbilityData();
-        a.name         = "New Ability";
-        a.flavourText  = "";
-        a.mechanicText = "";
-        a.category     = "PASSIVE";
-        a.sourceType   = "CHARACTER";
-        a.sourceValue  = null;
-        a.effects      = new ArrayList<>();
-        a.activeSubType     = null;
-        a.activeMoveId      = null;
-        a.triggerCondition  = null;
-        a.triggerThreshold  = 0;
-        return a;
+    @Override
+    protected AbilityData newDraft() {
+        AbilityData ability = new AbilityData();
+        ability.name = "New Ability";
+        ability.flavourText = "";
+        ability.mechanicText = "";
+        ability.category = CategoryEnum.PASSIVE.name();
+        ability.sourceType = SourceTypeEnum.CHARACTER.name();
+        ability.effects = new ArrayList<>();
+        ability.triggerThreshold = 0;
+        ability.masteryThreshold = 0;
+        return ability;
     }
 
-    @Override protected AbilityData draftFromRecord(AbilityData stored) {
-        AbilityData d = new AbilityData();
-        d.id              = stored.id;
-        d.name            = stored.name;
-        d.flavourText     = stored.flavourText;
-        d.mechanicText    = stored.mechanicText;
-        d.category        = stored.category;
-        d.sourceType      = stored.sourceType;
-        d.sourceValue     = stored.sourceValue;
-        d.effects         = stored.effects != null
-            ? new ArrayList<>(stored.effects) : new ArrayList<>();
-        d.activeSubType    = stored.activeSubType;
-        d.activeMoveId     = stored.activeMoveId;
-        d.triggerCondition = stored.triggerCondition;
-        d.triggerThreshold = stored.triggerThreshold;
-        return d;
+    @Override
+    protected AbilityData draftFromRecord(AbilityData stored) {
+        AbilityData draft = new AbilityData();
+        draft.id = stored.id;
+        draft.name = stored.name;
+        draft.flavourText = stored.flavourText;
+        draft.mechanicText = stored.mechanicText;
+        draft.category = stored.category;
+        draft.sourceType = stored.sourceType;
+        draft.sourceValue = stored.sourceValue;
+        draft.effects = stored.effects == null
+            ? new ArrayList<>()
+            : stored.effects.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(AbilityEffectData::copy)
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        draft.activeSubType = stored.activeSubType;
+        draft.activeMoveId = stored.activeMoveId;
+        draft.triggerCondition = stored.triggerCondition;
+        draft.triggerThreshold = stored.triggerThreshold;
+        draft.masteryThreshold = stored.masteryThreshold;
+        return draft;
     }
 
-    @Override protected String idOf(AbilityData r) { return r.id; }
-
+    @Override protected String idOf(AbilityData record) { return record.id; }
     @Override protected String nextId() { return repo.nextId(); }
-
     @Override protected void stampNewId(AbilityData draft) { draft.id = repo.nextId(); }
 
-    @Override protected String listLabel(AbilityData r) {
-        String cat = r.category != null ? " (" + r.category + ")" : "";
-        return r.name + cat;
+    @Override
+    protected String listLabel(AbilityData record) {
+        String category = record.category != null ? " (" + record.category + ")" : "";
+        return record.name + category;
     }
 
-    @Override protected boolean isNewDraft(AbilityData draft) {
-        return draft.id == null || draft.id.isEmpty()
-            || repo.findById(draft.id).isEmpty();
+    @Override
+    protected boolean isNewDraft(AbilityData draft) {
+        return draft.id == null || draft.id.isEmpty() || repo.findById(draft.id).isEmpty();
     }
 
     @Override
     protected void reloadRecords() throws IOException {
         repo.load();
         moveRepo.load();
+        techniqueRepo.load();
         records.clear();
         records.addAll(repo.getAll());
     }
 
     @Override
-    protected ValidationResult validateAndSave(AbilityData d) {
-        if (d.name == null || d.name.trim().isEmpty()) {
-            return ValidationResult.error("Name is required.");
-        }
-        if (d.category == null
-            || (!d.category.equalsIgnoreCase("PASSIVE") && !d.category.equalsIgnoreCase("ACTIVE"))) {
-            return ValidationResult.error("Category must be PASSIVE or ACTIVE.");
-        }
-        if (d.isActive()) {
-            if (d.activeSubType == null
-                || (!d.activeSubType.equalsIgnoreCase("QUEUED")
-                 && !d.activeSubType.equalsIgnoreCase("TRIGGERED"))) {
-                return ValidationResult.error("Active abilities need an active sub-type (QUEUED/TRIGGERED).");
-            }
-            if (d.isTriggered() && d.triggerCondition == null) {
-                return ValidationResult.error("Triggered abilities need a trigger condition.");
-            }
-        }
-        // Validate every effect's type resolves.
-        if (d.effects != null) {
-            for (AbilityEffectData e : d.effects) {
-                try { AbilityEffectType.valueOf(e.type); }
-                catch (Exception ex) {
-                    return ValidationResult.error("Effect has invalid type: " + e.type);
-                }
-            }
-        }
+    protected ValidationResult validateAndSave(AbilityData ability) {
+        String validationError = validationError(ability);
+        if (validationError != null) return ValidationResult.error(validationError);
+
+        String previousName = repo.findById(ability.id).map(record -> record.name).orElse(null);
+        normalizeForSave(ability);
+        rewriteNameBasedDependents(ability, previousName);
         try {
-            if (isNewDraft(d)) {
-                d.id = null;
-                repo.add(d);
+            if (isNewDraft(ability)) {
+                ability.id = null;
+                repo.add(ability);
             } else {
-                repo.update(d);
+                repo.update(ability);
             }
             repo.save();
-        } catch (Exception e) {
-            return ValidationResult.error("Save failed: " + e.getMessage());
+        } catch (Exception ex) {
+            return ValidationResult.error("Save failed: " + ex.getMessage());
         }
-        return ValidationResult.ok("Saved \"" + d.name + "\".");
+        return ValidationResult.ok("Saved \"" + ability.name + "\".");
+    }
+
+    private String validationError(AbilityData ability) {
+        if (ability.name == null || ability.name.trim().isEmpty()) return "Name is required.";
+        boolean duplicateName = repo.getAll().stream().anyMatch(existing ->
+            existing.name != null && existing.name.equalsIgnoreCase(ability.name.trim())
+                && !java.util.Objects.equals(existing.id, ability.id));
+        if (duplicateName) return "Another ability already uses that name.";
+
+        if (!CategoryEnum.isValid(ability.category)) return "Choose PASSIVE or ACTIVE.";
+        if (!SourceTypeEnum.isValid(ability.sourceType)) return "Choose a valid source type.";
+
+        String sourceError = validateSource(ability);
+        if (sourceError != null) return sourceError;
+
+        if (ability.isActive()) {
+            String moveError = validateMoveReference(
+                ability.activeMoveId, "Choose the move that represents this active ability.");
+            if (moveError != null) return moveError;
+            return null;
+        }
+
+        if (ability.effects == null || ability.effects.isEmpty()) {
+            return "A passive ability needs at least one effect.";
+        }
+        for (int i = 0; i < ability.effects.size(); i++) {
+            AbilityEffectData effect = ability.effects.get(i);
+            AbilityEffectType type;
+            try {
+                type = AbilityEffectType.fromName(effect == null ? null : effect.type);
+            } catch (Exception ex) {
+                return "Effect " + (i + 1) + " has an invalid type.";
+            }
+            String effectError = type.validationError(effect);
+            if (effectError != null) {
+                return "Effect " + (i + 1) + " (" + type.displayName() + "): " + effectError;
+            }
+            if (type == AbilityEffectType.GRANT_MOVE) {
+                String moveError = validateMoveReference(
+                    effect.moveId, "Effect " + (i + 1) + " references a move that does not exist.");
+                if (moveError != null) return moveError;
+            }
+            if (type == AbilityEffectType.UNLOCK_TECHNIQUE
+                && techniqueRepo.findByName(effect.stringValue).isEmpty()) {
+                return "Effect " + (i + 1) + " references a technique that does not exist.";
+            }
+        }
+        return null;
+    }
+
+    private String validateSource(AbilityData ability) {
+        SourceTypeEnum source = SourceTypeEnum.valueOf(ability.sourceType.toUpperCase());
+        return switch (source) {
+            case CHARACTER -> null;
+            case TECHNIQUE -> {
+                if (techniqueRepo.findByName(ability.sourceValue).isEmpty()) {
+                    yield "Choose an existing technique source.";
+                }
+                if (ability.masteryThreshold < 0 || ability.masteryThreshold > 300) {
+                    yield "Technique mastery threshold must be between 0 and 300.";
+                }
+                yield null;
+            }
+            case MOVE -> validateMoveReference(
+                ability.sourceValue, "Choose an existing move source.");
+            case STAT_THRESHOLD -> AbilityResolver.parseStatRequirement(ability.sourceValue).isEmpty()
+                ? "Choose a stat and a valid minimum value." : null;
+            case ABILITY -> {
+                if (ability.sourceValue == null
+                    || ability.sourceValue.equalsIgnoreCase(ability.id)
+                    || ability.sourceValue.equalsIgnoreCase(ability.name)) {
+                    yield "An ability cannot use itself as its source.";
+                }
+                boolean exists = repo.getAll().stream().anyMatch(candidate ->
+                    ability.sourceValue.equalsIgnoreCase(candidate.id)
+                        || ability.sourceValue.equalsIgnoreCase(candidate.name));
+                if (!exists) yield "Choose an existing parent ability.";
+                yield hasAbilitySourceCycle(ability)
+                    ? "Ability sources cannot form a dependency cycle." : null;
+            }
+        };
+    }
+
+    private String validateMoveReference(String moveId, String missingMessage) {
+        if (moveId == null || moveId.isBlank()) return missingMessage;
+        MoveData move = moveRepo.findById(moveId).orElse(null);
+        if (move == null) return missingMessage;
+        try {
+            move.toMove();
+            return null;
+        } catch (Exception ex) {
+            return "Referenced move \"" + move.name + "\" is invalid: " + ex.getMessage();
+        }
+    }
+
+    private boolean hasAbilitySourceCycle(AbilityData draftAbility) {
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        AbilityData current = draftAbility;
+        while (current != null && "ABILITY".equalsIgnoreCase(current.sourceType)) {
+            String key = current.id != null && !current.id.isBlank()
+                ? "id:" + current.id
+                : "name:" + String.valueOf(current.name).toLowerCase();
+            if (!visited.add(key)) return true;
+            String reference = current.sourceValue;
+            if (reference == null || reference.isBlank()) return false;
+            if (reference.equalsIgnoreCase(draftAbility.id)
+                || reference.equalsIgnoreCase(draftAbility.name)) {
+                current = draftAbility;
+            } else {
+                current = repo.getAll().stream()
+                    .filter(candidate -> reference.equalsIgnoreCase(candidate.id)
+                        || reference.equalsIgnoreCase(candidate.name))
+                    .findFirst()
+                    .orElse(null);
+            }
+        }
+        return false;
+    }
+
+    private void normalizeForSave(AbilityData ability) {
+        ability.name = ability.name.trim();
+        ability.category = ability.category.toUpperCase();
+        ability.sourceType = ability.sourceType.toUpperCase();
+        if (SourceTypeEnum.CHARACTER.name().equals(ability.sourceType)) {
+            ability.sourceValue = null;
+        }
+        if (!SourceTypeEnum.TECHNIQUE.name().equals(ability.sourceType)) {
+            ability.masteryThreshold = 0;
+        }
+        if (SourceTypeEnum.ABILITY.name().equals(ability.sourceType)) {
+            repo.getAll().stream()
+                .filter(parent -> ability.sourceValue.equalsIgnoreCase(parent.id)
+                    || ability.sourceValue.equalsIgnoreCase(parent.name))
+                .findFirst()
+                .ifPresent(parent -> ability.sourceValue = parent.id);
+        }
+
+        if (ability.isActive()) {
+            ability.activeSubType = "QUEUED";
+            ability.triggerCondition = null;
+            ability.triggerThreshold = 0;
+            ability.effects = new ArrayList<>();
+        } else {
+            ability.activeSubType = null;
+            ability.activeMoveId = null;
+            ability.triggerCondition = null;
+            ability.triggerThreshold = 0;
+            for (AbilityEffectData effect : ability.effects) {
+                AbilityEffectType.fromName(effect.type).clearUnusedFields(effect);
+            }
+        }
+    }
+
+    private void rewriteNameBasedDependents(AbilityData ability, String previousName) {
+        if (previousName == null || previousName.equals(ability.name) || ability.id == null) return;
+        for (AbilityData candidate : repo.getAll()) {
+            if (candidate == ability || !"ABILITY".equalsIgnoreCase(candidate.sourceType)) continue;
+            if (candidate.sourceValue != null && candidate.sourceValue.equalsIgnoreCase(previousName)) {
+                candidate.sourceValue = ability.id;
+            }
+        }
     }
 
     @Override
     protected ValidationResult delete(String id) {
+        AbilityData deleted = repo.findById(id).orElse(null);
+        if (deleted == null) return ValidationResult.error("Ability no longer exists.");
+
+        AbilityData dependent = repo.getAll().stream()
+            .filter(ability -> !id.equals(ability.id))
+            .filter(ability -> "ABILITY".equalsIgnoreCase(ability.sourceType))
+            .filter(ability -> ability.sourceValue != null)
+            .filter(ability -> ability.sourceValue.equalsIgnoreCase(deleted.id)
+                || ability.sourceValue.equalsIgnoreCase(deleted.name))
+            .findFirst()
+            .orElse(null);
+        if (dependent != null) {
+            return ValidationResult.error(
+                "Cannot delete: \"" + dependent.name + "\" uses this ability as its source.");
+        }
+
         try {
+            Map<String, String> remappedIds = new LinkedHashMap<>();
+            int nextIndex = 0;
+            for (AbilityData ability : repo.getAll()) {
+                if (id.equals(ability.id)) continue;
+                remappedIds.put(ability.id,
+                    com.jjktbf.model.repo.BaseRepository.formatId(nextIndex++));
+            }
+
+            for (AbilityData ability : repo.getAll()) {
+                if ("ABILITY".equalsIgnoreCase(ability.sourceType)
+                    && remappedIds.containsKey(ability.sourceValue)) {
+                    ability.sourceValue = remappedIds.get(ability.sourceValue);
+                }
+            }
+
+            CharacterRepository characterRepo = new CharacterRepository("data/characters");
+            characterRepo.load();
+            for (CharacterData character : characterRepo.getAll()) {
+                if (character.abilityIds == null) continue;
+                character.abilityIds = character.abilityIds.stream()
+                    .filter(abilityId -> !id.equals(abilityId))
+                    .map(abilityId -> remappedIds.getOrDefault(abilityId, abilityId))
+                    .distinct()
+                    .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+            }
+
             repo.delete(id);
             repo.save();
+            characterRepo.save();
             return ValidationResult.ok("Deleted.");
-        } catch (Exception e) {
-            return ValidationResult.error("Delete failed: " + e.getMessage());
+        } catch (Exception ex) {
+            return ValidationResult.error("Delete failed: " + ex.getMessage());
         }
     }
 
-    // =========================================================================
-    // Detail form
-    // =========================================================================
-
     @Override
-    protected Actor buildDetailForm(AbilityData d) {
+    protected Actor buildDetailForm(AbilityData ability) {
         Table form = formRoot();
 
-        // ── Identity ───────────────────────────────────────────────────────────
         Table identity = formSection(form, "NAME");
-        identity.add(idBadge(d.id)).left().row();
-        identity.add(labelledField("Name", d.name,
-                s -> { d.name = s; })).growX().row();
-        identity.add(labelledField("Flavour Text", d.flavourText,
-                s -> { d.flavourText = s; })).growX().row();
-        identity.add(labelledField("Mechanic Text", d.mechanicText,
-                s -> { d.mechanicText = s; })).growX().row();
+        identity.add(idBadge(ability.id)).left().row();
+        identity.add(labelledField("Name", ability.name, value -> ability.name = value)).growX().row();
+        identity.add(labelledField("Flavour Text", ability.flavourText,
+            value -> ability.flavourText = value)).growX().row();
+        identity.add(labelledField("Mechanic Text", ability.mechanicText,
+            value -> ability.mechanicText = value)).growX().row();
 
-        // ── Category ───────────────────────────────────────────────────────────
         Table category = formSection(form, "CATEGORY");
-        category.add(labelledRow("Category", new EnumSelectBox<>(CategoryEnum.class, d.category, false,
-                s -> { d.category = s; refreshConditionalSections(d); }, skin))).growX().row();
+        category.add(labelledRow("Category", new EnumSelectBox<>(
+            CategoryEnum.class, ability.category, false,
+            value -> {
+                ability.category = value;
+                if (ability.isActive()) {
+                    ability.activeSubType = "QUEUED";
+                    ability.triggerCondition = null;
+                    ability.triggerThreshold = 0;
+                }
+                refreshConditionalSections(ability);
+            }, skin))).growX().row();
 
-        // ── Source ──────────────────────────────────────────────────────────────
         Table source = formSection(form, "SOURCE");
-        source.add(labelledRow("Source Type", new EnumSelectBox<>(SourceTypeEnum.class, d.sourceType, false,
-                s -> { d.sourceType = s; refreshConditionalSections(d); }, skin))).growX().row();
+        source.add(labelledRow("Granted by", new EnumSelectBox<>(
+            SourceTypeEnum.class, ability.sourceType, false,
+            value -> {
+                ability.sourceType = value;
+                initialiseSourceDefaults(ability);
+                refreshConditionalSections(ability);
+            }, skin))).growX().row();
         sourceValueContainer = new Container<>();
-        sourceValueContainer.setActor(buildSourceValue(d));
+        sourceValueContainer.setActor(buildSourceValue(ability));
         source.add(sourceValueContainer).growX().row();
 
-        // Mastery threshold — when this ability is technique-sourced
-        // (sourceType=TECHNIQUE), this is the cursed-technique-mastery value at
-        // which the technique auto-grants it. Ignored for other source types.
-        source.add(labelledIntField("Mastery Threshold (TECHNIQUE abilities)", d.masteryThreshold, 0, 999,
-                v -> { d.masteryThreshold = v; })).growX().row();
-
-        // ── Active sub-fields (only when ACTIVE) ────────────────────────────────
         Table active = formSection(form, "ACTIVE SETTINGS");
         activeSubContainer = new Container<>();
-        activeSubContainer.setActor(buildActiveSub(d));
+        activeSubContainer.setActor(buildActiveSettings(ability));
         active.add(activeSubContainer).growX().row();
+        modeHint = new Label(modeHintText(ability), skin, "small");
+        modeHint.setColor(skin.get("text-dim", Color.class));
+        modeHint.setWrap(true);
+        active.add(modeHint).growX().row();
 
-        // Move list hint (useful when source/active references a move id)
-        moveListHint = new Label("", skin, "small");
-        moveListHint.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
-        moveListHint.setWrap(true);
-        active.add(moveListHint).growX().row();
-        refreshMoveHint();
-
-        // ── Effects ──────────────────────────────────────────────────────────────
         Table effects = formSection(form, "EFFECTS");
-        effects.add(new EffectListEditor(d.effects, this::markDirty, this::rebuildDetail, skin))
-            .growX().row();
+        effectsContainer = new Container<>();
+        effectsContainer.setActor(buildEffects(ability));
+        effects.add(effectsContainer).growX().row();
 
         return form;
     }
 
-    // =========================================================================
-    // Conditional sub-sections
-    // =========================================================================
+    private Actor buildSourceValue(AbilityData ability) {
+        Table table = new Table(skin);
+        table.defaults().left().pad(4).growX();
+        SourceTypeEnum source = safeSource(ability.sourceType);
 
-    private Actor buildSourceValue(AbilityData d) {
-        Table t = new Table(skin);
-        t.defaults().left().pad(4);
-        String st = d.sourceType == null ? "CHARACTER" : d.sourceType.toUpperCase();
-        switch (st) {
-            case "TECHNIQUE":
-                t.add(labelledField("Technique Name", d.sourceValue,
-                        s -> { d.sourceValue = s; })).growX().row();
-                t.add(formHint("(match a character's innate technique name)")).row();
-                break;
-            case "MOVE":
-                t.add(labelledField("Move ID (6-digit)", d.sourceValue,
-                        s -> { d.sourceValue = s; })).growX().row();
-                t.add(formHint("(see move list below)")).row();
-                break;
-            case "STAT_THRESHOLD":
-                t.add(labelledField("Threshold (e.g. cursedTechniqueMastery>=200)",
-                        d.sourceValue,
-                        s -> { d.sourceValue = s; })).growX().row();
-                t.add(formHint("(format: stat>=value)")).row();
-                break;
-            case "ABILITY":
-                t.add(labelledField("Ability ID or Name", d.sourceValue,
-                        s -> { d.sourceValue = s; })).growX().row();
-                t.add(formHint("(see ability list on the left)")).row();
-                break;
-            case "CHARACTER":
-            default:
-                t.add(formHint("(no source value needed for CHARACTER source)")).row();
-                d.sourceValue = null;
-                break;
-        }
-        return t;
-    }
+        switch (source) {
+            case CHARACTER -> {
+                table.add(formHint("Assign this ability directly in the Character Editor.")).row();
+            }
+            case TECHNIQUE -> {
+                SelectBox<String> technique = techniqueSelect(ability.sourceValue, value ->
+                    ability.sourceValue = techniqueNameFromLabel(value));
+                table.add(labelledRow("Technique", technique)).growX().row();
+                TextField mastery = new HoverTextField(String.valueOf(ability.masteryThreshold), skin);
+                mastery.setTextFieldFilter((field, character) ->
+                    Character.isDigit(character) || character == '-');
+                mastery.addListener(new ChangeListener() {
+                    @Override public void changed(ChangeEvent event, Actor actor) {
+                        Integer value = parseInteger(mastery.getText());
+                        ability.masteryThreshold = value == null ? -1 : value;
+                        markDirty();
+                    }
+                });
+                table.add(labelledRow("Mastery needed (0-300)", mastery)).growX().row();
+                table.add(formHint("Granted automatically when the technique and mastery match.")).row();
+            }
+            case MOVE -> {
+                SelectBox<String> move = moveSelect(ability.sourceValue,
+                    value -> ability.sourceValue = idFromLabel(value));
+                table.add(labelledRow("Known move", move)).growX().row();
+                table.add(formHint("Granted automatically while the character knows this move.")).row();
+            }
+            case STAT_THRESHOLD -> {
+                AbilityResolver.StatRequirement requirement =
+                    AbilityResolver.parseStatRequirement(ability.sourceValue)
+                        .orElse(new AbilityResolver.StatRequirement(StatKey.VITALITY, 80));
 
-    private Actor buildActiveSub(AbilityData d) {
-        Table t = new Table(skin);
-        t.defaults().left().pad(4);
-        if (!d.isActive()) {
-            t.add(formHint("(active settings apply only to ACTIVE abilities)")).row();
-            return t;
-        }
-        // Sub-type
-        t.add(new Label("Active Sub-type", skin)).padRight(8);
-        t.add(new EnumSelectBox<>(ActiveSubEnum.class, d.activeSubType, true,
-                s -> { d.activeSubType = s; refreshConditionalSections(d); }, skin)).growX().row();
-
-        if (d.isQueued()) {
-            t.add(labelledField("Active Move ID (queued move)", d.activeMoveId,
-                    s -> { d.activeMoveId = s; })).growX().row();
-            t.add(formHint("(see move list below)")).row();
-        } else if (d.isTriggered()) {
-            t.add(new Label("Trigger Condition", skin)).padRight(8);
-            t.add(new EnumSelectBox<>(AbilityTrigger.class, d.triggerCondition, false,
-                    s -> { d.triggerCondition = s; refreshConditionalSections(d); }, skin)).growX().row();
-
-            if ("ON_HP_BELOW".equalsIgnoreCase(d.triggerCondition)) {
-                t.add(labelledIntField("Trigger Threshold (% HP)", d.triggerThreshold, 0, 100,
-                        v -> { d.triggerThreshold = v; })).growX().row();
+                SelectBox<String> stat = statSelect(requirement.stat());
+                TextField minimum = new HoverTextField(String.valueOf(requirement.minimum()), skin);
+                minimum.setTextFieldFilter((field, character) ->
+                    Character.isDigit(character) || character == '-');
+                Runnable update = () -> {
+                    Integer value = parseInteger(minimum.getText());
+                    if (value != null) {
+                        ability.sourceValue = statFromLabel(stat.getSelected()).fieldName + ">=" + value;
+                    } else {
+                        ability.sourceValue = null;
+                    }
+                };
+                stat.addListener(new ChangeListener() {
+                    @Override public void changed(ChangeEvent event, Actor actor) { update.run(); }
+                });
+                minimum.addListener(new ChangeListener() {
+                    @Override public void changed(ChangeEvent event, Actor actor) { update.run(); }
+                });
+                table.add(labelledRow("Stat", stat)).growX().row();
+                table.add(labelledRow("Minimum value", minimum)).growX().row();
+                table.add(formHint("Granted automatically while the stat meets this minimum.")).row();
+            }
+            case ABILITY -> {
+                SelectBox<String> parent = abilitySelect(ability, ability.sourceValue,
+                    value -> ability.sourceValue = idFromLabel(value));
+                table.add(labelledRow("Parent ability", parent)).growX().row();
+                table.add(formHint("Granted automatically after the parent ability is acquired.")).row();
             }
         }
-        return t;
+        return table;
     }
 
-    private void refreshMoveHint() {
-        if (moveListHint == null) return;
-        List<MoveData> moves = moveRepo.getAll();
-        StringBuilder sb = new StringBuilder("Move IDs: ");
-        int n = 0;
-        for (MoveData md : moves) {
-            if (n > 0) sb.append(", ");
-            sb.append(md.id).append("=").append(md.name);
-            if (++n >= 8) { sb.append(", ..."); break; }
+    private Actor buildActiveSettings(AbilityData ability) {
+        Table table = new Table(skin);
+        table.defaults().left().pad(4).growX();
+        if (!ability.isActive()) {
+            table.add(formHint("Passive abilities are always on and use the Effects section.")).row();
+            return table;
         }
-        if (n == 0) sb.append("(none — create moves first)");
-        moveListHint.setText(sb.toString());
+
+        SelectBox<String> move = moveSelect(ability.activeMoveId,
+            value -> ability.activeMoveId = idFromLabel(value));
+        table.add(labelledRow("Ability move", move)).growX().row();
+        table.add(formHint("The linked move contains the active ability's power, cost, and statuses.")).row();
+        return table;
     }
 
-    private void refreshConditionalSections(AbilityData d) {
+    private Actor buildEffects(AbilityData ability) {
+        if (!ability.isPassive()) {
+            return formHint("Active mechanics are configured on the linked move, so no passive effects apply.");
+        }
+        if (ability.effects == null) ability.effects = new ArrayList<>();
+        return new EffectListEditor(
+            ability.effects,
+            moveRepo.getAll(),
+            techniqueRepo.getAll(),
+            this::markDirty,
+            this::rebuildDetail,
+            skin);
+    }
+
+    private String modeHintText(AbilityData ability) {
+        return ability.isActive()
+            ? "When acquired, the linked move is added outside the normal move-slot and prerequisite rules."
+            : "Only passive effects are applied continuously in combat.";
+    }
+
+    private void refreshConditionalSections(AbilityData ability) {
         markDirty();
-        if (sourceValueContainer != null) sourceValueContainer.setActor(buildSourceValue(d));
-        if (activeSubContainer  != null) activeSubContainer.setActor(buildActiveSub(d));
+        if (sourceValueContainer != null) sourceValueContainer.setActor(buildSourceValue(ability));
+        if (activeSubContainer != null) activeSubContainer.setActor(buildActiveSettings(ability));
+        if (effectsContainer != null) effectsContainer.setActor(buildEffects(ability));
+        if (modeHint != null) modeHint.setText(modeHintText(ability));
     }
 
-    // ── Placeholder enums to drive the String-backed category/source/sub fields ─
-    // These exist only so EnumSelectBox has a typed enum to list; the actual
-    // stored values are the String fields on AbilityData.
-    private enum CategoryEnum   { PASSIVE, ACTIVE }
-    private enum SourceTypeEnum { CHARACTER, TECHNIQUE, MOVE, STAT_THRESHOLD, ABILITY }
-    private enum ActiveSubEnum  { QUEUED, TRIGGERED }
+    private static void initialiseSourceDefaults(AbilityData ability) {
+        SourceTypeEnum source = safeSource(ability.sourceType);
+        ability.masteryThreshold = 0;
+        ability.sourceValue = source == SourceTypeEnum.STAT_THRESHOLD
+            ? new AbilityResolver.StatRequirement(StatKey.VITALITY, 80).expression()
+            : null;
+    }
+
+    private SelectBox<String> moveSelect(String currentId, Consumer<String> onChange) {
+        List<String> labels = new ArrayList<>();
+        labels.add(SELECT_MOVE);
+        labels.addAll(moveRepo.getAll().stream()
+            .map(AbilityEditorScreen::moveLabel)
+            .toList());
+        String selected = moveLabelForId(currentId);
+        if (selected != null && labels.stream().noneMatch(selected::equals)) labels.add(selected);
+        return select(labels, selected == null ? SELECT_MOVE : selected, onChange);
+    }
+
+    private SelectBox<String> techniqueSelect(String current, Consumer<String> onChange) {
+        List<String> labels = new ArrayList<>();
+        labels.add(SELECT_TECHNIQUE);
+        labels.addAll(techniqueRepo.getAll().stream()
+            .map(technique -> technique.name)
+            .toList());
+        String selected = techniqueLabel(current);
+        if (selected != null && labels.stream().noneMatch(selected::equals)) labels.add(selected);
+        return select(labels, selected == null ? SELECT_TECHNIQUE : selected, onChange);
+    }
+
+    private SelectBox<String> abilitySelect(
+        AbilityData draft,
+        String currentId,
+        Consumer<String> onChange
+    ) {
+        List<String> labels = new ArrayList<>();
+        labels.add(SELECT_ABILITY);
+        labels.addAll(repo.getAll().stream()
+            .filter(ability -> !java.util.Objects.equals(ability.id, draft.id))
+            .map(AbilityEditorScreen::abilityLabel)
+            .toList());
+        String selected = abilityLabelForReference(currentId);
+        if (selected != null && labels.stream().noneMatch(selected::equals)) labels.add(selected);
+        return select(labels, selected == null ? SELECT_ABILITY : selected, onChange);
+    }
+
+    private SelectBox<String> statSelect(StatKey current) {
+        List<String> labels = java.util.Arrays.stream(StatKey.values()).map(stat -> stat.label).toList();
+        return select(labels, current.label, ignored -> { });
+    }
+
+    private SelectBox<String> select(
+        List<String> labels,
+        String selected,
+        Consumer<String> onChange
+    ) {
+        SelectBox<String> box = new SelectBox<>(skin);
+        box.setItems(labels.toArray(new String[0]));
+        box.setSelected(selected);
+        box.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                onChange.accept(box.getSelected());
+                markDirty();
+            }
+        });
+        return box;
+    }
+
+    private static String moveLabel(MoveData move) {
+        return move.id + " - " + move.name;
+    }
+
+    private String moveLabelForId(String id) {
+        if (id == null || id.isBlank()) return null;
+        return moveRepo.findById(id).map(AbilityEditorScreen::moveLabel)
+            .orElse(id + " - (missing)");
+    }
+
+    private static String abilityLabel(AbilityData ability) {
+        return ability.id + " - " + ability.name;
+    }
+
+    private String abilityLabelForReference(String reference) {
+        if (reference == null || reference.isBlank()) return null;
+        return repo.getAll().stream()
+            .filter(ability -> reference.equalsIgnoreCase(ability.id)
+                || reference.equalsIgnoreCase(ability.name))
+            .findFirst()
+            .map(AbilityEditorScreen::abilityLabel)
+            .orElse(reference + " - (missing)");
+    }
+
+    private String techniqueLabel(String name) {
+        if (name == null || name.isBlank()) return null;
+        return techniqueRepo.findByName(name).map(technique -> technique.name)
+            .orElse(name + " (missing)");
+    }
+
+    private static String techniqueNameFromLabel(String label) {
+        if (label == null || label.startsWith("[")) return null;
+        return label.endsWith(" (missing)")
+            ? label.substring(0, label.length() - " (missing)".length())
+            : label;
+    }
+
+    private static String idFromLabel(String label) {
+        if (label == null || label.startsWith("[")) return null;
+        int separator = label.indexOf(" - ");
+        return separator < 0 ? label.trim() : label.substring(0, separator).trim();
+    }
+
+    private static StatKey statFromLabel(String label) {
+        for (StatKey stat : StatKey.values()) {
+            if (stat.label.equals(label)) return stat;
+        }
+        return StatKey.VITALITY;
+    }
+
+    private static Integer parseInteger(String value) {
+        if (value == null || value.isBlank() || "-".equals(value)) return null;
+        try {
+            return Integer.valueOf(value);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private static SourceTypeEnum safeSource(String source) {
+        try {
+            return SourceTypeEnum.valueOf(source == null ? "CHARACTER" : source.toUpperCase());
+        } catch (Exception ex) {
+            return SourceTypeEnum.CHARACTER;
+        }
+    }
+
+    private enum CategoryEnum {
+        PASSIVE,
+        ACTIVE;
+
+        private static boolean isValid(String value) {
+            if (value == null) return false;
+            for (CategoryEnum category : values()) {
+                if (category.name().equalsIgnoreCase(value)) return true;
+            }
+            return false;
+        }
+    }
+
+    private enum SourceTypeEnum {
+        CHARACTER,
+        TECHNIQUE,
+        MOVE,
+        STAT_THRESHOLD,
+        ABILITY;
+
+        private static boolean isValid(String value) {
+            if (value == null) return false;
+            for (SourceTypeEnum source : values()) {
+                if (source.name().equalsIgnoreCase(value)) return true;
+            }
+            return false;
+        }
+    }
 }

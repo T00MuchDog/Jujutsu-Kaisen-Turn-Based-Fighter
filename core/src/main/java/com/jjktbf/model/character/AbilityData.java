@@ -1,6 +1,7 @@
 package com.jjktbf.model.character;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.util.List;
@@ -52,7 +53,7 @@ public class AbilityData {
     /** "PASSIVE" or "ACTIVE" */
     public String category;
 
-    /** "CHARACTER", "TECHNIQUE", "MOVE", or "STAT_THRESHOLD" */
+    /** "CHARACTER", "TECHNIQUE", "MOVE", "STAT_THRESHOLD", or "ABILITY" */
     public String sourceType;
 
     /**
@@ -71,8 +72,8 @@ public class AbilityData {
     // ── Active-only fields ────────────────────────────────────────────────────
 
     /**
-     * Sub-type for ACTIVE abilities: "QUEUED" or "TRIGGERED".
-     * Null for PASSIVE abilities.
+     * Sub-type for ACTIVE abilities. The editor creates "QUEUED" abilities,
+     * represented by a linked move. Older "TRIGGERED" data remains readable.
      */
     public String activeSubType;
 
@@ -83,8 +84,8 @@ public class AbilityData {
     public String activeMoveId;
 
     /**
-     * For TRIGGERED actives: the trigger condition (AbilityTrigger enum name).
-     * Null for PASSIVE and QUEUED actives.
+     * Legacy trigger metadata retained for existing data. New active abilities
+     * are move-backed and do not populate this field.
      */
     public String triggerCondition;
 
@@ -107,10 +108,10 @@ public class AbilityData {
 
     // ── Derived helpers ───────────────────────────────────────────────────────
 
-    public boolean isPassive()  { return "PASSIVE".equalsIgnoreCase(category); }
-    public boolean isActive()   { return "ACTIVE".equalsIgnoreCase(category); }
-    public boolean isQueued()   { return "QUEUED".equalsIgnoreCase(activeSubType); }
-    public boolean isTriggered(){ return "TRIGGERED".equalsIgnoreCase(activeSubType); }
+    @JsonIgnore public boolean isPassive()  { return "PASSIVE".equalsIgnoreCase(category); }
+    @JsonIgnore public boolean isActive()   { return "ACTIVE".equalsIgnoreCase(category); }
+    @JsonIgnore public boolean isQueued()   { return "QUEUED".equalsIgnoreCase(activeSubType); }
+    @JsonIgnore public boolean isTriggered(){ return "TRIGGERED".equalsIgnoreCase(activeSubType); }
 
     /**
      * Compute how many STAT_BONUS_POINTS this ability grants.
@@ -119,7 +120,8 @@ public class AbilityData {
     public int statBonusPoints() {
         if (effects == null) return 0;
         return effects.stream()
-            .filter(e -> AbilityEffectType.STAT_BONUS_POINTS.name().equals(e.type))
+            .filter(e -> e != null
+                && AbilityEffectType.STAT_BONUS_POINTS.name().equalsIgnoreCase(e.type))
             .mapToInt(e -> e.intValue != null ? e.intValue : 0)
             .sum();
     }

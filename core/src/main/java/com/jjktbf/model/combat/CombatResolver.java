@@ -1,6 +1,9 @@
 package com.jjktbf.model.combat;
 
 import com.jjktbf.model.character.CombatStats;
+import com.jjktbf.model.character.AbilityEffectData;
+import com.jjktbf.model.character.AbilityEffectTarget;
+import com.jjktbf.model.character.AbilityEffectTiming;
 import com.jjktbf.model.move.*;
 
 import java.util.*;
@@ -59,6 +62,14 @@ public class CombatResolver {
         return (combatant.getCurrentCe() >= cost) ? cost : -1;
     }
 
+    /** Charge passive per-round CE costs before either side plans the round. */
+    public List<CombatEvent> processRoundStart(BattleState state) {
+        List<CombatEvent> events = new ArrayList<>();
+        drainRoundAbilityCost(state.getPlayerCombatant(), state.getRoundNumber(), events);
+        drainRoundAbilityCost(state.getEnemyCombatant(), state.getRoundNumber(), events);
+        return events;
+    }
+
     // -------------------------------------------------------------------------
     // Resolution phase
     // -------------------------------------------------------------------------
@@ -74,7 +85,7 @@ public class CombatResolver {
      */
     public List<CombatEvent> resolveRound(BattleState state) {
         List<CombatEvent> events = new ArrayList<>();
-        beginResolution(state);
+        events.addAll(beginResolution(state));
         while (hasMoreTicks()) {
             events.addAll(resolveTick(state));
             if (state.isBattleOver()) break;
@@ -89,13 +100,13 @@ public class CombatResolver {
     private static final class ResolutionCursor {
         int tick;
         int maxTick;
-        boolean sustainedDrained;
+        boolean roundCostsProcessed;
     }
 
     private final ThreadLocal<ResolutionCursor> cursor = ThreadLocal.withInitial(ResolutionCursor::new);
 
     /**
-     * Prepare a resolution sweep. Drains sustained CE once and records the tick
+     * Prepare a resolution sweep. Processes round-start ability costs once and records the tick
      * range to sweep. Must be called before {@link #resolveTick(BattleState)}.
      */
     public List<CombatEvent> beginResolution(BattleState state) {
@@ -114,27 +125,29 @@ public class CombatResolver {
         ResolutionCursor c = cursor.get();
         c.tick = 0;
         c.maxTick = maxTick;
-        c.sustainedDrained = true;
+        c.roundCostsProcessed = true;
 
-        drainSustainedCe(player, events);
-        drainSustainedCe(enemy, events);
+        // Direct resolver callers may not have run the controller's pre-planning
+        // hook. The combatant guard keeps this fallback from charging twice.
+        drainRoundAbilityCost(player, state.getRoundNumber(), events);
+        drainRoundAbilityCost(enemy, state.getRoundNumber(), events);
         return events;
     }
 
     /** True while there are still ticks left to resolve in the current sweep. */
     public boolean hasMoreTicks() {
         ResolutionCursor c = cursor.get();
-        return c.sustainedDrained && c.tick < c.maxTick;
+        return c.roundCostsProcessed && c.tick < c.maxTick;
     }
 
     /**
      * Advance the action counter by one tick and resolve everything that fires
      * on it. Returns the events produced by this tick only (empty if nothing
-     * happened). The sustained-CE drain happens once, in beginResolution.
+     * happened). Round-start ability costs are guarded against duplicate charging.
      */
     public List<CombatEvent> resolveTick(BattleState state) {
         ResolutionCursor c = cursor.get();
-        if (!c.sustainedDrained || c.tick >= c.maxTick) return List.of();
+        if (!c.roundCostsProcessed || c.tick >= c.maxTick) return List.of();
 
         c.tick++;
         int tick = c.tick;
@@ -213,14 +226,19 @@ public class CombatResolver {
         }
     }
 
-    private void drainSustainedCe(BattleCombatant combatant, List<CombatEvent> events) {
+    private void drainRoundAbilityCost(
+        BattleCombatant combatant,
+        int roundNumber,
+        List<CombatEvent> events
+    ) {
+        if (!combatant.beginAbilityRoundCost(roundNumber)) return;
         int cost = combatant.getAbilityFlags().ceCostPerRound;
         if (cost <= 0) return;
         int drained = combatant.drainCe(cost);
         events.add(CombatEvent.of(CombatEvent.Type.CE_DRAINED)
             .source(combatant)
             .intValue(drained)
-            .message(combatant.getCharacter().getName() + " spends " + drained + " CE to sustain abilities.")
+            .message(combatant.getCharacter().getName() + " spends " + drained + " CE on passive abilities.")
             .build());
         if (!combatant.hasAnyCe()) {
             events.add(CombatEvent.of(CombatEvent.Type.CE_DEPLETED)
@@ -266,8 +284,8 @@ public class CombatResolver {
             if (aInstant != bInstant) return bInstant - aInstant; // higher = first
 
             // Speed tiebreak
-            int aSpeed = a.attacker.getCharacter().getBaseStats().getSpeed();
-            int bSpeed = b.attacker.getCharacter().getBaseStats().getSpeed();
+            int aSpeed = a.attacker.getEffectiveStats().getSpeed();
+            int bSpeed = b.attacker.getEffectiveStats().getSpeed();
             if (aSpeed != bSpeed) return bSpeed - aSpeed; // higher speed first
 
             // Random
@@ -389,6 +407,7 @@ public class CombatResolver {
 
             // On-hit status effects
             applyOnHitEffects(attacker, defender, move, tick, events);
+            applyAbilityOnHitEffects(attacker, defender, move, tick, events);
 
             // Interrupt resolution
             if (move.hasInterrupt()) {
@@ -503,6 +522,27 @@ public class CombatResolver {
                 .tick(tick)
                 .message(combatant.getCharacter().getName()
                          + " applies " + effect.getType() + " to themselves!")
+                .build());
+        }
+    }
+
+    private void applyAbilityOnHitEffects(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move move,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        for (AbilityEffectData effect : attacker.getAbilityFlags().autoStatusEffects) {
+            if (!AbilityEffectTiming.ON_HIT.name().equals(effect.timing)) continue;
+            BattleCombatant target = AbilityEffectTarget.ENEMY.name().equals(effect.target)
+                ? defender : attacker;
+            if (!target.addAutomaticStatusEffect(effect)) continue;
+            events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
+                .source(attacker).target(target).move(move)
+                .tick(tick)
+                .message(target.getCharacter().getName()
+                    + " receives " + effect.stringValue + " from an ability!")
                 .build());
         }
     }

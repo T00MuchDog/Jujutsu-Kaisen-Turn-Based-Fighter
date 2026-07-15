@@ -1,6 +1,5 @@
 package com.jjktbf.model.character;
 
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -25,7 +24,7 @@ public class Ability {
     private final List<AbilityEffectData> effects;
 
     // Active-only
-    private final String activeSubType;   // "QUEUED" | "TRIGGERED" | null
+    private final String activeSubType;   // "QUEUED" | legacy "TRIGGERED" | null
     private final String activeMoveId;    // nullable
     private final String triggerCondition;// AbilityTrigger name | null
     private final int    triggerThreshold;
@@ -39,7 +38,11 @@ public class Ability {
         this.sourceType       = data.sourceType   != null ? data.sourceType   : "CHARACTER";
         this.sourceValue      = data.sourceValue;
         this.effects          = data.effects != null
-            ? Collections.unmodifiableList(data.effects) : List.of();
+            ? data.effects.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(AbilityEffectData::copy)
+                .toList()
+            : List.of();
         this.activeSubType    = data.activeSubType;
         this.activeMoveId     = data.activeMoveId;
         this.triggerCondition = data.triggerCondition;
@@ -69,7 +72,7 @@ public class Ability {
     /** Total STAT_BONUS_POINTS this ability contributes (for character editor budget). */
     public int statBonusPoints() {
         return effects.stream()
-            .filter(e -> AbilityEffectType.STAT_BONUS_POINTS.name().equals(e.type))
+            .filter(e -> AbilityEffectType.STAT_BONUS_POINTS.name().equalsIgnoreCase(e.type))
             .mapToInt(e -> e.intValue != null ? e.intValue : 0)
             .sum();
     }

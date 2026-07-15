@@ -15,6 +15,11 @@ import com.jjktbf.graphics.ui.editor.EnumSelectBox;
 import com.jjktbf.graphics.ui.editor.HoverTextField;
 import com.jjktbf.graphics.ui.editor.TagPicker;
 import com.jjktbf.graphics.ui.editor.ValidationResult;
+import com.jjktbf.model.character.AbilityData;
+import com.jjktbf.model.character.AbilityEffectType;
+import com.jjktbf.model.character.AbilityRepository;
+import com.jjktbf.model.character.CharacterData;
+import com.jjktbf.model.character.CharacterRepository;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.InterruptType;
 import com.jjktbf.model.move.MoveData;
@@ -214,12 +219,76 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     @Override
     protected ValidationResult delete(String id) {
         try {
+            MoveData deleted = repo.findById(id).orElse(null);
+            if (deleted == null) return ValidationResult.error("Move no longer exists.");
+
+            AbilityRepository abilityRepo = new AbilityRepository("data/abilities");
+            CharacterRepository characterRepo = new CharacterRepository("data/characters");
+            abilityRepo.load();
+            characterRepo.load();
+
+            AbilityData dependent = abilityRepo.getAll().stream()
+                .filter(ability -> moveReferenceOf(ability, id) != null)
+                .findFirst().orElse(null);
+            if (dependent != null) {
+                return ValidationResult.error(
+                    "Cannot delete: ability \"" + dependent.name + "\" references this move.");
+            }
+
+            Map<String, String> remappedIds = new LinkedHashMap<>();
+            int nextIndex = 0;
+            for (MoveData move : repo.getAll()) {
+                if (id.equals(move.id)) continue;
+                remappedIds.put(move.id,
+                    com.jjktbf.model.repo.BaseRepository.formatId(nextIndex++));
+            }
+
+            for (CharacterData character : characterRepo.getAll()) {
+                if (character.moveIds == null) continue;
+                character.moveIds = character.moveIds.stream()
+                    .filter(moveId -> !id.equals(moveId))
+                    .map(moveId -> remappedIds.getOrDefault(moveId, moveId))
+                    .distinct()
+                    .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+            }
+            for (AbilityData ability : abilityRepo.getAll()) {
+                if ("MOVE".equalsIgnoreCase(ability.sourceType)) {
+                    ability.sourceValue = remappedIds.getOrDefault(
+                        ability.sourceValue, ability.sourceValue);
+                }
+                ability.activeMoveId = remappedIds.getOrDefault(
+                    ability.activeMoveId, ability.activeMoveId);
+                if (ability.effects == null) continue;
+                ability.effects.stream()
+                    .filter(java.util.Objects::nonNull)
+                    .filter(effect -> AbilityEffectType.GRANT_MOVE.name().equalsIgnoreCase(effect.type))
+                    .forEach(effect -> effect.moveId = remappedIds.getOrDefault(
+                        effect.moveId, effect.moveId));
+            }
+
             repo.delete(id);
             repo.save();
+            abilityRepo.save();
+            characterRepo.save();
             return ValidationResult.ok("Deleted.");
         } catch (Exception e) {
             return ValidationResult.error("Delete failed: " + e.getMessage());
         }
+    }
+
+    private static String moveReferenceOf(AbilityData ability, String moveId) {
+        if (moveId.equals(ability.activeMoveId)) return "active move";
+        if ("MOVE".equalsIgnoreCase(ability.sourceType) && moveId.equals(ability.sourceValue)) {
+            return "move source";
+        }
+        if (ability.effects != null) {
+            boolean grantsMove = ability.effects.stream()
+                .filter(java.util.Objects::nonNull)
+                .anyMatch(effect -> AbilityEffectType.GRANT_MOVE.name().equalsIgnoreCase(effect.type)
+                    && moveId.equals(effect.moveId));
+            if (grantsMove) return "granted move";
+        }
+        return null;
     }
 
     // =========================================================================

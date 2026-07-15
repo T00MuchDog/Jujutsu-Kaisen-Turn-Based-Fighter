@@ -20,8 +20,7 @@ import java.util.Map;
  *   STAT_ADD                             → additive
  *   STAT_MULTIPLY / STAT_DIVIDE          → multiplicative (product of all)
  *
- * Active / triggered effects are NOT applied here — they are registered
- * as event listeners by BattleState.
+ * Active abilities are represented by their linked move and are not applied here.
  *
  * STAT_BONUS_POINTS is editor/creator-only and is silently ignored at runtime.
  */
@@ -32,22 +31,28 @@ public final class AbilityApplicator {
     public static ApplicationResult apply(CharacterStats baseStats, List<Ability> abilities) {
 
         // Use EnumMap — one entry per StatKey. No parallel variable arrays.
-        Map<StatKey, Integer> additive      = new EnumMap<>(StatKey.class);
-        Map<StatKey, Double>  multipliers   = new EnumMap<>(StatKey.class);
+        Map<StatKey, Integer> overrides   = new EnumMap<>(StatKey.class);
+        Map<StatKey, Integer> additions   = new EnumMap<>(StatKey.class);
+        Map<StatKey, Double>  multipliers = new EnumMap<>(StatKey.class);
 
-        // Seed with base values and neutral multipliers
+        // Sets are resolved first, then additions, then multipliers.
         for (StatKey k : StatKey.values()) {
-            additive.put(k, k.get(baseStats));
+            additions.put(k, 0);
             multipliers.put(k, 1.0);
         }
 
         AbilityFlags flags = new AbilityFlags();
 
-        for (Ability ability : abilities) {
+        for (Ability ability : abilities == null ? List.<Ability>of() : abilities) {
+            if (ability == null || !ability.isPassive()) continue;
             for (AbilityEffectData eff : ability.getEffects()) {
+                if (eff == null || eff.type == null) {
+                    System.err.println("[WARN] AbilityApplicator: missing ability effect type");
+                    continue;
+                }
                 AbilityEffectType type;
                 try {
-                    type = AbilityEffectType.valueOf(eff.type);
+                    type = AbilityEffectType.fromName(eff.type);
                 } catch (IllegalArgumentException e) {
                     System.err.println("[WARN] Unknown ability effect type: " + eff.type);
                     continue;
@@ -58,17 +63,17 @@ public final class AbilityApplicator {
                     // ── Override (set) — applied before add/multiply ─────────
                     case STAT_SET_MIN -> {
                         StatKey k = resolveStatKey(eff.stat);
-                        if (k != null) additive.put(k, 0);
+                        if (k != null) overrides.put(k, 0);
                     }
                     case STAT_SET_VALUE -> {
                         StatKey k = resolveStatKey(eff.stat);
-                        if (k != null) additive.put(k, nvl(eff.intValue, 0));
+                        if (k != null) overrides.put(k, nvl(eff.intValue, 0));
                     }
 
                     // ── Additive ─────────────────────────────────────────────
                     case STAT_ADD -> {
                         StatKey k = resolveStatKey(eff.stat);
-                        if (k != null) additive.merge(k, nvl(eff.intValue, 0), Integer::sum);
+                        if (k != null) additions.merge(k, nvl(eff.intValue, 0), Integer::sum);
                     }
 
                     // ── Multiplicative ───────────────────────────────────────
@@ -143,16 +148,16 @@ public final class AbilityApplicator {
 
         // Apply multipliers via unclamped constructor (0 is valid)
         CharacterStats modified = new CharacterStats(
-            noNeg((int) Math.round(additive.get(StatKey.VITALITY)                 * multipliers.get(StatKey.VITALITY))),
-            noNeg((int) Math.round(additive.get(StatKey.STRENGTH)                 * multipliers.get(StatKey.STRENGTH))),
-            noNeg((int) Math.round(additive.get(StatKey.DURABILITY)               * multipliers.get(StatKey.DURABILITY))),
-            noNeg((int) Math.round(additive.get(StatKey.SPEED)                    * multipliers.get(StatKey.SPEED))),
-            noNeg((int) Math.round(additive.get(StatKey.CURSED_ENERGY_RESERVES)   * multipliers.get(StatKey.CURSED_ENERGY_RESERVES))),
-            noNeg((int) Math.round(additive.get(StatKey.CURSED_ENERGY_EFFICIENCY) * multipliers.get(StatKey.CURSED_ENERGY_EFFICIENCY))),
-            noNeg((int) Math.round(additive.get(StatKey.CURSED_ENERGY_OUTPUT)     * multipliers.get(StatKey.CURSED_ENERGY_OUTPUT))),
-            noNeg((int) Math.round(additive.get(StatKey.JUJUTSU_SKILL)            * multipliers.get(StatKey.JUJUTSU_SKILL))),
-            noNeg((int) Math.round(additive.get(StatKey.COMBAT_ABILITY)           * multipliers.get(StatKey.COMBAT_ABILITY))),
-            noNeg((int) Math.round(additive.get(StatKey.CURSED_TECHNIQUE_MASTERY) * multipliers.get(StatKey.CURSED_TECHNIQUE_MASTERY)))
+            finalStat(StatKey.VITALITY, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.STRENGTH, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.DURABILITY, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.SPEED, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.CURSED_ENERGY_RESERVES, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.CURSED_ENERGY_EFFICIENCY, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.CURSED_ENERGY_OUTPUT, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.JUJUTSU_SKILL, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.COMBAT_ABILITY, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.CURSED_TECHNIQUE_MASTERY, baseStats, overrides, additions, multipliers)
         );
 
         return new ApplicationResult(modified, flags);
@@ -176,6 +181,19 @@ public final class AbilityApplicator {
     private static int    nvl(Integer v, int    def) { return v != null ? v : def; }
     private static double nvl(Double  v, double def) { return v != null ? v : def; }
     private static int    noNeg(int v)               { return Math.max(0, v); }
+
+    private static int finalStat(
+        StatKey key,
+        CharacterStats baseStats,
+        Map<StatKey, Integer> overrides,
+        Map<StatKey, Integer> additions,
+        Map<StatKey, Double> multipliers
+    ) {
+        int startingValue = overrides.getOrDefault(key, key.get(baseStats));
+        return noNeg((int) Math.round(
+            (startingValue + additions.getOrDefault(key, 0))
+                * multipliers.getOrDefault(key, 1.0)));
+    }
 
     // =========================================================================
     // Result types
@@ -230,8 +248,7 @@ public final class AbilityApplicator {
          * Move tags that are locked by this character's abilities.
          * PASSIVE: blocks the tag in the character creator move assignment and
          *          prevents queuing those moves during combat planning.
-         * ACTIVE/TRIGGERED: the engine removes those segments from the opponent's
-         *          timeline when the ability fires.
+         * Active abilities configure move behavior rather than using this flag.
          */
         public final java.util.List<String>            lockedMoveTags    = new java.util.ArrayList<>();
 

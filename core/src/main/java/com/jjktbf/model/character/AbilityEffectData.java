@@ -2,7 +2,7 @@ package com.jjktbf.model.character;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-// Used by statSetMax convenience method
+
 import static com.jjktbf.model.character.CharacterStats.MAX_STAT;
 
 /**
@@ -11,25 +11,9 @@ import static com.jjktbf.model.character.CharacterStats.MAX_STAT;
  * Only the fields relevant to the effect type need to be populated.
  * Jackson's NON_NULL include policy keeps the JSON lean.
  *
- * Field usage by AbilityEffectType:
- *
- *   STAT_ADD             → stat, intValue
- *   STAT_MULTIPLY        → stat, doubleValue
- *   STAT_SET_MAX         → stat
- *   STAT_SET_VALUE       → stat, intValue
- *   STAT_BONUS_POINTS    → intValue
- *   CE_COST_TO_MINIMUM   → moveTag (null = all)
- *   CE_COST_MULTIPLY     → moveTag (null = all), doubleValue
- *   MOVE_ACCURACY_ADD    → moveTag (null = all), intValue
- *   DAMAGE_MULTIPLY      → moveTag (null = all), doubleValue
- *   GRANT_MOVE           → moveId
- *   BF_CHANCE_ADD        → doubleValue
- *   UNLOCK_TECHNIQUE     → stringValue (technique name)
- *   MODIFY_DEFENSE       → doubleValue
- *   MODIFY_AP_BAR        → intValue
- *   AUTO_STATUS_APPLY    → stringValue (StatusEffectType), target, timing
- *   BLOCK_MOVE_TAG       → moveTag
- *   COST_CE_PER_ROUND    → intValue
+ * <p>The authoritative field mapping is declared by
+ * {@link AbilityEffectType#parameters()}. Only fields relevant to that type are
+ * persisted.</p>
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -53,13 +37,13 @@ public class AbilityEffectData {
     /** Move tag name to filter on (e.g. "PHYSICAL", "INNATE_TECHNIQUE"). Null = all moves. */
     public String moveTag;
 
-    /** Move ID (6-digit) for GRANT_MOVE and queued-active references. */
+    /** Move ID (6-digit) for GRANT_MOVE. */
     public String moveId;
 
     // ── Status effect automation ──────────────────────────────────────────────
     /**
      * Generic string value:
-     *   AUTO_STATUS_APPLY → StatusEffectType name (e.g. "BARRIER")
+     *   AUTO_STATUS_APPLY → a supported StatusEffectType name (e.g. "FOCUS")
      *   UNLOCK_TECHNIQUE  → technique name (e.g. "Limitless")
      */
     public String stringValue;
@@ -73,6 +57,34 @@ public class AbilityEffectData {
      * Timing for AUTO_STATUS_APPLY: "FIGHT_START", "ROUND_START", or "ON_HIT".
      */
     public String timing;
+
+    /** Duration for AUTO_STATUS_APPLY. -1 means permanent. */
+    public Integer durationRounds;
+
+    /** Magnitude for AUTO_STATUS_APPLY. */
+    public Double magnitude;
+
+    /** Field-by-field copy used by editor drafts and immutable domain objects. */
+    public AbilityEffectData copy() {
+        AbilityEffectData copy = new AbilityEffectData();
+        copy.copyFrom(this);
+        return copy;
+    }
+
+    /** Replace this DTO's values with another effect's values. */
+    public void copyFrom(AbilityEffectData source) {
+        this.type = source.type;
+        this.stat = source.stat;
+        this.intValue = source.intValue;
+        this.doubleValue = source.doubleValue;
+        this.moveTag = source.moveTag;
+        this.moveId = source.moveId;
+        this.stringValue = source.stringValue;
+        this.target = source.target;
+        this.timing = source.timing;
+        this.durationRounds = source.durationRounds;
+        this.magnitude = source.magnitude;
+    }
 
     // ── Convenience constructors for editor use ───────────────────────────────
 
@@ -141,6 +153,8 @@ public class AbilityEffectData {
             + (stringValue != null ? " str=" + stringValue : "")
             + (target      != null ? " tgt=" + target : "")
             + (timing      != null ? " time=" + timing : "")
+            + (durationRounds != null ? " dur=" + durationRounds : "")
+            + (magnitude   != null ? " mag=" + magnitude : "")
             + " }";
     }
 }

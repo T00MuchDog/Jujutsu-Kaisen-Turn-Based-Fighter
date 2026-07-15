@@ -1,5 +1,9 @@
 package com.jjktbf.model.combat;
 
+import com.jjktbf.model.character.AbilityEffectData;
+import com.jjktbf.model.character.AbilityEffectTarget;
+import com.jjktbf.model.character.AbilityEffectTiming;
+
 /**
  * Snapshot of the battle's current phase.
  *
@@ -42,6 +46,8 @@ public class BattleState {
         this.roundNumber     = 1;
         this.currentTick     = 0;
         this.winner          = null;
+        applyAutomaticStatuses(AbilityEffectTiming.FIGHT_START);
+        applyAutomaticStatuses(AbilityEffectTiming.ROUND_START);
     }
 
     // -------------------------------------------------------------------------
@@ -62,6 +68,25 @@ public class BattleState {
     public void endRound() {
         roundNumber++;
         currentTick = 0;
+        applyAutomaticStatuses(AbilityEffectTiming.ROUND_START);
+    }
+
+    private void applyAutomaticStatuses(AbilityEffectTiming timing) {
+        applyAutomaticStatusesFrom(playerCombatant, enemyCombatant, timing);
+        applyAutomaticStatusesFrom(enemyCombatant, playerCombatant, timing);
+    }
+
+    private static void applyAutomaticStatusesFrom(
+        BattleCombatant owner,
+        BattleCombatant enemy,
+        AbilityEffectTiming timing
+    ) {
+        for (AbilityEffectData effect : owner.getAbilityFlags().autoStatusEffects) {
+            if (!timing.name().equals(effect.timing)) continue;
+            BattleCombatant target = AbilityEffectTarget.ENEMY.name().equals(effect.target)
+                ? enemy : owner;
+            target.addAutomaticStatusEffect(effect);
+        }
     }
 
     // -------------------------------------------------------------------------

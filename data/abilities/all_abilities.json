@@ -1,17 +1,15 @@
 [ {
   "id" : "000000",
-  "name" : "New Ability",
-  "flavourText" : "",
-  "mechanicText" : "",
+  "name" : "Iron Constitution",
+  "flavourText" : "Years of punishment have conditioned the body to endure blows that would stop another sorcerer.",
+  "mechanicText" : "Adds 15 DURABILITY.",
   "category" : "PASSIVE",
   "sourceType" : "CHARACTER",
   "effects" : [ {
     "type" : "STAT_ADD",
-    "intValue" : 0
+    "stat" : "durability",
+    "intValue" : 15
   } ],
   "triggerThreshold" : 0,
-  "active" : false,
-  "queued" : false,
-  "triggered" : false,
-  "passive" : true
+  "masteryThreshold" : 0
 } ]
