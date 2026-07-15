@@ -4,7 +4,7 @@
 # CURRENT operating system using Maven + jlink + jpackage.
 #
 # Run it on each target OS to produce that OS's package:
-#   macOS   -> a .dmg (containing a .app)        (also requires -XstartOnFirstThread)
+#   macOS   -> a .dmg (containing a .app)        (-XstartOnFirstThread added for macOS only)
 #   Windows -> an .msi installer
 #   Linux   -> a .deb / .rpm (best-effort; not an official target)
 #
@@ -163,7 +163,6 @@ JPKG=(jpackage
     --main-jar "graphics-${REVISION}.jar"
     --main-class "$MAIN_CLASS"
     --runtime-image "$JRE_DIR"
-    --java-options -XstartOnFirstThread   # harmless off-mac; required on macOS
     --verbose
 )
 mkdir -p "$WORK_DIR/input"
@@ -177,7 +176,13 @@ case "$PLATFORM" in
         JPKG+=(--type dmg
                --icon "$ICON"
                --mac-package-name "$APP_NAME"
-               --mac-package-identifier "$APP_IDENTIFIER")
+               --mac-package-identifier "$APP_IDENTIFIER"
+               # -XstartOnFirstThread is REQUIRED on macOS for LWJGL/libGDX to
+               # access Cocoa/OpenGL, but it is a macOS-only flag — on Windows
+               # and Linux it is UNRECOGNIZED and makes the JVM exit with
+               # "Could not create the Java Virtual Machine" before any window
+               # appears. So it must be macOS-only, never global.
+               --java-options -XstartOnFirstThread)
         # Code signing (gated on secrets; ad-hoc/unsigned by default).
         # NOTE: jpackage --mac-sign is wired here, but notarization/stapling is
         # NOT yet implemented. Signing only takes effect if you have a Developer
