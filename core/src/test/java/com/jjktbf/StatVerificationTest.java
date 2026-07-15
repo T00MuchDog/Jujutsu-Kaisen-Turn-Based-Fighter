@@ -13,7 +13,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -150,6 +153,52 @@ public class StatVerificationTest {
     }
 
     @Test
+    void bundledCharacterDataBuildsWithinMovePools() throws IOException {
+        Path movesPath = List.of(
+                Path.of("data", "moves", "all_moves.json"),
+                Path.of("..", "data", "moves", "all_moves.json"))
+            .stream()
+            .filter(Files::isRegularFile)
+            .findFirst()
+            .orElseThrow(() -> new IOException("Could not locate bundled move data"));
+        Path charactersPath = List.of(
+                Path.of("data", "characters", "all_characters.json"),
+                Path.of("..", "data", "characters", "all_characters.json"))
+            .stream()
+            .filter(Files::isRegularFile)
+            .findFirst()
+            .orElseThrow(() -> new IOException("Could not locate bundled character data"));
+
+        ObjectMapper mapper = new ObjectMapper();
+        List<MoveData> moveData = mapper.readValue(
+            movesPath.toFile(), new TypeReference<List<MoveData>>() {});
+        List<CharacterData> characters = mapper.readValue(
+            charactersPath.toFile(), new TypeReference<List<CharacterData>>() {});
+        Map<String, Move> movesById = new HashMap<>();
+        for (MoveData move : moveData) {
+            movesById.put(move.id, move.toMove());
+        }
+
+        assertTrue(movesById.get("000000").isFreeMove());
+        assertTrue(movesById.get("000001").isFreeMove());
+        assertEquals(List.of("Ren Kurogane", "Mina Ishikawa", "Sora Aizawa"),
+            characters.stream().map(character -> character.name).toList());
+
+        for (CharacterData character : characters) {
+            List<Move> knownMoves = new ArrayList<>();
+            for (String moveId : character.moveIds) {
+                Move move = movesById.get(moveId);
+                assertNotNull(move, "Missing move " + moveId + " for " + character.name);
+                knownMoves.add(move);
+            }
+            assertDoesNotThrow(() -> new SorcererCharacter(
+                character.id, character.name, character.toCharacterStats(),
+                character.innateTechniqueName, knownMoves
+            ), character.name);
+        }
+    }
+
+    @Test
     void bundledMoveMigrationAddsMissingMovesWithoutOverwritingPlayerMoves() throws IOException {
         Path savedMoves = Files.createTempFile("moves", ".json");
         try {
@@ -173,10 +222,102 @@ public class StatVerificationTest {
                 savedMoves.toFile(), new TypeReference<List<MoveData>>() {});
             assertEquals(3, migrated.size());
             assertEquals("Player edit", migrated.get(0).description);
+            assertTrue(migrated.get(0).isFreeMove);
             assertEquals("000002", migrated.get(2).id);
             assertEquals("Jab", migrated.get(2).name);
         } finally {
             Files.deleteIfExists(savedMoves);
+        }
+    }
+
+    @Test
+    void bundledCharacterMigrationAddsMissingCharactersWithoutOverwritingPlayerCharacters() throws IOException {
+        Path savedCharacters = Files.createTempFile("characters", ".json");
+        try {
+            Files.writeString(savedCharacters, """
+                [
+                  { "id": "000000", "name": "Ren Kurogane", "description": "Player edit" },
+                  { "id": "000001", "name": "Custom Fighter" }
+                ]
+                """);
+            String bundled = """
+                [
+                  { "id": "000000", "name": "Ren Kurogane", "description": "Bundled default" },
+                  { "id": "000001", "name": "Mina Ishikawa" },
+                  { "id": "000002", "name": "Sora Aizawa" }
+                ]
+                """;
+
+            assertTrue(AppPaths.mergeBundledCharacters(savedCharacters,
+                new ByteArrayInputStream(bundled.getBytes(StandardCharsets.UTF_8))));
+
+            List<CharacterData> migrated = new ObjectMapper().readValue(
+                savedCharacters.toFile(), new TypeReference<List<CharacterData>>() {});
+            assertEquals(4, migrated.size());
+            assertEquals("Player edit", migrated.get(0).description);
+            assertEquals("Custom Fighter", migrated.get(1).name);
+            assertEquals("000002", migrated.get(2).id);
+            assertEquals("Mina Ishikawa", migrated.get(2).name);
+            assertEquals("000003", migrated.get(3).id);
+            assertEquals("Sora Aizawa", migrated.get(3).name);
+        } finally {
+            Files.deleteIfExists(savedCharacters);
+        }
+    }
+
+    @Test
+    void bundledAbilityAndTechniqueMigrationPreservesPlayerEdits() throws IOException {
+        Path savedAbilities = Files.createTempFile("abilities", ".json");
+        Path savedTechniques = Files.createTempFile("techniques", ".json");
+        try {
+            Files.writeString(savedAbilities, """
+                [
+                  { "id": "000000", "name": "New Ability", "flavourText": "Player edit" },
+                  { "id": "000001", "name": "Custom Ability" }
+                ]
+                """);
+            String bundledAbilities = """
+                [
+                  { "id": "000000", "name": "New Ability", "flavourText": "Bundled default" },
+                  { "id": "000001", "name": "Six Eyes" }
+                ]
+                """;
+
+            assertTrue(AppPaths.mergeBundledAbilities(savedAbilities,
+                new ByteArrayInputStream(bundledAbilities.getBytes(StandardCharsets.UTF_8))));
+
+            List<Map<String, Object>> migratedAbilities = new ObjectMapper().readValue(
+                savedAbilities.toFile(), new TypeReference<List<Map<String, Object>>>() {});
+            assertEquals(3, migratedAbilities.size());
+            assertEquals("Player edit", migratedAbilities.get(0).get("flavourText"));
+            assertEquals("000002", migratedAbilities.get(2).get("id"));
+            assertEquals("Six Eyes", migratedAbilities.get(2).get("name"));
+
+            Files.writeString(savedTechniques, """
+                [
+                  { "id": "000000", "name": "Shrine", "description": "Player edit" },
+                  { "id": "000001", "name": "Custom Technique" }
+                ]
+                """);
+            String bundledTechniques = """
+                [
+                  { "id": "000000", "name": "Shrine", "description": "Bundled default" },
+                  { "id": "000001", "name": "Limitless" }
+                ]
+                """;
+
+            assertTrue(AppPaths.mergeBundledTechniques(savedTechniques,
+                new ByteArrayInputStream(bundledTechniques.getBytes(StandardCharsets.UTF_8))));
+
+            List<Map<String, Object>> migratedTechniques = new ObjectMapper().readValue(
+                savedTechniques.toFile(), new TypeReference<List<Map<String, Object>>>() {});
+            assertEquals(3, migratedTechniques.size());
+            assertEquals("Player edit", migratedTechniques.get(0).get("description"));
+            assertEquals("000002", migratedTechniques.get(2).get("id"));
+            assertEquals("Limitless", migratedTechniques.get(2).get("name"));
+        } finally {
+            Files.deleteIfExists(savedAbilities);
+            Files.deleteIfExists(savedTechniques);
         }
     }
 

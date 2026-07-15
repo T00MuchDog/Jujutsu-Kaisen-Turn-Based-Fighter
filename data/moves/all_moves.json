@@ -19,7 +19,7 @@
   "blockFlatReduction" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
-  "isFreeMove" : false,
+  "isFreeMove" : true,
   "anyBlock" : false,
   "percentageBlock" : false,
   "flatBlock" : false
@@ -45,7 +45,7 @@
   "blockFlatReduction" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
-  "isFreeMove" : false,
+  "isFreeMove" : true,
   "anyBlock" : true,
   "percentageBlock" : true,
   "flatBlock" : false

@@ -46,10 +46,10 @@ import java.util.Set;
  *
  * <h3>Seeding</h3>
  * On first launch the bundled default game-data JSON (shipped on the classpath
-     * under {@code data/...}) is copied into the per-user data directory. Existing
-     * files are never overwritten. Missing bundled move definitions are appended
-     * by name on later launches, so player edits survive upgrades while new default
-     * moves become available.
+ * under {@code data/...}) is copied into the per-user data directory. Existing
+ * files are never overwritten. Missing bundled move, character, ability, and
+ * technique definitions are appended by name on later launches, so player edits
+ * survive upgrades while new default content becomes available.
  *
  * <p>This class is pure Java (no libGDX) so it can live in the {@code core}
  * module and be used by both the repositories and the desktop launcher.
@@ -66,6 +66,9 @@ public final class AppPaths {
     private static final String BUNDLED_DATA_PREFIX = "data";
 
     private static final String BUNDLED_MOVES = "data/moves/all_moves.json";
+    private static final String BUNDLED_CHARACTERS = "data/characters/all_characters.json";
+    private static final String BUNDLED_ABILITIES = "data/abilities/all_abilities.json";
+    private static final String BUNDLED_TECHNIQUES = "data/techniques/all_techniques.json";
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
         .enable(SerializationFeature.INDENT_OUTPUT);
@@ -185,10 +188,10 @@ public final class AppPaths {
         // POM resources). Listed explicitly so seeding works without a live
         // filesystem walk of the jar, which is awkward to do portably.
         String[] bundled = {
-            "data/characters/all_characters.json",
+            BUNDLED_CHARACTERS,
             BUNDLED_MOVES,
-            "data/abilities/all_abilities.json",
-            "data/techniques/all_techniques.json",
+            BUNDLED_ABILITIES,
+            BUNDLED_TECHNIQUES,
         };
         for (String resource : bundled) {
             try {
@@ -205,6 +208,12 @@ public final class AppPaths {
             if (Files.exists(dest)) {
                 if (BUNDLED_MOVES.equals(resource) && in != null) {
                     mergeBundledMoves(dest, in);
+                } else if (BUNDLED_CHARACTERS.equals(resource) && in != null) {
+                    mergeBundledCharacters(dest, in);
+                } else if (BUNDLED_ABILITIES.equals(resource) && in != null) {
+                    mergeBundledAbilities(dest, in);
+                } else if (BUNDLED_TECHNIQUES.equals(resource) && in != null) {
+                    mergeBundledTechniques(dest, in);
                 }
                 return;
             }
@@ -223,27 +232,64 @@ public final class AppPaths {
     /**
      * Append default moves that do not already exist in a player's saved list.
      * Name matching is case-insensitive so player-edited moves are preserved.
+     * Basic Strike and Basic Block are additionally migrated to their mandated
+     * free-move status.
      *
      * @return true when at least one bundled move was appended
      */
     static boolean mergeBundledMoves(Path destination, InputStream bundledMoves) throws IOException {
+        boolean appended = mergeBundledDefinitions(destination, bundledMoves);
+        return markBaselineMovesFree(destination) || appended;
+    }
+
+    /**
+     * Append default characters that do not already exist in a player's saved list.
+     * Name matching is case-insensitive so player-edited characters are preserved.
+     *
+     * @return true when at least one bundled character was appended
+     */
+    static boolean mergeBundledCharacters(Path destination, InputStream bundledCharacters) throws IOException {
+        return mergeBundledDefinitions(destination, bundledCharacters);
+    }
+
+    /**
+     * Append default abilities that do not already exist in a player's saved list.
+     * Name matching is case-insensitive so player-edited abilities are preserved.
+     *
+     * @return true when at least one bundled ability was appended
+     */
+    static boolean mergeBundledAbilities(Path destination, InputStream bundledAbilities) throws IOException {
+        return mergeBundledDefinitions(destination, bundledAbilities);
+    }
+
+    /**
+     * Append default techniques that do not already exist in a player's saved list.
+     * Name matching is case-insensitive so player-edited techniques are preserved.
+     *
+     * @return true when at least one bundled technique was appended
+     */
+    static boolean mergeBundledTechniques(Path destination, InputStream bundledTechniques) throws IOException {
+        return mergeBundledDefinitions(destination, bundledTechniques);
+    }
+
+    private static boolean mergeBundledDefinitions(Path destination, InputStream bundledDefinitions) throws IOException {
         List<LinkedHashMap<String, Object>> saved = MAPPER.readValue(
             destination.toFile(), new TypeReference<>() {});
         List<LinkedHashMap<String, Object>> bundled = MAPPER.readValue(
-            bundledMoves, new TypeReference<>() {});
+            bundledDefinitions, new TypeReference<>() {});
 
         Set<String> savedNames = new HashSet<>();
-        for (Map<String, Object> move : saved) {
-            String name = normalizedMoveName(move);
+        for (Map<String, Object> definition : saved) {
+            String name = normalizedDefinitionName(definition);
             if (name != null) savedNames.add(name);
         }
 
         boolean changed = false;
-        for (LinkedHashMap<String, Object> move : bundled) {
-            String name = normalizedMoveName(move);
+        for (LinkedHashMap<String, Object> definition : bundled) {
+            String name = normalizedDefinitionName(definition);
             if (name == null || !savedNames.add(name)) continue;
 
-            LinkedHashMap<String, Object> copy = new LinkedHashMap<>(move);
+            LinkedHashMap<String, Object> copy = new LinkedHashMap<>(definition);
             copy.put("id", String.format("%06d", saved.size()));
             saved.add(copy);
             changed = true;
@@ -253,8 +299,25 @@ public final class AppPaths {
         return changed;
     }
 
-    private static String normalizedMoveName(Map<String, Object> move) {
-        Object name = move.get("name");
+    /** Keep the two guaranteed baseline moves free in older player move data. */
+    private static boolean markBaselineMovesFree(Path destination) throws IOException {
+        List<LinkedHashMap<String, Object>> saved = MAPPER.readValue(
+            destination.toFile(), new TypeReference<>() {});
+        boolean changed = false;
+        for (Map<String, Object> move : saved) {
+            String name = normalizedDefinitionName(move);
+            if (!"basic strike".equals(name) && !"basic block".equals(name)) continue;
+            if (!Boolean.TRUE.equals(move.get("isFreeMove"))) {
+                move.put("isFreeMove", true);
+                changed = true;
+            }
+        }
+        if (changed) MAPPER.writeValue(destination.toFile(), saved);
+        return changed;
+    }
+
+    private static String normalizedDefinitionName(Map<String, Object> definition) {
+        Object name = definition.get("name");
         if (!(name instanceof String text) || text.isBlank()) return null;
         return text.trim().toLowerCase(Locale.ROOT);
     }
