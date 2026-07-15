@@ -30,7 +30,9 @@ public class JJKGame extends Game {
 
     private AssetLoader assets;
 
-    // ── Reusable screen instances (created once, reused across visits) ─────────
+    // ── Screen instances ───────────────────────────────────────────────────────
+    // The menu is rebuilt on return so inactive-stage pointer state cannot leak
+    // across editor transitions. Other screens retain their reusable state.
     private MainMenuScreen        mainMenuScreen;
     private CharacterSelectScreen characterSelectScreen;
     private BattleScreen          battleScreen;
@@ -78,6 +80,8 @@ public class JJKGame extends Game {
     // -------------------------------------------------------------------------
 
     public void showMainMenu() {
+        mainMenuScreen.dispose();
+        mainMenuScreen = new MainMenuScreen(this, assets);
         setScreen(mainMenuScreen);
     }
 

@@ -5,6 +5,8 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -133,7 +135,6 @@ public class MainMenuScreen implements Screen {
     @Override
     public void show() {
         stage.unfocusAll();
-        for (MenuButton button : menuButtons) button.clearHover();
         Gdx.input.setInputProcessor(stage);
     }
 
@@ -159,33 +160,21 @@ public class MainMenuScreen implements Screen {
         stage.dispose();
     }
 
-    /** Prevents a reused menu button retaining its prior screen's hover state. */
+    /** Uses the actual pointer position because this screen's stage is reused. */
     private static final class MenuButton extends TextButton {
-        private boolean suppressHover;
+        private final Vector2 pointer = new Vector2();
 
         private MenuButton(String text, com.badlogic.gdx.scenes.scene2d.ui.Skin skin) {
             super(text, skin, "primary");
-            addListener(new InputListener() {
-                @Override
-                public void enter(InputEvent event, float x, float y, int pointer, com.badlogic.gdx.scenes.scene2d.Actor fromActor) {
-                    suppressHover = false;
-                }
-
-                @Override
-                public boolean mouseMoved(InputEvent event, float x, float y) {
-                    suppressHover = false;
-                    return false;
-                }
-            });
-        }
-
-        private void clearHover() {
-            suppressHover = true;
         }
 
         @Override
         public boolean isOver() {
-            return !suppressHover && super.isOver();
+            Stage stage = getStage();
+            if (stage == null) return false;
+            stage.screenToStageCoordinates(pointer.set(Gdx.input.getX(), Gdx.input.getY()));
+            Actor target = stage.hit(pointer.x, pointer.y, true);
+            return target == this || (target != null && target.isDescendantOf(this));
         }
     }
 }
