@@ -175,10 +175,15 @@ public class BattlePlan {
      */
     public Timeline toLegacyTimeline() {
         Timeline merged = new Timeline(GRID_LENGTH);
+        // Insert each segment directly, bypassing placeAt's no-overlap check.
+        // The offensive and defensive boards are independent grids: a defensive
+        // segment is intentionally allowed to overlap an offensive one (they
+        // are on different boards). Calling placeAt here would treat that valid
+        // cross-board overlap as a collision and silently drop the second
+        // segment — so a defensive move placed under an offensive move would
+        // never make it into the merged timeline and never fire.
         for (ActionSegment s : allSegments()) {
-            // Re-place by hand (placeAt enforces no-overlap; boards are disjoint
-            // by construction so no overlap occurs).
-            merged.placeAt(s.getMove(), s.getStartTick(), s.getActualCeCost());
+            merged.addSegment(new ActionSegment(s.getMove(), s.getStartTick(), s.getActualCeCost()));
         }
         return merged;
     }

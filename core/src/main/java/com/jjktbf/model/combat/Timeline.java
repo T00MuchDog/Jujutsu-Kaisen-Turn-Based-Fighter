@@ -83,6 +83,23 @@ public class Timeline {
         return null;
     }
 
+    /**
+     * Insert an already-constructed segment directly, <b>without</b> the bounds
+     * or overlap checks that {@link #placeAt} enforces.
+     *
+     * <p>For merge use only: when two independent boards (e.g. a
+     * {@link BattlePlan}'s offensive and defensive timelines) are merged into a
+     * single legacy timeline, the source segments were already validated when
+     * placed on their own board. A segment on board A is intentionally allowed
+     * to overlap a segment on board B (they are different boards), so the
+     * single-board no-overlap rule must not be re-applied during the merge —
+     * otherwise the second-overlapping segment would be silently dropped and
+     * never fire. See {@link BattlePlan#toLegacyTimeline()}.
+     */
+    void addSegment(ActionSegment segment) {
+        segments.add(segment);
+    }
+
     /** Remove a placed segment. No-op if not present. */
     public boolean remove(ActionSegment segment) {
         return segments.remove(segment);
