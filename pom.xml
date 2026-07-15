@@ -31,8 +31,8 @@
 
     <properties>
         <!-- AUTHORITATIVE VERSION: edit this one value to release. -->
-        <revision>1.0.0</revision>
-        <revision>1.0.0</revision>
+        <revision>1.1.1</revision>
+        <revision>1.1.1</revision>
 
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
