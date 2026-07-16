@@ -28,21 +28,26 @@ import java.util.*;
  * Tie-breaking at the same fireTick:
  *   - Instant moves (unleashPoint == 1) fire before all others.
  *   - Among ties at the same fireTick: higher Speed wins.
- *   - Identical Speed: random resolution (coin flip).
+ *   - Identical Speed: random resolution using stable precomputed tie keys.
  *
  * All effects are reported as CombatEvents collected in a list.
  * The resolver never touches I/O — events are returned to the controller.
  */
 public class CombatResolver {
 
-    private final Random rng;
+    private final RandomSource rng;
 
-    public CombatResolver(Random rng) {
+    public CombatResolver(RandomSource rng) {
         this.rng = rng;
     }
 
+    /** Compatibility constructor for callers that still supply {@link Random}. */
+    public CombatResolver(Random rng) {
+        this(new SeededRandomSource(rng));
+    }
+
     public CombatResolver() {
-        this(new Random());
+        this(new SeededRandomSource());
     }
 
     // -------------------------------------------------------------------------
@@ -166,7 +171,7 @@ public class CombatResolver {
         List<FiringEntry> firing = collectFiringMoves(player, enemy, tick);
 
         // --- Sort by priority ---
-        sortFiringEntries(firing, player, enemy);
+        sortFiringEntries(firing);
 
         // --- Resolve each firing move ---
         for (FiringEntry entry : firing) {
@@ -254,6 +259,8 @@ public class CombatResolver {
 
     private record FiringEntry(ActionSegment segment, BattleCombatant attacker, BattleCombatant defender) {}
 
+    private record TieBreak(double randomKey, int insertionOrder) {}
+
     private List<FiringEntry> collectFiringMoves(BattleCombatant player, BattleCombatant enemy, int tick) {
         List<FiringEntry> firing = new ArrayList<>();
 
@@ -274,23 +281,48 @@ public class CombatResolver {
      * Sort firing entries:
      *  1. Instant moves (unleashPoint == 1) first
      *  2. Higher Speed first
-     *  3. Random tiebreak
+     *  3. Precomputed random tiebreak
+     *  4. Original order if random keys collide
      */
-    private void sortFiringEntries(List<FiringEntry> firing, BattleCombatant player, BattleCombatant enemy) {
-        firing.sort((a, b) -> {
-            // Instant moves have top priority
-            int aInstant = a.segment.isInstant() ? 1 : 0;
-            int bInstant = b.segment.isInstant() ? 1 : 0;
-            if (aInstant != bInstant) return bInstant - aInstant; // higher = first
+    private void sortFiringEntries(List<FiringEntry> firing) {
+        firing.sort(this::comparePriority);
 
-            // Speed tiebreak
-            int aSpeed = a.attacker.getEffectiveStats().getSpeed();
-            int bSpeed = b.attacker.getEffectiveStats().getSpeed();
-            if (aSpeed != bSpeed) return bSpeed - aSpeed; // higher speed first
+        int groupStart = 0;
+        while (groupStart < firing.size()) {
+            int groupEnd = groupStart + 1;
+            while (groupEnd < firing.size()
+                && comparePriority(firing.get(groupStart), firing.get(groupEnd)) == 0) {
+                groupEnd++;
+            }
+            if (groupEnd - groupStart > 1) {
+                Map<FiringEntry, TieBreak> tieBreaks = new IdentityHashMap<>();
+                for (int index = groupStart; index < groupEnd; index++) {
+                    tieBreaks.put(
+                        firing.get(index),
+                        new TieBreak(rng.nextDouble(), index - groupStart)
+                    );
+                }
+                firing.subList(groupStart, groupEnd).sort((a, b) -> {
+                    TieBreak aTieBreak = tieBreaks.get(a);
+                    TieBreak bTieBreak = tieBreaks.get(b);
+                    int randomComparison = Double.compare(
+                        aTieBreak.randomKey(), bTieBreak.randomKey());
+                    return randomComparison != 0
+                        ? randomComparison
+                        : Integer.compare(
+                            aTieBreak.insertionOrder(), bTieBreak.insertionOrder());
+                });
+            }
+            groupStart = groupEnd;
+        }
+    }
 
-            // Random
-            return rng.nextBoolean() ? -1 : 1;
-        });
+    private int comparePriority(FiringEntry a, FiringEntry b) {
+        int instantComparison = Boolean.compare(b.segment.isInstant(), a.segment.isInstant());
+        if (instantComparison != 0) return instantComparison;
+        int aSpeed = a.attacker.getEffectiveStats().getSpeed();
+        int bSpeed = b.attacker.getEffectiveStats().getSpeed();
+        return Integer.compare(bSpeed, aSpeed);
     }
 
     // -------------------------------------------------------------------------

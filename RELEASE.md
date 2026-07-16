@@ -100,7 +100,7 @@ Final artifacts are named:
 
 ## 3. How to publish a release through GitHub
 
-This is the normal path — it builds **all three** targets automatically and
+This is the normal path — it builds **all four** artifacts automatically and
 attaches them to a GitHub Release.
 
 ### One-time setup
@@ -113,7 +113,7 @@ attaches them to a GitHub Release.
 
 ```bash
 # 1. Make sure your changes are committed and tests pass.
-mvn -Drevision=1.2.0 -pl core,graphics -am clean verify
+mvn -Drevision=1.2.0 clean verify
 
 # 2. Bump the version (edit the one value).
 #    pom.xml: <revision>1.2.0</revision>
@@ -126,14 +126,14 @@ git push origin v1.2.0
 
 Pushing the tag triggers `.github/workflows/release.yml`, which:
 
-- Runs on three runners in parallel: `macos-latest` (arm64), `macos-15-intel`
-  (x64), `windows-latest` (x64).
-- Each checks out the code, sets up JDK 17 (Temurin), and runs
+- Builds the server JAR on Ubuntu while three packaging runners build
+  `macos-latest` (arm64), `macos-15-intel` (x64), and `windows-latest` (x64).
+- Each checks out the code and sets up JDK 17 (Temurin); desktop jobs run
   `packaging/package.sh` with the tag's version.
-- A final `release` job (tag pushes only) downloads all three artifacts,
+- A final `release` job (tag pushes only) downloads all four artifacts,
   generates a `SHA256SUMS` checksum file, and creates a GitHub Release named
-  `<version>` with auto-generated notes, attaching the `.dmg` and `.msi` files
-  plus the checksums.
+  `<version>` with auto-generated notes, attaching the server JAR, `.dmg`, and
+  `.msi` files plus the checksums.
 
 You can watch progress under **Actions** in the GitHub UI. When it finishes,
 the release appears under **Releases** with the installers and `SHA256SUMS`

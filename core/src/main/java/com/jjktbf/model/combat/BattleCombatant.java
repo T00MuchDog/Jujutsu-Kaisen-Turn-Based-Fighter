@@ -371,6 +371,7 @@ public class BattleCombatant {
     public int getCurrentCe()                             { return currentCe; }
     public boolean isInBlackFlashState()                  { return inBlackFlashState; }
     public int getConsecutiveBfsHits()                    { return consecutiveBfsHits; }
+    public int getBfsExpiresAfterRound()                  { return bfsExpiresAfterRound; }
 
     /**
      * Compute this combatant's current defense value (dynamic — depends on current CE).

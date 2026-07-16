@@ -29,7 +29,8 @@ import java.util.Random;
  *   Cleave       (basePower=110): ~48–56 dmg  on a 200 HP target = ~26%
  *   Sukuna Cleave vs Yuji (power≈294, defense≈172): ~83–97 dmg on 467 HP = ~19%
  *
- * All randomness uses an injected Random for testability.
+ * All randomness uses an injected {@link RandomSource} for testability and
+ * deterministic authoritative resolution.
  */
 public final class DamageCalculator {
 
@@ -62,7 +63,7 @@ public final class DamageCalculator {
         BattleCombatant defender,
         Move            move,
         int             currentTick,
-        Random          rng,
+        RandomSource    rng,
         int             currentRound
     ) {
         // Use ability-modified stats for all calculations
@@ -139,6 +140,27 @@ public final class DamageCalculator {
         }
 
         return DamageResult.hit(move, finalDamage, rawDamage, blackFlash);
+    }
+
+    /**
+     * Compatibility overload for callers that still supply {@link Random}.
+     */
+    public static DamageResult resolve(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move            move,
+        int             currentTick,
+        Random          rng,
+        int             currentRound
+    ) {
+        return resolve(
+            attacker,
+            defender,
+            move,
+            currentTick,
+            new SeededRandomSource(rng),
+            currentRound
+        );
     }
 
     // -------------------------------------------------------------------------

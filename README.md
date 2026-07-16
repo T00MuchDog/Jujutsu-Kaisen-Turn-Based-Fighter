@@ -10,9 +10,10 @@ the graphical editors inside the LibGDX front-end.
 
 ```
 JJKTBF/
-├── core/      Domain model + combat engine. No I/O, no rendering. All other modules depend on this.
-├── graphics/  LibGDX graphics front-end. GraphicsMain is the entry point for windowed play.
-│              Hosts the battle UI plus the Scene2D graphical editors (Move/Character/Ability).
+├── core/      Shared domain model, deterministic headless battle engine, and multiplayer protocol DTOs.
+├── graphics/  LibGDX desktop client. Contains local play, editors, async HTTP/WebSocket services,
+│              and multiplayer screens. GraphicsMain is the desktop entry point.
+├── server/    Javalin multiplayer server, guest auth, challenge/match managers, JDBC, and Flyway.
 └── data/      JSON data files shared by all modules at runtime.
     ├── moves/all_moves.json
     ├── characters/all_characters.json
@@ -26,7 +27,7 @@ JJKTBF/
 
 ### Build everything
 ```bash
-mvn compile
+mvn clean verify
 ```
 
 ### Run graphics mode (macOS — ALWAYS include -XstartOnFirstThread)
@@ -46,6 +47,25 @@ java -XstartOnFirstThread -jar graphics/target/graphics-1.1.1.jar
 > The graphical editors are launched from the main menu inside the graphics
 > front-end — there is no separate editor command anymore.
 
+### Run multiplayer locally
+
+The server runs with an embedded persistent H2 database by default:
+
+```bash
+mvn -Drevision=1.1.1 -pl server -am package
+java -jar server/target/server-1.1.1.jar
+```
+
+Build the desktop client and launch two instances with separate guest profiles:
+
+```bash
+mvn -Drevision=1.1.1 -pl graphics -am package
+java -XstartOnFirstThread -Djjktbf.data.root="$PWD/.local/client-a" -jar graphics/target/graphics-1.1.1.jar
+java -XstartOnFirstThread -Djjktbf.data.root="$PWD/.local/client-b" -jar graphics/target/graphics-1.1.1.jar
+```
+
+The `-XstartOnFirstThread` option is macOS-only. PostgreSQL/Docker setup, non-macOS commands, production configuration, and the complete two-client flow are documented in **[`MULTIPLAYER.md`](MULTIPLAYER.md)**. The design and protocol are documented in **[`MULTIPLAYER_ARCHITECTURE.md`](MULTIPLAYER_ARCHITECTURE.md)**.
+
 > **Where data lives:** On first launch the game copies its bundled default
 > data into a per-user directory (`~/Library/Application Support/JujutsuKaisenFighter/`
 > on macOS, `%APPDATA%\JujutsuKaisenFighter\` on Windows). The in-game editors
@@ -55,11 +75,11 @@ java -XstartOnFirstThread -jar graphics/target/graphics-1.1.1.jar
 
 ### Run tests
 ```bash
-mvn test
+mvn clean verify
 ```
-Tests live in `core/src/test/java/com/jjktbf/StatVerificationTest.java`.
-There are 14 tests covering HP, AP bar, hit chance, CE efficiency, move slots,
-Black Flash chance, damage range, block timing, block tag filters, and block damage ordering.
+Tests cover the original combat rules plus deterministic shared-engine commands,
+serialization, guest authentication, challenge concurrency, match lifecycle,
+client persistence/reconnect behavior, and real HTTP/WebSocket integration.
 
 ---
 
@@ -76,8 +96,8 @@ the full process; the short version:
   ```
   Output: `dist/JujutsuKaisenFighter-<ver>-<os>-<arch>.dmg` (macOS) / `.msi` (Windows).
 - Automated cross-platform release: push a tag `v1.0.0`. GitHub Actions builds
-  macOS (arm64 + x64) and Windows (x64) installers and attaches them to a
-  GitHub Release.
+  macOS (arm64 + x64) and Windows (x64) installers plus the platform-independent
+  multiplayer server JAR, then attaches them to a GitHub Release.
 - Rebranding: replace `packaging/icon.png` with a 1024×1024 master icon and
   rebuild — no packaging config edits needed.
 - Player data (saves, edits, settings) is stored outside the app, so upgrades
@@ -91,7 +111,7 @@ the full process; the short version:
 git commit -am "Release 1.1.0"
 
 # 2. Run tests to be safe:
-mvn -Drevision=1.1.0 -pl core,graphics -am clean verify
+mvn -Drevision=1.1.0 clean verify
 
 # 3. Tag and push:
 git tag v1.1.0

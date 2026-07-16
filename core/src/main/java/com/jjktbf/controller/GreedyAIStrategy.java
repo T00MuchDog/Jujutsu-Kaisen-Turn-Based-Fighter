@@ -5,13 +5,13 @@ import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
+import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 
 /**
@@ -49,7 +49,7 @@ public class GreedyAIStrategy implements AIStrategy {
     /** Defensive moves are only considered once at least one offensive is down. */
 
     @Override
-    public BattlePlan selectPlan(BattleCombatant ai, BattleCombatant opponent, Random rng) {
+    public BattlePlan selectPlan(BattleCombatant ai, BattleCombatant opponent, RandomSource rng) {
         BattlePlan plan = new BattlePlan(ai.getMaxApBar(), ai.getCurrentCe());
         AbilityFlags abilityFlags = ai.getAbilityFlags();
         List<Move> knownMoves = ai.getCharacter().getKnownMoves();
@@ -93,7 +93,7 @@ public class GreedyAIStrategy implements AIStrategy {
      * always has an attack to align with); before that, defensives are filtered
      * out unless the AI has no offensive moves at all.
      */
-    private Move weightedRandomPick(List<Move> candidates, BattlePlan plan, Random rng) {
+    private Move weightedRandomPick(List<Move> candidates, BattlePlan plan, RandomSource rng) {
         boolean hasOffensePlaced = !plan.offensiveTimeline().isEmpty();
 
         // Partition + filter.
@@ -135,7 +135,7 @@ public class GreedyAIStrategy implements AIStrategy {
     // Placement
     // -------------------------------------------------------------------------
 
-    private boolean tryPlace(Move move, BattleCombatant ai, BattlePlan plan, Random rng) {
+    private boolean tryPlace(Move move, BattleCombatant ai, BattlePlan plan, RandomSource rng) {
         int ceEfficiency = ai.getEffectiveStats().getCursedEnergyEfficiency();
         AbilityFlags abilityFlags = ai.getAbilityFlags();
         int ceCost = CeEfficiencyCalculator.computeActualCost(move, ceEfficiency, abilityFlags);
@@ -163,7 +163,7 @@ public class GreedyAIStrategy implements AIStrategy {
      * offensive segment's fire tick, so the block is active when the attack lands.
      * Returns false if no offensive segment exists or the alignment won't fit.
      */
-    private boolean placeDefensive(Move move, int ceCost, BattlePlan plan, Random rng) {
+    private boolean placeDefensive(Move move, int ceCost, BattlePlan plan, RandomSource rng) {
         List<ActionSegment> offense = plan.offensiveTimeline().getSegments();
         if (offense.isEmpty()) return false;
 

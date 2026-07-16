@@ -72,14 +72,17 @@ public class MainMenuScreen implements Screen {
         commandTitle.setColor(new Color(1.000f, 0.835f, 0.180f, 1f));
         commands.add(commandTitle).left().padBottom(10).row();
 
-        MenuButton newGame   = makeButton("START BATTLE", game::showCharacterSelect);
+        MenuButton singlePlayer = makeButton("SINGLE PLAYER", game::showCharacterSelect);
+        MenuButton multiplayer  = makeButton("MULTIPLAYER", game::showMultiplayerMenu);
         MenuButton moveEd    = makeButton("MOVE EDITOR", game::showMoveEditor);
         MenuButton charEd    = makeButton("CHARACTER EDITOR", game::showCharacterEditor);
         MenuButton abilityEd = makeButton("ABILITY EDITOR", game::showAbilityEditor);
         MenuButton techEd    = makeButton("TECHNIQUE EDITOR", game::showTechniqueEditor);
         MenuButton quit      = makeButton("QUIT", () -> Gdx.app.exit());
 
-        for (MenuButton button : new MenuButton[]{ newGame, moveEd, charEd, abilityEd, techEd, quit }) {
+        for (MenuButton button : new MenuButton[]{
+            singlePlayer, multiplayer, moveEd, charEd, abilityEd, techEd, quit
+        }) {
             menuButtons.add(button);
             menuButtonCells.add(commands.add(button).growX().height(46).pad(4));
             commands.row();
@@ -95,6 +98,8 @@ public class MainMenuScreen implements Screen {
                 else if (keycode == Input.Keys.NUM_3) game.showCharacterEditor();
                 else if (keycode == Input.Keys.NUM_4) game.showAbilityEditor();
                 else if (keycode == Input.Keys.NUM_5) game.showTechniqueEditor();
+                else if (keycode == Input.Keys.NUM_6) Gdx.app.exit();
+                else if (keycode == Input.Keys.NUM_7) game.showMultiplayerMenu();
                 else if (keycode == Input.Keys.ESCAPE || keycode == Input.Keys.Q) Gdx.app.exit();
                 else return false;
                 return true;

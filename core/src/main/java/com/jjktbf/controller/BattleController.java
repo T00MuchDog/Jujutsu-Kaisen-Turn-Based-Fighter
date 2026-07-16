@@ -25,17 +25,27 @@ public class BattleController {
     private final BattleView   view;
     private final CombatResolver resolver;
     private final AIStrategy   aiStrategy;
-    private final Random       rng;
+    private final RandomSource rng;
 
     public BattleController(BattleView view) {
-        this(view, new Random(), new GreedyAIStrategy());
+        this(view, new SeededRandomSource(), new GreedyAIStrategy());
     }
 
+    /** Compatibility constructor for callers that still supply {@link Random}. */
     public BattleController(BattleView view, Random rng) {
+        this(view, new SeededRandomSource(rng));
+    }
+
+    public BattleController(BattleView view, RandomSource rng) {
         this(view, rng, new GreedyAIStrategy());
     }
 
+    /** Compatibility constructor for callers that still supply {@link Random}. */
     public BattleController(BattleView view, Random rng, AIStrategy aiStrategy) {
+        this(view, new SeededRandomSource(rng), aiStrategy);
+    }
+
+    public BattleController(BattleView view, RandomSource rng, AIStrategy aiStrategy) {
         this.view       = view;
         this.resolver   = new CombatResolver(rng);
         this.aiStrategy = aiStrategy;

@@ -38,9 +38,12 @@ import java.util.Set;
  * is specific to this game and stable across launches and upgrades:
  * <ul>
  *   <li><b>macOS:</b> {@code ~/Library/Application Support/JujutsuKaisenFighter/}</li>
- *   <li><b>Windows:</b> {@code %APPDATA%\JujutsuKaisenFighter\}</li>
- *   <li><b>Linux / other:</b> {@code ~/.jujutsukaisenfighter/}</li>
- * </ul>
+     *   <li><b>Windows:</b> {@code %APPDATA%\JujutsuKaisenFighter\}</li>
+     *   <li><b>Linux / other:</b> {@code ~/.jujutsukaisenfighter/}</li>
+     * </ul>
+     * Local tools can override this with {@code -Djjktbf.data.root=/path} or
+     * {@code JJKTBF_DATA_ROOT}; this is useful when launching two test clients
+     * that need independent guest credentials.
  * Because this directory is outside the install location, installing a newer
  * version of the game never deletes a player's data.
  *
@@ -58,6 +61,12 @@ public final class AppPaths {
 
     /** Display / folder name of the application. */
     public static final String APP_NAME = "Jujutsu Kaisen Fighter";
+
+    /** Optional JVM property used to isolate local client profiles. */
+    public static final String DATA_ROOT_SYSTEM_PROPERTY = "jjktbf.data.root";
+
+    /** Environment equivalent of {@link #DATA_ROOT_SYSTEM_PROPERTY}. */
+    public static final String DATA_ROOT_ENVIRONMENT_VARIABLE = "JJKTBF_DATA_ROOT";
 
     /** Filesystem-safe folder name used under the per-user data root. */
     private static final String APP_DIR_NAME = "JujutsuKaisenFighter";
@@ -80,35 +89,52 @@ public final class AppPaths {
     // -------------------------------------------------------------------------
 
     /**
-     * The per-user application-data root, created if absent. Stable across
-     * launches and upgrades; outside the (read-only) install directory.
+     * The configured or per-user application-data root, created if absent.
+     * Stable across launches and upgrades; outside the read-only install
+     * directory unless explicitly overridden for development.
      */
     public static Path root() {
         Path base;
-        String os = System.getProperty("os.name", "").toLowerCase();
-        if (os.contains("mac") || os.contains("darwin")) {
-            base = Paths.get(System.getProperty("user.home"),
-                             "Library", "Application Support", APP_DIR_NAME);
-        } else if (os.contains("win")) {
-            String appdata = System.getenv("APPDATA");
-            if (appdata != null && !appdata.isBlank()) {
-                base = Paths.get(appdata, APP_DIR_NAME);
-            } else {
-                base = Paths.get(System.getProperty("user.home"), APP_DIR_NAME);
-            }
+        boolean explicitlyConfigured = false;
+        String configuredRoot = System.getProperty(DATA_ROOT_SYSTEM_PROPERTY);
+        if (configuredRoot == null || configuredRoot.isBlank()) {
+            configuredRoot = System.getenv(DATA_ROOT_ENVIRONMENT_VARIABLE);
+        }
+        if (configuredRoot != null && !configuredRoot.isBlank()) {
+            explicitlyConfigured = true;
+            base = Paths.get(configuredRoot.trim()).toAbsolutePath().normalize();
         } else {
-            // Linux / unspecified Unix.
-            String xdg = System.getenv("XDG_DATA_HOME");
-            if (xdg != null && !xdg.isBlank()) {
-                base = Paths.get(xdg, APP_DIR_NAME.toLowerCase());
-            } else {
+            String os = System.getProperty("os.name", "").toLowerCase();
+            if (os.contains("mac") || os.contains("darwin")) {
                 base = Paths.get(System.getProperty("user.home"),
-                                 "." + APP_DIR_NAME.toLowerCase());
+                                 "Library", "Application Support", APP_DIR_NAME);
+            } else if (os.contains("win")) {
+                String appdata = System.getenv("APPDATA");
+                if (appdata != null && !appdata.isBlank()) {
+                    base = Paths.get(appdata, APP_DIR_NAME);
+                } else {
+                    base = Paths.get(System.getProperty("user.home"), APP_DIR_NAME);
+                }
+            } else {
+                // Linux / unspecified Unix.
+                String xdg = System.getenv("XDG_DATA_HOME");
+                if (xdg != null && !xdg.isBlank()) {
+                    base = Paths.get(xdg, APP_DIR_NAME.toLowerCase());
+                } else {
+                    base = Paths.get(System.getProperty("user.home"),
+                                     "." + APP_DIR_NAME.toLowerCase());
+                }
             }
         }
         try {
             Files.createDirectories(base);
         } catch (IOException e) {
+            if (explicitlyConfigured) {
+                throw new IllegalStateException(
+                    "The configured application data root cannot be created: " + base,
+                    e
+                );
+            }
             // Falling back to a relative dir keeps the game playable even if
             // the canonical location is unwritable; the path is still fixed.
             base = Paths.get(APP_DIR_NAME.toLowerCase());

@@ -3,17 +3,35 @@ package com.jjktbf.graphics;
 import com.badlogic.gdx.Game;
 import com.jjktbf.AppPaths;
 import com.jjktbf.controller.BattleController;
+import com.jjktbf.graphics.multiplayer.ChallengeService;
+import com.jjktbf.graphics.multiplayer.ClientNetworkConfig;
+import com.jjktbf.graphics.multiplayer.GuestAccountService;
+import com.jjktbf.graphics.multiplayer.GuestCredentialsStore;
+import com.jjktbf.graphics.multiplayer.HttpApiClient;
+import com.jjktbf.graphics.multiplayer.MatchWebSocketClient;
+import com.jjktbf.graphics.multiplayer.MultiplayerMatchService;
+import com.jjktbf.graphics.multiplayer.MultiplayerSession;
 import com.jjktbf.graphics.screens.BattleScreen;
 import com.jjktbf.graphics.screens.CharacterSelectScreen;
+import com.jjktbf.graphics.screens.ChallengeBrowserScreen;
+import com.jjktbf.graphics.screens.HostChallengeScreen;
 import com.jjktbf.graphics.screens.MainMenuScreen;
+import com.jjktbf.graphics.screens.MultiplayerBattleScreen;
+import com.jjktbf.graphics.screens.MultiplayerDisconnectedScreen;
+import com.jjktbf.graphics.screens.MultiplayerMenuScreen;
 import com.jjktbf.graphics.screens.editors.AbilityEditorScreen;
 import com.jjktbf.graphics.screens.editors.CharacterEditorScreen;
 import com.jjktbf.graphics.screens.editors.MoveEditorScreen;
 import com.jjktbf.graphics.screens.editors.TechniqueEditorScreen;
 import com.jjktbf.model.character.Character;
+import com.jjktbf.model.character.CharacterRepository;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.AbilityRepository;
 import com.jjktbf.model.move.MoveRepository;
+import com.jjktbf.multiplayer.protocol.MatchSetup;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
  * Root LibGDX ApplicationListener.
@@ -28,7 +46,41 @@ import com.jjktbf.model.move.MoveRepository;
  */
 public class JJKGame extends Game {
 
+    public static final String DEFAULT_MULTIPLAYER_CHARACTER_ID = "000000";
+
+    public record MultiplayerFighter(String id, String name) {
+        public MultiplayerFighter {
+            if (id == null || id.isBlank()) {
+                throw new IllegalArgumentException("fighter id must not be blank");
+            }
+            if (name == null || name.isBlank()) {
+                name = "Unnamed fighter";
+            }
+        }
+
+        @Override
+        public String toString() {
+            return name + "  [" + id + "]";
+        }
+    }
+
     private AssetLoader assets;
+
+    // One application-lifetime multiplayer service graph.
+    private ClientNetworkConfig clientNetworkConfig;
+    private MultiplayerSession multiplayerSession;
+    private HttpApiClient httpApiClient;
+    private GuestCredentialsStore guestCredentialsStore;
+    private GuestAccountService guestAccountService;
+    private ChallengeService challengeService;
+    private MatchWebSocketClient matchWebSocketClient;
+    private MultiplayerMatchService multiplayerMatchService;
+
+    private CharacterRepository multiplayerCharacterRepository;
+    private List<MultiplayerFighter> multiplayerRoster = List.of();
+    private String multiplayerRosterError;
+    private String multiplayerConfigurationError;
+    private String selectedMultiplayerCharacterId = DEFAULT_MULTIPLAYER_CHARACTER_ID;
 
     // ── Screen instances ───────────────────────────────────────────────────────
     // The menu is rebuilt on return so inactive-stage pointer state cannot leak
@@ -40,6 +92,11 @@ public class JJKGame extends Game {
     private CharacterEditorScreen  characterEditorScreen;
     private AbilityEditorScreen    abilityEditorScreen;
     private TechniqueEditorScreen  techniqueEditorScreen;
+    private MultiplayerMenuScreen multiplayerMenuScreen;
+    private HostChallengeScreen hostChallengeScreen;
+    private ChallengeBrowserScreen challengeBrowserScreen;
+    private MultiplayerBattleScreen multiplayerBattleScreen;
+    private MultiplayerDisconnectedScreen multiplayerDisconnectedScreen;
 
     // -------------------------------------------------------------------------
     // LibGDX lifecycle
@@ -50,6 +107,29 @@ public class JJKGame extends Game {
         assets = new AssetLoader();
         assets.load();
 
+        try {
+            clientNetworkConfig = ClientNetworkConfig.load();
+        } catch (IllegalArgumentException exception) {
+            multiplayerConfigurationError =
+                "Multiplayer configuration is invalid: " + exception.getMessage();
+            clientNetworkConfig = new ClientNetworkConfig(
+                ClientNetworkConfig.DEFAULT_HTTP_URL,
+                ClientNetworkConfig.DEFAULT_WEBSOCKET_URL
+            );
+        }
+        multiplayerSession = new MultiplayerSession();
+        httpApiClient = new HttpApiClient(clientNetworkConfig);
+        guestCredentialsStore = new GuestCredentialsStore();
+        guestAccountService = new GuestAccountService(
+            httpApiClient, guestCredentialsStore, multiplayerSession);
+        challengeService = new ChallengeService(httpApiClient, multiplayerSession);
+        matchWebSocketClient = new MatchWebSocketClient(clientNetworkConfig);
+        multiplayerMatchService = new MultiplayerMatchService(
+            multiplayerSession, matchWebSocketClient);
+
+        multiplayerCharacterRepository = new CharacterRepository("data/characters");
+        reloadMultiplayerRoster();
+
         mainMenuScreen        = new MainMenuScreen(this, assets);
         characterSelectScreen = new CharacterSelectScreen(this, assets);
         battleScreen          = new BattleScreen(this, assets);
@@ -57,22 +137,53 @@ public class JJKGame extends Game {
         characterEditorScreen = new CharacterEditorScreen(this, assets);
         abilityEditorScreen   = new AbilityEditorScreen(this, assets);
         techniqueEditorScreen = new TechniqueEditorScreen(this, assets);
+        multiplayerMenuScreen = new MultiplayerMenuScreen(
+            this, assets, guestAccountService);
+        hostChallengeScreen = new HostChallengeScreen(
+            this, assets, guestAccountService, challengeService);
+        challengeBrowserScreen = new ChallengeBrowserScreen(
+            this, assets, guestAccountService, challengeService);
+        multiplayerBattleScreen = new MultiplayerBattleScreen(
+            this, assets, multiplayerSession, multiplayerMatchService);
+        multiplayerDisconnectedScreen = new MultiplayerDisconnectedScreen(
+            this,
+            assets,
+            guestAccountService,
+            challengeService,
+            multiplayerMatchService
+        );
 
         setScreen(mainMenuScreen);
     }
 
     @Override
     public void dispose() {
+        // Match service owns the socket lifecycle, so closing it is the only
+        // MatchWebSocketClient close. HTTP and guest file workers are separate.
+        if (multiplayerMatchService != null) {
+            multiplayerMatchService.close();
+        } else if (matchWebSocketClient != null) {
+            matchWebSocketClient.close();
+        }
+        if (guestAccountService != null) guestAccountService.close();
+        if (httpApiClient != null) httpApiClient.close();
+
         super.dispose();
-        assets.dispose();
-        // Individual screens dispose their own rendering resources.
-        mainMenuScreen.dispose();
-        characterSelectScreen.dispose();
-        battleScreen.dispose();
-        moveEditorScreen.dispose();
-        characterEditorScreen.dispose();
-        abilityEditorScreen.dispose();
-        techniqueEditorScreen.dispose();
+        // Screens release their stages/schedulers before the shared skin and
+        // textures disappear. Every screen instance is disposed exactly once.
+        if (mainMenuScreen != null) mainMenuScreen.dispose();
+        if (characterSelectScreen != null) characterSelectScreen.dispose();
+        if (battleScreen != null) battleScreen.dispose();
+        if (moveEditorScreen != null) moveEditorScreen.dispose();
+        if (characterEditorScreen != null) characterEditorScreen.dispose();
+        if (abilityEditorScreen != null) abilityEditorScreen.dispose();
+        if (techniqueEditorScreen != null) techniqueEditorScreen.dispose();
+        if (multiplayerMenuScreen != null) multiplayerMenuScreen.dispose();
+        if (hostChallengeScreen != null) hostChallengeScreen.dispose();
+        if (challengeBrowserScreen != null) challengeBrowserScreen.dispose();
+        if (multiplayerBattleScreen != null) multiplayerBattleScreen.dispose();
+        if (multiplayerDisconnectedScreen != null) multiplayerDisconnectedScreen.dispose();
+        if (assets != null) assets.dispose();
     }
 
     // -------------------------------------------------------------------------
@@ -89,6 +200,30 @@ public class JJKGame extends Game {
         setScreen(characterSelectScreen);
     }
 
+    public void showMultiplayerMenu() {
+        setScreen(multiplayerMenuScreen);
+    }
+
+    public void showHostChallenge() {
+        setScreen(hostChallengeScreen);
+    }
+
+    public void showChallengeBrowser() {
+        setScreen(challengeBrowserScreen);
+    }
+
+    public void showMultiplayerBattle(MatchSetup setup) {
+        setScreen(multiplayerBattleScreen);
+        multiplayerBattleScreen.begin(setup);
+    }
+
+    public void showMultiplayerDisconnected(String error) {
+        MultiplayerSession.Snapshot snapshot = multiplayerSession.snapshot();
+        setScreen(multiplayerDisconnectedScreen);
+        multiplayerDisconnectedScreen.begin(
+            snapshot.matchSetup(), snapshot.latestState(), error);
+    }
+
     public void showMoveEditor() {
         setScreen(moveEditorScreen);
     }
@@ -103,6 +238,63 @@ public class JJKGame extends Game {
 
     public void showTechniqueEditor() {
         setScreen(techniqueEditorScreen);
+    }
+
+    public void reloadMultiplayerRoster() {
+        try {
+            multiplayerCharacterRepository.load();
+            multiplayerRoster = multiplayerCharacterRepository.getAll().stream()
+                .filter(character -> character.id != null && !character.id.isBlank())
+                .map(character -> new MultiplayerFighter(character.id, character.name))
+                .toList();
+            multiplayerRosterError = multiplayerRoster.isEmpty()
+                ? "The local fighter roster is empty." : null;
+            boolean selectedStillExists = multiplayerRoster.stream()
+                .anyMatch(fighter -> fighter.id().equals(selectedMultiplayerCharacterId));
+            if (!selectedStillExists) {
+                selectedMultiplayerCharacterId = DEFAULT_MULTIPLAYER_CHARACTER_ID;
+            }
+        } catch (IOException | RuntimeException failure) {
+            multiplayerRosterError = "The local fighter roster could not be loaded.";
+            System.err.println("Multiplayer roster load failed: "
+                + failure.getClass().getSimpleName());
+            if (multiplayerRoster.isEmpty()) {
+                selectedMultiplayerCharacterId = DEFAULT_MULTIPLAYER_CHARACTER_ID;
+            }
+        }
+    }
+
+    public List<MultiplayerFighter> getMultiplayerRoster() {
+        return multiplayerRoster;
+    }
+
+    public String getMultiplayerRosterError() {
+        return multiplayerRosterError;
+    }
+
+    public String getMultiplayerConfigurationError() {
+        return multiplayerConfigurationError;
+    }
+
+    public String getSelectedMultiplayerCharacterId() {
+        return selectedMultiplayerCharacterId;
+    }
+
+    public void setSelectedMultiplayerCharacterId(String characterId) {
+        if (characterId == null || characterId.isBlank()) {
+            selectedMultiplayerCharacterId = DEFAULT_MULTIPLAYER_CHARACTER_ID;
+        } else {
+            selectedMultiplayerCharacterId = characterId;
+        }
+    }
+
+    public String multiplayerFighterName(String characterId) {
+        return multiplayerRoster.stream()
+            .filter(fighter -> fighter.id().equals(characterId))
+            .map(MultiplayerFighter::name)
+            .findFirst()
+            .orElse(DEFAULT_MULTIPLAYER_CHARACTER_ID.equals(characterId)
+                ? "Canonical fighter" : "Local fighter");
     }
 
     /**

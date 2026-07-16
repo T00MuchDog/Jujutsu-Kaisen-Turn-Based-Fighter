@@ -40,10 +40,14 @@ build/
 graphics/dependency-reduced-pom.xml
 
 ### flatten-maven-plugin side-product ###
-.flattened-pom.xml
+.flattened-pom*.xml
 
 ### Per-user runtime data (written at launch) ###
 battle_crash.log
+/server-data/
+/.local/
+.env*
+!.env.example
 
 ### Local-only planning / private notes (never commit) ###
 .zcode/
