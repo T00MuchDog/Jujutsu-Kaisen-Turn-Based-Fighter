@@ -133,6 +133,7 @@ public class BattleController {
         if (!opening.isEmpty()) view.displayCombatEvents(opening, state);
 
         while (resolver.hasMoreTicks()) {
+            view.displayResolutionTick(state.getCurrentTick(), state);
             List<CombatEvent> tickEvents = resolver.resolveTick(state);
             if (!tickEvents.isEmpty()) view.displayCombatEvents(tickEvents, state);
             if (state.isBattleOver()) break;

@@ -60,6 +60,14 @@ public class BattleCombatant {
 
     private final List<StatusEffect> activeEffects;
 
+    /**
+     * Status effects that expired during the most recent {@link #tickStatusEffects()}.
+     * Read (and cleared) by {@link #drainExpiredStatusEffects()} so the combat
+     * engine can log each expiry once. Kept separate from {@link #activeEffects}
+     * so the no-arg tick signature is unchanged.
+     */
+    private final List<StatusEffect> expiredThisTick = new ArrayList<>();
+
     // --- Black Flash State ---
     private boolean inBlackFlashState;
     /**
@@ -298,22 +306,48 @@ public class BattleCombatant {
         return activeEffects;
     }
 
-    /** Tick down duration of all effects, removing those that have expired. */
+    /**
+     * Tick down duration of all effects, removing those that have expired.
+     *
+     * <p>Effects that expire this tick (those reaching duration 0) are captured
+     * for the combat engine to log via {@link #drainExpiredStatusEffects()}.
+     * The capture is internal so this method's no-arg signature stays stable.
+     */
     public void tickStatusEffects() {
         Iterator<StatusEffect> it = activeEffects.iterator();
         // We replace expired effects with new ones reduced by 1 round
         List<StatusEffect> remaining = new ArrayList<>();
+        List<StatusEffect> expired = new ArrayList<>();
         while (it.hasNext()) {
             StatusEffect e = it.next();
             if (e.getDurationRounds() == -1) {
                 remaining.add(e); // permanent until cleared
             } else if (e.getDurationRounds() > 1) {
                 remaining.add(new StatusEffect(e.getType(), e.getDurationRounds() - 1, e.getMagnitude()));
+            } else {
+                // duration 1 → expires, not added to remaining
+                expired.add(e);
             }
-            // duration 1 → expires, not added
         }
         activeEffects.clear();
         activeEffects.addAll(remaining);
+        expiredThisTick.clear();
+        expiredThisTick.addAll(expired);
+    }
+
+    /**
+     * Return (and clear) the status effects that expired during the most recent
+     * {@link #tickStatusEffects()}, so the combat engine can emit one expiry log
+     * line per effect. Each expiry is reported exactly once.
+     *
+     * @return the effects that expired this tick; empty if none did or if this
+     *         was called between ticks
+     */
+    public List<StatusEffect> drainExpiredStatusEffects() {
+        if (expiredThisTick.isEmpty()) return List.of();
+        List<StatusEffect> drained = new ArrayList<>(expiredThisTick);
+        expiredThisTick.clear();
+        return drained;
     }
 
     public void removeEffect(StatusEffectType type) {

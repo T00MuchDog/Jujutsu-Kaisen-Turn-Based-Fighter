@@ -307,6 +307,9 @@ public class JJKGame extends Game {
      */
     public void startBattle(CharacterData playerData, CharacterData cpuData,
                             MoveRepository moveRepo, AbilityRepository abilityRepo) {
+        battleScreen.setCombatantSprites(
+            assets.characterBattleSprite(playerData.spriteAsset, false, assets.playerSprite),
+            assets.characterBattleSprite(cpuData.spriteAsset, true, assets.enemySprite));
         setScreen(battleScreen);
 
         Thread battleThread = new Thread(() -> {

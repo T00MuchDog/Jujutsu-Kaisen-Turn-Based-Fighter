@@ -65,6 +65,12 @@ public interface BattleView {
     void displayCombatEvents(List<CombatEvent> events, BattleState state);
 
     /**
+     * Display the AP tick currently being resolved. Called for every tick,
+     * including ticks that produce no combat events.
+     */
+    default void displayResolutionTick(int tick, BattleState state) {}
+
+    /**
      * Display the end-of-round summary (status effects, remaining resources).
      */
     void displayRoundEnd(BattleState state);

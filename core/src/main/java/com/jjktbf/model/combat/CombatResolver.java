@@ -106,6 +106,14 @@ public class CombatResolver {
         int tick;
         int maxTick;
         boolean roundCostsProcessed;
+        /**
+         * Block segments currently inside their defensive AP window, keyed by
+         * identity and mapped to their owning combatant. Carried tick to tick so
+         * the resolver can detect the active→inactive transition (a defensive
+         * move "running out") and log it exactly once per block — whether it ends
+         * naturally or is broken/stunned mid-window.
+         */
+        final Map<ActionSegment, BattleCombatant> activeBlocks = new IdentityHashMap<>();
     }
 
     private final ThreadLocal<ResolutionCursor> cursor = ThreadLocal.withInitial(ResolutionCursor::new);
@@ -131,6 +139,7 @@ public class CombatResolver {
         c.tick = 0;
         c.maxTick = maxTick;
         c.roundCostsProcessed = true;
+        c.activeBlocks.clear();
 
         // Direct resolver callers may not have run the controller's pre-planning
         // hook. The combatant guard keeps this fallback from charging twice.
@@ -184,6 +193,10 @@ public class CombatResolver {
             }
             resolveMove(entry, player, enemy, state, tick, events);
         }
+
+        // --- Detect defensive blocks whose AP window just ended (active → inactive) ---
+        detectExpiredBlocks(player, tick, events);
+        detectExpiredBlocks(enemy,  tick, events);
 
         return events;
     }
@@ -524,6 +537,108 @@ public class CombatResolver {
         // all move types, so are not re-applied here.
     }
 
+    /**
+     * Detect defensive blocks on this combatant's timeline whose AP window has
+     * just ended, and log one "drops their guard" expiry per block.
+     *
+     * <p>A block is tracked the moment it enters its window and logged once when
+     * it leaves — whether naturally (the counter passed the window's end tick)
+     * or because the segment was stunned/broken out from under it. The end-tick
+     * math mirrors {@link Timeline#activeBlockAt} so the two never disagree about
+     * when a block is protective.
+     *
+     * <p>Stunned blocks are considered ended: once interrupted, a defensive move
+     * is no longer protecting its user, so an expiry line correctly reflects that
+     * their guard is down for the rest of the round.
+     */
+    private void detectExpiredBlocks(BattleCombatant combatant, int tick, List<CombatEvent> events) {
+        Timeline tl = combatant.getTimeline();
+        if (tl == null) {
+            // No timeline means nothing to track; clear any stale carry so a
+            // prior round's blocks can't resurface as spurious expiries.
+            cursor.get().activeBlocks.entrySet().removeIf(e -> e.getValue() == combatant);
+            return;
+        }
+
+        int gridLength = tl.getGridLength();
+
+        // First pass: note every block that is STILL active this tick. This both
+        // refreshes the carry and tells us which previously-tracked blocks fell out.
+        IdentityHashMap<ActionSegment, Boolean> stillActive = new IdentityHashMap<>();
+        for (ActionSegment segment : tl.getSegments()) {
+            if (!segment.getMove().isActiveBlock()) continue;
+            int start = segment.getFireTick();
+            int end = blockWindowEnd(segment.getMove(), start, gridLength);
+            boolean activeNow = !segment.isStunned() && tick >= start && tick <= end;
+            if (activeNow) stillActive.put(segment, Boolean.TRUE);
+        }
+
+        ResolutionCursor c = cursor.get();
+        // Expire: previously tracked, no longer active this tick.
+        Iterator<Map.Entry<ActionSegment, BattleCombatant>> tracked = c.activeBlocks.entrySet().iterator();
+        while (tracked.hasNext()) {
+            Map.Entry<ActionSegment, BattleCombatant> entry = tracked.next();
+            if (entry.getValue() != combatant) continue;
+            if (stillActive.containsKey(entry.getKey())) continue; // still up — leave it tracked
+
+            Move move = entry.getKey().getMove();
+            String msg = move.blockExpiryMessage(combatant.getCharacter().getName());
+            tracked.remove();
+            if (msg != null) {
+                events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
+                    .source(combatant).move(move)
+                    .tick(tick)
+                    .message(msg)
+                    .build());
+            }
+        }
+
+        // Register: newly active blocks that weren't tracked before.
+        for (ActionSegment segment : stillActive.keySet()) {
+            if (!c.activeBlocks.containsKey(segment)) {
+                c.activeBlocks.put(segment, combatant);
+            }
+        }
+    }
+
+    /**
+     * End tick of a block's defensive window, mirroring the computation in
+     * {@link Timeline#activeBlockAt}: {@code -1} lasts the whole grid, {@code 0}
+     * uses the move's AP width, otherwise the explicit duration from the fire tick.
+     */
+    private static int blockWindowEnd(Move move, int fireTick, int gridLength) {
+        return switch (move.getBlockDuration()) {
+            case -1 -> gridLength;
+            case 0  -> fireTick + move.getApCost() - 1;
+            default -> fireTick + move.getBlockDuration() - 1;
+        };
+    }
+
+    /**
+     * Log and clear any blocks for this combatant still tracked as active at the
+     * end of the round. Called from {@link #processRoundEnd} after the tick sweep
+     * so a round-long block (blockDuration -1) or one whose window out-ran the
+     * sweep still gets its "drops their guard" line exactly once.
+     */
+    private void flushRemainingBlocks(BattleCombatant combatant, List<CombatEvent> events) {
+        ResolutionCursor c = cursor.get();
+        if (c.activeBlocks.isEmpty()) return;
+        Iterator<Map.Entry<ActionSegment, BattleCombatant>> tracked = c.activeBlocks.entrySet().iterator();
+        while (tracked.hasNext()) {
+            Map.Entry<ActionSegment, BattleCombatant> entry = tracked.next();
+            if (entry.getValue() != combatant) continue;
+            Move move = entry.getKey().getMove();
+            String msg = move.blockExpiryMessage(combatant.getCharacter().getName());
+            tracked.remove();
+            if (msg != null) {
+                events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
+                    .source(combatant).move(move)
+                    .message(msg)
+                    .build());
+            }
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Status effect application
     // -------------------------------------------------------------------------
@@ -619,6 +734,21 @@ public class CombatResolver {
 
         for (BattleCombatant combatant : new BattleCombatant[]{ state.getPlayerCombatant(), state.getEnemyCombatant() }) {
             combatant.tickStatusEffects();
+            // Log every stat-boost / status effect that expired during this
+            // round-end tick. Each gets its own flavour line so a fading power
+            // surge reads differently from a guard dropping (which is handled at
+            // the tick the block's AP window ends, not here).
+            for (StatusEffect expired : combatant.drainExpiredStatusEffects()) {
+                events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
+                    .source(combatant)
+                    .message(StatusEffectMessages.expiryMessage(
+                        combatant.getCharacter().getName(), expired.getType()))
+                    .build());
+            }
+            // Expire any defensive blocks still tracked as active at round-end.
+            // These are blocks whose AP window never closed during the tick sweep
+            // (e.g. blockDuration -1 = whole round) — their guard drops now too.
+            flushRemainingBlocks(combatant, events);
             combatant.clearBlock();
 
             boolean wasBfs = combatant.isInBlackFlashState();

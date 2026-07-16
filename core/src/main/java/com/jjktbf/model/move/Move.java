@@ -340,6 +340,22 @@ public class Move {
     }
 
     /**
+     * Returns a human-readable expiry message for this block move, fired at the
+     * tick where its AP window ends. The wording is intentionally neutral ("drops
+     * their guard") so it reads naturally across every defensive flavour — blocks,
+     * deflections, guards — and any future dodge/parry names — without per-move
+     * special-casing.
+     *
+     * Returns null if this move is not a block.
+     */
+    public String blockExpiryMessage(String characterName) {
+        return switch (defenseType) {
+            case PERCENTAGE_BLOCK, FLAT_BLOCK -> characterName + " drops their guard!";
+            default                           -> null;
+        };
+    }
+
+    /**
      * Returns true if this move acts as an active block (PERCENTAGE_BLOCK or FLAT_BLOCK).
      * Used by Timeline to identify blocks without knowing concrete DefenseType values.
      */

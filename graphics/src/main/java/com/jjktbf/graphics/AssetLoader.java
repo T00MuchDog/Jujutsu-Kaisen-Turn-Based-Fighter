@@ -165,6 +165,27 @@ public class AssetLoader {
         return characterSprites.computeIfAbsent(spriteAsset, ignored -> new Texture(file));
     }
 
+    /**
+     * Load the forward sprite for the opponent, or a matching {@code _back}
+     * variant for the player when one is bundled beside the character sprite.
+     */
+    public Texture characterBattleSprite(String spriteAsset, boolean opponent, Texture fallback) {
+        Texture forward = characterSprite(spriteAsset, fallback);
+        if (opponent || spriteAsset == null || spriteAsset.isBlank()) return forward;
+
+        int extension = spriteAsset.lastIndexOf('.');
+        if (extension <= spriteAsset.lastIndexOf('/')) return forward;
+        String stem = spriteAsset.substring(0, extension);
+        String suffix = spriteAsset.substring(extension);
+        // Paired sprite sheets use the _frontsprite/_backsprite naming, e.g.
+        // "yuji_frontsprite.png" pairs with "yuji_backsprite.png". Anything
+        // else falls back to the legacy "_back" convention.
+        String backAsset = stem.endsWith("_frontsprite")
+            ? stem.substring(0, stem.length() - "_frontsprite".length()) + "_backsprite" + suffix
+            : stem + "_back" + suffix;
+        return characterSprite(backAsset, forward);
+    }
+
     private void loadUi() {
         cardNormal    = new Texture(Gdx.files.internal("assets/ui/card_normal.png"));
         cardSelected  = new Texture(Gdx.files.internal("assets/ui/card_selected.png"));

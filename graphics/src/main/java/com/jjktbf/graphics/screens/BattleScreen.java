@@ -5,6 +5,7 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
@@ -21,6 +22,7 @@ import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.view.BattleView;
 
 import java.util.ArrayList;
@@ -57,9 +59,19 @@ public class BattleScreen implements Screen, BattleView {
      */
     private static final float LOG_LINE_SPACING = 1.7f;
     private static final float CARD_MARGIN = 8f;
-    private static final int   EVENT_DELAY_MS = 520;
-    /** Pause applied when the AP tick advances during resolution — slows the sweep. */
-    private static final int   TICK_DELAY_MS = 2000;
+    /**
+     * Per-tick hold during resolution, in milliseconds. Empty and non-firing
+     * ticks use the short baseline so the sweep stays brisk; a tick that fires
+     * at least one move is held for the longer firing duration so its action has
+     * time to read. Which value applies is chosen per-tick from whether that
+     * tick produced a MOVE_FIRED event (see {@link #lastTickFired}).
+     */
+    private static final int   TICK_DURATION_MS        = 400;
+    private static final int   FIRING_TICK_DURATION_MS = 1000;
+    /** Brief beat between consecutive log messages within a single tick. */
+    private static final int   EVENT_DELAY_MS          = TICK_DURATION_MS / 2;
+    /** Move-unleash animation length — sized to fill a firing tick's hold. */
+    private static final float MOVE_EFFECT_DURATION_SECONDS = FIRING_TICK_DURATION_MS / 1000f;
 
     private final JJKGame     game;
     private final AssetLoader assets;
@@ -68,12 +80,18 @@ public class BattleScreen implements Screen, BattleView {
     // ── Panels ────────────────────────────────────────────────────────────────
     private CombatantPanel playerPanel;
     private CombatantPanel enemyPanel;
+    private Texture playerSprite;
+    private Texture enemySprite;
     private final Rectangle executionHeaderBounds = new Rectangle();
     private final Rectangle logBounds = new Rectangle();
     private final Rectangle nextRoundBounds = new Rectangle();
 
     // ── Event log ─────────────────────────────────────────────────────────────
     private final List<String> logLines = new ArrayList<>();
+
+    // ── Move unleash animation (render-thread state) ──────────────────────────
+    private Texture unleashedMoveIcon;
+    private float unleashedMoveElapsed;
 
     // ── Move selection state ──────────────────────────────────────────────────
     private List<MoveCard>  moveCards       = new ArrayList<>();
@@ -86,6 +104,17 @@ public class BattleScreen implements Screen, BattleView {
     private volatile boolean nextRoundConfirmed = false;
     /** True while resolution tick calls are streaming; used to pace between ticks. */
     private volatile boolean resolvingTicks = false;
+    /**
+     * Whether the tick most recently shown fired a move. Set in
+     * {@link #displayCombatEvents} when a MOVE_FIRED event appears, then read and
+     * reset by the next {@link #displayResolutionTick} (or by
+     * {@link #displayRoundEnd} for the final tick) to choose that tick's hold —
+     * the long firing hold when true, the short baseline otherwise. Resetting it
+     * after each hold matters for non-firing ticks, which produce no events and
+     * so would otherwise inherit a stale true. Touched only on the battle
+     * thread, so it needs no synchronization.
+     */
+    private boolean lastTickFired = false;
     private boolean nextRoundHovered = false;
 
     /**
@@ -105,6 +134,7 @@ public class BattleScreen implements Screen, BattleView {
     private volatile String          phaseLabel = "";
     private volatile boolean         battleOver  = false;
     private volatile String          battleResult = "";
+    private volatile int             currentExecutionTick = 0;
     /**
      * Latched true the first time the planning panel is created, and stays true
      * afterwards. Until then we draw nothing — the battle thread hasn't reached
@@ -117,6 +147,14 @@ public class BattleScreen implements Screen, BattleView {
         this.game   = game;
         this.assets = assets;
         this.batch  = new SpriteBatch();
+        this.playerSprite = assets.playerSprite;
+        this.enemySprite = assets.enemySprite;
+    }
+
+    /** Set the selected characters' side-appropriate battle sprites. */
+    public void setCombatantSprites(Texture playerSprite, Texture enemySprite) {
+        this.playerSprite = playerSprite != null ? playerSprite : assets.playerSprite;
+        this.enemySprite = enemySprite != null ? enemySprite : assets.enemySprite;
     }
 
     // -------------------------------------------------------------------------
@@ -136,6 +174,9 @@ public class BattleScreen implements Screen, BattleView {
         battleOver     = false;
         abortRequested = false;
         executionUiActive = false;
+        currentExecutionTick = 0;
+        unleashedMoveIcon = null;
+        unleashedMoveElapsed = 0f;
     }
 
     /** Last frame's delta, shared with widgets that animate (e.g. HP bars). */
@@ -144,6 +185,7 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void render(float delta) {
         frameDelta = delta;
+        updateMoveUnleashAnimation(delta);
         clearScreen();
         // Escape aborts from any phase, including planning (where the
         // PlanningInputProcessor owns Gdx.input, so handleInput() never runs).
@@ -312,6 +354,7 @@ public class BattleScreen implements Screen, BattleView {
         drawLog(sw, sh);
         if (awaitingInput && planningPanel == null && !moveCards.isEmpty()) drawMoveCards();
         drawNextRoundButton();
+        drawMoveUnleashAnimation(sw, sh);
         batch.end();
 
     }
@@ -327,6 +370,23 @@ public class BattleScreen implements Screen, BattleView {
         assets.fontSmall.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
         assets.fontSmall.draw(batch, "BATTLE EXECUTION", executionHeaderBounds.x + 20f,
             executionHeaderBounds.y + 14f);
+
+        if (resolvingTicks) drawExecutionTick(sw, sh);
+    }
+
+    private void drawExecutionTick(float sw, float sh) {
+        BitmapFont timerFont = assets.fontLarge;
+        float originalScaleX = timerFont.getData().scaleX;
+        float originalScaleY = timerFont.getData().scaleY;
+        float screenScale = Math.max(0.95f, Math.min(1.5f,
+            Math.min(sw / 1024f, sh / 600f)));
+        timerFont.getData().setScale(originalScaleX * screenScale, originalScaleY * screenScale);
+
+        String text = "TICK " + currentExecutionTick;
+        GlyphLayout layout = new GlyphLayout(timerFont, text);
+        timerFont.setColor(Color.BLACK);
+        timerFont.draw(batch, text, (sw - layout.width) / 2f, executionHeaderBounds.y - 10f * screenScale);
+        timerFont.getData().setScale(originalScaleX, originalScaleY);
     }
 
     /**
@@ -393,6 +453,45 @@ public class BattleScreen implements Screen, BattleView {
         assets.fontMedium.setColor(Color.WHITE);
         assets.fontMedium.draw(batch, "NEXT ROUND", nextRoundBounds.x + 16f,
             nextRoundBounds.y + nextRoundBounds.height - 15f);
+    }
+
+    private void updateMoveUnleashAnimation(float delta) {
+        if (unleashedMoveIcon == null) return;
+        unleashedMoveElapsed += Math.max(0f, delta);
+        if (unleashedMoveElapsed >= MOVE_EFFECT_DURATION_SECONDS) {
+            unleashedMoveIcon = null;
+        }
+    }
+
+    private void drawMoveUnleashAnimation(float screenWidth, float screenHeight) {
+        if (unleashedMoveIcon == null) return;
+
+        float progress = Math.min(1f, unleashedMoveElapsed / MOVE_EFFECT_DURATION_SECONDS);
+        float easedGrowth = 1f - (1f - progress) * (1f - progress);
+        float viewportSize = Math.min(screenWidth, screenHeight);
+        float startSize = Math.max(40f, Math.min(64f, viewportSize * 0.09f));
+        float endSize = Math.max(startSize, Math.min(240f, viewportSize * 0.34f));
+        float size = startSize + (endSize - startSize) * easedGrowth;
+
+        batch.setColor(1f, 1f, 1f, 1f - progress);
+        batch.draw(unleashedMoveIcon,
+            (screenWidth - size) / 2f,
+            (screenHeight - size) / 2f,
+            size,
+            size);
+        batch.setColor(Color.WHITE);
+    }
+
+    private void playMoveUnleashAnimation(Move move) {
+        if (move == null) return;
+        if (move.isDefensive()) {
+            unleashedMoveIcon = assets.battleUi.defenseEffectIcon;
+        } else if (move.getCategory() == MoveCategory.UTILITY) {
+            unleashedMoveIcon = assets.battleUi.utilityEffectIcon;
+        } else {
+            unleashedMoveIcon = assets.battleUi.attackEffectIcon;
+        }
+        unleashedMoveElapsed = 0f;
     }
 
     private void drawBattleOver() {
@@ -568,16 +667,13 @@ public class BattleScreen implements Screen, BattleView {
         if (abortRequested) return;
         Gdx.app.postRunnable(() -> phaseLabel = "ROUND " + state.getRoundNumber() + "  —  RESOLVING");
 
-        // Each call now corresponds to one tick of real engine progression (the
-        // controller drives the resolver tick-by-tick). Pause between successive
-        // resolution calls so the sweep reads at a deliberate cadence; skip the
-        // pause on the first call of a sequence. Paced via abortableSleepMs so
-        // an Escape abort cuts the pause short rather than running it out.
-        if (resolvingTicks) abortableSleepMs(TICK_DELAY_MS);
-        resolvingTicks = true;
-
         for (CombatEvent e : events) {
             if (abortRequested) return;
+            if (e.getType() == CombatEvent.Type.MOVE_FIRED) {
+                lastTickFired = true;
+                Move unleashedMove = e.getMove();
+                Gdx.app.postRunnable(() -> playMoveUnleashAnimation(unleashedMove));
+            }
             if (!e.getMessage().isBlank()) {
                 final String msg = e.getMessage();
                 Gdx.app.postRunnable(() -> {
@@ -590,8 +686,31 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     @Override
+    public void displayResolutionTick(int tick, BattleState state) {
+        if (abortRequested) return;
+        // Hold the previous tick before advancing: the long firing hold when it
+        // fired a move (so the action reads), the short baseline otherwise.
+        // lastTickFired reflects the previous tick — set by its
+        // displayCombatEvents — and is reset below for the tick now starting,
+        // which matters for non-firing ticks that produce no events and so never
+        // touch the flag themselves.
+        if (resolvingTicks) {
+            abortableSleepMs(lastTickFired ? FIRING_TICK_DURATION_MS : TICK_DURATION_MS);
+        }
+        lastTickFired = false;
+        currentExecutionTick = tick;
+        resolvingTicks = true;
+        Gdx.app.postRunnable(() -> phaseLabel = "ROUND " + state.getRoundNumber() + "  —  RESOLVING");
+    }
+
+    @Override
     public void displayRoundEnd(BattleState state) {
         resolvingTicks = false;
+        // The final tick's tail hold runs here: no further displayResolutionTick
+        // call follows to apply it. Without this the last hit of a round would
+        // jump straight to the "round complete" banner and skip its slow-mo.
+        abortableSleepMs(lastTickFired ? FIRING_TICK_DURATION_MS : TICK_DURATION_MS);
+        lastTickFired = false;
         Gdx.app.postRunnable(() -> {
             phaseLabel = "ROUND " + Math.max(1, state.getRoundNumber() - 1) + " COMPLETE";
             updatePanels();
@@ -676,7 +795,7 @@ public class BattleScreen implements Screen, BattleView {
         // the sprite rises. At s=1 these reduce to the original positions.
         float playerX = sideInset + 17f * (s - 1f);
         float playerY = margin + 66f + 58f * portraitScale + 84f * (s - 1f);
-        playerPanel = new CombatantPanel(assets.playerSprite, assets.battleUi,
+        playerPanel = new CombatantPanel(playerSprite, assets.battleUi,
             playerX, playerY, spriteWidth, spriteHeight, s);
 
         // Log box, sized and positioned below the header. Dimensions track the
@@ -700,7 +819,7 @@ public class BattleScreen implements Screen, BattleView {
         // name plate top sits `gap` pixels below the header, mirroring the player.
         float enemyX = width - sideInset + 10f - spriteWidth - 10f * s;
         float enemyY = executionHeaderBounds.y - gap - spriteHeight - namePlateRise;
-        enemyPanel = new CombatantPanel(assets.enemySprite, assets.battleUi,
+        enemyPanel = new CombatantPanel(enemySprite, assets.battleUi,
             enemyX, enemyY, spriteWidth, spriteHeight, s);
 
         // Align the Next Round button's right edge with the enemy sprite's right edge.

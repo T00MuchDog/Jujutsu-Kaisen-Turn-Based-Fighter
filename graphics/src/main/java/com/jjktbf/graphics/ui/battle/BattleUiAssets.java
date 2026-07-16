@@ -25,6 +25,7 @@ public final class BattleUiAssets {
     public static final Color CURSED_ENERGY = new Color(0.160f, 0.430f, 0.810f, 1f);
     public static final Color OFFENSE = new Color(0.920f, 0.350f, 0.180f, 1f);
     public static final Color DEFENSE = new Color(0.220f, 0.470f, 0.920f, 1f);
+    public static final Color UTILITY = new Color(0.180f, 0.690f, 0.330f, 1f);
 
     private final List<Texture> ownedTextures = new ArrayList<>();
 
@@ -47,6 +48,9 @@ public final class BattleUiAssets {
     public final Texture pixel;
     public final Texture offenseIcon;
     public final Texture defenseIcon;
+    public final Texture attackEffectIcon;
+    public final Texture defenseEffectIcon;
+    public final Texture utilityEffectIcon;
 
     public BattleUiAssets() {
         header = frame(new Color(0.110f, 0.145f, 0.235f, 1f),
@@ -85,6 +89,9 @@ public final class BattleUiAssets {
         pixel = solidPixel();
         offenseIcon = offenseIconTexture();
         defenseIcon = defenseIconTexture();
+        attackEffectIcon = attackEffectIconTexture();
+        defenseEffectIcon = defenseEffectIconTexture();
+        utilityEffectIcon = utilityEffectIconTexture();
     }
 
     public NinePatch track(TimelineBar.Kind kind, boolean targeted) {
@@ -177,6 +184,75 @@ public final class BattleUiAssets {
 
     private Pixmap clearIconPixmap() {
         Pixmap pm = new Pixmap(16, 16, Pixmap.Format.RGBA8888);
+        pm.setColor(0f, 0f, 0f, 0f);
+        pm.fill();
+        return pm;
+    }
+
+    private Texture attackEffectIconTexture() {
+        Pixmap pm = clearEffectPixmap();
+        Color outline = new Color(0.360f, 0.025f, 0.045f, 1f);
+        Color red = new Color(0.930f, 0.100f, 0.130f, 1f);
+
+        pm.setColor(outline);
+        pm.fillTriangle(16, 1, 10, 8, 22, 8);
+        pm.fillRectangle(10, 7, 12, 15);
+        pm.fillRectangle(5, 20, 22, 5);
+        pm.fillRectangle(12, 24, 8, 6);
+        pm.fillRectangle(10, 28, 12, 3);
+
+        pm.setColor(red);
+        pm.fillTriangle(16, 3, 13, 8, 19, 8);
+        pm.fillRectangle(13, 8, 6, 13);
+        pm.fillRectangle(7, 21, 18, 3);
+        pm.fillRectangle(14, 24, 4, 5);
+        pm.fillRectangle(12, 29, 8, 1);
+        return texture(pm);
+    }
+
+    private Texture defenseEffectIconTexture() {
+        Pixmap pm = clearEffectPixmap();
+        Color outline = new Color(0.035f, 0.120f, 0.360f, 1f);
+
+        pm.setColor(outline);
+        pm.fillRectangle(4, 4, 24, 13);
+        pm.fillTriangle(4, 16, 28, 16, 16, 31);
+        pm.setColor(DEFENSE);
+        pm.fillRectangle(7, 7, 18, 9);
+        pm.fillTriangle(7, 15, 25, 15, 16, 27);
+        pm.setColor(new Color(0.520f, 0.730f, 1f, 1f));
+        pm.fillRectangle(9, 8, 4, 8);
+        pm.fillTriangle(9, 15, 13, 15, 13, 21);
+        return texture(pm);
+    }
+
+    private Texture utilityEffectIconTexture() {
+        Pixmap pm = clearEffectPixmap();
+        Color outline = new Color(0.025f, 0.280f, 0.110f, 1f);
+
+        pm.setColor(outline);
+        for (int offset = -3; offset <= 3; offset++) {
+            pm.drawLine(8 + offset, 25, 23 + offset, 10);
+        }
+        pm.fillCircle(8, 25, 6);
+        pm.fillCircle(23, 8, 8);
+
+        pm.setColor(UTILITY);
+        for (int offset = -2; offset <= 2; offset++) {
+            pm.drawLine(8 + offset, 25, 23 + offset, 10);
+        }
+        pm.fillCircle(8, 25, 4);
+        pm.fillCircle(23, 8, 6);
+
+        pm.setBlending(Pixmap.Blending.None);
+        pm.setColor(0f, 0f, 0f, 0f);
+        pm.fillCircle(8, 25, 2);
+        pm.fillTriangle(22, 8, 31, 0, 31, 16);
+        return texture(pm);
+    }
+
+    private Pixmap clearEffectPixmap() {
+        Pixmap pm = new Pixmap(32, 32, Pixmap.Format.RGBA8888);
         pm.setColor(0f, 0f, 0f, 0f);
         pm.fill();
         return pm;
