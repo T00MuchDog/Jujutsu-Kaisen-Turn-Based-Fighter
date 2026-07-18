@@ -3,6 +3,7 @@ package com.jjktbf.graphics.ui;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 
 /** A compact pixel-framed resource bar used by the execution combatants. */
@@ -11,6 +12,8 @@ public class StatusBar {
     private static final Color DAMAGE_COLOR = new Color(0.920f, 0.220f, 0.180f, 1f);
     /** Fraction of the remaining gap eased per second toward the live value. */
     private static final float EASE_RATE = 1.8f;
+    private static final float TEXT_INSET = 8f;
+    private static final float TEXT_GAP = 4f;
 
     private final String label;
     private final Color fillColor;
@@ -21,6 +24,8 @@ public class StatusBar {
     private float height;
     private int current;
     private int max;
+    private final GlyphLayout labelLayout = new GlyphLayout();
+    private final GlyphLayout valueLayout = new GlyphLayout();
 
     /** Smoothed value that trails {@code current}; the gap is drawn red as damage. */
     private float displayed = -1f;
@@ -81,8 +86,26 @@ public class StatusBar {
         }
         batch.setColor(Color.WHITE);
 
+        String value = current + "/" + max;
+        float originalScaleX = font.getData().scaleX;
+        float originalScaleY = font.getData().scaleY;
+        labelLayout.setText(font, label);
+        valueLayout.setText(font, value);
+
+        // Preserve a gap between the label and value on compact battle layouts.
+        float availableTextWidth = Math.max(1f, width - TEXT_INSET * 2f - TEXT_GAP);
+        float combinedTextWidth = labelLayout.width + valueLayout.width;
+        if (combinedTextWidth > availableTextWidth) {
+            float fittedScale = availableTextWidth / combinedTextWidth;
+            font.getData().setScale(originalScaleX * fittedScale, originalScaleY * fittedScale);
+            labelLayout.setText(font, label);
+            valueLayout.setText(font, value);
+        }
+
         font.setColor(Color.WHITE);
-        font.draw(batch, label, x + 8f, y + height - 7f);
-        font.draw(batch, current + "/" + max, x + width * 0.45f, y + height - 7f);
+        float textY = y + (height + font.getCapHeight()) / 2f;
+        font.draw(batch, label, x + TEXT_INSET, textY);
+        font.draw(batch, value, x + width - TEXT_INSET - valueLayout.width, textY);
+        font.getData().setScale(originalScaleX, originalScaleY);
     }
 }

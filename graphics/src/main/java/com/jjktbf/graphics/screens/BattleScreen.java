@@ -305,9 +305,9 @@ public class BattleScreen implements Screen, BattleView {
         batch.begin();
         drawExecutionChrome(sw, sh);
         if (enemyPanel  != null && renderEnemy  != null)
-            enemyPanel.draw(batch, assets.fontLog, assets.fontSmall, renderEnemy.getCharacter().getName(), frameDelta);
+            enemyPanel.draw(batch, assets.fontLog, assets.fontLarge, renderEnemy.getCharacter().getName(), frameDelta);
         if (playerPanel != null && renderPlayer != null)
-            playerPanel.draw(batch, assets.fontLog, assets.fontSmall, renderPlayer.getCharacter().getName(), frameDelta);
+            playerPanel.draw(batch, assets.fontLog, assets.fontLarge, renderPlayer.getCharacter().getName(), frameDelta);
         drawLog(sw, sh);
         drawNextRoundButton();
         drawMoveUnleashAnimation(sw, sh);
