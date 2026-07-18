@@ -135,7 +135,7 @@ MODULES="$(jdeps --multi-release "$JAVA_MAJOR" \
     --class-path "$FAT_JAR" \
     "$FAT_JAR" 2>/dev/null || true)"
 # LWJGL/libGDX use some modules jdeps sometimes misses; add defensively.
-for m in java.desktop java.management jdk.unsupported java.sql; do
+for m in java.desktop java.management jdk.unsupported java.sql jdk.crypto.ec; do
     case ",$MODULES," in
         *",$m,"*) : ;;
         *) MODULES="${MODULES:+$MODULES,}$m" ;;
