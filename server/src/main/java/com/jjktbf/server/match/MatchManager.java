@@ -24,7 +24,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -685,13 +684,8 @@ public final class MatchManager implements AutoCloseable {
             || !Objects.equals(setup.ruleset(), ruleset)) {
             throw new ServiceException(
                 ServiceErrorCode.INCOMPATIBLE_VERSION,
-                "The game, protocol, or ruleset does not match this match.",
-                Map.of(
-                    "gameVersion", setup.gameVersion(),
-                    "protocolVersion", Integer.toString(setup.protocolVersion()),
-                    "ruleset", setup.ruleset()
-                )
-            );
+                "You are running an outdated version of the game. "
+                    + "Please download the latest release to play online.");
         }
     }
 

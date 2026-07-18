@@ -343,7 +343,8 @@ public final class ChallengeService {
     private static ServiceException incompatibleVersion() {
         return new ServiceException(
             ServiceErrorCode.INCOMPATIBLE_VERSION,
-            "The game, protocol, or ruleset version is incompatible with this server.");
+            "You are running an outdated version of the game. "
+                + "Please download the latest release to play online.");
     }
 
     private static ServiceException challengeNotFound() {
