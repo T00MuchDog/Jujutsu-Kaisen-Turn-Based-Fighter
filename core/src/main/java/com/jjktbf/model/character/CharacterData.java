@@ -27,7 +27,7 @@ public class CharacterData {
     public String name;
     /** Player-facing character flavour text shown on selection pages. */
     public String description = "";
-    /** Relative graphics resource path, e.g. {@code assets/characters/yuji.png}. */
+    /** Relative graphics resource path, e.g. {@code assets/sprites/characters/yuji_frontsprite.png}. */
     public String spriteAsset;
 
     /**

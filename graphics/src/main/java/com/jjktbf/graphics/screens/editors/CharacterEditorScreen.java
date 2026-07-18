@@ -235,7 +235,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 s -> { cd.name = s; })).growX().row();
         identity.add(labelledField("Description", cd.description,
                 s -> { cd.description = s; })).growX().row();
-        identity.add(labelledField("Sprite Asset (assets/characters/...)", cd.spriteAsset,
+        identity.add(labelledField("Sprite Asset (assets/sprites/characters/...)", cd.spriteAsset,
                 s -> { cd.spriteAsset = (s == null || s.isBlank()) ? null : s; }))
             .growX().row();
         identity.add(labelledField("Innate Technique (blank = none)",
