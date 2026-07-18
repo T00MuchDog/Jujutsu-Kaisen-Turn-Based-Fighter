@@ -130,10 +130,20 @@ public class CombatResolver {
         Timeline playerTimeline = player.getTimeline();
         Timeline enemyTimeline  = enemy.getTimeline();
 
-        int maxTick = Math.max(
-            playerTimeline != null ? playerTimeline.getGridLength() : 0,
-            enemyTimeline  != null ? enemyTimeline.getGridLength()  : 0
-        );
+        // The round ends once the last placed segment finishes: sweep only as
+        // many ticks as the latest segment's AP window actually needs, rather
+        // than always running out to the full grid length.
+        int maxTick = 0;
+        if (playerTimeline != null) {
+            for (ActionSegment s : playerTimeline.getSegments()) {
+                maxTick = Math.max(maxTick, s.getEndTick());
+            }
+        }
+        if (enemyTimeline != null) {
+            for (ActionSegment s : enemyTimeline.getSegments()) {
+                maxTick = Math.max(maxTick, s.getEndTick());
+            }
+        }
 
         ResolutionCursor c = cursor.get();
         c.tick = 0;

@@ -15,17 +15,21 @@ import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.ui.CombatantPanel;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 import com.jjktbf.model.character.Character;
+import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.combat.CombatEvent;
+import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.view.BattleView;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Graphics implementation of BattleView.
@@ -58,18 +62,20 @@ public class BattleScreen implements Screen, BattleView {
      */
     private static final float LOG_LINE_SPACING = 1.7f;
     /**
-     * Per-tick hold during resolution, in milliseconds. Empty and non-firing
-     * ticks use the short baseline so the sweep stays brisk; a tick that fires
-     * at least one move is held for the longer firing duration so its action has
-     * time to read. Which value applies is chosen per-tick from whether that
-     * tick produced a MOVE_FIRED event (see {@link #lastTickFired}).
+     * Per-tick hold during resolution, in milliseconds. Ticks in "slow mode" —
+     * the tick before a move fires, the firing tick itself, and the tick after
+     * — use the longer slow hold so the action has room to breathe; everything
+     * else uses the short baseline so the sweep stays brisk. Whether a given
+     * tick fired is taken reactively from MOVE_FIRED events
+     * (see {@link #lastTickFired}); whether the *next* tick will fire is taken
+     * from the precomputed {@link #firingTicks} set.
      */
     private static final int   TICK_DURATION_MS        = 200;
-    private static final int   FIRING_TICK_DURATION_MS = 2000;
+    private static final int   SLOW_TICK_DURATION_MS   = 1000;
     /** Brief beat between consecutive log messages within a single tick. */
     private static final int   EVENT_DELAY_MS          = TICK_DURATION_MS / 2;
-    /** Move-unleash animation length — sized to fill a firing tick's hold. */
-    private static final float MOVE_EFFECT_DURATION_SECONDS = FIRING_TICK_DURATION_MS / 1000f;
+    /** Move-unleash animation length — sized to fill a firing tick's slow hold. */
+    private static final float MOVE_EFFECT_DURATION_SECONDS = SLOW_TICK_DURATION_MS / 1000f;
 
     private final JJKGame     game;
     private final AssetLoader assets;
@@ -102,15 +108,31 @@ public class BattleScreen implements Screen, BattleView {
     private volatile boolean resolvingTicks = false;
     /**
      * Whether the tick most recently shown fired a move. Set in
-     * {@link #displayCombatEvents} when a MOVE_FIRED event appears, then read and
-     * reset by the next {@link #displayResolutionTick} (or by
-     * {@link #displayRoundEnd} for the final tick) to choose that tick's hold —
-     * the long firing hold when true, the short baseline otherwise. Resetting it
-     * after each hold matters for non-firing ticks, which produce no events and
-     * so would otherwise inherit a stale true. Touched only on the battle
-     * thread, so it needs no synchronization.
+     * {@link #displayCombatEvents} when a MOVE_FIRED event appears, then read by
+     * the next {@link #displayResolutionTick} (or by
+     * {@link #displayRoundEnd} for the final tick) when choosing that tick's
+     * hold. Resetting it after each hold matters for non-firing ticks, which
+     * produce no events and so would otherwise inherit a stale true. Touched
+     * only on the battle thread, so it needs no synchronization.
      */
     private boolean lastTickFired = false;
+    /**
+     * Tick number whose hold is currently being paid — i.e. the tick whose
+     * pacing we are deciding. Tracked so the pacing logic can ask "is this tick
+     * itself a firing tick / adjacent to one?". The hold for tick N is applied
+     * at the start of the {@code displayResolutionTick(N+1)} call (and in
+     * {@link #displayRoundEnd} for the final tick), so this is N, not N+1.
+     */
+    private int heldTick = 0;
+    /**
+     * Absolute ticks at which some (non-stunned) segment fires this round,
+     * precomputed from both combatants' timelines. Drives the "slow mode"
+     * lookahead: a tick goes slow not only when it (or the previous tick)
+     * fired, but also when the <em>next</em>> tick will fire — the wind-up
+     * before a move unleashes. Rebuilt per round on the first tick of the
+     * sweep. Touched only on the battle thread.
+     */
+    private Set<Integer> firingTicks = new HashSet<>();
     private boolean nextRoundHovered = false;
 
     /**
@@ -577,16 +599,24 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayResolutionTick(int tick, BattleState state) {
         if (abortRequested) return;
-        // Hold the previous tick before advancing: the long firing hold when it
-        // fired a move (so the action reads), the short baseline otherwise.
-        // lastTickFired reflects the previous tick — set by its
-        // displayCombatEvents — and is reset below for the tick now starting,
-        // which matters for non-firing ticks that produce no events and so never
-        // touch the flag themselves.
+        // Rebuild the round's firing-tick set when a new sweep starts, so the
+        // lookahead ("tick before firing") pacing reflects this round's plan.
+        if (!resolvingTicks) {
+            firingTicks = collectFiringTicks(state);
+            heldTick = 0;
+        }
+        // Hold the previous tick before advancing. A tick runs in slow mode when
+        // it sits next to a move firing: the tick before (wind-up), the firing
+        // tick itself, or the tick after (follow-through). lastTickFired covers
+        // the firing tick reactively from actual MOVE_FIRED events — so a
+        // segment stunned mid-sweep doesn't trip a false slow-mo — while the
+        // precomputed firingTicks set supplies the wind-up/after lookahead.
         if (resolvingTicks) {
-            abortableSleepMs(lastTickFired ? FIRING_TICK_DURATION_MS : TICK_DURATION_MS);
+            abortableSleepMs(isSlowTick(heldTick, lastTickFired, firingTicks)
+                ? SLOW_TICK_DURATION_MS : TICK_DURATION_MS);
         }
         lastTickFired = false;
+        heldTick = tick;
         currentExecutionTick = tick;
         resolvingTicks = true;
         Gdx.app.postRunnable(() -> phaseLabel = "ROUND " + state.getRoundNumber() + "  —  RESOLVING");
@@ -598,12 +628,45 @@ public class BattleScreen implements Screen, BattleView {
         // The final tick's tail hold runs here: no further displayResolutionTick
         // call follows to apply it. Without this the last hit of a round would
         // jump straight to the "round complete" banner and skip its slow-mo.
-        abortableSleepMs(lastTickFired ? FIRING_TICK_DURATION_MS : TICK_DURATION_MS);
+        abortableSleepMs(isSlowTick(heldTick, lastTickFired, firingTicks)
+            ? SLOW_TICK_DURATION_MS : TICK_DURATION_MS);
         lastTickFired = false;
         Gdx.app.postRunnable(() -> {
             phaseLabel = "ROUND " + Math.max(1, state.getRoundNumber() - 1) + " COMPLETE";
             updatePanels();
         });
+    }
+
+    /**
+     * Absolute ticks at which some non-stunned segment fires across both
+     * combatants' timelines this round. Used for slow-mode lookahead.
+     */
+    private static Set<Integer> collectFiringTicks(BattleState state) {
+        Set<Integer> ticks = new HashSet<>();
+        addFiringTicks(state.getPlayerCombatant(), ticks);
+        addFiringTicks(state.getEnemyCombatant(), ticks);
+        return ticks;
+    }
+
+    private static void addFiringTicks(BattleCombatant combatant, Set<Integer> into) {
+        if (combatant == null) return;
+        Timeline tl = combatant.getTimeline();
+        if (tl == null) return;
+        for (ActionSegment s : tl.getSegments()) {
+            if (!s.isStunned()) into.add(s.getFireTick());
+        }
+    }
+
+    /**
+     * Whether the tick being held should run in slow mode. True when the tick
+     * itself fired (reactive flag — exact even under stunning), or when either
+     * neighbour is a precomputed firing tick (wind-up before, follow-through
+     * after).
+     */
+    private static boolean isSlowTick(int heldTick, boolean lastTickFired, Set<Integer> firingTicks) {
+        if (lastTickFired) return true;
+        if (heldTick <= 0 || firingTicks == null) return false;
+        return firingTicks.contains(heldTick - 1) || firingTicks.contains(heldTick + 1);
     }
 
     @Override
