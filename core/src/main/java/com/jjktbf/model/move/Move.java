@@ -371,6 +371,12 @@ public class Move {
      * Resolve this move's interrupt effect against the defender's timeline at the given tick.
      * Returns the ActionSegment that was stunned, or null if no segment was targeted.
      *
+     * <p>A segment that has already fired cannot be interrupted — interrupting a
+     * move whose effects are already in play (e.g. a defensive block still inside
+     * its AP window) would retroactively deactivate it, which is not what the
+     * interrupt tag is for. The STUN tag and interrupts share this invariant;
+     * see {@link com.jjktbf.model.combat.ActionSegment#stun()}.
+     *
      * Should only be called if hasInterrupt() is true.
      */
     public com.jjktbf.model.combat.ActionSegment resolveInterruptOn(
@@ -382,7 +388,7 @@ public class Move {
             case KNOCK_NEXT_SEGMENT    -> defenderTimeline.nextSegmentAfter(tick);
             case NONE                  -> null;
         };
-        if (target != null && !target.isStunned()) {
+        if (target != null && !target.isStunned() && !target.hasFired()) {
             target.stun();
             return target;
         }

@@ -365,6 +365,12 @@ public class CombatResolver {
         BattleCombatant attacker = entry.attacker;
         BattleCombatant defender = entry.defender;
 
+        // This segment's move is now actually executing. Recording it as fired
+        // makes it immune to retro-stunning for the rest of the round — a stun
+        // or interrupt landing later this tick (or a later tick still inside a
+        // block's window) can't cancel a move whose effects are already in play.
+        segment.markFired();
+
         events.add(CombatEvent.of(CombatEvent.Type.MOVE_FIRED)
             .source(attacker)
             .move(move)
@@ -496,8 +502,13 @@ public class CombatResolver {
      * <p>Segments whose move is HEAVY are immune and are skipped — heavy moves
      * cannot be stunned by a STUN-tagged hit. Interrupts are unaffected.
      *
-     * <p>No special handling is needed for already-fired segments: stunning them
-     * is a harmless no-op for the rest of this tick.
+     * <p>Segments that have already fired are skipped: a stun stops a move from
+     * occurring, it does not deactivate one whose effects are already in play.
+     * In particular a defensive block that already fired keeps protecting for
+     * the rest of its AP window and cannot be cancelled by a stun landing on the
+     * same tick. (The {@link ActionSegment#stun()} choke-point guards this too,
+     * but filtering here keeps the "was stunned and could not move" event from
+     * firing spuriously for already-resolved moves.)
      */
     private void resolveStunTag(
         BattleCombatant   defender,
@@ -510,6 +521,7 @@ public class CombatResolver {
         boolean stunnedAny = false;
         for (ActionSegment segment : defenderTimeline.getSegments()) {
             if (segment.isStunned()) continue;
+            if (segment.hasFired()) continue;        // can't un-fire an already-resolved move
             if (segment.getMove().isHeavy()) continue; // HEAVY moves resist the stun tag
             boolean onCurrentTick =
                 (tick >= segment.getStartTick() && tick <= segment.getEndTick())
