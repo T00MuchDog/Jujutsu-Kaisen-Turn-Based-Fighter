@@ -106,16 +106,14 @@ the full process; the short version:
 ### How to cut a new release
 
 ```bash
-# 1. Bump the version (edit this one value):
-#    pom.xml → <revision>1.1.0</revision>
-git commit -am "Release 1.1.0"
+git commit -am "Release 1.2.4"
 
-# 2. Run tests to be safe:
-mvn -Drevision=1.1.0 clean verify
+mvn -Drevision=1.2.4 clean verify
 
-# 3. Tag and push:
-git tag v1.1.0
-git push origin v1.1.0
+git tag v1.2.4
+
+git push origin HEAD
+git push origin v1.2.4
 ```
 
 Pushing the tag triggers GitHub Actions, which builds macOS (arm64 + x64) and
