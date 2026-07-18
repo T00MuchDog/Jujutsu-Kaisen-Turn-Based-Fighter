@@ -108,7 +108,7 @@ class MatchManagerTest {
         FakeMatchConnection first = new FakeMatchConnection("first-connection");
         FakeMatchConnection second = new FakeMatchConnection("second-connection");
 
-        MatchSetup firstJoin = manager.joinMatch(playerOne, accepted.matchId(), first);
+        MatchSetup firstJoin = joinMatch(playerOne, accepted.matchId(), first);
         assertEquals(PlayerSide.PLAYER_ONE, firstJoin.playerSide());
         assertEquals(MatchStatus.WAITING, firstJoin.status());
         assertEquals(1, firstJoin.state().stateVersion());
@@ -117,7 +117,7 @@ class MatchManagerTest {
         assertEquals(firstJoin.state(), firstJoined.state());
         assertEquals(playerOne.playerId(), firstJoined.playerId());
 
-        MatchSetup secondJoin = manager.joinMatch(playerTwo, accepted.matchId(), second);
+        MatchSetup secondJoin = joinMatch(playerTwo, accepted.matchId(), second);
         assertEquals(PlayerSide.PLAYER_TWO, secondJoin.playerSide());
         assertEquals(MatchStatus.ACTIVE, secondJoin.status());
         assertEquals(2, secondJoin.state().stateVersion());
@@ -241,7 +241,7 @@ class MatchManagerTest {
         JoinedConnections joined = joinBoth();
         FakeMatchConnection replacement = new FakeMatchConnection("replacement-connection");
 
-        MatchSetup replacementJoin = manager.joinMatch(
+        MatchSetup replacementJoin = joinMatch(
             playerOne, accepted.matchId(), replacement);
 
         assertFalse(joined.first.isOpen());
@@ -284,7 +284,7 @@ class MatchManagerTest {
 
         fixture.clock().advance(Duration.ofMillis(10));
         FakeMatchConnection reconnected = new FakeMatchConnection("reconnected-first");
-        MatchSetup resumed = manager.joinMatch(playerOne, accepted.matchId(), reconnected);
+        MatchSetup resumed = joinMatch(playerOne, accepted.matchId(), reconnected);
 
         assertEquals(MatchStatus.ACTIVE, resumed.status());
         assertEquals(resumed.state(), reconnected.only(MessageType.MATCH_JOINED).state());
@@ -435,14 +435,33 @@ class MatchManagerTest {
     private JoinedConnections joinBoth() {
         FakeMatchConnection first = new FakeMatchConnection("first-connection");
         FakeMatchConnection second = new FakeMatchConnection("second-connection");
-        manager.joinMatch(playerOne, accepted.matchId(), first);
-        manager.joinMatch(playerTwo, accepted.matchId(), second);
+        joinMatch(playerOne, accepted.matchId(), first);
+        joinMatch(playerTwo, accepted.matchId(), second);
         return new JoinedConnections(first, second);
     }
 
     private ActionCommand emptyPlan(String commandId, long stateVersion) {
         return ActionCommand.submitPlan(
             commandId, accepted.matchId(), stateVersion, List.of());
+    }
+
+    /**
+     * Join a match using the canonical game/protocol/ruleset version constants,
+     * so tests don't repeat the triple at every call site.
+     */
+    private MatchSetup joinMatch(
+        SessionIdentity identity,
+        String matchId,
+        MatchConnection connection
+    ) {
+        return manager.joinMatch(
+            identity,
+            matchId,
+            ProtocolVersion.GAME_VERSION,
+            ProtocolVersion.PROTOCOL_VERSION,
+            ProtocolVersion.STANDARD_RULESET,
+            connection
+        );
     }
 
     private static void assertComplete(MatchState state) {

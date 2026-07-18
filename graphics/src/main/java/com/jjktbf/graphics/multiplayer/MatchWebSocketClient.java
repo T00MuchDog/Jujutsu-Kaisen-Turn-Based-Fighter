@@ -15,7 +15,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Objects;
-import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
@@ -108,7 +107,6 @@ public final class MatchWebSocketClient implements MatchSocket {
     private ScheduledFuture<?> reconnectTask;
     private CompletableFuture<Void> initialConnection;
     private int reconnectAttempts;
-    private volatile long lastPongTimestamp = -1;
 
     public MatchWebSocketClient(ClientNetworkConfig config) {
         this.config = Objects.requireNonNull(config, "config");
@@ -176,7 +174,6 @@ public final class MatchWebSocketClient implements MatchSocket {
             this.matchId = matchId;
             this.activeAttempt = null;
             this.reconnectAttempts = 0;
-            this.lastPongTimestamp = -1;
             this.initialConnection = new CompletableFuture<>();
             connection = initialConnection;
         }
@@ -205,11 +202,6 @@ public final class MatchWebSocketClient implements MatchSocket {
             }
         }
         return attempt.send(message);
-    }
-
-    public OptionalLong lastPongTimestamp() {
-        long timestamp = lastPongTimestamp;
-        return timestamp < 0 ? OptionalLong.empty() : OptionalLong.of(timestamp);
     }
 
     @Override
@@ -425,13 +417,12 @@ public final class MatchWebSocketClient implements MatchSocket {
         );
     }
 
-    private void recordPong(Attempt attempt, long timestamp) {
+    private void recordPong(Attempt attempt) {
         synchronized (lock) {
             if (!isActiveLocked(attempt)) {
                 return;
             }
             attempt.lastPongNanos = System.nanoTime();
-            lastPongTimestamp = timestamp;
         }
     }
 
@@ -643,8 +634,10 @@ public final class MatchWebSocketClient implements MatchSocket {
     private static void safeListenerCall(Runnable callback) {
         try {
             callback.run();
-        } catch (RuntimeException ignored) {
-            // A UI listener cannot be allowed to break transport callbacks.
+        } catch (RuntimeException failure) {
+            // A UI listener cannot be allowed to break transport callbacks,
+            // but record the failure so UI bugs are observable instead of silent.
+            com.jjktbf.AppPaths.logException(failure);
         }
     }
 
@@ -793,7 +786,7 @@ public final class MatchWebSocketClient implements MatchSocket {
                 try {
                     SocketMessage message = parseServerMessage(complete, expectedMatchId);
                     if (message.type() == MessageType.PONG) {
-                        recordPong(this, message.heartbeatTimestamp());
+                        recordPong(this);
                     } else if (message.type() == MessageType.MATCH_JOINED) {
                         boolean joined = markJoined(this);
                         if (isActive(this)) {

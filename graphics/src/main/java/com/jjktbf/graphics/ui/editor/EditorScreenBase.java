@@ -82,6 +82,9 @@ public abstract class EditorScreenBase<D> implements Screen {
     protected final Stage stage;
     protected final Table root;
 
+    /** Guards against double-dispose of native stage resources. */
+    private boolean disposed;
+
     // ── UI handles ─────────────────────────────────────────────────────────────
 
     /** Search box above the master list. */
@@ -390,6 +393,8 @@ public abstract class EditorScreenBase<D> implements Screen {
 
     @Override
     public void dispose() {
+        if (disposed) return;
+        disposed = true;
         stage.dispose();
     }
 

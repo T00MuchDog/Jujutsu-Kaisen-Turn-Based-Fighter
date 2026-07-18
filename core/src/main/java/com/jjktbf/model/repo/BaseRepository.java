@@ -7,11 +7,19 @@ import com.jjktbf.AppPaths;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Persistent, sequential-id repository base for the editor DTOs
@@ -31,7 +39,11 @@ import java.util.Optional;
  * <ul>
  *   <li>{@link #idOf(Object)} / {@link #assignId(Object, String)} — read/write the id field.</li>
  *   <li>{@link #typeReference()} — Jackson deserialisation target.</li>
- *   <li>{@link #seed()} — initial records when the file is absent on first run.</li>
+ *   <li>{@link #bundledResourcePath()} — classpath path of the bundled default
+ *       JSON used to seed on first run (e.g. {@code "data/moves/all_moves.json"}),
+ *       or {@code null} for no bundled default.</li>
+ *   <li>{@link #seed()} — last-resort fallback when the file is absent AND no
+ *       bundled resource is available (default: no-op).</li>
  *   <li>{@link #entityName()} — used in error messages ({@code "move"} / {@code "character"} / …).</li>
  * </ul>
  *
@@ -73,8 +85,24 @@ public abstract class BaseRepository<D> {
     /** Jackson deserialisation target for a list of D. */
     protected abstract TypeReference<List<D>> typeReference();
 
-    /** Seed initial records when the data file does not yet exist. */
-    protected abstract void seed();
+    /**
+     * Classpath path of the bundled default data for this repository
+     * (e.g. {@code "data/moves/all_moves.json"}), or {@code null} if the
+     * repository has no bundled default. When the data file is absent on first
+     * run, {@link #load()} seeds from this resource so the fallback matches the
+     * shipped canonical data rather than any hard-coded seed.
+     */
+    protected String bundledResourcePath() {
+        return null;
+    }
+
+    /**
+     * Seed initial records when the data file does not yet exist AND no bundled
+     * classpath resource is available. Default implementation does nothing;
+     * subclasses override only when they need a built-in fallback that is not
+     * shipped as JSON.
+     */
+    protected void seed() {}
 
     /** Entity noun for error messages ({@code "move"}, {@code "character"}, …). */
     protected abstract String entityName();
@@ -84,13 +112,14 @@ public abstract class BaseRepository<D> {
     // -------------------------------------------------------------------------
 
     /**
-     * Load from disk. If the file is absent, {@link #seed()} then persist.
-     * Always {@link #resequence() resequences} so IDs are consistent regardless
-     * of what's on disk.
+     * Load from disk. If the file is absent, seed from the bundled classpath
+     * resource (see {@link #bundledResourcePath()}) when available, falling back
+     * to {@link #seed()}; then persist and resequence. The resequence keeps IDs
+     * consistent regardless of what's on disk.
      */
     public void load() throws IOException {
         if (!dataFile.exists()) {
-            seed();
+            seedFromBundledResource();
             resequence();
             save();
             return;
@@ -101,10 +130,87 @@ public abstract class BaseRepository<D> {
         resequence();
     }
 
-    /** Persist the store to disk (pretty-printed JSON), creating dirs as needed. */
+    /**
+     * Populate the store from the bundled classpath resource. If the resource is
+     * absent (e.g. the data directory is not on this module's classpath, as in
+     * some unit tests), falls back to {@link #seed()}.
+     */
+    private void seedFromBundledResource() throws IOException {
+        String resource = bundledResourcePath();
+        if (resource != null) {
+            ClassLoader loader = Thread.currentThread().getContextClassLoader();
+            if (loader == null) {
+                loader = BaseRepository.class.getClassLoader();
+            }
+            try (InputStream in = loader.getResourceAsStream(resource)) {
+                if (in != null) {
+                    List<D> bundled = MAPPER.readValue(in, typeReference());
+                    store.clear();
+                    store.addAll(bundled);
+                    return;
+                }
+            }
+        }
+        seed();
+    }
+
+    /**
+     * Persist the store to disk (pretty-printed JSON) atomically: the data is
+     * written to a temp file in the same directory, fsynced, then moved over the
+     * target file. A crash mid-write therefore leaves the previous file intact
+     * rather than truncating it. Creates parent directories as needed.
+     */
     public void save() throws IOException {
-        dataFile.getParentFile().mkdirs();
-        MAPPER.writeValue(dataFile, store);
+        File parent = dataFile.getParentFile();
+        if (parent != null) parent.mkdirs();
+        Path target = dataFile.toPath();
+        Path directory = target.getParent();
+        if (directory == null) {
+            throw new IOException("Data file has no parent directory: " + dataFile);
+        }
+        FileAttribute<?>[] attrs = posixOwnerOnlyAttributes(directory);
+        Path temp = Files.createTempFile(directory, ".repo-", ".tmp", attrs);
+        boolean moved = false;
+        try {
+            // Serialize to memory first so a serialisation failure does not leave
+            // a partial temp file that looks valid on disk.
+            byte[] json = MAPPER.writeValueAsBytes(store);
+            Files.write(temp, json);
+            try {
+                Files.move(temp, target,
+                    StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+                Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+            moved = true;
+            // Re-apply restrictive permissions after the move when supported,
+            // since REPLACE_EXISTING may keep the destination's prior mode.
+            applyPosixOwnerOnly(target);
+        } finally {
+            if (!moved) Files.deleteIfExists(temp);
+        }
+    }
+
+    private static FileAttribute<?>[] posixOwnerOnlyAttributes(Path directory) {
+        try {
+            if (directory.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+                Set<PosixFilePermission> perms = PosixFilePermissions.fromString("rw-------");
+                return new FileAttribute<?>[] { PosixFilePermissions.asFileAttribute(perms) };
+            }
+        } catch (RuntimeException ignored) {
+            // Best-effort: fall back to platform defaults.
+        }
+        return new FileAttribute<?>[0];
+    }
+
+    private static void applyPosixOwnerOnly(Path path) {
+        try {
+            if (path.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+                Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rw-------"));
+            }
+        } catch (RuntimeException | IOException ignored) {
+            // Best-effort permission hardening; non-fatal.
+        }
     }
 
     // -------------------------------------------------------------------------

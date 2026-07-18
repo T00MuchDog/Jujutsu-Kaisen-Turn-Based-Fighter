@@ -250,9 +250,7 @@ public class MoveData {
      * set (e.g. an editor draft) will collapse to a single category's tag set.
      *
      * <p>For copying a MoveData (e.g. in editors), copy the DTO field-by-field
-     * instead of round-tripping through {@code fromMove(toMove())}. The only
-     * legitimate caller is seeding ({@link MoveRepository#seed()}), which builds
-     * a Move from {@link CoreMoves} where the category is authoritative.
+     * instead of round-tripping through {@code fromMove(toMove())}.
      */
     public static MoveData fromMove(Move move) {
         MoveData d = new MoveData();

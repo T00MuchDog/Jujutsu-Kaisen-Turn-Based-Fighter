@@ -11,7 +11,8 @@ import java.util.List;
  * ID scheme and behaviour are inherited from {@link BaseRepository}: 6-digit
  * zero-padded sequential ids, resequenced on delete.
  *
- * On first run (no file), seeds the core move set from {@link CoreMoves}.
+ * On first run (no file), seeds from the bundled classpath default
+ * ({@code data/moves/all_moves.json}).
  *
  * Technique restrictions live on {@link MoveData#requiredTechniqueId}; a
  * dedicated technique registry is future work.
@@ -29,25 +30,7 @@ public class MoveRepository extends BaseRepository<MoveData> {
         return new TypeReference<>() {};
     }
 
-    @Override protected void seed() {
-        List<Move> coreMoves = List.of(
-            CoreMoves.basicPunch(),
-            CoreMoves.basicBlock(),
-            CoreMoves.heavyPunch(),
-            CoreMoves.rapidStrikes(),
-            CoreMoves.divekick(),
-            CoreMoves.cursedStrike(),
-            CoreMoves.divergentFist(),
-            CoreMoves.rawCursedEnergyStrike(),
-            CoreMoves.dismantle(),
-            CoreMoves.cleave(),
-            CoreMoves.sukunaFleshyStrike(),
-            CoreMoves.cursedEnergyArmor(),
-            CoreMoves.ironwall()
-        );
-        for (Move m : coreMoves) {
-            // fromMove leaves the id blank; the base add()/resequence assigns it.
-            super.add(MoveData.fromMove(m));
-        }
+    @Override protected String bundledResourcePath() {
+        return "data/moves/all_moves.json";
     }
 }

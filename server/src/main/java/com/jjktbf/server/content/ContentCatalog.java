@@ -52,10 +52,6 @@ public final class ContentCatalog {
         return build(moves, characters, abilities);
     }
 
-    public static ContentCatalog fromClasspath() {
-        return load();
-    }
-
     /** Creates a minimal catalog for focused service tests and future embedding. */
     public static ContentCatalog of(List<SorcererCharacter> characters) {
         if (characters == null || characters.isEmpty()) {
@@ -85,14 +81,6 @@ public final class ContentCatalog {
             return Optional.empty();
         }
         return Optional.ofNullable(charactersById.get(characterId));
-    }
-
-    public boolean containsCharacter(String characterId) {
-        return characterId != null && charactersById.containsKey(characterId);
-    }
-
-    public Map<String, SorcererCharacter> charactersById() {
-        return charactersById;
     }
 
     private static ContentCatalog build(

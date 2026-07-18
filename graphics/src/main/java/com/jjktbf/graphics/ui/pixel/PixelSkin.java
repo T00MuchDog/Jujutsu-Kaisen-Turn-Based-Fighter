@@ -197,7 +197,6 @@ public final class PixelSkin {
         registerSliderStyles(skin, sliderH, sliderKnobH);
         registerScrollPaneStyles(skin);
         registerSelectBoxStyles(skin, textfield, textfieldOver, listSel);
-        registerListStyles(skin, listSel);
         registerCheckBoxStyles(skin, checkboxOn, checkboxOff);
         registerWindowStyles(skin, card);
 
@@ -453,11 +452,6 @@ public final class PixelSkin {
         def.backgroundOpen  = hoverBg;
         def.overFontColor   = TEXT_HOVER;
         skin.add("default", def, com.badlogic.gdx.scenes.scene2d.ui.SelectBox.SelectBoxStyle.class);
-    }
-
-    private void registerListStyles(Skin skin, Drawable listSel) {
-        // Already registered inside registerSelectBoxStyles; re-add under both
-        // names to be safe.
     }
 
     private void registerCheckBoxStyles(Skin skin, Drawable on, Drawable off) {

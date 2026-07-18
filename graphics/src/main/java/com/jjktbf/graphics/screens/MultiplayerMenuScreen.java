@@ -176,10 +176,6 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
 
     @Override
     protected void onBackRequested() {
-        if (!identityLoading) {
-            game.showMainMenu();
-        } else {
-            game.showMainMenu();
-        }
+        game.showMainMenu();
     }
 }

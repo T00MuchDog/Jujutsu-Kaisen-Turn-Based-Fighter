@@ -26,6 +26,7 @@ import com.jjktbf.model.character.CombatStats;
 import com.jjktbf.model.character.CharacterRepository;
 import com.jjktbf.model.character.SlotBudgetEnforcer;
 import com.jjktbf.model.character.StatKey;
+import com.jjktbf.model.combat.PowerCalculator;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MovePool;
@@ -390,8 +391,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             sb.append("  |  Eva: ").append(cs.getEvasion());
             sb.append("  |  CE pool: ").append(cs.getMaxCursedEnergy());
             sb.append('\n');
-            sb.append("Phys power: ").append(cs.getPhysicalPowerComponent());
-            sb.append("  |  CE power: ").append(cs.getCursedEnergyPowerComponent());
+            sb.append("Phys power: ").append(PowerCalculator.physical(application.modifiedStats));
+            sb.append("  |  CE power: ").append(PowerCalculator.cursedEnergyBase(application.modifiedStats));
             sb.append('\n');
             CombatStats baseCombatStats = cd.toCombatStats();
             sb.append("Base move slots  —  Combat Arts: ").append(baseCombatStats.getCombatArtsSlots());

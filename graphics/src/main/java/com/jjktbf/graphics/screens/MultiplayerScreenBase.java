@@ -224,7 +224,11 @@ abstract class MultiplayerScreenBase implements Screen {
         String detail = cause instanceof ApiClientException apiFailure
             ? apiFailure.kind() + "/" + apiFailure.code()
             : cause.getClass().getSimpleName();
+        // Keep the short stderr line for the console, but also persist the full
+        // stack trace so multiplayer failures are diagnosable after the fact
+        // (the console line alone drops the cause).
         System.err.println("Multiplayer " + operation + " failed: " + detail);
+        com.jjktbf.AppPaths.logException(failure);
     }
 
     private static Throwable unwrap(Throwable failure) {

@@ -749,7 +749,6 @@ public class CombatResolver {
             // These are blocks whose AP window never closed during the tick sweep
             // (e.g. blockDuration -1 = whole round) — their guard drops now too.
             flushRemainingBlocks(combatant, events);
-            combatant.clearBlock();
 
             boolean wasBfs = combatant.isInBlackFlashState();
             combatant.tickBfsExpiry(round);

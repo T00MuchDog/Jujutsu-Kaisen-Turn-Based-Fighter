@@ -28,20 +28,12 @@ public final class ServiceException extends RuntimeException {
         return errorCode.name();
     }
 
-    public String getCode() {
-        return code();
-    }
-
     public ServiceErrorCode errorCode() {
         return errorCode;
     }
 
     public int suggestedStatus() {
         return errorCode.suggestedStatus();
-    }
-
-    public int getSuggestedStatus() {
-        return suggestedStatus();
     }
 
     public Map<String, String> details() {

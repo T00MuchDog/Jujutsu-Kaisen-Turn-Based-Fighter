@@ -81,17 +81,6 @@ public class BattleCombatant {
     /** Round number on which BFS expires (inclusive). -1 if not in BFS. */
     private int bfsExpiresAfterRound;
 
-    // --- Block tracker ---
-    /**
-     * If the combatant has an active BLOCK move in the current timeline,
-     * this stores the AP range [start, end] of that block.
-     * The block is "active" (protective) while the counter is within this range.
-     * Set to -1/-1 when no block is queued.
-     */
-    private int blockStartTick;
-    private int blockEndTick;
-    private int blockDamageReduction = 100;
-
     // --- Round's action timeline ---
     private Timeline timeline;
 
@@ -130,9 +119,6 @@ public class BattleCombatant {
         this.inBlackFlashState       = false;
         this.consecutiveBfsHits   = 0;
         this.bfsExpiresAfterRound = -1;
-        this.blockStartTick       = -1;
-        this.blockEndTick         = -1;
-        this.blockDamageReduction = 100;
         this.timeline             = null;
     }
 
@@ -142,10 +128,6 @@ public class BattleCombatant {
 
     public void applyDamage(int damage) {
         currentHp = Math.max(0, currentHp - damage);
-    }
-
-    public void restoreHp(int amount) {
-        currentHp = Math.min(effectiveCombatStats.getMaxHp(), currentHp + amount);
     }
 
     public boolean isDefeated() {
@@ -166,14 +148,10 @@ public class BattleCombatant {
         return drained;
     }
 
-    public void restoreCe(int amount) {
-        currentCe = Math.min(effectiveCombatStats.getMaxCursedEnergy(), currentCe + amount);
-    }
-
     /** Restore a fraction of the max CE pool (used by Black Flash proc). */
     public void restoreCeFraction(double fraction) {
         int amount = (int) Math.round(effectiveCombatStats.getMaxCursedEnergy() * fraction);
-        restoreCe(amount);
+        currentCe = Math.min(effectiveCombatStats.getMaxCursedEnergy(), currentCe + amount);
     }
 
     public boolean hasAnyCe() {
@@ -246,34 +224,6 @@ public class BattleCombatant {
         // Add ability BF bonus, cap at 1.0
         return Math.max(0.0, Math.min(1.0, base + abilityFlags.bfChanceBonus));
     }
-
-    // -------------------------------------------------------------------------
-    // Block
-    // -------------------------------------------------------------------------
-
-    public void setBlock(int startTick, int endTick, int damageReduction) {
-        this.blockStartTick = startTick;
-        this.blockEndTick   = endTick;
-        this.blockDamageReduction = damageReduction;
-    }
-
-    public void clearBlock() {
-        blockStartTick = -1;
-        blockEndTick   = -1;
-        blockDamageReduction = 100;
-    }
-
-    /**
-     * Returns true if the action counter is currently within this combatant's block range,
-     * meaning an incoming attack would be reduced by blockDamageReduction %.
-     */
-    public boolean isBlockActiveAt(int currentTick) {
-        return blockStartTick != -1
-            && currentTick >= blockStartTick
-            && currentTick <= blockEndTick;
-    }
-
-    public int getBlockDamageReduction() { return blockDamageReduction; }
 
     // -------------------------------------------------------------------------
     // Status effects

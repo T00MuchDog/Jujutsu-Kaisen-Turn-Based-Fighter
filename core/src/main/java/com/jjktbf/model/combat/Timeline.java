@@ -151,10 +151,6 @@ public class Timeline {
         return firing;
     }
 
-    public boolean hasActiveBlockAt(int tick) {
-        return activeBlockAt(tick, null) != null;
-    }
-
     public ActionSegment activeBlockAt(int tick, Move incomingMove) {
         for (ActionSegment s : segments) {
             Move move = s.getMove();

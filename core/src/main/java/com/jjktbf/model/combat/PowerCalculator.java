@@ -46,7 +46,7 @@ public final class PowerCalculator {
      * PHYSICAL: 4:1 Strength to CombatAbility.
      * Power = (STR*4 + CA) / 5
      */
-    private static int physical(CharacterStats cs) {
+    public static int physical(CharacterStats cs) {
         return (cs.getStrength() * 4 + cs.getCombatAbility()) / 5;
     }
 
@@ -55,7 +55,7 @@ public final class PowerCalculator {
      * 3:2:1  CE_Output : CE_Reserves : CE_Efficiency
      * = (OUT*3 + RES*2 + EFF) / 6
      */
-    static int cursedEnergyBase(CharacterStats cs) {
+    public static int cursedEnergyBase(CharacterStats cs) {
         return (cs.getCursedEnergyOutput() * 3
               + cs.getCursedEnergyReserves() * 2
               + cs.getCursedEnergyEfficiency()) / 6;

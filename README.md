@@ -32,8 +32,8 @@ mvn clean verify
 
 ### Run graphics mode (macOS — ALWAYS include -XstartOnFirstThread)
 ```bash
-mvn -Drevision=1.1.1 -pl core,graphics -am clean verify
-java -XstartOnFirstThread -jar graphics/target/graphics-1.1.1.jar
+mvn -Drevision=1.2.1 -pl core,graphics -am clean verify
+java -XstartOnFirstThread -jar graphics/target/graphics-1.2.1.jar
 ```
 
 > **macOS rule:** Every time you run the graphics JAR on macOS, the
@@ -52,16 +52,16 @@ java -XstartOnFirstThread -jar graphics/target/graphics-1.1.1.jar
 The server runs with an embedded persistent H2 database by default:
 
 ```bash
-mvn -Drevision=1.1.1 -pl server -am package
-java -jar server/target/server-1.1.1.jar
+mvn -Drevision=1.2.1 -pl server -am package
+java -jar server/target/server-1.2.1.jar
 ```
 
 Build the desktop client and launch two instances with separate guest profiles:
 
 ```bash
-mvn -Drevision=1.1.1 -pl graphics -am package
-java -XstartOnFirstThread -Djjktbf.data.root="$PWD/.local/client-a" -jar graphics/target/graphics-1.1.1.jar
-java -XstartOnFirstThread -Djjktbf.data.root="$PWD/.local/client-b" -jar graphics/target/graphics-1.1.1.jar
+mvn -Drevision=1.2.1 -pl graphics -am package
+java -XstartOnFirstThread -Djjktbf.data.root="$PWD/.local/client-a" -jar graphics/target/graphics-1.2.1.jar
+java -XstartOnFirstThread -Djjktbf.data.root="$PWD/.local/client-b" -jar graphics/target/graphics-1.2.1.jar
 ```
 
 The `-XstartOnFirstThread` option is macOS-only. PostgreSQL/Docker setup, non-macOS commands, production configuration, and the complete two-client flow are documented in **[`MULTIPLAYER.md`](MULTIPLAYER.md)**. The design and protocol are documented in **[`MULTIPLAYER_ARCHITECTURE.md`](MULTIPLAYER_ARCHITECTURE.md)**.

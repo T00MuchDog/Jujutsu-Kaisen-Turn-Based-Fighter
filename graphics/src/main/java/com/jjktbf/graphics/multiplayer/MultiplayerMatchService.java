@@ -1,5 +1,6 @@
 package com.jjktbf.graphics.multiplayer;
 
+import com.jjktbf.AppPaths;
 import com.jjktbf.multiplayer.protocol.ActionCommand;
 import com.jjktbf.multiplayer.protocol.ErrorResponse;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
@@ -478,8 +479,10 @@ public final class MultiplayerMatchService implements AutoCloseable {
     private static void safeCall(Runnable callback) {
         try {
             callback.run();
-        } catch (RuntimeException ignored) {
-            // A screen listener cannot break network/session state processing.
+        } catch (RuntimeException failure) {
+            // A screen listener cannot break network/session state processing,
+            // but record the failure so UI bugs are observable instead of silent.
+            AppPaths.logException(failure);
         }
     }
 

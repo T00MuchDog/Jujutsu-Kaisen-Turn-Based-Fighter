@@ -107,9 +107,6 @@ public class CombatStats {
      */
     public static final int AP_DIVISOR = 18;
 
-    /** No base constant needed — formula is exact at baseline. */
-    public static final int AP_BASE_CONSTANT = 0;
-
     /**
      * PLACEHOLDER: Factor in hit-roll formula ensuring equal ACC/EVA on a 100%-base
      * move yields a 95% hit chance.
@@ -158,10 +155,6 @@ public class CombatStats {
     private final int combatArtsSlots;     // ← Combat Ability  (moves with PHYSICAL tag)
     private final int jujutsuArtsSlots;    // ← Jujutsu Skill   (moves without PHYSICAL tag)
 
-    // Cached physical and CE power components (move-type power uses PowerCalculator)
-    private final int physicalPowerComponent;
-    private final int cursedEnergyPowerComponent;
-
     // -------------------------------------------------------------------------
     // Construction — pass the full CharacterStats
     // -------------------------------------------------------------------------
@@ -174,8 +167,6 @@ public class CombatStats {
         this.maxCursedEnergy          = computeMaxCursedEnergy(cs);
         this.combatArtsSlots         = computeCombatArtsSlots(cs);
         this.jujutsuArtsSlots        = computeJujutsuArtsSlots(cs);
-        this.physicalPowerComponent   = computePhysicalPower(cs);
-        this.cursedEnergyPowerComponent = computeCursedEnergyPower(cs);
     }
 
     // -------------------------------------------------------------------------
@@ -187,7 +178,7 @@ public class CombatStats {
     }
 
     private static int computeMaxApBar(CharacterStats cs) {
-        return (cs.getSpeed() * 15 + cs.getCombatAbility() * 3) / AP_DIVISOR + AP_BASE_CONSTANT;
+        return (cs.getSpeed() * 15 + cs.getCombatAbility() * 3) / AP_DIVISOR;
     }
 
     private static int computeAccuracy(CharacterStats cs) {
@@ -208,17 +199,6 @@ public class CombatStats {
 
     private static int computeJujutsuArtsSlots(CharacterStats cs) {
         return cs.getJujutsuSkill() / MOVES_PER_STAT_POINTS;
-    }
-
-    private static int computePhysicalPower(CharacterStats cs) {
-        return (cs.getStrength() * 4 + cs.getCombatAbility()) / 5;
-    }
-
-    private static int computeCursedEnergyPower(CharacterStats cs) {
-        // 3:2:1 — CE_Output : CE_Reserves : CE_Efficiency
-        return (cs.getCursedEnergyOutput() * 3
-              + cs.getCursedEnergyReserves() * 2
-              + cs.getCursedEnergyEfficiency()) / 6;
     }
 
     /**
@@ -273,8 +253,6 @@ public class CombatStats {
     public int getMaxCursedEnergy()             { return maxCursedEnergy; }
     public int getCombatArtsSlots()             { return combatArtsSlots; }
     public int getJujutsuArtsSlots()            { return jujutsuArtsSlots; }
-    public int getPhysicalPowerComponent()      { return physicalPowerComponent; }
-    public int getCursedEnergyPowerComponent()  { return cursedEnergyPowerComponent; }
 
     @Override
     public String toString() {

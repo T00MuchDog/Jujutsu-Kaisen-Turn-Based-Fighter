@@ -160,6 +160,28 @@ public final class AppPaths {
         return logs.resolve("battle_crash.log");
     }
 
+    /**
+     * Append a throwable (with a timestamped header and full stack trace) to the
+     * diagnostic log. Used by network/UI layers to record failures that must not
+     * break their caller (e.g. listener callbacks) but should not vanish silently.
+     * Best-effort: any IO error is swallowed so this never throws.
+     */
+    public static void logException(Throwable failure) {
+        if (failure == null) return;
+        try {
+            java.io.PrintWriter pw = new java.io.PrintWriter(
+                new java.io.FileWriter(logFile().toFile(), true));
+            try {
+                pw.println("===== " + java.time.Instant.now() + " =====");
+                failure.printStackTrace(pw);
+            } finally {
+                pw.close();
+            }
+        } catch (Exception ignored) {
+            // Logging is best-effort; never propagate.
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Path resolution for the repositories
     // -------------------------------------------------------------------------

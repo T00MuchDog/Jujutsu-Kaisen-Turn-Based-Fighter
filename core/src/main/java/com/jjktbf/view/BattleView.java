@@ -4,7 +4,6 @@ import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.CombatEvent;
-import com.jjktbf.model.move.Move;
 
 import java.util.List;
 
@@ -40,20 +39,6 @@ public interface BattleView {
      * @return            the finished {@link BattlePlan}; may be empty (bank the round)
      */
     BattlePlan promptBattlePlan(BattleCombatant combatant, BattleCombatant opponent);
-
-    /**
-     * Prompt the player to select moves for their timeline.
-     * Returns the list of moves in the order the player wants to queue them.
-     * The view is responsible for validating AP budget and showing move costs.
-     *
-     * @param combatant   the player's combatant (for AP bar size, CE, known moves)
-     * @param opponent    the opponent (for displaying their info during planning)
-     * @return            ordered list of moves to queue; may be empty if player banks AP
-     * @deprecated superseded by {@link #promptBattlePlan}; retained temporarily
-     *             so legacy views keep compiling during the planning-UI migration.
-     */
-    @Deprecated
-    List<Move> promptMoveSelection(BattleCombatant combatant, BattleCombatant opponent);
 
     /**
      * Display a sequence of combat events that occurred during resolution.

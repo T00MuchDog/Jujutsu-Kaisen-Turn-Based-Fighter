@@ -48,10 +48,6 @@ public class AssetLoader {
 
     // ── UI panels ─────────────────────────────────────────────────────────────
 
-    public Texture cardNormal;
-    public Texture cardSelected;
-    public Texture cardDisabled;
-
     /** Pixel-art textures dedicated to the drag-and-drop battle planner. */
     public BattleUiAssets battleUi;
 
@@ -187,9 +183,6 @@ public class AssetLoader {
     }
 
     private void loadUi() {
-        cardNormal    = new Texture(Gdx.files.internal("assets/ui/card_normal.png"));
-        cardSelected  = new Texture(Gdx.files.internal("assets/ui/card_selected.png"));
-        cardDisabled  = new Texture(Gdx.files.internal("assets/ui/card_disabled.png"));
         battleUi      = new BattleUiAssets();
     }
 
@@ -211,10 +204,6 @@ public class AssetLoader {
         if (enemySprite  != null) enemySprite.dispose();
         characterSprites.values().forEach(Texture::dispose);
         characterSprites.clear();
-
-        if (cardNormal    != null) cardNormal.dispose();
-        if (cardSelected  != null) cardSelected.dispose();
-        if (cardDisabled  != null) cardDisabled.dispose();
 
         if (battleUi      != null) battleUi.dispose();
 

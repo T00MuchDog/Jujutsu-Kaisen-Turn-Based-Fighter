@@ -23,11 +23,9 @@ import java.util.List;
  * {@code move.hasTag("ATTACK")} (the basePower+category heuristic); otherwise it
  * belongs on the defensive timeline. This is enforced by {@link #place}.
  *
- * <p>Resolution-support queries ({@link #firingSegmentsAt}, {@link #segmentAt},
- * {@link #activeBlockAt}) cross both timelines so the (future) ticker can sweep
- * both boards by tick. {@link #toLegacyTimeline()} merges the two boards into a
- * single old-style {@link Timeline} so today's {@link CombatResolver} keeps
- * running unchanged while the execution refactor is pending.
+ * <p>{@link #toLegacyTimeline()} merges the two boards into a single old-style
+ * {@link Timeline} so today's {@link CombatResolver} can process a two-board
+ * plan.
  */
 public class BattlePlan {
 
@@ -140,27 +138,6 @@ public class BattlePlan {
         all.addAll(offensive.getSegments());
         all.addAll(defensive.getSegments());
         return all;
-    }
-
-    /** Segment covering the tick on the given board, or null. */
-    public ActionSegment segmentAt(Board board, int tick) {
-        return boardTimeline(board).segmentAt(tick);
-    }
-
-    /**
-     * All segments firing at the tick across both boards. Offensive yields first
-     * (the planned execution rule: on a same-tick tie, offensive fires before
-     * defensive for the same combatant; cross-combatant ties break on Speed).
-     */
-    public List<ActionSegment> firingSegmentsAt(int tick) {
-        List<ActionSegment> firing = new ArrayList<>();
-        firing.addAll(offensive.firingAt(tick));
-        firing.addAll(defensive.firingAt(tick));
-        return firing;
-    }
-
-    public ActionSegment activeBlockAt(Board board, int tick, Move incomingMove) {
-        return boardTimeline(board).activeBlockAt(tick, incomingMove);
     }
 
     // -------------------------------------------------------------------------

@@ -16,7 +16,6 @@ public class CombatEvent {
 
     public enum Type {
         // Move execution
-        MOVE_STARTED,       // an action segment's startTick was reached; CE drained
         MOVE_FIRED,         // move unleashed — attack resolved
         MOVE_MISSED,
         MOVE_BLOCKED,        // block fully negated the damage (PERCENTAGE_BLOCK at 100%)
@@ -37,11 +36,9 @@ public class CombatEvent {
         STATUS_EXPIRED,
 
         // BFS
-        BFS_ENTERED,
         BFS_EXPIRED,
 
         // Round / battle
-        ROUND_START,
         ROUND_END,
         BATTLE_OVER
     }

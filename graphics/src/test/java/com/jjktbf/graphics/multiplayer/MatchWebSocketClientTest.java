@@ -49,7 +49,6 @@ class MatchWebSocketClientTest {
                 .toList();
             assertEquals(1, pongs.size());
             assertEquals(42L, pongs.get(0).heartbeatTimestamp());
-            assertEquals(42L, fixture.client.lastPongTimestamp().orElseThrow());
             assertEquals(ClientNetworkConfig.DEFAULT_WEBSOCKET_URL,
                 fixture.connector.uris.get(0).toString());
             assertEquals("secret token", fixture.connector.tokens.get(0));

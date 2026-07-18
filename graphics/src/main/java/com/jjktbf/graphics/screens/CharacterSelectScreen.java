@@ -44,6 +44,8 @@ public class CharacterSelectScreen implements Screen {
     private final CharacterRepository charRepo;
     private final MoveRepository moveRepo;
     private final AbilityRepository abilityRepo;
+    /** Guards against double-dispose of native batch resources. */
+    private boolean disposed;
     private final Rectangle headerBounds = new Rectangle();
     private final Rectangle listBounds = new Rectangle();
     private final Rectangle detailBounds = new Rectangle();
@@ -102,7 +104,11 @@ public class CharacterSelectScreen implements Screen {
     @Override public void pause() {}
     @Override public void resume() {}
     @Override public void hide() {}
-    @Override public void dispose() { batch.dispose(); }
+    @Override public void dispose() {
+        if (disposed) return;
+        disposed = true;
+        batch.dispose();
+    }
 
     private void handleInput() {
         if (loadError != null) {

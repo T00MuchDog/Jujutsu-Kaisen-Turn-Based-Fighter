@@ -271,8 +271,4 @@ public abstract class Character extends Entity {
     public List<Move>      getKnownMoves()           { return knownMoves; }
     public List<Ability>   getAbilities()            { return abilities; }
     public boolean         hasInnateTechnique()      { return innateTechniqueName != null; }
-
-    /** @deprecated Use getInnateTechniqueName(). Kept for any callers using the old name. */
-    @Deprecated
-    public String          getInnateTechniqueId()    { return innateTechniqueName; }
 }

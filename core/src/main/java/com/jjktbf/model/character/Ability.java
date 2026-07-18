@@ -26,7 +26,7 @@ public class Ability {
     // Active-only
     private final String activeSubType;   // "QUEUED" | legacy "TRIGGERED" | null
     private final String activeMoveId;    // nullable
-    private final String triggerCondition;// AbilityTrigger name | null
+    private final String triggerCondition;// trigger condition name | null
     private final int    triggerThreshold;
 
     public Ability(AbilityData data) {

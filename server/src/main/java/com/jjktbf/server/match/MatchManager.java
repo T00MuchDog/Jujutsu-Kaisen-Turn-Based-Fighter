@@ -61,25 +61,6 @@ public final class MatchManager implements AutoCloseable {
         );
     }
 
-    public MatchManager(Database database, ServerConfig config, Clock clock) {
-        this(
-            database,
-            Duration.ofSeconds(Objects.requireNonNull(config, "config")
-                .disconnectTimeoutSeconds()),
-            DEFAULT_COMPLETED_MATCH_RETENTION,
-            clock
-        );
-    }
-
-    public MatchManager(Database database, Duration disconnectGracePeriod) {
-        this(
-            database,
-            disconnectGracePeriod,
-            DEFAULT_COMPLETED_MATCH_RETENTION,
-            Clock.systemUTC()
-        );
-    }
-
     public MatchManager(
         Database database,
         Duration disconnectGracePeriod,
@@ -111,22 +92,6 @@ public final class MatchManager implements AutoCloseable {
             completedMatchRetention, "completedMatchRetention");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
-    }
-
-    public MatchManager(
-        Database database,
-        Clock clock,
-        Duration disconnectGracePeriod,
-        Duration completedMatchRetention,
-        ScheduledExecutorService scheduler
-    ) {
-        this(
-            database,
-            disconnectGracePeriod,
-            completedMatchRetention,
-            clock,
-            scheduler
-        );
     }
 
     /** Creates and stores one seeded authoritative session. Repeated identical setup is safe. */
@@ -255,39 +220,6 @@ public final class MatchManager implements AutoCloseable {
         }
     }
 
-    public MatchSetup joinMatch(
-        SessionIdentity identity,
-        String matchId,
-        MatchConnection connection,
-        String gameVersion,
-        int protocolVersion,
-        String ruleset
-    ) {
-        return joinMatch(
-            identity,
-            matchId,
-            gameVersion,
-            protocolVersion,
-            ruleset,
-            connection
-        );
-    }
-
-    public MatchSetup joinMatch(
-        SessionIdentity identity,
-        String matchId,
-        MatchConnection connection
-    ) {
-        return joinMatch(
-            identity,
-            matchId,
-            ProtocolVersion.GAME_VERSION,
-            ProtocolVersion.PROTOCOL_VERSION,
-            ProtocolVersion.STANDARD_RULESET,
-            connection
-        );
-    }
-
     public CommandResult submitAction(
         SessionIdentity identity,
         String matchId,
@@ -309,14 +241,6 @@ public final class MatchManager implements AutoCloseable {
             throw new IllegalArgumentException("connectionId cannot be blank");
         }
         return submitAction(identity.playerId(), matchId, connectionId, command);
-    }
-
-    public CommandResult submitAction(
-        String playerId,
-        String matchId,
-        ActionCommand command
-    ) {
-        return submitAction(playerId, matchId, null, command);
     }
 
     private CommandResult submitAction(
@@ -473,10 +397,6 @@ public final class MatchManager implements AutoCloseable {
         }
     }
 
-    public MatchState getMatchState(SessionIdentity identity, String matchId) {
-        return getLatestState(identity, matchId);
-    }
-
     int managedMatchCount() {
         return matches.size();
     }
@@ -539,15 +459,12 @@ public final class MatchManager implements AutoCloseable {
             return;
         }
 
-        if (!match.completionBroadcast) {
-            if (!stateAlreadyBroadcast) {
-                broadcastState(match, null, null);
-            }
-            broadcastEnded(match);
-            match.completionBroadcast = true;
-        }
-        cancelAllDisconnects(match);
-
+        // Persist the terminal result BEFORE telling clients it ended. This
+        // guarantees clients never observe a "match over" state that the server
+        // has failed to record durably: if persistence fails we retry in the
+        // background and only broadcast once it succeeds. The retry path re-enters
+        // here with completionBroadcast still false, so the broadcast still runs
+        // exactly once — after the row is written.
         long completedAt = clock.millis();
         try {
             repository.recordCompletion(
@@ -572,6 +489,15 @@ public final class MatchManager implements AutoCloseable {
             match.completionRetryTask.cancel(false);
             match.completionRetryTask = null;
         }
+
+        if (!match.completionBroadcast) {
+            if (!stateAlreadyBroadcast) {
+                broadcastState(match, null, null);
+            }
+            broadcastEnded(match);
+            match.completionBroadcast = true;
+        }
+        cancelAllDisconnects(match);
         scheduleCleanup(match);
         LOGGER.info(
             "Match completed matchId={} status={} resultType={} winnerPlayerId={} reason={}",

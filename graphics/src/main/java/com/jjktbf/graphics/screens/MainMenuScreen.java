@@ -38,6 +38,8 @@ public class MainMenuScreen implements Screen {
     private final Table       root;
     private final List<MenuButton> menuButtons = new ArrayList<>();
     private final List<Cell<MenuButton>> menuButtonCells = new ArrayList<>();
+    /** Guards against double-dispose of native stage resources. */
+    private boolean disposed;
     private Table commands;
     private Cell<?> commandsCell;
 
@@ -162,6 +164,8 @@ public class MainMenuScreen implements Screen {
 
     @Override
     public void dispose() {
+        if (disposed) return;
+        disposed = true;
         stage.dispose();
     }
 

@@ -13,7 +13,6 @@ import com.badlogic.gdx.math.Rectangle;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.ui.CombatantPanel;
-import com.jjktbf.graphics.ui.MoveCard;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.combat.BattleCombatant;
@@ -34,16 +33,16 @@ import java.util.List;
  * Layout:
  *   Top half    — enemy panel (sprite + HP/CE bars)
  *   Middle      — event log (last N messages)
- *   Bottom half — player panel + move cards
+ *   Bottom half — player panel + planning panel
  *
  * Threading note:
- *   BattleController calls promptMoveSelection() synchronously.
+ *   BattleController calls promptBattlePlan() synchronously.
  *   The graphics loop must therefore run the controller on a background thread
  *   (started by JJKGame.startBattle) while posting render state back to the
  *   LibGDX render thread via Gdx.app.postRunnable().
  *
- *   promptMoveSelection() blocks the controller thread until the player
- *   presses ENTER to confirm their move queue.
+ *   promptBattlePlan() blocks the controller thread until the player
+ *   clicks "Lock In" to confirm their plan.
  */
 public class BattleScreen implements Screen, BattleView {
 
@@ -58,7 +57,6 @@ public class BattleScreen implements Screen, BattleView {
      * tracks the actual on-screen text size, keeping the gap consistent.
      */
     private static final float LOG_LINE_SPACING = 1.7f;
-    private static final float CARD_MARGIN = 8f;
     /**
      * Per-tick hold during resolution, in milliseconds. Empty and non-firing
      * ticks use the short baseline so the sweep stays brisk; a tick that fires
@@ -66,8 +64,8 @@ public class BattleScreen implements Screen, BattleView {
      * time to read. Which value applies is chosen per-tick from whether that
      * tick produced a MOVE_FIRED event (see {@link #lastTickFired}).
      */
-    private static final int   TICK_DURATION_MS        = 400;
-    private static final int   FIRING_TICK_DURATION_MS = 1000;
+    private static final int   TICK_DURATION_MS        = 200;
+    private static final int   FIRING_TICK_DURATION_MS = 2000;
     /** Brief beat between consecutive log messages within a single tick. */
     private static final int   EVENT_DELAY_MS          = TICK_DURATION_MS / 2;
     /** Move-unleash animation length — sized to fill a firing tick's hold. */
@@ -76,6 +74,9 @@ public class BattleScreen implements Screen, BattleView {
     private final JJKGame     game;
     private final AssetLoader assets;
     private final SpriteBatch batch;
+
+    /** Guards against double-dispose of native batch resources. */
+    private boolean disposed;
 
     // ── Panels ────────────────────────────────────────────────────────────────
     private CombatantPanel playerPanel;
@@ -94,11 +95,6 @@ public class BattleScreen implements Screen, BattleView {
     private float unleashedMoveElapsed;
 
     // ── Move selection state ──────────────────────────────────────────────────
-    private List<MoveCard>  moveCards       = new ArrayList<>();
-    private List<Move>      selectedQueue   = new ArrayList<>();
-    private int             remainingAp     = 0;
-    private int             projectedCe     = 0;
-    private volatile boolean awaitingInput  = false;
     private volatile boolean inputConfirmed = false;
     private volatile boolean awaitingNextRound = false;
     private volatile boolean nextRoundConfirmed = false;
@@ -164,9 +160,6 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void show() {
         logLines.clear();
-        selectedQueue.clear();
-        moveCards.clear();
-        awaitingInput  = false;
         inputConfirmed = false;
         awaitingNextRound = false;
         nextRoundConfirmed = false;
@@ -210,7 +203,7 @@ public class BattleScreen implements Screen, BattleView {
         abortRequested = true;
 
         // Unblock whichever controller-thread view call is parked right now.
-        inputConfirmed    = true; // promptBattlePlan / promptMoveSelection
+        inputConfirmed    = true; // promptBattlePlan
         nextRoundConfirmed = true; // awaitNextRound
 
         // If the planning panel holds the input processor, release it so the
@@ -233,6 +226,8 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public void dispose() {
+        if (disposed) return;
+        disposed = true;
         batch.dispose();
     }
 
@@ -254,66 +249,6 @@ public class BattleScreen implements Screen, BattleView {
                 nextRoundConfirmed = true;
             }
             return;
-        }
-
-        if (!awaitingInput) return;
-
-        // Click or touch on a move card
-        if (Gdx.input.justTouched()) {
-            float tx = Gdx.input.getX();
-            float ty = Gdx.graphics.getHeight() - Gdx.input.getY(); // flip Y
-            for (MoveCard card : moveCards) {
-                if (!card.isDisabled() && card.contains(tx, ty)) {
-                    toggleCard(card);
-                    break;
-                }
-            }
-        }
-
-        // ENTER confirms the queue
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) {
-            awaitingInput  = false;
-            inputConfirmed = true;
-        }
-    }
-
-    private void toggleCard(MoveCard card) {
-        if (card.isSelected()) {
-            // Deselect — restore AP and CE
-            card.setSelected(false);
-            selectedQueue.remove(card.getMove());
-            remainingAp += card.getMove().getApCost();
-            projectedCe += CeEfficiencyCalculator.computeActualCost(
-                    card.getMove(),
-                    renderPlayer.getEffectiveStats().getCursedEnergyEfficiency(), renderPlayer.getAbilityFlags());
-            refreshCardStates();
-        } else {
-            // Attempt to select
-            if (card.getMove().getApCost() <= remainingAp) {
-                int ceCost = CeEfficiencyCalculator.computeActualCost(
-                        card.getMove(),
-                        renderPlayer.getEffectiveStats().getCursedEnergyEfficiency(), renderPlayer.getAbilityFlags());
-                if (ceCost <= projectedCe) {
-                    card.setSelected(true);
-                    selectedQueue.add(card.getMove());
-                    remainingAp -= card.getMove().getApCost();
-                    projectedCe -= ceCost;
-                    refreshCardStates();
-                }
-            }
-        }
-    }
-
-    private void refreshCardStates() {
-        for (MoveCard card : moveCards) {
-            if (!card.isSelected()) {
-                boolean apOk = card.getMove().getApCost() <= remainingAp;
-                int ce = CeEfficiencyCalculator.computeActualCost(
-                        card.getMove(),
-                        renderPlayer.getEffectiveStats().getCursedEnergyEfficiency(), renderPlayer.getAbilityFlags());
-                boolean ceOk = ce <= projectedCe;
-                card.setDisabled(!apOk || !ceOk);
-            }
         }
     }
 
@@ -352,7 +287,6 @@ public class BattleScreen implements Screen, BattleView {
         if (playerPanel != null && renderPlayer != null)
             playerPanel.draw(batch, assets.fontLog, assets.fontSmall, renderPlayer.getCharacter().getName(), frameDelta);
         drawLog(sw, sh);
-        if (awaitingInput && planningPanel == null && !moveCards.isEmpty()) drawMoveCards();
         drawNextRoundButton();
         drawMoveUnleashAnimation(sw, sh);
         batch.end();
@@ -426,19 +360,6 @@ public class BattleScreen implements Screen, BattleView {
             all.addAll(wrapText(font, message, width));
         }
         return all;
-    }
-
-    private void drawMoveCards() {
-        for (MoveCard card : moveCards) {
-            card.draw(batch, assets.fontSmall);
-        }
-        // AP / CE status line above cards
-        float cardRowY = MoveCard.CARD_H + CARD_MARGIN * 2 + 10;
-        assets.fontSmall.setColor(Color.WHITE);
-        assets.fontSmall.draw(batch,
-            "AP remaining: " + remainingAp + "    CE remaining: " + projectedCe
-            + "    ENTER to confirm",
-            20, cardRowY);
     }
 
     private void drawNextRoundButton() {
@@ -566,40 +487,6 @@ public class BattleScreen implements Screen, BattleView {
         sleepMs(200);
     }
 
-    @Override
-    public List<Move> promptMoveSelection(BattleCombatant combatant, BattleCombatant opponent) {
-        inputConfirmed = false;
-        Gdx.app.postRunnable(() -> {
-            renderPlayer  = combatant;
-            renderEnemy   = opponent;
-            phaseLabel    = "SELECT YOUR MOVES";
-            remainingAp   = combatant.getMaxApBar();
-            projectedCe   = combatant.getCurrentCe();
-            selectedQueue = new ArrayList<>();
-            buildMoveCards(combatant);
-            updatePanels();
-            awaitingInput  = true;
-            inputConfirmed = false;
-        });
-
-        // Block the controller thread until the player confirms or aborts
-        while (!inputConfirmed && !abortRequested) {
-            sleepMs(16);
-        }
-
-        if (abortRequested) {
-            awaitingInput = false;
-            return new ArrayList<>();
-        }
-
-        List<Move> result = new ArrayList<>(selectedQueue);
-        Gdx.app.postRunnable(() -> {
-            moveCards.clear();
-            selectedQueue.clear();
-        });
-        return result;
-    }
-
     /**
      * Build and run the two-board timeline planning UI. Posts panel construction
      * to the render thread, installs the panel's drag input processor, and blocks
@@ -623,7 +510,6 @@ public class BattleScreen implements Screen, BattleView {
             planningPanel.setOnConfirm(() -> { inputConfirmed = true; });
             Gdx.input.setInputProcessor(planningPanel.inputProcessor());
             updatePanels();
-            awaitingInput  = true;
             inputConfirmed = false;
         });
 
@@ -634,7 +520,6 @@ public class BattleScreen implements Screen, BattleView {
         // On abort, return an empty plan immediately — the controller will see
         // isAborted() and unwind without ever running this plan.
         if (abortRequested) {
-            awaitingInput = false;
             return new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe());
         }
 
@@ -646,12 +531,16 @@ public class BattleScreen implements Screen, BattleView {
             holder.set(planningPanel == null ? null : planningPanel.getPlan());
             Gdx.input.setInputProcessor(null);
             planningPanel = null;
-            awaitingInput = false;
             panelClosed.countDown();
         });
-        // Wait for the render-thread cleanup, even if the defensive fallback is
-        // needed. Waiting on holder.get() would otherwise spin forever on null.
-        while (panelClosed.getCount() != 0) { sleepMs(4); }
+        // Wait for the render-thread cleanup. Blocking on the latch lets the
+        // thread park instead of busy-spinning; an interrupt (e.g. during
+        // shutdown) restores the flag and returns the plan gathered so far.
+        try {
+            panelClosed.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         BattlePlan result = holder.get();
         if (result == null) {
             // Fallback: empty plan (bank the round) — should not normally happen.
@@ -721,7 +610,6 @@ public class BattleScreen implements Screen, BattleView {
     public void awaitNextRound(BattleState state) {
         nextRoundConfirmed = false;
         Gdx.app.postRunnable(() -> {
-            awaitingInput = false;
             awaitingNextRound = true;
             nextRoundHovered = false;
         });
@@ -834,22 +722,14 @@ public class BattleScreen implements Screen, BattleView {
         if (enemyPanel  != null && renderEnemy  != null) enemyPanel.update(renderEnemy);
     }
 
-    private void buildMoveCards(BattleCombatant combatant) {
-        moveCards.clear();
-        List<Move> moves = combatant.getCharacter().getKnownMoves();
-        float startX = CARD_MARGIN;
-        float cardY  = CARD_MARGIN;
-        for (Move m : moves) {
-            if (combatant.getAbilityFlags().lockedMoveTags.stream().anyMatch(m::hasTag)) continue;
-            MoveCard card = new MoveCard(m, startX, cardY,
-                    assets.cardNormal, assets.cardSelected, assets.cardDisabled);
-            moveCards.add(card);
-            startX += MoveCard.CARD_W + CARD_MARGIN;
-        }
-    }
-
     private static void sleepMs(long ms) {
-        try { Thread.sleep(ms); } catch (InterruptedException ignored) {}
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            // Restore the interrupt flag so callers' abort/shutdown checks can
+            // observe it; matches HttpApiClient / MatchWebSocketClient.
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**

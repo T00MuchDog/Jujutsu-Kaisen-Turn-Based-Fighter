@@ -265,16 +265,8 @@ public class Move {
         }
     }
 
-    public boolean hasAllTags(List<String> tagNames) {
-        if (tagNames == null || tagNames.isEmpty()) return true;
-        for (String tagName : tagNames) {
-            if (!hasTag(tagName)) return false;
-        }
-        return true;
-    }
-
     /**
-     * Block-tag coverage check — the inverse direction of {@link #hasAllTags}.
+     * Block-tag coverage check.
      *
      * <p>A block with {@code blockAffectedTags} fires against this incoming move
      * iff the block <b>covers every damage tag the attack actually uses</b> —
@@ -313,18 +305,6 @@ public class Move {
 
     public boolean isDefensive() {
         return defenseType != DefenseType.NONE;
-    }
-
-    /**
-     * Returns a short display string summarising this block's reduction amount.
-     * e.g. "-50% damage" or "-30 flat dmg". Returns null if not a block.
-     */
-    public String blockDisplayInfo() {
-        return switch (defenseType) {
-            case PERCENTAGE_BLOCK -> "-" + blockDamageReduction + "% damage";
-            case FLAT_BLOCK       -> "-" + blockFlatReduction + " flat dmg";
-            default               -> null;
-        };
     }
 
     /**

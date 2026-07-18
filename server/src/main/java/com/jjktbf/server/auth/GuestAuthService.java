@@ -95,10 +95,6 @@ public final class GuestAuthService {
             "Could not allocate a guest display name.");
     }
 
-    public GuestCreateResponse createGuest() {
-        return createGuest(Optional.empty());
-    }
-
     public GuestCreateResponse createGuest(GuestCreateRequest request) {
         return createGuest(Optional.ofNullable(request == null ? null : request.displayName()));
     }

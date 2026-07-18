@@ -301,7 +301,7 @@ public class JJKGame extends Game {
      * Start a battle between two chosen characters.
      *
      * The BattleController runs on a background thread so its blocking
-     * promptMoveSelection() call does not stall the LibGDX render loop.
+     * promptBattlePlan() call does not stall the LibGDX render loop.
      * BattleScreen uses Gdx.app.postRunnable() to push state updates back
      * to the render thread safely.
      */
