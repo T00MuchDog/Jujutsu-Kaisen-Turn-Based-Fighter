@@ -24,4 +24,18 @@ public record ActionCommand(
             new SubmitPlanPayload(placements)
         );
     }
+
+    public static ActionCommand readyNextRound(
+        String commandId,
+        String matchId,
+        long expectedStateVersion
+    ) {
+        return new ActionCommand(
+            commandId,
+            matchId,
+            expectedStateVersion,
+            CommandType.READY_NEXT_ROUND,
+            null
+        );
+    }
 }

@@ -12,8 +12,12 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.math.Rectangle;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.multiplayer.MatchWebSocketClient;
+import com.jjktbf.graphics.multiplayer.MultiplayerMatchService;
+import com.jjktbf.graphics.multiplayer.MultiplayerSession;
 import com.jjktbf.graphics.ui.CombatantPanel;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
+import com.jjktbf.graphics.ui.battle.PlanningPanel;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
@@ -24,11 +28,30 @@ import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
+import com.jjktbf.model.move.MoveTag;
+import com.jjktbf.multiplayer.protocol.BattleEventState;
+import com.jjktbf.multiplayer.protocol.BattleEventType;
+import com.jjktbf.multiplayer.protocol.BattlePhase;
+import com.jjktbf.multiplayer.protocol.CharacterState;
+import com.jjktbf.multiplayer.protocol.ErrorResponse;
+import com.jjktbf.multiplayer.protocol.MatchSetup;
+import com.jjktbf.multiplayer.protocol.MatchState;
+import com.jjktbf.multiplayer.protocol.MatchStatus;
+import com.jjktbf.multiplayer.protocol.MoveState;
+import com.jjktbf.multiplayer.protocol.PlayerSide;
+import com.jjktbf.multiplayer.protocol.PlayerState;
+import com.jjktbf.multiplayer.protocol.RoundStartCharacterState;
+import com.jjktbf.multiplayer.protocol.SocketMessage;
 import com.jjktbf.view.BattleView;
 
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -49,6 +72,8 @@ import java.util.Set;
  *   clicks "Lock In" to confirm their plan.
  */
 public class BattleScreen implements Screen, BattleView {
+
+    private enum BattleMode { LOCAL, MULTIPLAYER }
 
     /** Max raw messages retained in the battle log; older ones are dropped. */
     private static final int   LOG_MAX_STORED = 50;
@@ -144,7 +169,7 @@ public class BattleScreen implements Screen, BattleView {
     private volatile boolean abortRequested = false;
 
     // ── Planning panel (two-board timeline UI) ─────────────────────────────────
-    private com.jjktbf.graphics.ui.battle.PlanningPanel planningPanel;
+    private PlanningPanel planningPanel;
 
     // ── Shared render state (written by controller thread, read by render) ────
     private volatile BattleCombatant renderPlayer;
@@ -152,6 +177,7 @@ public class BattleScreen implements Screen, BattleView {
     private volatile String          phaseLabel = "";
     private volatile boolean         battleOver  = false;
     private volatile String          battleResult = "";
+    private volatile String          battleResultReason = "";
     private volatile int             currentExecutionTick = 0;
     /**
      * Latched true the first time the planning panel is created, and stays true
@@ -160,6 +186,36 @@ public class BattleScreen implements Screen, BattleView {
      * before the planning panel appears.
      */
     private volatile boolean         executionUiActive = false;
+    private volatile Thread          localBattleThread;
+
+    // ── Online mode ───────────────────────────────────────────────────────────
+    private BattleMode mode = BattleMode.LOCAL;
+    private MatchSetup multiplayerSetup;
+    private MultiplayerSession multiplayerSession;
+    private MultiplayerMatchService multiplayerMatchService;
+    private MultiplayerMatchService.Listener multiplayerListener;
+    private MultiplayerSession.ConnectionState multiplayerConnectionState =
+        MultiplayerSession.ConnectionState.DISCONNECTED;
+    private MatchState multiplayerState;
+    private PlayerState onlinePlayer;
+    private PlayerState onlineEnemy;
+    private Map<String, Move> onlineMoves = Map.of();
+    private int onlinePlanningRound = -1;
+    private final Set<String> loggedOnlineEventIds = new HashSet<>();
+    private boolean onlineCommandPending;
+    private boolean preserveMultiplayerSession;
+    private long multiplayerRun;
+
+    private List<BattleEventState> playbackEvents = List.of();
+    private int playbackRound = -1;
+    private int playbackEventIndex;
+    private int playbackLastTick;
+    private float playbackTickElapsedMs;
+    private boolean playbackComplete;
+    private int onlinePlayerHp;
+    private int onlinePlayerCe;
+    private int onlineEnemyHp;
+    private int onlineEnemyCe;
 
     public BattleScreen(JJKGame game, AssetLoader assets) {
         this.game   = game;
@@ -167,6 +223,38 @@ public class BattleScreen implements Screen, BattleView {
         this.batch  = new SpriteBatch();
         this.playerSprite = assets.playerSprite;
         this.enemySprite = assets.enemySprite;
+    }
+
+    /** Selects the blocking local controller path before this reusable screen is shown. */
+    public void prepareLocal() {
+        abortRequested = true;
+        localBattleThread = null;
+        detachMultiplayerListener();
+        mode = BattleMode.LOCAL;
+        multiplayerSetup = null;
+        multiplayerSession = null;
+        multiplayerMatchService = null;
+        multiplayerState = null;
+    }
+
+    /** Selects the asynchronous authoritative path before this reusable screen is shown. */
+    public void prepareMultiplayer(
+        MatchSetup setup,
+        MultiplayerSession session,
+        MultiplayerMatchService matchService
+    ) {
+        abortRequested = true;
+        localBattleThread = null;
+        detachMultiplayerListener();
+        mode = BattleMode.MULTIPLAYER;
+        multiplayerSetup = Objects.requireNonNull(setup, "setup");
+        multiplayerSession = Objects.requireNonNull(session, "session");
+        multiplayerMatchService = Objects.requireNonNull(matchService, "matchService");
+    }
+
+    /** Associates local controller callbacks with the current battle run. */
+    public void setLocalBattleThread(Thread battleThread) {
+        localBattleThread = Objects.requireNonNull(battleThread, "battleThread");
     }
 
     /** Set the selected characters' side-appropriate battle sprites. */
@@ -181,17 +269,39 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public void show() {
+        Gdx.input.setInputProcessor(null);
+        planningPanel = null;
         logLines.clear();
         inputConfirmed = false;
         awaitingNextRound = false;
         nextRoundConfirmed = false;
         resolvingTicks = false;
         battleOver     = false;
+        battleResultReason = "";
         abortRequested = false;
         executionUiActive = false;
         currentExecutionTick = 0;
         unleashedMoveIcon = null;
         unleashedMoveElapsed = 0f;
+        playbackEvents = List.of();
+        playbackRound = -1;
+        playbackEventIndex = 0;
+        playbackLastTick = 0;
+        playbackTickElapsedMs = 0f;
+        playbackComplete = false;
+        onlinePlanningRound = -1;
+        loggedOnlineEventIds.clear();
+        onlineCommandPending = false;
+        preserveMultiplayerSession = false;
+        multiplayerState = null;
+        onlinePlayer = null;
+        onlineEnemy = null;
+        onlineMoves = Map.of();
+        logLines.clear();
+
+        if (mode == BattleMode.MULTIPLAYER) {
+            startMultiplayer();
+        }
     }
 
     /** Last frame's delta, shared with widgets that animate (e.g. HP bars). */
@@ -201,6 +311,7 @@ public class BattleScreen implements Screen, BattleView {
     public void render(float delta) {
         frameDelta = delta;
         updateMoveUnleashAnimation(delta);
+        if (mode == BattleMode.MULTIPLAYER) updateMultiplayerPlayback(delta);
         clearScreen();
         // Escape aborts from any phase, including planning (where the
         // PlanningInputProcessor owns Gdx.input, so handleInput() never runs).
@@ -224,6 +335,11 @@ public class BattleScreen implements Screen, BattleView {
         if (abortRequested) return; // already leaving — don't re-trigger
         abortRequested = true;
 
+        if (mode == BattleMode.MULTIPLAYER) {
+            leaveMultiplayer();
+            return;
+        }
+
         // Unblock whichever controller-thread view call is parked right now.
         inputConfirmed    = true; // promptBattlePlan
         nextRoundConfirmed = true; // awaitNextRound
@@ -244,12 +360,19 @@ public class BattleScreen implements Screen, BattleView {
     }
     @Override public void pause()  {}
     @Override public void resume() {}
-    @Override public void hide()   {}
+    @Override
+    public void hide() {
+        if (mode == BattleMode.MULTIPLAYER) {
+            closePlanningPanel();
+            detachMultiplayerListener();
+        }
+    }
 
     @Override
     public void dispose() {
         if (disposed) return;
         disposed = true;
+        detachMultiplayerListener();
         batch.dispose();
     }
 
@@ -268,7 +391,11 @@ public class BattleScreen implements Screen, BattleView {
             float y = Gdx.graphics.getHeight() - Gdx.input.getY();
             nextRoundHovered = nextRoundBounds.contains(x, y);
             if (Gdx.input.justTouched() && nextRoundHovered) {
-                nextRoundConfirmed = true;
+                if (mode == BattleMode.MULTIPLAYER) {
+                    submitReadyNextRound();
+                } else {
+                    nextRoundConfirmed = true;
+                }
             }
             return;
         }
@@ -304,10 +431,10 @@ public class BattleScreen implements Screen, BattleView {
 
         batch.begin();
         drawExecutionChrome(sw, sh);
-        if (enemyPanel  != null && renderEnemy  != null)
-            enemyPanel.draw(batch, assets.fontLog, assets.fontLarge, renderEnemy.getCharacter().getName(), frameDelta);
-        if (playerPanel != null && renderPlayer != null)
-            playerPanel.draw(batch, assets.fontLog, assets.fontLarge, renderPlayer.getCharacter().getName(), frameDelta);
+        if (enemyPanel != null && hasEnemyRenderState())
+            enemyPanel.draw(batch, assets.fontLog, assets.fontLarge, enemyCharacterName(), frameDelta);
+        if (playerPanel != null && hasPlayerRenderState())
+            playerPanel.draw(batch, assets.fontLog, assets.fontLarge, playerCharacterName(), frameDelta);
         drawLog(sw, sh);
         drawNextRoundButton();
         drawMoveUnleashAnimation(sw, sh);
@@ -394,7 +521,9 @@ public class BattleScreen implements Screen, BattleView {
                 nextRoundBounds.width, nextRoundBounds.height);
         }
         assets.fontMedium.setColor(Color.WHITE);
-        assets.fontMedium.draw(batch, "NEXT ROUND", nextRoundBounds.x + 16f,
+        String label = mode == BattleMode.MULTIPLAYER && localReadyForNextRound()
+            ? "WAITING..." : "NEXT ROUND";
+        assets.fontMedium.draw(batch, label, nextRoundBounds.x + 16f,
             nextRoundBounds.y + nextRoundBounds.height - 15f);
     }
 
@@ -427,7 +556,7 @@ public class BattleScreen implements Screen, BattleView {
 
     private void playMoveUnleashAnimation(Move move) {
         if (move == null) return;
-        if (move.isDefensive()) {
+        if (move.isDefensive() || move.hasTag("DEFENSIVE")) {
             unleashedMoveIcon = assets.battleUi.defenseEffectIcon;
         } else if (move.getCategory() == MoveCategory.UTILITY) {
             unleashedMoveIcon = assets.battleUi.utilityEffectIcon;
@@ -444,17 +573,24 @@ public class BattleScreen implements Screen, BattleView {
         float width = Math.min(420f, sw - 48f);
         float x = (sw - width) / 2f;
         float y = sh * 0.35f;
-        assets.battleUi.header.draw(batch, x, y, width, 180f);
+        assets.battleUi.header.draw(batch, x, y, width, 200f);
         assets.fontLarge.setColor(Color.WHITE);
         assets.fontLarge.draw(batch, "BATTLE OVER", x + 36f, y + 132f);
         assets.fontMedium.setColor(Color.YELLOW);
         assets.fontMedium.draw(batch, battleResult, x + 36f, y + 86f);
         assets.fontSmall.setColor(Color.LIGHT_GRAY);
-        assets.fontSmall.draw(batch, "ESC: MAIN MENU", x + 36f, y + 36f);
+        if (!battleResultReason.isBlank()) {
+            assets.fontSmall.draw(batch, battleResultReason, x + 36f, y + 57f);
+        }
+        assets.fontSmall.draw(batch, "ESC: MAIN MENU", x + 36f, y + 28f);
         batch.end();
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            game.showMainMenu();
+            if (mode == BattleMode.MULTIPLAYER) {
+                leaveMultiplayer();
+            } else {
+                game.showMainMenu();
+            }
         }
     }
 
@@ -499,7 +635,8 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public void displayRoundStart(BattleState state) {
-        Gdx.app.postRunnable(() -> {
+        if (!isCurrentLocalBattleThread()) return;
+        postLocal(() -> {
             renderPlayer = state.getPlayerCombatant();
             renderEnemy  = state.getEnemyCombatant();
             phaseLabel   = "ROUND " + state.getRoundNumber() + "  —  PLANNING";
@@ -518,11 +655,14 @@ public class BattleScreen implements Screen, BattleView {
      */
     @Override
     public BattlePlan promptBattlePlan(BattleCombatant combatant, BattleCombatant opponent) {
+        if (abortRequested || !isCurrentLocalBattleThread()) {
+            return new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe());
+        }
         // This must happen on the controller thread before its wait loop. If it
         // only happens in the posted render callback, a prior round's confirmed
         // value can skip planning entirely.
         inputConfirmed = false;
-        Gdx.app.postRunnable(() -> {
+        postLocal(() -> {
             renderPlayer = combatant;
             renderEnemy  = opponent;
             phaseLabel   = "PLAN YOUR ROUND";
@@ -535,13 +675,13 @@ public class BattleScreen implements Screen, BattleView {
             inputConfirmed = false;
         });
 
-        while (!inputConfirmed && !abortRequested) {
+        while (!inputConfirmed && !abortRequested && isCurrentLocalBattleThread()) {
             sleepMs(16);
         }
 
         // On abort, return an empty plan immediately — the controller will see
         // isAborted() and unwind without ever running this plan.
-        if (abortRequested) {
+        if (abortRequested || !isCurrentLocalBattleThread()) {
             return new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe());
         }
 
@@ -549,10 +689,16 @@ public class BattleScreen implements Screen, BattleView {
         final java.util.concurrent.atomic.AtomicReference<com.jjktbf.model.combat.BattlePlan> holder =
             new java.util.concurrent.atomic.AtomicReference<>();
         final java.util.concurrent.CountDownLatch panelClosed = new java.util.concurrent.CountDownLatch(1);
+        Thread run = Thread.currentThread();
         Gdx.app.postRunnable(() -> {
-            holder.set(planningPanel == null ? null : planningPanel.getPlan());
-            Gdx.input.setInputProcessor(null);
-            planningPanel = null;
+            if (mode == BattleMode.LOCAL
+                && localBattleThread == run
+                && !abortRequested
+                && game.getScreen() == this) {
+                holder.set(planningPanel == null ? null : planningPanel.getPlan());
+                Gdx.input.setInputProcessor(null);
+                planningPanel = null;
+            }
             panelClosed.countDown();
         });
         // Wait for the render-thread cleanup. Blocking on the latch lets the
@@ -575,19 +721,19 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public void displayCombatEvents(List<CombatEvent> events, BattleState state) {
-        if (abortRequested) return;
-        Gdx.app.postRunnable(() -> phaseLabel = "ROUND " + state.getRoundNumber() + "  —  RESOLVING");
+        if (abortRequested || !isCurrentLocalBattleThread()) return;
+        postLocal(() -> phaseLabel = "ROUND " + state.getRoundNumber() + "  —  RESOLVING");
 
         for (CombatEvent e : events) {
-            if (abortRequested) return;
+            if (abortRequested || !isCurrentLocalBattleThread()) return;
             if (e.getType() == CombatEvent.Type.MOVE_FIRED) {
                 lastTickFired = true;
                 Move unleashedMove = e.getMove();
-                Gdx.app.postRunnable(() -> playMoveUnleashAnimation(unleashedMove));
+                postLocal(() -> playMoveUnleashAnimation(unleashedMove));
             }
             if (!e.getMessage().isBlank()) {
                 final String msg = e.getMessage();
-                Gdx.app.postRunnable(() -> {
+                postLocal(() -> {
                     addLogLine(msg);
                     updatePanels();
                 });
@@ -598,7 +744,7 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public void displayResolutionTick(int tick, BattleState state) {
-        if (abortRequested) return;
+        if (abortRequested || !isCurrentLocalBattleThread()) return;
         // Rebuild the round's firing-tick set when a new sweep starts, so the
         // lookahead ("tick before firing") pacing reflects this round's plan.
         if (!resolvingTicks) {
@@ -619,11 +765,12 @@ public class BattleScreen implements Screen, BattleView {
         heldTick = tick;
         currentExecutionTick = tick;
         resolvingTicks = true;
-        Gdx.app.postRunnable(() -> phaseLabel = "ROUND " + state.getRoundNumber() + "  —  RESOLVING");
+        postLocal(() -> phaseLabel = "ROUND " + state.getRoundNumber() + "  —  RESOLVING");
     }
 
     @Override
     public void displayRoundEnd(BattleState state) {
+        if (!isCurrentLocalBattleThread()) return;
         resolvingTicks = false;
         // The final tick's tail hold runs here: no further displayResolutionTick
         // call follows to apply it. Without this the last hit of a round would
@@ -631,7 +778,7 @@ public class BattleScreen implements Screen, BattleView {
         abortableSleepMs(isSlowTick(heldTick, lastTickFired, firingTicks)
             ? SLOW_TICK_DURATION_MS : TICK_DURATION_MS);
         lastTickFired = false;
-        Gdx.app.postRunnable(() -> {
+        postLocal(() -> {
             phaseLabel = "ROUND " + Math.max(1, state.getRoundNumber() - 1) + " COMPLETE";
             updatePanels();
         });
@@ -671,17 +818,18 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public void awaitNextRound(BattleState state) {
+        if (!isCurrentLocalBattleThread()) return;
         nextRoundConfirmed = false;
-        Gdx.app.postRunnable(() -> {
+        postLocal(() -> {
             awaitingNextRound = true;
             nextRoundHovered = false;
         });
 
-        while (!nextRoundConfirmed && !abortRequested) {
+        while (!nextRoundConfirmed && !abortRequested && isCurrentLocalBattleThread()) {
             sleepMs(16);
         }
 
-        Gdx.app.postRunnable(() -> {
+        postLocal(() -> {
             awaitingNextRound = false;
             nextRoundHovered = false;
         });
@@ -689,7 +837,8 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public void displayBattleOver(BattleCombatant winner, BattleState state) {
-        Gdx.app.postRunnable(() -> {
+        if (!isCurrentLocalBattleThread()) return;
+        postLocal(() -> {
             if (winner == null) {
                 battleResult = "DRAW!";
             } else {
@@ -702,15 +851,620 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public void displayMessage(String message) {
-        if (abortRequested) return;
-        Gdx.app.postRunnable(() -> addLogLine(message));
+        if (abortRequested || !isCurrentLocalBattleThread()) return;
+        postLocal(() -> addLogLine(message));
         abortableSleepMs(100);
     }
 
     /** Polled by the controller thread to unwind the loop on an Escape abort. */
     @Override
     public boolean isAborted() {
-        return abortRequested;
+        return abortRequested || !isCurrentLocalBattleThread();
+    }
+
+    // -------------------------------------------------------------------------
+    // Authoritative multiplayer flow (render thread)
+    // -------------------------------------------------------------------------
+
+    private void startMultiplayer() {
+        if (multiplayerSetup == null || multiplayerMatchService == null) return;
+
+        executionUiActive = true;
+        phaseLabel = "CONNECTING TO MATCH";
+        multiplayerConnectionState = MultiplayerSession.ConnectionState.DISCONNECTED;
+        long run = ++multiplayerRun;
+
+        setCombatantSprites(
+            assets.characterBattleSprite(
+                game.multiplayerSpriteAsset(multiplayerSetup.playerCharacterId()),
+                false,
+                assets.playerSprite
+            ),
+            assets.characterBattleSprite(
+                game.multiplayerSpriteAsset(multiplayerSetup.opponentCharacterId()),
+                true,
+                assets.enemySprite
+            )
+        );
+
+        multiplayerListener = new MultiplayerBattleListener(run, multiplayerSetup.matchId());
+        multiplayerMatchService.addListener(multiplayerListener);
+        if (multiplayerSetup.state() != null) applyMultiplayerState(multiplayerSetup.state());
+
+        multiplayerMatchService.connect(multiplayerSetup).whenComplete((ignored, failure) -> {
+            if (failure != null) {
+                postMultiplayer(run, () -> addLogLine(
+                    "Could not connect to the authoritative match: " + safeMessage(failure)));
+            }
+        });
+    }
+
+    private void applyMultiplayerState(MatchState state) {
+        if (state == null || multiplayerSetup == null
+            || !multiplayerSetup.matchId().equals(state.matchId())) {
+            return;
+        }
+
+        PlayerState local = state.player(multiplayerSetup.playerSide()).orElse(null);
+        PlayerState opponent = state.player(opposite(multiplayerSetup.playerSide())).orElse(null);
+        if (local == null || opponent == null
+            || local.character() == null || opponent.character() == null) {
+            addLogLine("The server returned an incomplete battle state.");
+            return;
+        }
+
+        multiplayerState = state;
+        onlinePlayer = local;
+        onlineEnemy = opponent;
+        initOnlineMoves(local.character());
+        initPanels();
+
+        if (state.phase() == BattlePhase.PLANNING && !isTerminal(state.status())) {
+            awaitingNextRound = false;
+            nextRoundHovered = false;
+            resolvingTicks = false;
+            playbackComplete = false;
+            currentExecutionTick = 0;
+            onlinePlayerHp = local.character().currentHp();
+            onlinePlayerCe = local.character().currentCe();
+            onlineEnemyHp = opponent.character().currentHp();
+            onlineEnemyCe = opponent.character().currentCe();
+            phaseLabel = state.status() == MatchStatus.WAITING
+                ? "WAITING FOR OPPONENT"
+                : "ROUND " + state.roundNumber() + "  —  PLANNING";
+            updatePanels();
+            logOnlineEvents(state.recentEvents());
+
+            if (local.planSubmitted()) {
+                if (planningPanel != null) planningPanel.lock();
+                phaseLabel = "ROUND " + state.roundNumber() + "  —  PLAN LOCKED";
+            } else {
+                if (planningPanel != null && onlinePlanningRound == state.roundNumber()
+                    && !onlineCommandPending) {
+                    planningPanel.unlock();
+                }
+                ensureOnlinePlanner(state.roundNumber(), local.character());
+            }
+            return;
+        }
+
+        if ((state.phase() == BattlePhase.ROUND_END
+            || state.phase() == BattlePhase.BATTLE_OVER)
+            && playbackRound != state.roundNumber()) {
+            startMultiplayerPlayback(state);
+        } else if (state.phase() == BattlePhase.BATTLE_OVER) {
+            refreshTerminalPlayback(state);
+        }
+        updatePanels();
+    }
+
+    private void ensureOnlinePlanner(int roundNumber, CharacterState character) {
+        if (onlinePlanningRound == roundNumber && planningPanel != null) return;
+        if (multiplayerState == null
+            || multiplayerState.status() != MatchStatus.ACTIVE
+            || multiplayerConnectionState != MultiplayerSession.ConnectionState.CONNECTED
+            || onlineCommandPending) {
+            return;
+        }
+
+        Map<String, Integer> ceCosts = new HashMap<>();
+        List<Move> availableMoves = new ArrayList<>();
+        for (MoveState moveState : character.knownMoves()) {
+            Move move = onlineMoves.get(moveState.moveId());
+            if (move != null && moveState.available()) {
+                availableMoves.add(move);
+                ceCosts.put(move.getId(), moveState.effectiveCeCost());
+            }
+        }
+
+        int apBudget = character.plan() == null
+            ? character.maxAp() : character.plan().apBudget();
+        int ceBudget = character.plan() == null
+            ? character.currentCe() : character.plan().ceBudget();
+        planningPanel = new PlanningPanel(
+            availableMoves,
+            ceCosts,
+            apBudget,
+            ceBudget,
+            assets.battleUi,
+            Gdx.graphics.getWidth(),
+            Gdx.graphics.getHeight()
+        );
+        planningPanel.setOnConfirm(this::submitOnlinePlan);
+        Gdx.input.setInputProcessor(planningPanel.inputProcessor());
+        onlinePlanningRound = roundNumber;
+        phaseLabel = "PLAN YOUR ROUND";
+    }
+
+    private void initOnlineMoves(CharacterState character) {
+        Map<String, Move> converted = new HashMap<>();
+        for (MoveState state : character.knownMoves()) {
+            try {
+                converted.put(state.moveId(), toDisplayMove(state));
+            } catch (RuntimeException failure) {
+                addLogLine("Could not display move " + state.name() + ".");
+            }
+        }
+        onlineMoves = Map.copyOf(converted);
+    }
+
+    static Move toDisplayMove(MoveState state) {
+        MoveCategory category = MoveCategory.valueOf(state.category());
+        EnumSet<MoveTag> tags = EnumSet.noneOf(MoveTag.class);
+        for (String tagName : state.tags()) {
+            try {
+                tags.add(MoveTag.valueOf(tagName));
+            } catch (IllegalArgumentException ignored) {
+                // Unknown future tags are presentation-only on an older client.
+            }
+        }
+        Map<String, Integer> prerequisites = new HashMap<>();
+        if (category.getTags().contains(MoveTag.INNATE_TECHNIQUE)) {
+            prerequisites.put("cursedTechniqueMastery", 0);
+        }
+        if (category.getTags().contains(MoveTag.NON_INNATE_TECHNIQUE)) {
+            prerequisites.put("jujutsuSkill", 0);
+        }
+
+        Move.Builder builder = new Move.Builder(state.moveId())
+            .name(state.name())
+            .description(state.description())
+            .category(category)
+            .tags(tags)
+            .basePower(state.basePower())
+            .baseAccuracy(state.baseAccuracy())
+            .neverMiss(state.neverMiss())
+            .stun(tags.contains(MoveTag.STUN))
+            .guardBreak(tags.contains(MoveTag.GUARD_BREAK))
+            .heavy(tags.contains(MoveTag.HEAVY))
+            .apCost(state.apCost())
+            .unleashPoint(state.unleashPoint())
+            .baseCeCost(state.baseCeCost())
+            .hasCeCost(state.hasCeCost())
+            .minCeCost(state.minCeCost())
+            .maxCeCost(state.maxCeCost())
+            .prerequisites(prerequisites)
+            .freeMove(true);
+        if (category.getTags().contains(MoveTag.INNATE_TECHNIQUE)) {
+            builder.requiredTechniqueId("ONLINE_DISPLAY");
+        }
+        return builder.build();
+    }
+
+    private void submitOnlinePlan() {
+        if (!canSubmitOnlinePlan() || planningPanel == null) {
+            if (planningPanel != null) planningPanel.unlock();
+            return;
+        }
+        MultiplayerMatchService.PlanSubmission submission =
+            multiplayerMatchService.submitPlan(planningPanel.getPlacements());
+        if (!submission.sent()) {
+            planningPanel.unlock();
+            addLogLine(submissionMessage(submission.status()));
+            return;
+        }
+        onlineCommandPending = true;
+        phaseLabel = "ROUND " + multiplayerState.roundNumber() + "  —  LOCKING PLAN";
+        addLogLine("Plan locked. Waiting for the opponent.");
+    }
+
+    private boolean canSubmitOnlinePlan() {
+        return multiplayerState != null
+            && multiplayerState.status() == MatchStatus.ACTIVE
+            && multiplayerState.phase() == BattlePhase.PLANNING
+            && multiplayerConnectionState == MultiplayerSession.ConnectionState.CONNECTED
+            && !onlineCommandPending
+            && onlinePlayer != null
+            && !onlinePlayer.planSubmitted();
+    }
+
+    private void startMultiplayerPlayback(MatchState state) {
+        closePlanningPanel();
+        playbackRound = state.roundNumber();
+        playbackComplete = false;
+        playbackEventIndex = 0;
+        playbackTickElapsedMs = 0f;
+        currentExecutionTick = 0;
+        resolvingTicks = true;
+        awaitingNextRound = false;
+        battleOver = false;
+        phaseLabel = "ROUND " + playbackRound + "  —  RESOLVING";
+
+        playbackEvents = state.recentEvents().stream()
+            .filter(event -> event.roundNumber() == playbackRound)
+            .toList();
+        playbackLastTick = Math.max(
+            state.currentTick(),
+            playbackEvents.stream().mapToInt(BattleEventState::tick).max().orElse(0)
+        );
+        firingTicks = onlineFiringTicks(state);
+
+        onlinePlayerHp = roundStartValue(
+            state, multiplayerSetup.playerSide(), true, onlinePlayer.character().currentHp());
+        onlinePlayerCe = roundStartValue(
+            state, multiplayerSetup.playerSide(), false, onlinePlayer.character().currentCe());
+        onlineEnemyHp = roundStartValue(
+            state, opposite(multiplayerSetup.playerSide()), true, onlineEnemy.character().currentHp());
+        onlineEnemyCe = roundStartValue(
+            state, opposite(multiplayerSetup.playerSide()), false, onlineEnemy.character().currentCe());
+        processPlaybackEventsThrough(0);
+        updatePanels();
+    }
+
+    private void updateMultiplayerPlayback(float delta) {
+        if (!resolvingTicks || playbackComplete || multiplayerState == null) return;
+        playbackTickElapsedMs += Math.max(0f, delta) * 1000f;
+
+        while (resolvingTicks) {
+            int duration = isSlowTick(
+                currentExecutionTick,
+                firingTicks.contains(currentExecutionTick),
+                firingTicks
+            )
+                ? SLOW_TICK_DURATION_MS : TICK_DURATION_MS;
+            if (playbackTickElapsedMs < duration) return;
+            playbackTickElapsedMs -= duration;
+
+            if (currentExecutionTick >= playbackLastTick) {
+                finishMultiplayerPlayback();
+                return;
+            }
+            currentExecutionTick++;
+            processPlaybackEventsThrough(currentExecutionTick);
+        }
+    }
+
+    private void processPlaybackEventsThrough(int tick) {
+        while (playbackEventIndex < playbackEvents.size()
+            && playbackEvents.get(playbackEventIndex).tick() <= tick) {
+            BattleEventState event = playbackEvents.get(playbackEventIndex++);
+            applyPlaybackEvent(event);
+        }
+        updatePanels();
+    }
+
+    private void refreshTerminalPlayback(MatchState state) {
+        List<BattleEventState> merged = new ArrayList<>(playbackEvents);
+        Set<String> eventIds = new HashSet<>();
+        for (BattleEventState event : playbackEvents) {
+            if (event.eventId() != null) eventIds.add(event.eventId());
+        }
+        for (BattleEventState event : state.recentEvents()) {
+            if (event.roundNumber() == state.roundNumber()
+                && (event.eventId() == null || eventIds.add(event.eventId()))) {
+                merged.add(event);
+            }
+        }
+        playbackEvents = List.copyOf(merged);
+        playbackLastTick = Math.max(
+            playbackLastTick,
+            Math.max(
+                state.currentTick(),
+                playbackEvents.stream().mapToInt(BattleEventState::tick).max().orElse(0)
+            )
+        );
+        processPlaybackEventsThrough(
+            playbackComplete ? Integer.MAX_VALUE : currentExecutionTick);
+        if (playbackComplete) showMultiplayerResult(state);
+    }
+
+    private void applyPlaybackEvent(BattleEventState event) {
+        Integer value = event.value();
+        if (value != null && event.type() == BattleEventType.DAMAGE_DEALT) {
+            if (event.targetSide() == multiplayerSetup.playerSide()) {
+                onlinePlayerHp = Math.max(0, onlinePlayerHp - value);
+            } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
+                onlineEnemyHp = Math.max(0, onlineEnemyHp - value);
+            }
+        } else if (value != null && event.type() == BattleEventType.CE_DRAINED) {
+            changePlaybackCe(event.sourceSide(), -value);
+        } else if (value != null && event.type() == BattleEventType.CE_RESTORED) {
+            changePlaybackCe(event.sourceSide(), value);
+        }
+
+        if (event.type() == BattleEventType.MOVE_FIRED && event.moveId() != null) {
+            Move move = findOnlineMove(event.sourceSide(), event.moveId());
+            if (move != null) playMoveUnleashAnimation(move);
+        }
+        if (event.message() != null && !event.message().isBlank()
+            && (event.eventId() == null || loggedOnlineEventIds.add(event.eventId()))) {
+            addLogLine(event.message());
+        }
+    }
+
+    private void logOnlineEvents(List<BattleEventState> events) {
+        for (BattleEventState event : events) {
+            if (event.message() != null && !event.message().isBlank()
+                && (event.eventId() == null || loggedOnlineEventIds.add(event.eventId()))) {
+                addLogLine(event.message());
+            }
+        }
+    }
+
+    private void changePlaybackCe(PlayerSide side, int delta) {
+        if (side == multiplayerSetup.playerSide()) {
+            onlinePlayerCe = Math.max(0,
+                Math.min(onlinePlayer.character().maxCe(), onlinePlayerCe + delta));
+        } else if (side == opposite(multiplayerSetup.playerSide())) {
+            onlineEnemyCe = Math.max(0,
+                Math.min(onlineEnemy.character().maxCe(), onlineEnemyCe + delta));
+        }
+    }
+
+    private Move findOnlineMove(PlayerSide sourceSide, String moveId) {
+        PlayerState source = sourceSide == multiplayerSetup.playerSide()
+            ? onlinePlayer : onlineEnemy;
+        if (source != null) {
+            for (MoveState state : source.character().knownMoves()) {
+                if (moveId.equals(state.moveId())) {
+                    try {
+                        return toDisplayMove(state);
+                    } catch (RuntimeException ignored) {
+                        return null;
+                    }
+                }
+            }
+        }
+        return onlineMoves.get(moveId);
+    }
+
+    private void finishMultiplayerPlayback() {
+        processPlaybackEventsThrough(Integer.MAX_VALUE);
+        playbackComplete = true;
+        resolvingTicks = false;
+        onlinePlayerHp = onlinePlayer.character().currentHp();
+        onlinePlayerCe = onlinePlayer.character().currentCe();
+        onlineEnemyHp = onlineEnemy.character().currentHp();
+        onlineEnemyCe = onlineEnemy.character().currentCe();
+        updatePanels();
+
+        if (isTerminal(multiplayerState.status())
+            || multiplayerState.phase() == BattlePhase.BATTLE_OVER) {
+            showMultiplayerResult(multiplayerState);
+            return;
+        }
+        phaseLabel = "ROUND " + playbackRound + " COMPLETE";
+        awaitingNextRound = true;
+        nextRoundHovered = false;
+    }
+
+    private void submitReadyNextRound() {
+        if (multiplayerState == null || onlineCommandPending
+            || localReadyForNextRound()
+            || multiplayerConnectionState != MultiplayerSession.ConnectionState.CONNECTED) {
+            return;
+        }
+        MultiplayerMatchService.PlanSubmission submission =
+            multiplayerMatchService.readyNextRound();
+        if (!submission.sent()) {
+            addLogLine(submissionMessage(submission.status()));
+            return;
+        }
+        onlineCommandPending = true;
+        phaseLabel = "ROUND " + playbackRound + " COMPLETE  —  WAITING";
+    }
+
+    private boolean localReadyForNextRound() {
+        return onlinePlayer != null && onlinePlayer.readyForNextRound();
+    }
+
+    private void showMultiplayerResult(MatchState state) {
+        awaitingNextRound = false;
+        phaseLabel = "BATTLE OVER";
+        if (state.winnerSide() == null) {
+            battleResult = "DRAW!";
+        } else if (state.winnerSide() == multiplayerSetup.playerSide()) {
+            battleResult = "VICTORY!";
+        } else {
+            battleResult = "DEFEAT!";
+        }
+        battleResultReason = state.endReason() == null
+            ? "" : state.endReason().replace('_', ' ');
+        battleOver = true;
+    }
+
+    private void closePlanningPanel() {
+        planningPanel = null;
+        Gdx.input.setInputProcessor(null);
+    }
+
+    private void leaveMultiplayer() {
+        closePlanningPanel();
+        detachMultiplayerListener();
+        multiplayerRun++;
+        if (multiplayerMatchService != null && !preserveMultiplayerSession) {
+            multiplayerMatchService.disconnect();
+        }
+        game.showMultiplayerMenu();
+    }
+
+    private void detachMultiplayerListener() {
+        if (multiplayerListener != null && multiplayerMatchService != null) {
+            multiplayerMatchService.removeListener(multiplayerListener);
+        }
+        multiplayerListener = null;
+    }
+
+    private void postMultiplayer(long run, Runnable callback) {
+        Gdx.app.postRunnable(() -> {
+            if (mode == BattleMode.MULTIPLAYER
+                && multiplayerRun == run
+                && game.getScreen() == this) {
+                callback.run();
+            }
+        });
+    }
+
+    private static int roundStartValue(
+        MatchState state,
+        PlayerSide side,
+        boolean hp,
+        int fallback
+    ) {
+        for (RoundStartCharacterState start : state.roundStartCharacterStates()) {
+            if (start.side() == side) return hp ? start.currentHp() : start.currentCe();
+        }
+        return fallback;
+    }
+
+    private static Set<Integer> onlineFiringTicks(MatchState state) {
+        Set<Integer> ticks = new HashSet<>();
+        for (PlayerState player : state.players()) {
+            if (player.character() == null || player.character().plan() == null) continue;
+            player.character().plan().queuedSegments().forEach(segment -> ticks.add(segment.fireTick()));
+            player.character().plan().resolvedSegments().stream()
+                .filter(segment -> segment.status() == null
+                    || !"STUNNED".equals(segment.status().name()))
+                .forEach(segment -> ticks.add(segment.fireTick()));
+        }
+        return ticks;
+    }
+
+    private static PlayerSide opposite(PlayerSide side) {
+        return side == PlayerSide.PLAYER_ONE ? PlayerSide.PLAYER_TWO : PlayerSide.PLAYER_ONE;
+    }
+
+    private static boolean isTerminal(MatchStatus status) {
+        return status == MatchStatus.ENDED || status == MatchStatus.ABANDONED;
+    }
+
+    private static String submissionMessage(MultiplayerMatchService.SubmissionStatus status) {
+        return switch (status) {
+            case NO_MATCH -> "No active match is available.";
+            case NOT_CONNECTED -> "The match is not connected yet.";
+            case ALREADY_PENDING -> "A command is already waiting for the server.";
+            case MATCH_ENDED -> "The match has already ended.";
+            case SERVICE_CLOSED -> "The multiplayer service is closed.";
+            case SENT -> "Command sent.";
+        };
+    }
+
+    private static String safeMessage(Throwable failure) {
+        Throwable current = failure;
+        while (current.getCause() != null
+            && (current instanceof java.util.concurrent.CompletionException
+                || current instanceof java.util.concurrent.ExecutionException)) {
+            current = current.getCause();
+        }
+        String message = current.getMessage();
+        return message == null || message.isBlank()
+            ? "The multiplayer service is unavailable." : message;
+    }
+
+    private final class MultiplayerBattleListener implements MultiplayerMatchService.Listener {
+        private final long run;
+        private final String matchId;
+
+        private MultiplayerBattleListener(long run, String matchId) {
+            this.run = run;
+            this.matchId = matchId;
+        }
+
+        @Override
+        public void onConnectionStateChanged(MultiplayerSession.ConnectionState state) {
+            postMultiplayer(run, () -> {
+                multiplayerConnectionState = state;
+                if (state == MultiplayerSession.ConnectionState.CONNECTED) {
+                    addLogLine("Connected. Both players can now plan their round.");
+                    if (multiplayerState != null && onlinePlayer != null
+                        && multiplayerState.phase() == BattlePhase.PLANNING
+                        && !onlinePlayer.planSubmitted()) {
+                        ensureOnlinePlanner(multiplayerState.roundNumber(), onlinePlayer.character());
+                    }
+                }
+            });
+        }
+
+        @Override
+        public void onReconnecting(int attempt, Duration delay) {
+            postMultiplayer(run, () -> {
+                onlineCommandPending = false;
+                addLogLine("Connection interrupted. Retrying in "
+                    + delay.toSeconds() + " second(s).");
+            });
+        }
+
+        @Override
+        public void onDisconnected(MatchWebSocketClient.DisconnectReason reason) {
+            postMultiplayer(run, () -> {
+                multiplayerConnectionState = MultiplayerSession.ConnectionState.DISCONNECTED;
+                onlineCommandPending = false;
+                if (reason == MatchWebSocketClient.DisconnectReason.RETRIES_EXHAUSTED
+                    && (multiplayerState == null || !isTerminal(multiplayerState.status()))) {
+                    preserveMultiplayerSession = true;
+                    game.showMultiplayerDisconnected("Reconnect attempts were exhausted.");
+                }
+            });
+        }
+
+        @Override
+        public void onMatchState(MatchState state) {
+            if (matchId.equals(state.matchId())) {
+                postMultiplayer(run, () -> applyMultiplayerState(state));
+            }
+        }
+
+        @Override
+        public void onPlayerConnectionChanged(SocketMessage message) {
+            postMultiplayer(run, () -> {
+                if (message.playerSide() != multiplayerSetup.playerSide()) {
+                    addLogLine(message.type().name().contains("DISCONNECTED")
+                        ? "Opponent disconnected. Waiting for their return."
+                        : "Opponent connected.");
+                }
+            });
+        }
+
+        @Override
+        public void onCommandCompleted(MultiplayerMatchService.CommandOutcome outcome) {
+            postMultiplayer(run, () -> {
+                onlineCommandPending = false;
+                if (!outcome.accepted()) unlockPlannerIfPlanOpen();
+            });
+        }
+
+        @Override
+        public void onCommandRejected(String commandId, ErrorResponse error) {
+            postMultiplayer(run, () -> {
+                onlineCommandPending = false;
+                unlockPlannerIfPlanOpen();
+                addLogLine(error == null
+                    ? "The server rejected the command."
+                    : error.message());
+            });
+        }
+
+        @Override
+        public void onMatchEnded(MatchState state) {
+            if (matchId.equals(state.matchId())) {
+                postMultiplayer(run, () -> applyMultiplayerState(state));
+            }
+        }
+
+        @Override
+        public void onError(String code, String userMessage, Throwable cause) {
+            postMultiplayer(run, () -> addLogLine("[" + code + "] " + userMessage));
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -781,8 +1535,41 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     private void updatePanels() {
+        if (mode == BattleMode.MULTIPLAYER) {
+            if (playerPanel != null && onlinePlayer != null) {
+                CharacterState character = onlinePlayer.character();
+                playerPanel.update(
+                    onlinePlayerHp, character.maxHp(), onlinePlayerCe, character.maxCe());
+            }
+            if (enemyPanel != null && onlineEnemy != null) {
+                CharacterState character = onlineEnemy.character();
+                enemyPanel.update(
+                    onlineEnemyHp, character.maxHp(), onlineEnemyCe, character.maxCe());
+            }
+            return;
+        }
         if (playerPanel != null && renderPlayer != null) playerPanel.update(renderPlayer);
-        if (enemyPanel  != null && renderEnemy  != null) enemyPanel.update(renderEnemy);
+        if (enemyPanel != null && renderEnemy != null) enemyPanel.update(renderEnemy);
+    }
+
+    private boolean hasPlayerRenderState() {
+        return mode == BattleMode.MULTIPLAYER ? onlinePlayer != null : renderPlayer != null;
+    }
+
+    private boolean hasEnemyRenderState() {
+        return mode == BattleMode.MULTIPLAYER ? onlineEnemy != null : renderEnemy != null;
+    }
+
+    private String playerCharacterName() {
+        return mode == BattleMode.MULTIPLAYER
+            ? onlinePlayer.character().name()
+            : renderPlayer.getCharacter().getName();
+    }
+
+    private String enemyCharacterName() {
+        return mode == BattleMode.MULTIPLAYER
+            ? onlineEnemy.character().name()
+            : renderEnemy.getCharacter().getName();
     }
 
     private static void sleepMs(long ms) {
@@ -804,8 +1591,34 @@ public class BattleScreen implements Screen, BattleView {
      */
     private void abortableSleepMs(long ms) {
         long deadline = System.currentTimeMillis() + ms;
-        while (!abortRequested && System.currentTimeMillis() < deadline) {
+        while (!abortRequested && isCurrentLocalBattleThread()
+            && System.currentTimeMillis() < deadline) {
             sleepMs(Math.min(40L, deadline - System.currentTimeMillis() + 1));
         }
+    }
+
+    private boolean isCurrentLocalBattleThread() {
+        return mode == BattleMode.LOCAL
+            && localBattleThread != null
+            && Thread.currentThread() == localBattleThread;
+    }
+
+    private void unlockPlannerIfPlanOpen() {
+        if (planningPanel != null
+            && (onlinePlayer == null || !onlinePlayer.planSubmitted())) {
+            planningPanel.unlock();
+        }
+    }
+
+    private void postLocal(Runnable callback) {
+        Thread run = Thread.currentThread();
+        Gdx.app.postRunnable(() -> {
+            if (mode == BattleMode.LOCAL
+                && localBattleThread == run
+                && !abortRequested
+                && game.getScreen() == this) {
+                callback.run();
+            }
+        });
     }
 }

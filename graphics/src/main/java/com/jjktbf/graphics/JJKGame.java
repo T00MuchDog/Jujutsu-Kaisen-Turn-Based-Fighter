@@ -16,7 +16,6 @@ import com.jjktbf.graphics.screens.CharacterSelectScreen;
 import com.jjktbf.graphics.screens.ChallengeBrowserScreen;
 import com.jjktbf.graphics.screens.HostChallengeScreen;
 import com.jjktbf.graphics.screens.MainMenuScreen;
-import com.jjktbf.graphics.screens.MultiplayerBattleScreen;
 import com.jjktbf.graphics.screens.MultiplayerDisconnectedScreen;
 import com.jjktbf.graphics.screens.MultiplayerMenuScreen;
 import com.jjktbf.graphics.screens.editors.AbilityEditorScreen;
@@ -95,7 +94,6 @@ public class JJKGame extends Game {
     private MultiplayerMenuScreen multiplayerMenuScreen;
     private HostChallengeScreen hostChallengeScreen;
     private ChallengeBrowserScreen challengeBrowserScreen;
-    private MultiplayerBattleScreen multiplayerBattleScreen;
     private MultiplayerDisconnectedScreen multiplayerDisconnectedScreen;
 
     // -------------------------------------------------------------------------
@@ -143,8 +141,6 @@ public class JJKGame extends Game {
             this, assets, guestAccountService, challengeService);
         challengeBrowserScreen = new ChallengeBrowserScreen(
             this, assets, guestAccountService, challengeService);
-        multiplayerBattleScreen = new MultiplayerBattleScreen(
-            this, assets, multiplayerSession, multiplayerMatchService);
         multiplayerDisconnectedScreen = new MultiplayerDisconnectedScreen(
             this,
             assets,
@@ -181,7 +177,6 @@ public class JJKGame extends Game {
         if (multiplayerMenuScreen != null) multiplayerMenuScreen.dispose();
         if (hostChallengeScreen != null) hostChallengeScreen.dispose();
         if (challengeBrowserScreen != null) challengeBrowserScreen.dispose();
-        if (multiplayerBattleScreen != null) multiplayerBattleScreen.dispose();
         if (multiplayerDisconnectedScreen != null) multiplayerDisconnectedScreen.dispose();
         if (assets != null) assets.dispose();
     }
@@ -213,8 +208,9 @@ public class JJKGame extends Game {
     }
 
     public void showMultiplayerBattle(MatchSetup setup) {
-        setScreen(multiplayerBattleScreen);
-        multiplayerBattleScreen.begin(setup);
+        multiplayerSession.setMatchSetup(setup);
+        battleScreen.prepareMultiplayer(setup, multiplayerSession, multiplayerMatchService);
+        setScreen(battleScreen);
     }
 
     public void showMultiplayerDisconnected(String error) {
@@ -297,6 +293,17 @@ public class JJKGame extends Game {
                 ? "Canonical fighter" : "Local fighter");
     }
 
+    /** Returns bundled visual metadata for an authoritative character ID. */
+    public String multiplayerSpriteAsset(String characterId) {
+        if (characterId == null) return null;
+        return multiplayerCharacterRepository.getAll().stream()
+            .filter(character -> characterId.equals(character.id))
+            .map(character -> character.spriteAsset)
+            .filter(spriteAsset -> spriteAsset != null && !spriteAsset.isBlank())
+            .findFirst()
+            .orElse(null);
+    }
+
     /**
      * Start a battle between two chosen characters.
      *
@@ -307,6 +314,7 @@ public class JJKGame extends Game {
      */
     public void startBattle(CharacterData playerData, CharacterData cpuData,
                             MoveRepository moveRepo, AbilityRepository abilityRepo) {
+        battleScreen.prepareLocal();
         battleScreen.setCombatantSprites(
             assets.characterBattleSprite(playerData.spriteAsset, false, assets.playerSprite),
             assets.characterBattleSprite(cpuData.spriteAsset, true, assets.enemySprite));
@@ -334,6 +342,7 @@ public class JJKGame extends Game {
             }
         }, "battle-thread");
 
+        battleScreen.setLocalBattleThread(battleThread);
         battleThread.setDaemon(true); // exits when the main window closes
         battleThread.start();
     }

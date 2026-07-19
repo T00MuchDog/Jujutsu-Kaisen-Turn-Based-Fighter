@@ -3,6 +3,7 @@ package com.jjktbf.server.match;
 import com.jjktbf.multiplayer.protocol.ActionCommand;
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeCreateRequest;
+import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
 import com.jjktbf.multiplayer.protocol.CommandResult;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
 import com.jjktbf.multiplayer.protocol.MatchState;
@@ -62,11 +63,13 @@ class MatchManagerTest {
         ChallengeService challenges = fixture.challengeService();
         String challengeId = challenges.createChallenge(
             playerOne, ChallengeCreateRequest.standard(firstCharacter)).challengeId();
-        accepted = challenges.acceptChallenge(
+        var pending = challenges.requestJoin(
             playerTwo,
             challengeId,
             ChallengeAcceptRequest.standard(secondCharacter)
         );
+        accepted = challenges.acceptChallenge(
+            playerOne, challengeId, ChallengeDecisionRequest.forChallenge(pending));
         repository = new MatchPersistenceRepository(fixture.database());
         manager = new MatchManager(
             fixture.database(), GRACE_PERIOD, RETENTION, fixture.clock());
@@ -396,7 +399,7 @@ class MatchManagerTest {
             accepted.matchId(), playerOne.playerId(), joined.first.connectionId()));
         await(() -> repository.findResult(accepted.matchId()).isPresent());
         await(() -> manager.managedMatchCount() == 0);
-        assertFalse(joined.second.isOpen());
+        await(() -> !joined.second.isOpen());
 
         ServiceException released = assertThrows(
             ServiceException.class,
@@ -418,6 +421,48 @@ class MatchManagerTest {
         assertThrows(
             IllegalStateException.class,
             () -> manager.getLatestState(playerOne, accepted.matchId()));
+    }
+
+    @Test
+    void doesNotRecreatePersistedNonWaitingMatchWithoutRuntimeState() {
+        manager.close();
+        manager = new MatchManager(
+            fixture.database(), GRACE_PERIOD, RETENTION, fixture.clock());
+        AcceptedMatchSetup activeSetup = new AcceptedMatchSetup(
+            accepted.matchId(),
+            accepted.challengeId(),
+            MatchStatus.ACTIVE,
+            accepted.serverSeed(),
+            accepted.gameVersion(),
+            accepted.protocolVersion(),
+            accepted.ruleset(),
+            accepted.createdAt(),
+            accepted.playerOne(),
+            accepted.playerTwo()
+        );
+
+        ServiceException failure = assertThrows(
+            ServiceException.class, () -> manager.createMatch(activeSetup));
+        assertEquals("MATCH_NOT_FOUND", failure.code());
+        assertEquals(0, manager.managedMatchCount());
+    }
+
+    @Test
+    void startupMarksInterruptedActiveMatchesAbandoned() {
+        joinBoth();
+        assertEquals(MatchStatus.ACTIVE,
+            repository.findMatch(accepted.matchId()).orElseThrow().status());
+
+        manager.close();
+        manager = new MatchManager(
+            fixture.database(), GRACE_PERIOD, RETENTION, fixture.clock());
+
+        assertEquals(MatchStatus.ABANDONED,
+            repository.findMatch(accepted.matchId()).orElseThrow().status());
+        MatchPersistenceRepository.StoredResult result = repository
+            .findResult(accepted.matchId()).orElseThrow();
+        assertEquals(MatchResultType.ABANDONED, result.resultType());
+        assertEquals("SERVER_RESTART", result.reason());
     }
 
     private CommandResult submitWhenReleased(

@@ -32,6 +32,7 @@ import com.jjktbf.multiplayer.protocol.PlanState;
 import com.jjktbf.multiplayer.protocol.PlayerSide;
 import com.jjktbf.multiplayer.protocol.PlayerState;
 import com.jjktbf.multiplayer.protocol.ProtocolVersion;
+import com.jjktbf.multiplayer.protocol.RoundStartCharacterState;
 import com.jjktbf.multiplayer.protocol.StatusEffectState;
 
 import java.time.Clock;
@@ -67,6 +68,7 @@ public final class HeadlessBattleSession {
     private static final String STALE_STATE_VERSION = "STALE_STATE_VERSION";
     private static final String WRONG_PHASE = "WRONG_PHASE";
     private static final String PLAN_ALREADY_SUBMITTED = "PLAN_ALREADY_SUBMITTED";
+    private static final String READY_ALREADY_SUBMITTED = "READY_ALREADY_SUBMITTED";
     private static final String INVALID_MOVE = "INVALID_MOVE";
     private static final String MOVE_RESTRICTED = "MOVE_RESTRICTED";
     private static final String INVALID_PLACEMENT = "INVALID_PLACEMENT";
@@ -91,9 +93,12 @@ public final class HeadlessBattleSession {
     private String endReason;
     private long stateVersion;
     private long eventSequence;
+    private int wireRoundNumber;
     private int wireCurrentTick;
     private List<BattleEventState> recentEvents;
+    private List<RoundStartCharacterState> roundStartCharacterStates;
     private Long firstPlanBaseVersion;
+    private Long firstReadyBaseVersion;
 
     public HeadlessBattleSession(
         String matchId,
@@ -194,6 +199,7 @@ public final class HeadlessBattleSession {
         this.resolver = new CombatResolver(new SeededRandomSource(seed));
         this.status = MatchStatus.WAITING;
         this.stateVersion = 0;
+        this.wireRoundNumber = battleState.getRoundNumber();
         this.wireCurrentTick = 0;
 
         List<BattleEventState> initialEvents = new ArrayList<>();
@@ -208,6 +214,7 @@ public final class HeadlessBattleSession {
             battleState.getRoundNumber()
         ));
         this.recentEvents = List.copyOf(initialEvents);
+        this.roundStartCharacterStates = captureRoundStartCharacterStates();
     }
 
     /** Applies one authenticated intent atomically. Rejections never alter session state. */
@@ -253,8 +260,25 @@ public final class HeadlessBattleSession {
                 "Commands cannot be accepted while a player is disconnected."
             );
         }
+        if (command.type() == CommandType.READY_NEXT_ROUND
+            && battleState.getCurrentPhase() != BattleState.Phase.ROUND_END) {
+            return reject(
+                commandId,
+                WRONG_PHASE,
+                "Next-round readiness can only be submitted during round end."
+            );
+        }
+        if (command.type() == CommandType.READY_NEXT_ROUND
+            && battleState.getCurrentPhase() == BattleState.Phase.ROUND_END
+            && participant.readyForNextRound) {
+            return reject(
+                commandId,
+                READY_ALREADY_SUBMITTED,
+                "This player is already ready for the next round."
+            );
+        }
         if (command.expectedStateVersion() != stateVersion
-            && !canUseSharedPlanningVersion(participant, command.expectedStateVersion())) {
+            && !canUseSharedCommandVersion(participant, command)) {
             return reject(
                 commandId,
                 STALE_STATE_VERSION,
@@ -264,6 +288,9 @@ public final class HeadlessBattleSession {
                     "currentStateVersion", Long.toString(stateVersion)
                 )
             );
+        }
+        if (command.type() == CommandType.READY_NEXT_ROUND) {
+            return applyReadyNextRound(participant, command);
         }
         if (battleState.getCurrentPhase() != BattleState.Phase.PLANNING) {
             return reject(commandId, WRONG_PHASE, "Plans can only be submitted during planning.");
@@ -435,12 +462,13 @@ public final class HeadlessBattleSession {
             ProtocolVersion.PROTOCOL_VERSION,
             ProtocolVersion.STANDARD_RULESET,
             currentPhase(),
-            battleState.getRoundNumber(),
+            wireRoundNumber,
             wireCurrentTick,
             List.of(
                 playerState(participantsBySide.get(PlayerSide.PLAYER_ONE), viewerPlayerId),
                 playerState(participantsBySide.get(PlayerSide.PLAYER_TWO), viewerPlayerId)
             ),
+            roundStartCharacterStates,
             winnerSide,
             winnerPlayerId,
             endReason,
@@ -501,6 +529,7 @@ public final class HeadlessBattleSession {
         ParticipantRuntime winner = winnerPlayerId == null
             ? null
             : requireParticipant(winnerPlayerId);
+        BattleState.Phase previousPhase = battleState.getCurrentPhase();
         this.status = terminalStatus;
         this.winnerPlayerId = winner == null ? null : winner.participant.playerId();
         this.winnerSide = winner == null ? null : winner.participant.side();
@@ -509,13 +538,20 @@ public final class HeadlessBattleSession {
         stateVersion++;
 
         ParticipantRuntime loser = winner == null ? null : opponentOf(winner);
-        recentEvents = List.of(battleOverEvent(
-            battleState.getRoundNumber(),
+        BattleEventState terminalEvent = battleOverEvent(
+            wireRoundNumber,
             wireCurrentTick,
             winner,
             loser,
             reason
-        ));
+        );
+        if (previousPhase == BattleState.Phase.ROUND_END) {
+            List<BattleEventState> events = new ArrayList<>(recentEvents);
+            events.add(terminalEvent);
+            recentEvents = List.copyOf(events);
+        } else {
+            recentEvents = List.of(terminalEvent);
+        }
         return snapshot();
     }
 
@@ -559,7 +595,7 @@ public final class HeadlessBattleSession {
     }
 
     public synchronized int getRoundNumber() {
-        return battleState.getRoundNumber();
+        return wireRoundNumber;
     }
 
     public String getPlayerOneId() {
@@ -588,6 +624,8 @@ public final class HeadlessBattleSession {
 
     private List<BattleEventState> resolveSubmittedRound() {
         int resolvedRound = battleState.getRoundNumber();
+        wireRoundNumber = resolvedRound;
+        resetRoundReadiness();
         battleState.transitionTo(BattleState.Phase.RESOLUTION);
         List<CombatEvent> resolutionEvents = new ArrayList<>(resolver.beginResolution(battleState));
         while (resolver.hasMoreTicks()) {
@@ -646,20 +684,68 @@ public final class HeadlessBattleSession {
 
         battleState.transitionTo(BattleState.Phase.ROUND_END);
         events.addAll(toWireEvents(resolver.processRoundEnd(battleState), resolvedRound));
-        clearRoundPlans();
+        status = ongoingConnectionStatus();
+        return events;
+    }
+
+    private CommandResult applyReadyNextRound(
+        ParticipantRuntime participant,
+        ActionCommand command
+    ) {
+        if (battleState.getCurrentPhase() != BattleState.Phase.ROUND_END) {
+            return reject(
+                command.commandId(),
+                WRONG_PHASE,
+                "Next-round readiness can only be submitted during round end."
+            );
+        }
+        if (command.payload() != null) {
+            return reject(
+                command.commandId(),
+                MALFORMED_COMMAND,
+                "Next-round readiness must not contain a payload."
+            );
+        }
+        if (participant.readyForNextRound) {
+            return reject(
+                command.commandId(),
+                READY_ALREADY_SUBMITTED,
+                "This player is already ready for the next round."
+            );
+        }
+
+        if (participantsBySide.values().stream().noneMatch(runtime -> runtime.readyForNextRound)) {
+            firstReadyBaseVersion = command.expectedStateVersion();
+        }
+        participant.readyForNextRound = true;
+        acceptedCommandIds.add(command.commandId());
+        stateVersion++;
+
+        if (!allPlayersReadyForNextRound()) {
+            return CommandResult.accepted(command.commandId(), List.of(), snapshot());
+        }
+
+        clearCompletedRound();
         battleState.transitionTo(BattleState.Phase.PLANNING);
+        wireRoundNumber = battleState.getRoundNumber();
         wireCurrentTick = 0;
         status = ongoingConnectionStatus();
 
-        int nextRound = battleState.getRoundNumber();
-        events.add(systemEvent(
+        List<BattleEventState> startEvents = new ArrayList<>();
+        startEvents.add(systemEvent(
             BattleEventType.ROUND_START,
-            nextRound,
+            wireRoundNumber,
             0,
-            "Round " + nextRound + " started."
+            "Round " + wireRoundNumber + " started."
         ));
-        events.addAll(toWireEvents(resolver.processRoundStart(battleState), nextRound));
-        return events;
+        startEvents.addAll(toWireEvents(
+            resolver.processRoundStart(battleState),
+            wireRoundNumber
+        ));
+        recentEvents = List.copyOf(startEvents);
+        roundStartCharacterStates = captureRoundStartCharacterStates();
+        MatchState state = snapshot();
+        return CommandResult.accepted(command.commandId(), recentEvents, state);
     }
 
     private void attachPlan(
@@ -732,14 +818,23 @@ public final class HeadlessBattleSession {
             .findFirst();
     }
 
-    private void clearRoundPlans() {
+    private void clearCompletedRound() {
         firstPlanBaseVersion = null;
+        firstReadyBaseVersion = null;
         for (ParticipantRuntime participant : participantsBySide.values()) {
             participant.planSubmitted = false;
+            participant.readyForNextRound = false;
             participant.plan = null;
             participant.segments = List.of();
             participant.combatant.setPlan(null);
             participant.combatant.setTimeline(null);
+        }
+    }
+
+    private void resetRoundReadiness() {
+        firstReadyBaseVersion = null;
+        for (ParticipantRuntime participant : participantsBySide.values()) {
+            participant.readyForNextRound = false;
         }
     }
 
@@ -754,6 +849,7 @@ public final class HeadlessBattleSession {
             participant.participant.side(),
             participant.connected,
             participant.planSubmitted,
+            participant.readyForNextRound,
             participant.connected ? null : participant.disconnectDeadline,
             characterState(participant, concealPlan)
         );
@@ -831,7 +927,7 @@ public final class HeadlessBattleSession {
     private PlanState planState(ParticipantRuntime participant, boolean concealPlan) {
         if (concealPlan) {
             return new PlanState(
-                battleState.getRoundNumber(),
+                wireRoundNumber,
                 participant.combatant.getMaxApBar(),
                 0,
                 participant.combatant.getCurrentCe(),
@@ -861,7 +957,7 @@ public final class HeadlessBattleSession {
             }
         }
         return new PlanState(
-            battleState.getRoundNumber(),
+            wireRoundNumber,
             apBudget,
             apUsed,
             ceBudget,
@@ -972,6 +1068,7 @@ public final class HeadlessBattleSession {
 
     private List<String> moveTags(Move move) {
         LinkedHashSet<String> tags = new LinkedHashSet<>();
+        move.getTags().stream().map(MoveTag::name).forEach(tags::add);
         move.getCategory().getTags().stream().map(MoveTag::name).forEach(tags::add);
         if (move.hasTag("ATTACK")) tags.add(MoveTag.ATTACK.name());
         if (move.isStun()) tags.add(MoveTag.STUN.name());
@@ -1019,8 +1116,57 @@ public final class HeadlessBattleSession {
             .count() == 1;
     }
 
+    private boolean canUseSharedCommandVersion(
+        ParticipantRuntime participant,
+        ActionCommand command
+    ) {
+        if (command.type() == CommandType.SUBMIT_PLAN) {
+            return canUseSharedPlanningVersion(participant, command.expectedStateVersion());
+        }
+        return command.type() == CommandType.READY_NEXT_ROUND
+            && canUseSharedReadyVersion(participant, command.expectedStateVersion());
+    }
+
+    private boolean canUseSharedReadyVersion(
+        ParticipantRuntime participant,
+        long expectedVersion
+    ) {
+        if (firstReadyBaseVersion == null
+            || participant.readyForNextRound
+            || expectedVersion != firstReadyBaseVersion
+            || stateVersion != firstReadyBaseVersion + 1
+            || battleState.getCurrentPhase() != BattleState.Phase.ROUND_END) {
+            return false;
+        }
+        return participantsBySide.values().stream()
+            .filter(runtime -> runtime.readyForNextRound)
+            .count() == 1;
+    }
+
     private boolean allPlansSubmitted() {
         return participantsBySide.values().stream().allMatch(participant -> participant.planSubmitted);
+    }
+
+    private boolean allPlayersReadyForNextRound() {
+        return participantsBySide.values().stream()
+            .allMatch(participant -> participant.readyForNextRound);
+    }
+
+    private List<RoundStartCharacterState> captureRoundStartCharacterStates() {
+        return List.of(
+            roundStartCharacterState(participantsBySide.get(PlayerSide.PLAYER_ONE)),
+            roundStartCharacterState(participantsBySide.get(PlayerSide.PLAYER_TWO))
+        );
+    }
+
+    private static RoundStartCharacterState roundStartCharacterState(
+        ParticipantRuntime participant
+    ) {
+        return new RoundStartCharacterState(
+            participant.participant.side(),
+            participant.combatant.getCurrentHp(),
+            participant.combatant.getCurrentCe()
+        );
     }
 
     private MatchStatus ongoingConnectionStatus() {
@@ -1154,6 +1300,7 @@ public final class HeadlessBattleSession {
         private boolean connected;
         private boolean joined;
         private boolean planSubmitted;
+        private boolean readyForNextRound;
         private Long disconnectDeadline;
         private BattlePlan plan;
         private List<SegmentRuntime> segments = List.of();

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeCreateRequest;
+import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeListResponse;
 import com.jjktbf.multiplayer.protocol.ChallengeSummary;
 import com.jjktbf.multiplayer.protocol.ErrorResponse;
@@ -99,16 +100,68 @@ public final class HttpApiClient implements MultiplayerApi, AutoCloseable {
     }
 
     @Override
-    public CompletableFuture<MatchSetup> acceptChallenge(
+    public CompletableFuture<ChallengeSummary> getRequestedChallenge(String token) {
+        return get("/api/challenges/requested", token, ChallengeSummary.class);
+    }
+
+    @Override
+    public CompletableFuture<ChallengeSummary> getHostedChallenge(String token) {
+        return get("/api/challenges/hosted", token, ChallengeSummary.class);
+    }
+
+    @Override
+    public CompletableFuture<ChallengeSummary> requestJoin(
         String token,
         String challengeId,
         ChallengeAcceptRequest request
+    ) {
+        return post(
+            "/api/challenges/" + pathSegment(challengeId) + "/join",
+            token,
+            Objects.requireNonNull(request, "request"),
+            ChallengeSummary.class
+        );
+    }
+
+    @Override
+    public CompletableFuture<MatchSetup> acceptChallenge(
+        String token,
+        String challengeId,
+        ChallengeDecisionRequest request
     ) {
         return post(
             "/api/challenges/" + pathSegment(challengeId) + "/accept",
             token,
             Objects.requireNonNull(request, "request"),
             MatchSetup.class
+        );
+    }
+
+    @Override
+    public CompletableFuture<ChallengeSummary> rejectJoinRequest(
+        String token,
+        String challengeId,
+        ChallengeDecisionRequest request
+    ) {
+        return post(
+            "/api/challenges/" + pathSegment(challengeId) + "/reject",
+            token,
+            Objects.requireNonNull(request, "request"),
+            ChallengeSummary.class
+        );
+    }
+
+    @Override
+    public CompletableFuture<ChallengeSummary> withdrawJoinRequest(
+        String token,
+        String challengeId,
+        ChallengeDecisionRequest request
+    ) {
+        return post(
+            "/api/challenges/" + pathSegment(challengeId) + "/withdraw",
+            token,
+            Objects.requireNonNull(request, "request"),
+            ChallengeSummary.class
         );
     }
 

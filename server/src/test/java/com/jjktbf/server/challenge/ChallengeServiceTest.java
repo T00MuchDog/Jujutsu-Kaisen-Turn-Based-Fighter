@@ -2,6 +2,7 @@ package com.jjktbf.server.challenge;
 
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeCreateRequest;
+import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeStatus;
 import com.jjktbf.multiplayer.protocol.ChallengeSummary;
 import com.jjktbf.multiplayer.protocol.MatchStatus;
@@ -20,6 +21,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -54,7 +56,15 @@ class ChallengeServiceTest {
         assertEquals(fixture.clock().millis(), challenge.createdAt());
         assertEquals(Duration.ofMinutes(5).toMillis(),
             challenge.expiresAt() - challenge.createdAt());
+        assertNull(challenge.requestedPlayerId());
+        assertNull(challenge.requestedCharacterId());
+        assertNull(challenge.requestedAt());
+        assertNull(challenge.acceptedJoinRequestId());
         assertNull(challenge.matchId());
+        assertEquals(1, count("challenge"));
+        assertEquals(challenge, fixture.challengeService().createChallenge(
+            host, ChallengeCreateRequest.standard(firstCharacter)));
+        assertEquals(challenge, fixture.challengeService().getHostedChallenge(host));
         assertEquals(1, count("challenge"));
     }
 
@@ -63,6 +73,7 @@ class ChallengeServiceTest {
         SessionIdentity caller = fixture.createGuest("List Caller");
         SessionIdentity visibleHost = fixture.createGuest("Visible Host");
         SessionIdentity otherHost = fixture.createGuest("Other Host");
+        String thirdCharacter = fixture.catalog().characterSummaries().get(2).characterId();
 
         fixture.challengeService().createChallenge(
             caller, ChallengeCreateRequest.standard(firstCharacter));
@@ -72,9 +83,9 @@ class ChallengeServiceTest {
             otherHost, ChallengeCreateRequest.standard(firstCharacter));
         fixture.challengeService().cancelChallenge(otherHost, cancelled.challengeId());
         ChallengeSummary incompatible = fixture.challengeService().createChallenge(
-            visibleHost, ChallengeCreateRequest.standard(firstCharacter));
+            visibleHost, ChallengeCreateRequest.standard(secondCharacter));
         ChallengeSummary expired = fixture.challengeService().createChallenge(
-            visibleHost, ChallengeCreateRequest.standard(firstCharacter));
+            visibleHost, ChallengeCreateRequest.standard(thirdCharacter));
 
         updateGameVersion(incompatible.challengeId(), "old-version");
         updateExpiry(expired.challengeId(), fixture.clock().millis());
@@ -86,6 +97,11 @@ class ChallengeServiceTest {
             listed.stream().map(ChallengeSummary::challengeId).toList());
         assertEquals(ChallengeStatus.EXPIRED,
             fixture.challengeService().getChallenge(expired.challengeId()).status());
+
+        fixture.challengeService().requestJoin(
+            caller, visible.challengeId(), ChallengeAcceptRequest.standard(secondCharacter));
+        assertTrue(fixture.challengeService().listOpenChallenges(otherHost).challenges().stream()
+            .noneMatch(item -> item.challengeId().equals(visible.challengeId())));
     }
 
     @Test
@@ -94,6 +110,11 @@ class ChallengeServiceTest {
         SessionIdentity stranger = fixture.createGuest("Cancel Stranger");
         ChallengeSummary challenge = fixture.challengeService().createChallenge(
             host, ChallengeCreateRequest.standard(firstCharacter));
+        fixture.challengeService().requestJoin(
+            stranger,
+            challenge.challengeId(),
+            ChallengeAcceptRequest.standard(secondCharacter)
+        );
 
         ServiceException forbidden = assertThrows(
             ServiceException.class,
@@ -107,6 +128,7 @@ class ChallengeServiceTest {
         ChallengeSummary cancelled = fixture.challengeService().cancelChallenge(
             host, challenge.challengeId());
         assertEquals(ChallengeStatus.CANCELLED, cancelled.status());
+        assertNull(cancelled.requestedPlayerId());
 
         ServiceException noLongerOpen = assertThrows(
             ServiceException.class,
@@ -121,15 +143,21 @@ class ChallengeServiceTest {
         SessionIdentity accepter = fixture.createGuest("Expiry Accepter");
         ChallengeSummary challenge = fixture.challengeService().createChallenge(
             host, ChallengeCreateRequest.standard(firstCharacter));
+        fixture.challengeService().requestJoin(
+            accepter,
+            challenge.challengeId(),
+            ChallengeAcceptRequest.standard(secondCharacter)
+        );
         fixture.clock().advance(Duration.ofMinutes(6));
 
-        assertEquals(ChallengeStatus.EXPIRED,
-            fixture.challengeService().getChallenge(challenge.challengeId()).status());
+        ChallengeSummary expired = fixture.challengeService().getChallenge(challenge.challengeId());
+        assertEquals(ChallengeStatus.EXPIRED, expired.status());
+        assertNull(expired.requestedPlayerId());
         assertTrue(fixture.challengeService().listOpenChallenges(accepter)
             .challenges().isEmpty());
         ServiceException failure = assertThrows(
             ServiceException.class,
-            () -> fixture.challengeService().acceptChallenge(
+            () -> fixture.challengeService().requestJoin(
                 accepter,
                 challenge.challengeId(),
                 ChallengeAcceptRequest.standard(secondCharacter))
@@ -138,14 +166,14 @@ class ChallengeServiceTest {
     }
 
     @Test
-    void rejectsSelfAcceptanceWithoutCreatingAMatch() {
+    void rejectsSelfJoinRequestWithoutCreatingAMatch() {
         SessionIdentity host = fixture.createGuest("Solo Host");
         ChallengeSummary challenge = fixture.challengeService().createChallenge(
             host, ChallengeCreateRequest.standard(firstCharacter));
 
         ServiceException failure = assertThrows(
             ServiceException.class,
-            () -> fixture.challengeService().acceptChallenge(
+            () -> fixture.challengeService().requestJoin(
                 host,
                 challenge.challengeId(),
                 ChallengeAcceptRequest.standard(secondCharacter))
@@ -158,17 +186,32 @@ class ChallengeServiceTest {
     }
 
     @Test
-    void acceptancePersistsSeedMatchAndServerAssignedParticipants() {
+    void joinRequestIsIdempotentAndHostAcceptancePersistsAssignedParticipants() {
         SessionIdentity host = fixture.createGuest("Match Host");
         SessionIdentity accepter = fixture.createGuest("Match Accepter");
         ChallengeSummary challenge = fixture.challengeService().createChallenge(
             host, ChallengeCreateRequest.standard(firstCharacter));
 
-        AcceptedMatchSetup setup = fixture.challengeService().acceptChallenge(
+        ChallengeSummary requested = fixture.challengeService().requestJoin(
             accepter,
             challenge.challengeId(),
             ChallengeAcceptRequest.standard(secondCharacter)
         );
+        ChallengeSummary retried = fixture.challengeService().requestJoin(
+            accepter,
+            challenge.challengeId(),
+            ChallengeAcceptRequest.standard(secondCharacter)
+        );
+
+        assertEquals(accepter.playerId(), requested.requestedPlayerId());
+        assertEquals(secondCharacter, requested.requestedCharacterId());
+        assertEquals(fixture.clock().millis(), requested.requestedAt());
+        assertEquals(requested, retried);
+        assertEquals(requested, fixture.challengeService().getRequestedChallenge(accepter));
+        assertEquals(0, count("match_record"));
+
+        AcceptedMatchSetup setup = fixture.challengeService().acceptChallenge(
+            host, challenge.challengeId(), ChallengeDecisionRequest.forChallenge(requested));
 
         assertEquals(MatchStatus.WAITING, setup.status());
         assertEquals(PlayerSide.PLAYER_ONE, setup.playerOne().side());
@@ -212,33 +255,219 @@ class ChallengeServiceTest {
             .getChallenge(challenge.challengeId());
         assertEquals(ChallengeStatus.ACCEPTED, accepted.status());
         assertEquals(setup.matchId(), accepted.matchId());
+        assertEquals(requested.joinRequestId(), accepted.acceptedJoinRequestId());
+        assertNull(accepted.requestedPlayerId());
+        assertNull(accepted.requestedCharacterId());
+        assertNull(accepted.requestedAt());
         assertEquals(2, count("match_participant"));
+        assertEquals(accepted, fixture.challengeService().getRequestedChallenge(accepter));
     }
 
     @Test
-    void aSecondAcceptanceCannotCreateAnotherMatch() {
+    void competingJoinRequestIsRejectedAndAcceptanceRetryReusesTheMatch() {
         SessionIdentity host = fixture.createGuest("Single Host");
         SessionIdentity first = fixture.createGuest("First Accepter");
         SessionIdentity second = fixture.createGuest("Second Accepter");
         ChallengeSummary challenge = fixture.challengeService().createChallenge(
             host, ChallengeCreateRequest.standard(firstCharacter));
 
-        fixture.challengeService().acceptChallenge(
+        ChallengeSummary requested = fixture.challengeService().requestJoin(
             first,
             challenge.challengeId(),
             ChallengeAcceptRequest.standard(secondCharacter)
         );
         ServiceException failure = assertThrows(
             ServiceException.class,
-            () -> fixture.challengeService().acceptChallenge(
+            () -> fixture.challengeService().requestJoin(
                 second,
                 challenge.challengeId(),
                 ChallengeAcceptRequest.standard(secondCharacter))
         );
 
-        assertEquals("CHALLENGE_ALREADY_ACCEPTED", failure.code());
+        assertEquals("CHALLENGE_REQUEST_PENDING", failure.code());
+        AcceptedMatchSetup firstSetup = fixture.challengeService().acceptChallenge(
+            host, challenge.challengeId(), ChallengeDecisionRequest.forChallenge(requested));
+        AcceptedMatchSetup retriedSetup = fixture.challengeService().acceptChallenge(
+            host, challenge.challengeId(), ChallengeDecisionRequest.forChallenge(requested));
+        assertEquals(firstSetup, retriedSetup);
         assertEquals(1, count("match_record"));
         assertEquals(2, count("match_participant"));
+    }
+
+    @Test
+    void onlyHostCanAcceptOrRejectAndRejectionReopensTheChallenge() {
+        SessionIdentity host = fixture.createGuest("Decision Host");
+        SessionIdentity requester = fixture.createGuest("Decision Requester");
+        SessionIdentity stranger = fixture.createGuest("Decision Stranger");
+        ChallengeSummary challenge = fixture.challengeService().createChallenge(
+            host, ChallengeCreateRequest.standard(firstCharacter));
+        ChallengeSummary requested = fixture.challengeService().requestJoin(
+            requester,
+            challenge.challengeId(),
+            ChallengeAcceptRequest.standard(secondCharacter)
+        );
+
+        assertEquals("FORBIDDEN", assertThrows(
+            ServiceException.class,
+            () -> fixture.challengeService().acceptChallenge(
+                requester,
+                challenge.challengeId(),
+                ChallengeDecisionRequest.forChallenge(requested))
+        ).code());
+        assertEquals("FORBIDDEN", assertThrows(
+            ServiceException.class,
+            () -> fixture.challengeService().rejectJoinRequest(
+                stranger,
+                challenge.challengeId(),
+                ChallengeDecisionRequest.forChallenge(requested))
+        ).code());
+
+        ChallengeSummary rejected = fixture.challengeService().rejectJoinRequest(
+            host, challenge.challengeId(), ChallengeDecisionRequest.forChallenge(requested));
+        assertEquals(ChallengeStatus.OPEN, rejected.status());
+        assertNull(rejected.requestedPlayerId());
+        assertNull(rejected.requestedCharacterId());
+        assertNull(rejected.requestedAt());
+        assertEquals(List.of(challenge.challengeId()),
+            fixture.challengeService().listOpenChallenges(stranger).challenges().stream()
+                .map(ChallengeSummary::challengeId)
+                .toList());
+        assertEquals(rejected, fixture.challengeService().rejectJoinRequest(
+            host, challenge.challengeId(), ChallengeDecisionRequest.forChallenge(requested)));
+    }
+
+    @Test
+    void requesterCanOnlyHoldOnePendingChallengeAndCanWithdrawIt() {
+        SessionIdentity firstHost = fixture.createGuest("First Pending Host");
+        SessionIdentity secondHost = fixture.createGuest("Second Pending Host");
+        SessionIdentity requester = fixture.createGuest("Single Pending Requester");
+        ChallengeSummary first = fixture.challengeService().createChallenge(
+            firstHost, ChallengeCreateRequest.standard(firstCharacter));
+        ChallengeSummary second = fixture.challengeService().createChallenge(
+            secondHost, ChallengeCreateRequest.standard(firstCharacter));
+
+        ChallengeSummary pending = fixture.challengeService().requestJoin(
+            requester, first.challengeId(), ChallengeAcceptRequest.standard(secondCharacter));
+        ServiceException limited = assertThrows(ServiceException.class, () ->
+            fixture.challengeService().requestJoin(
+                requester,
+                second.challengeId(),
+                ChallengeAcceptRequest.standard(secondCharacter)));
+        assertEquals("TOO_MANY_PENDING_REQUESTS", limited.code());
+
+        ChallengeSummary withdrawn = fixture.challengeService().withdrawJoinRequest(
+            requester,
+            first.challengeId(),
+            ChallengeDecisionRequest.forChallenge(pending)
+        );
+        assertNull(withdrawn.joinRequestId());
+        ChallengeSummary next = fixture.challengeService().requestJoin(
+            requester, second.challengeId(), ChallengeAcceptRequest.standard(secondCharacter));
+        assertEquals(requester.playerId(), next.requestedPlayerId());
+    }
+
+    @Test
+    void staleHostDecisionCannotTargetAReplacementRequest() {
+        SessionIdentity host = fixture.createGuest("Stale Decision Host");
+        SessionIdentity requester = fixture.createGuest("Repeated Requester");
+        ChallengeSummary challenge = fixture.challengeService().createChallenge(
+            host, ChallengeCreateRequest.standard(firstCharacter));
+        ChallengeSummary first = fixture.challengeService().requestJoin(
+            requester, challenge.challengeId(), ChallengeAcceptRequest.standard(secondCharacter));
+        ChallengeDecisionRequest staleDecision = ChallengeDecisionRequest.forChallenge(first);
+
+        fixture.challengeService().rejectJoinRequest(
+            host, challenge.challengeId(), staleDecision);
+        ChallengeSummary replacement = fixture.challengeService().requestJoin(
+            requester, challenge.challengeId(), ChallengeAcceptRequest.standard(secondCharacter));
+        assertNotEquals(first.joinRequestId(), replacement.joinRequestId());
+
+        ServiceException stale = assertThrows(ServiceException.class, () ->
+            fixture.challengeService().acceptChallenge(
+                host, challenge.challengeId(), staleDecision));
+        assertEquals("CHALLENGE_NO_PENDING_REQUEST", stale.code());
+        assertEquals(replacement.joinRequestId(), fixture.challengeService()
+            .getChallenge(challenge.challengeId()).joinRequestId());
+    }
+
+    @Test
+    void staleDecisionsCannotReuseAReplacementAcceptedMatch() {
+        SessionIdentity host = fixture.createGuest("Accepted Retry Host");
+        SessionIdentity requester = fixture.createGuest("Accepted Retry Requester");
+        ChallengeSummary challenge = fixture.challengeService().createChallenge(
+            host, ChallengeCreateRequest.standard(firstCharacter));
+        ChallengeSummary first = fixture.challengeService().requestJoin(
+            requester, challenge.challengeId(), ChallengeAcceptRequest.standard(secondCharacter));
+        ChallengeDecisionRequest staleDecision = ChallengeDecisionRequest.forChallenge(first);
+        fixture.challengeService().rejectJoinRequest(host, challenge.challengeId(), staleDecision);
+
+        ChallengeSummary replacement = fixture.challengeService().requestJoin(
+            requester, challenge.challengeId(), ChallengeAcceptRequest.standard(secondCharacter));
+        AcceptedMatchSetup accepted = fixture.challengeService().acceptChallenge(
+            host,
+            challenge.challengeId(),
+            ChallengeDecisionRequest.forChallenge(replacement)
+        );
+
+        ServiceException stale = assertThrows(ServiceException.class, () ->
+            fixture.challengeService().acceptChallenge(
+                host, challenge.challengeId(), staleDecision));
+        assertEquals("CHALLENGE_NO_PENDING_REQUEST", stale.code());
+        assertEquals(accepted.matchId(), fixture.challengeService()
+            .getChallenge(challenge.challengeId()).matchId());
+        assertEquals(1, count("match_record"));
+    }
+
+    @Test
+    void staleWithdrawalCannotClearAReplacementRequest() {
+        SessionIdentity host = fixture.createGuest("Withdrawal Host");
+        SessionIdentity requester = fixture.createGuest("Withdrawal Requester");
+        ChallengeSummary challenge = fixture.challengeService().createChallenge(
+            host, ChallengeCreateRequest.standard(firstCharacter));
+        ChallengeSummary first = fixture.challengeService().requestJoin(
+            requester, challenge.challengeId(), ChallengeAcceptRequest.standard(secondCharacter));
+        ChallengeDecisionRequest staleDecision = ChallengeDecisionRequest.forChallenge(first);
+        fixture.challengeService().rejectJoinRequest(host, challenge.challengeId(), staleDecision);
+        ChallengeSummary replacement = fixture.challengeService().requestJoin(
+            requester, challenge.challengeId(), ChallengeAcceptRequest.standard(secondCharacter));
+
+        ServiceException stale = assertThrows(ServiceException.class, () ->
+            fixture.challengeService().withdrawJoinRequest(
+                requester, challenge.challengeId(), staleDecision));
+
+        assertEquals("CHALLENGE_NO_PENDING_REQUEST", stale.code());
+        ChallengeSummary current = fixture.challengeService().getChallenge(challenge.challengeId());
+        assertEquals(replacement.joinRequestId(), current.joinRequestId());
+        assertNotNull(current.requestedPlayerId());
+    }
+
+    @Test
+    void legacyAcceptedChallengeWithoutRequestIdentityIsNotRecoverable() {
+        SessionIdentity host = fixture.createGuest("Legacy Host");
+        SessionIdentity requester = fixture.createGuest("Legacy Requester");
+        ChallengeSummary challenge = fixture.challengeService().createChallenge(
+            host, ChallengeCreateRequest.standard(firstCharacter));
+        ChallengeSummary pending = fixture.challengeService().requestJoin(
+            requester, challenge.challengeId(), ChallengeAcceptRequest.standard(secondCharacter));
+        fixture.challengeService().acceptChallenge(
+            host, challenge.challengeId(), ChallengeDecisionRequest.forChallenge(pending));
+        fixture.database().withConnection(connection -> {
+            try (PreparedStatement statement = connection.prepareStatement(
+                "UPDATE challenge SET accepted_join_request_id = NULL WHERE id = ?")) {
+                statement.setString(1, challenge.challengeId());
+                statement.executeUpdate();
+                return null;
+            }
+        });
+
+        assertEquals("CHALLENGE_NOT_FOUND", assertThrows(
+            ServiceException.class,
+            () -> fixture.challengeService().getHostedChallenge(host)
+        ).code());
+        assertEquals("CHALLENGE_NOT_FOUND", assertThrows(
+            ServiceException.class,
+            () -> fixture.challengeService().getRequestedChallenge(requester)
+        ).code());
     }
 
     @Test
@@ -260,10 +489,16 @@ class ChallengeServiceTest {
                 host, ChallengeCreateRequest.standard("unknown"))
         ).code());
 
-        for (int i = 0; i < fixture.config().maxOpenChallenges(); i++) {
-            fixture.challengeService().createChallenge(
-                host, ChallengeCreateRequest.standard(firstCharacter));
-        }
+        List<String> characters = fixture.catalog().characterSummaries().stream()
+            .map(summary -> summary.characterId())
+            .limit(fixture.config().maxOpenChallenges())
+            .toList();
+        List<ChallengeSummary> open = characters.stream()
+            .map(character -> fixture.challengeService().createChallenge(
+                host, ChallengeCreateRequest.standard(character)))
+            .toList();
+        assertEquals(fixture.config().maxOpenChallenges(), open.size());
+        updateHostCharacter(open.get(0).challengeId(), secondCharacter);
         assertEquals("TOO_MANY_OPEN_CHALLENGES", assertThrows(
             ServiceException.class,
             () -> fixture.challengeService().createChallenge(
@@ -299,6 +534,18 @@ class ChallengeServiceTest {
             try (PreparedStatement statement = connection.prepareStatement(
                 "UPDATE challenge SET expires_at = ? WHERE id = ?")) {
                 statement.setLong(1, expiresAt);
+                statement.setString(2, challengeId);
+                statement.executeUpdate();
+                return null;
+            }
+        });
+    }
+
+    private void updateHostCharacter(String challengeId, String characterId) {
+        fixture.database().withConnection(connection -> {
+            try (PreparedStatement statement = connection.prepareStatement(
+                "UPDATE challenge SET host_character_id = ? WHERE id = ?")) {
+                statement.setString(1, characterId);
                 statement.setString(2, challengeId);
                 statement.executeUpdate();
                 return null;

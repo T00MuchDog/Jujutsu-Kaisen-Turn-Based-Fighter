@@ -1,6 +1,7 @@
 package com.jjktbf.graphics.multiplayer;
 
 import com.jjktbf.multiplayer.protocol.ErrorResponse;
+import com.jjktbf.multiplayer.protocol.CommandType;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
 import com.jjktbf.multiplayer.protocol.PlanPlacement;
 import com.jjktbf.multiplayer.protocol.PlayerSide;
@@ -142,6 +143,23 @@ class MultiplayerMatchServiceTest {
             assertEquals(4,
                 fixture.session.latestState().orElseThrow().stateVersion());
             assertTrue(fixture.session.pendingCommand().isEmpty());
+        } finally {
+            fixture.close();
+        }
+    }
+
+    @Test
+    void sendsVersionedReadyNextRoundCommand() throws Exception {
+        Fixture fixture = new Fixture(14);
+        try {
+            MultiplayerMatchService.PlanSubmission submission =
+                fixture.service.readyNextRound();
+
+            assertTrue(submission.sent());
+            SocketMessage sent = fixture.socket.sent.get(0);
+            assertEquals(CommandType.READY_NEXT_ROUND, sent.command().type());
+            assertEquals(14, sent.command().expectedStateVersion());
+            assertEquals(null, sent.command().payload());
         } finally {
             fixture.close();
         }

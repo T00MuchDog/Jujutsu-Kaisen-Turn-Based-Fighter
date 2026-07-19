@@ -53,8 +53,18 @@ public class CombatantPanel {
     }
 
     public void update(BattleCombatant combatant) {
-        hpBar.setValues(combatant.getCurrentHp(), combatant.getEffectiveCombatStats().getMaxHp());
-        ceBar.setValues(combatant.getCurrentCe(), combatant.getEffectiveCombatStats().getMaxCursedEnergy());
+        update(
+            combatant.getCurrentHp(),
+            combatant.getEffectiveCombatStats().getMaxHp(),
+            combatant.getCurrentCe(),
+            combatant.getEffectiveCombatStats().getMaxCursedEnergy()
+        );
+    }
+
+    /** Updates the shared HUD from an immutable authoritative snapshot. */
+    public void update(int currentHp, int maxHp, int currentCe, int maxCe) {
+        hpBar.setValues(currentHp, maxHp);
+        ceBar.setValues(currentCe, maxCe);
     }
 
     public void draw(Batch batch, BitmapFont font, String name, float delta) {

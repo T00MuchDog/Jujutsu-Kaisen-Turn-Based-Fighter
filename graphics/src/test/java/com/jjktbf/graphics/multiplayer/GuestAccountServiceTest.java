@@ -2,6 +2,7 @@ package com.jjktbf.graphics.multiplayer;
 
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeCreateRequest;
+import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeListResponse;
 import com.jjktbf.multiplayer.protocol.ChallengeSummary;
 import com.jjktbf.multiplayer.protocol.GuestCreateRequest;
@@ -167,10 +168,47 @@ class GuestAccountServiceTest {
         }
 
         @Override
-        public CompletableFuture<MatchSetup> acceptChallenge(
+        public CompletableFuture<ChallengeSummary> getRequestedChallenge(String token) {
+            return unexpected();
+        }
+
+        @Override
+        public CompletableFuture<ChallengeSummary> getHostedChallenge(String token) {
+            return unexpected();
+        }
+
+        @Override
+        public CompletableFuture<ChallengeSummary> requestJoin(
             String token,
             String challengeId,
             ChallengeAcceptRequest request
+        ) {
+            return unexpected();
+        }
+
+        @Override
+        public CompletableFuture<MatchSetup> acceptChallenge(
+            String token,
+            String challengeId,
+            ChallengeDecisionRequest request
+        ) {
+            return unexpected();
+        }
+
+        @Override
+        public CompletableFuture<ChallengeSummary> rejectJoinRequest(
+            String token,
+            String challengeId,
+            ChallengeDecisionRequest request
+        ) {
+            return unexpected();
+        }
+
+        @Override
+        public CompletableFuture<ChallengeSummary> withdrawJoinRequest(
+            String token,
+            String challengeId,
+            ChallengeDecisionRequest request
         ) {
             return unexpected();
         }

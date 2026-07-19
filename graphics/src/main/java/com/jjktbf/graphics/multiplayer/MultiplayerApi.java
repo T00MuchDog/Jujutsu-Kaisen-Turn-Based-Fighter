@@ -2,6 +2,7 @@ package com.jjktbf.graphics.multiplayer;
 
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeCreateRequest;
+import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeListResponse;
 import com.jjktbf.multiplayer.protocol.ChallengeSummary;
 import com.jjktbf.multiplayer.protocol.GuestCreateRequest;
@@ -26,10 +27,32 @@ public interface MultiplayerApi {
 
     CompletableFuture<ChallengeSummary> getChallenge(String token, String challengeId);
 
-    CompletableFuture<MatchSetup> acceptChallenge(
+    CompletableFuture<ChallengeSummary> getRequestedChallenge(String token);
+
+    CompletableFuture<ChallengeSummary> getHostedChallenge(String token);
+
+    CompletableFuture<ChallengeSummary> requestJoin(
         String token,
         String challengeId,
         ChallengeAcceptRequest request
+    );
+
+    CompletableFuture<MatchSetup> acceptChallenge(
+        String token,
+        String challengeId,
+        ChallengeDecisionRequest request
+    );
+
+    CompletableFuture<ChallengeSummary> rejectJoinRequest(
+        String token,
+        String challengeId,
+        ChallengeDecisionRequest request
+    );
+
+    CompletableFuture<ChallengeSummary> withdrawJoinRequest(
+        String token,
+        String challengeId,
+        ChallengeDecisionRequest request
     );
 
     CompletableFuture<ChallengeSummary> cancelChallenge(String token, String challengeId);

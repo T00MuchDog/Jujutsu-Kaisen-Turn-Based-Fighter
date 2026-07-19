@@ -101,6 +101,39 @@ public final class MatchPersistenceRepository {
         });
     }
 
+    int abandonInterruptedMatches(long completedAt) {
+        return database.transaction(connection -> {
+            List<String> interrupted = new ArrayList<>();
+            try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT id FROM match_record "
+                    + "WHERE status IN ('ACTIVE', 'OPPONENT_DISCONNECTED') FOR UPDATE");
+                 ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    interrupted.add(result.getString("id"));
+                }
+            }
+            for (String matchId : interrupted) {
+                try (PreparedStatement statement = connection.prepareStatement(
+                    "UPDATE match_record SET status = 'ABANDONED', ended_at = ? WHERE id = ?")) {
+                    statement.setLong(1, completedAt);
+                    statement.setString(2, matchId);
+                    statement.executeUpdate();
+                }
+                if (!resultExists(connection, matchId)) {
+                    insertResult(
+                        connection,
+                        matchId,
+                        null,
+                        MatchResultType.ABANDONED,
+                        "SERVER_RESTART",
+                        completedAt
+                    );
+                }
+            }
+            return interrupted.size();
+        });
+    }
+
     public List<StoredParticipant> findParticipants(String matchId) {
         return database.withConnection(connection -> {
             try (PreparedStatement statement = connection.prepareStatement(

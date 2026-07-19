@@ -66,7 +66,7 @@ export AUTH_TOKEN_SECRET='local-only-replace-before-production'
 java -jar server/target/server-1.1.1.jar
 ```
 
-Flyway applies `server/src/main/resources/db/migration/V1__multiplayer_schema.sql` at startup. To destroy only the local Compose database and its data:
+Flyway applies the versioned migrations under `server/src/main/resources/db/migration` at startup. V1 creates the multiplayer schema, V2 adds pending join requests, and V3 preserves accepted request identity for safe retries. To destroy only the local Compose database and its data:
 
 ```bash
 docker compose down -v
@@ -79,11 +79,13 @@ docker compose down -v
 3. Start client A with its own `jjktbf.data.root`.
 4. Start client B with a different `jjktbf.data.root`.
 5. In A, select `MULTIPLAYER`, choose a fighter, and select `HOST CHALLENGE`.
-6. In B, select `MULTIPLAYER`, choose a fighter, select `SEARCH CHALLENGES`, then join A.
-7. Both clients transition automatically to the authoritative battle screen.
-8. Queue moves, submit both plans, and continue until knockout or the round-limit draw.
+6. In B, select `MULTIPLAYER`, choose a fighter, select `SEARCH CHALLENGES`, then request to join A.
+7. In A, approve the pending request with `YES` (or decline it with `NO`).
+8. Both clients transition to the shared authoritative `BattleScreen` after approval.
+9. Build each plan in the same two-board timeline planner used by single player and lock it in.
+10. After synchronized playback, both players select `NEXT ROUND`; continue until knockout or the round-limit draw.
 
-The host can cancel while a challenge is open. The browser can refresh stale listings. A command is not rendered as accepted until the server returns a `MatchState` carrying that exact `commandId`; opponent-only state changes do not acknowledge a local plan.
+The host can cancel while a challenge is open, approve or reject one pending requester, and safely retry ambiguous creation/acceptance responses. A requester can hold one pending request, withdraw it, and recover it after reopening the client. A command is not rendered as accepted until the server returns a `MatchState` carrying that exact `commandId`; opponent-only state changes do not acknowledge a local plan.
 
 ## Configuration
 
@@ -137,12 +139,14 @@ mvn -pl graphics -am test
 mvn -pl server -am test
 ```
 
-Server integration tests start an actual ephemeral Javalin server, create two guests, create/accept a challenge, connect two real Java WebSocket clients, exchange heartbeat messages, submit commands, and verify complete-state broadcasts.
+Server integration tests start an actual ephemeral Javalin server, create two guests, request and approve a challenge, connect two real Java WebSocket clients, exchange heartbeat messages, submit commands, synchronize the next round, and verify complete-state broadcasts and restart recovery.
 
 ## Persistence and Recovery Limits
 
 - Guest accounts, token hashes, challenges, match metadata, participants, and completed results are persistent.
-- Active `MatchState` is intentionally in server memory for version 1 and does not survive a server restart.
+- Active `MatchState` is intentionally in server memory and does not survive a server restart. Interrupted active matches are marked abandoned at startup.
+- Persisted `WAITING` matches are reconstructed lazily when either participant retries HTTP setup, acceptance, or WebSocket join.
+- Compatible hosted and requested challenges are discoverable after a client restart. Legacy incompatible rows are not offered for recovery.
 - A brief socket interruption is retried five times with bounded backoff. The server keeps the match for the configured grace period and sends the newest full state after rejoin.
 - A disconnected player forfeits when their grace period expires while the opponent remains connected. If both players remain disconnected, the match is abandoned without a winner.
 - The online server trusts only its bundled character/move definitions. Local editor changes remain available to single player but can be rejected online.

@@ -203,25 +203,40 @@ public final class MultiplayerMatchService implements AutoCloseable {
             String commandId = UUID.randomUUID().toString();
             MultiplayerSession.CommandStart start = session.beginPlanCommand(
                 commandId, placements);
-            if (!start.ready()) {
-                return notSent(mapStatus(start.status()));
-            }
-
-            CompletableFuture<CommandOutcome> completion = new CompletableFuture<>();
-            PendingSubmission pending = new PendingSubmission(start.command(), completion);
-            pendingSubmission = pending;
-            try {
-                socket.send(SocketMessage.submitAction(start.command()))
-                    .whenComplete((ignored, failure) -> {
-                        if (failure != null) {
-                            failSend(pending, failure);
-                        }
-                    });
-            } catch (RuntimeException exception) {
-                failSend(pending, exception);
-            }
-            return new PlanSubmission(SubmissionStatus.SENT, commandId, completion);
+            return send(start, commandId);
         }
+    }
+
+    /** Sends the local player's round-end acknowledgement. */
+    public PlanSubmission readyNextRound() {
+        synchronized (commandLock) {
+            if (closed.get()) {
+                return notSent(SubmissionStatus.SERVICE_CLOSED);
+            }
+            String commandId = UUID.randomUUID().toString();
+            return send(session.beginReadyNextRoundCommand(commandId), commandId);
+        }
+    }
+
+    private PlanSubmission send(MultiplayerSession.CommandStart start, String commandId) {
+        if (!start.ready()) {
+            return notSent(mapStatus(start.status()));
+        }
+
+        CompletableFuture<CommandOutcome> completion = new CompletableFuture<>();
+        PendingSubmission pending = new PendingSubmission(start.command(), completion);
+        pendingSubmission = pending;
+        try {
+            socket.send(SocketMessage.submitAction(start.command()))
+                .whenComplete((ignored, failure) -> {
+                    if (failure != null) {
+                        failSend(pending, failure);
+                    }
+                });
+        } catch (RuntimeException exception) {
+            failSend(pending, exception);
+        }
+        return new PlanSubmission(SubmissionStatus.SENT, commandId, completion);
     }
 
     private void handleStateMessage(SocketMessage message, boolean endedMessage) {

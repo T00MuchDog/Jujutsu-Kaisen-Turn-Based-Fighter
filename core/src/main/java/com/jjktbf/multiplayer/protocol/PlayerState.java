@@ -10,6 +10,7 @@ public record PlayerState(
     PlayerSide side,
     boolean connected,
     boolean planSubmitted,
+    boolean readyForNextRound,
     Long disconnectDeadline,
     CharacterState character
 ) {

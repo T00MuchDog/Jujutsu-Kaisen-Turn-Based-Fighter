@@ -91,16 +91,26 @@ public final class MatchManager implements AutoCloseable {
             completedMatchRetention, "completedMatchRetention");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
+        int abandoned = repository.abandonInterruptedMatches(clock.millis());
+        if (abandoned > 0) {
+            LOGGER.warn("Marked interrupted matches abandoned count={}", abandoned);
+        }
     }
 
     /** Creates and stores one seeded authoritative session. Repeated identical setup is safe. */
     public MatchState createMatch(AcceptedMatchSetup setup) {
         ensureOpen();
-        validateSetup(setup);
+        validateSetupBasics(setup);
 
         ActiveMatch current = matches.get(setup.matchId());
         if (current != null) {
             return existingState(current, setup);
+        }
+        if (setup.status() != MatchStatus.WAITING) {
+            throw new ServiceException(
+                ServiceErrorCode.MATCH_NOT_FOUND,
+                "The persisted match is no longer available as an active session."
+            );
         }
 
         MatchParticipant playerOne = participant(setup.playerOne());
@@ -800,13 +810,10 @@ public final class MatchManager implements AutoCloseable {
         );
     }
 
-    private static void validateSetup(AcceptedMatchSetup setup) {
+    private static void validateSetupBasics(AcceptedMatchSetup setup) {
         Objects.requireNonNull(setup, "setup");
         if (setup.matchId().isBlank() || setup.challengeId().isBlank()) {
             throw new IllegalArgumentException("Match and challenge IDs cannot be blank");
-        }
-        if (setup.status() != MatchStatus.WAITING) {
-            throw new IllegalArgumentException("A new active match must start in WAITING");
         }
         if (setup.playerOne().side() != PlayerSide.PLAYER_ONE
             || setup.playerTwo().side() != PlayerSide.PLAYER_TWO) {
@@ -832,7 +839,6 @@ public final class MatchManager implements AutoCloseable {
     ) {
         return first.matchId().equals(second.matchId())
             && first.challengeId().equals(second.challengeId())
-            && first.status() == second.status()
             && first.serverSeed() == second.serverSeed()
             && first.gameVersion().equals(second.gameVersion())
             && first.protocolVersion() == second.protocolVersion()

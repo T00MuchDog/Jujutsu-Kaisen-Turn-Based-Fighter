@@ -1,9 +1,15 @@
 package com.jjktbf.graphics.multiplayer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
+import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
+import com.jjktbf.multiplayer.protocol.ChallengeStatus;
+import com.jjktbf.multiplayer.protocol.ChallengeSummary;
 import com.jjktbf.multiplayer.protocol.ErrorResponse;
 import com.jjktbf.multiplayer.protocol.GuestCreateRequest;
 import com.jjktbf.multiplayer.protocol.GuestCreateResponse;
+import com.jjktbf.multiplayer.protocol.MatchSetup;
+import com.jjktbf.multiplayer.protocol.ProtocolVersion;
 import com.jjktbf.multiplayer.protocol.SessionIdentity;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -89,6 +95,80 @@ class HttpApiClientTest {
         assertEquals(401, apiFailure.status());
         assertEquals("INVALID_TOKEN", apiFailure.code());
         assertEquals("The guest token is invalid.", apiFailure.userMessage());
+    }
+
+    @Test
+    void sendsJoinPayloadAndHostDecisionsToDistinctRoutes() throws Exception {
+        String challengeId = "33333333-3333-3333-3333-333333333333";
+        ChallengeSummary pending = new ChallengeSummary(
+            challengeId,
+            "44444444-4444-4444-4444-444444444444",
+            "Host Guest",
+            "character-one",
+            "Host Fighter",
+            ChallengeStatus.OPEN,
+            ProtocolVersion.GAME_VERSION,
+            ProtocolVersion.PROTOCOL_VERSION,
+            ProtocolVersion.STANDARD_RULESET,
+            1_000L,
+            2_000L,
+            "request-one",
+            MultiplayerTestData.PLAYER_ID,
+            "character-two",
+            1_100L,
+            null,
+            null
+        );
+        MatchSetup setup = MultiplayerTestData.setup(3L);
+        AtomicReference<String> joinBody = new AtomicReference<>();
+        AtomicReference<String> acceptBody = new AtomicReference<>();
+        AtomicReference<String> rejectBody = new AtomicReference<>();
+        AtomicReference<String> withdrawBody = new AtomicReference<>();
+        server.createContext("/api/challenges/" + challengeId + "/join", exchange -> {
+            joinBody.set(new String(
+                exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, 200, mapper.writeValueAsBytes(pending));
+        });
+        server.createContext("/api/challenges/" + challengeId + "/accept", exchange -> {
+            acceptBody.set(new String(
+                exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, 200, mapper.writeValueAsBytes(setup));
+        });
+        server.createContext("/api/challenges/" + challengeId + "/reject", exchange -> {
+            rejectBody.set(new String(
+                exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, 200, mapper.writeValueAsBytes(pending));
+        });
+        server.createContext("/api/challenges/" + challengeId + "/withdraw", exchange -> {
+            withdrawBody.set(new String(
+                exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, 200, mapper.writeValueAsBytes(pending));
+        });
+
+        ChallengeAcceptRequest request = ChallengeAcceptRequest.standard("character-two");
+        ChallengeDecisionRequest decision = new ChallengeDecisionRequest(
+            "request-one", MultiplayerTestData.PLAYER_ID, 1_100L);
+        assertEquals(pending,
+            client.requestJoin("private-token", challengeId, request)
+                .get(5, TimeUnit.SECONDS));
+        assertEquals(setup,
+            client.acceptChallenge("private-token", challengeId, decision)
+                .get(5, TimeUnit.SECONDS));
+        assertEquals(pending,
+            client.rejectJoinRequest("private-token", challengeId, decision)
+                .get(5, TimeUnit.SECONDS));
+        assertEquals(pending,
+            client.withdrawJoinRequest("private-token", challengeId, decision)
+                .get(5, TimeUnit.SECONDS));
+
+        assertEquals(request,
+            mapper.readValue(joinBody.get(), ChallengeAcceptRequest.class));
+        assertEquals(decision,
+            mapper.readValue(acceptBody.get(), ChallengeDecisionRequest.class));
+        assertEquals(decision,
+            mapper.readValue(rejectBody.get(), ChallengeDecisionRequest.class));
+        assertEquals(decision,
+            mapper.readValue(withdrawBody.get(), ChallengeDecisionRequest.class));
     }
 
     @Test

@@ -5,8 +5,10 @@ import com.jjktbf.multiplayer.protocol.PlayerSide;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.Optional;
 
 final class MatchRepository {
     void insertMatch(
@@ -56,5 +58,32 @@ final class MatchRepository {
             statement.setNull(6, Types.BIGINT);
             statement.executeUpdate();
         }
+    }
+
+    Optional<PersistedMatch> findByChallenge(Connection connection, String challengeId)
+        throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+            "SELECT id, status, server_seed, created_at FROM match_record WHERE challenge_id = ?")) {
+            statement.setString(1, challengeId);
+            try (ResultSet result = statement.executeQuery()) {
+                if (!result.next()) {
+                    return Optional.empty();
+                }
+                return Optional.of(new PersistedMatch(
+                    result.getString("id"),
+                    MatchStatus.valueOf(result.getString("status")),
+                    result.getLong("server_seed"),
+                    result.getLong("created_at")
+                ));
+            }
+        }
+    }
+
+    record PersistedMatch(
+        String matchId,
+        MatchStatus status,
+        long serverSeed,
+        long createdAt
+    ) {
     }
 }

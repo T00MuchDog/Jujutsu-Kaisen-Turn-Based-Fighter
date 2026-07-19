@@ -2,6 +2,7 @@ package com.jjktbf.graphics.multiplayer;
 
 import com.jjktbf.multiplayer.protocol.MatchStatus;
 import com.jjktbf.multiplayer.protocol.PlanPlacement;
+import com.jjktbf.multiplayer.protocol.CommandType;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -63,6 +64,21 @@ class MultiplayerSessionTest {
         assertTrue(session.pendingCommand().isEmpty());
         assertEquals(MultiplayerSession.CommandStartStatus.MATCH_ENDED,
             session.beginPlanCommand("late", List.of()).status());
+    }
+
+    @Test
+    void nextRoundCommandUsesLatestVersionAndHasNoPlanPayload() {
+        MultiplayerSession session = connectedSession(9);
+
+        MultiplayerSession.CommandStart started =
+            session.beginReadyNextRoundCommand("ready-command");
+
+        assertTrue(started.ready());
+        assertEquals(CommandType.READY_NEXT_ROUND, started.command().type());
+        assertEquals(9, started.command().expectedStateVersion());
+        assertEquals(null, started.command().payload());
+        assertEquals(MultiplayerSession.CommandStartStatus.ALREADY_PENDING,
+            session.beginReadyNextRoundCommand("second-ready").status());
     }
 
     private static MultiplayerSession connectedSession(long version) {

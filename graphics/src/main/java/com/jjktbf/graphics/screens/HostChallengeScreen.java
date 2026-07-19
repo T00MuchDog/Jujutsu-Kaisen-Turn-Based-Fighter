@@ -18,7 +18,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Creates a public challenge and polls until another player accepts it. */
+/** Creates a public challenge and lets its host approve one pending join request. */
 public final class HostChallengeScreen extends MultiplayerScreenBase {
     private final GuestAccountService guestAccountService;
     private final ChallengeService challengeService;
@@ -30,6 +30,9 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
     private final Label challengeLabel;
     private final Label challengeStatusLabel;
     private final Label messageLabel;
+    private final Table requestActions;
+    private final TextButton acceptButton;
+    private final TextButton rejectButton;
     private final TextButton cancelButton;
     private final TextButton retryButton;
     private final TextButton backButton;
@@ -41,6 +44,8 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
     private boolean ensuringGuest;
     private boolean creating;
     private boolean cancelling;
+    private boolean accepting;
+    private boolean rejecting;
     private boolean fetchingMatch;
 
     public HostChallengeScreen(
@@ -75,6 +80,14 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         card.add(challengeStatusLabel).growX().left().padBottom(14f).row();
         card.add(messageLabel).growX().left().padBottom(18f).row();
 
+        requestActions = new Table(assets.editorSkin);
+        acceptButton = button("YES", "primary", this::acceptRequest);
+        rejectButton = button("NO", "default", this::rejectRequest);
+        requestActions.add(acceptButton).growX().height(46f).pad(4f);
+        requestActions.add(rejectButton).growX().height(46f).pad(4f);
+        requestActions.setVisible(false);
+        card.add(requestActions).growX().row();
+
         cancelButton = button("CANCEL CHALLENGE", "primary", this::cancelChallenge);
         retryButton = button("RETRY", "default", this::retry);
         backButton = button("BACK", "default", this::requestBack);
@@ -96,6 +109,8 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         ensuringGuest = true;
         creating = false;
         cancelling = false;
+        accepting = false;
+        rejecting = false;
         fetchingMatch = false;
 
         guestLabel.setText("GUEST: CONNECTING");
@@ -104,6 +119,7 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         challengeLabel.setText("CHALLENGE: --");
         challengeStatusLabel.setText("STATUS: PREPARING");
         setStatus(messageLabel, "Validating guest identity...", StatusTone.NORMAL);
+        requestActions.setVisible(false);
         retryButton.setVisible(false);
         refreshButtons();
 
@@ -122,12 +138,44 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
                 guestLabel.setText("GUEST: " + credentials.identity().displayName());
                 ChallengeSummary recoverable = challengeService.currentChallenge().orElse(null);
                 if (recoverable != null
-                    && recoverable.status() == ChallengeStatus.ACCEPTED) {
+                    && recoverable.status() == ChallengeStatus.ACCEPTED
+                    && credentials.identity().playerId().equals(recoverable.hostPlayerId())) {
                     showChallenge(recoverable);
                     fetchMatch(generation, recoverable);
                     return;
                 }
-                createChallenge(generation);
+                if (recoverable != null
+                    && recoverable.status() == ChallengeStatus.OPEN
+                    && credentials.identity().playerId().equals(recoverable.hostPlayerId())) {
+                    showChallenge(recoverable);
+                    startPolling(generation, recoverable.challengeId());
+                    return;
+                }
+                recoverHostedChallenge(generation);
+            }));
+    }
+
+    private void recoverHostedChallenge(long expectedGeneration) {
+        challengeService.getHostedChallenge().whenComplete((recoverable, failure) ->
+            postIfCurrent(expectedGeneration, () -> {
+                if (failure != null) {
+                    if ("CHALLENGE_NOT_FOUND".equals(errorCode(failure))) {
+                        createChallenge(expectedGeneration);
+                        return;
+                    }
+                    logFailure("recover hosted challenge", failure);
+                    challengeStatusLabel.setText("STATUS: CONNECTION ERROR");
+                    setStatus(messageLabel, userError(failure), StatusTone.ERROR);
+                    retryButton.setVisible(true);
+                    refreshButtons();
+                    return;
+                }
+                showChallenge(recoverable);
+                if (recoverable.status() == ChallengeStatus.ACCEPTED) {
+                    fetchMatch(expectedGeneration, recoverable);
+                } else {
+                    startPolling(expectedGeneration, recoverable.challengeId());
+                }
             }));
     }
 
@@ -141,15 +189,8 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         setStatus(messageLabel, "Publishing challenge to the server...", StatusTone.NORMAL);
         refreshButtons();
 
-        challengeService.createChallenge(selectedCharacterId).whenComplete((created, failure) -> {
-            if (!isGenerationVisible(expectedGeneration)) {
-                if (failure == null && created != null && created.status() == ChallengeStatus.OPEN) {
-                    challengeService.cancelChallenge(created.challengeId())
-                        .exceptionally(cleanupFailure -> null);
-                }
-                return;
-            }
-            postIfCurrent(expectedGeneration, () -> {
+        challengeService.createChallenge(selectedCharacterId).whenComplete((created, failure) ->
+            postIfCurrentOrElse(expectedGeneration, () -> {
                 creating = false;
                 if (failure != null) {
                     logFailure("create challenge", failure);
@@ -162,18 +203,37 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
                 challenge = created;
                 showChallenge(created);
                 startPolling(expectedGeneration, created.challengeId());
-            });
-        });
+            }, () -> {
+                if (failure == null && created != null
+                    && created.status() == ChallengeStatus.OPEN
+                    && game.getScreen() != this) {
+                    challengeService.cancelChallenge(created.challengeId())
+                        .exceptionally(cleanupFailure -> null);
+                }
+            }));
     }
 
     private void showChallenge(ChallengeSummary current) {
         challenge = current;
+        challengeService.rememberChallenge(current);
+        selectedCharacterId = current.hostCharacterId();
+        fighterLabel.setText("FIGHTER: " + current.hostCharacterName()
+            + " [" + current.hostCharacterId() + "]");
         challengeLabel.setText("CHALLENGE: " + current.challengeId());
         challengeStatusLabel.setText("STATUS: " + current.status());
         switch (current.status()) {
-            case OPEN -> setStatus(messageLabel,
-                "Waiting for another player. This screen checks the server every second.",
-                StatusTone.NORMAL);
+            case OPEN -> {
+                if (hasPendingRequest(current)) {
+                    challengeStatusLabel.setText("STATUS: JOIN REQUEST");
+                    setStatus(messageLabel,
+                        "A player wants to join this challenge. Accept this request?",
+                        StatusTone.OK);
+                } else {
+                    setStatus(messageLabel,
+                        "Waiting for another player. This screen checks the server every second.",
+                        StatusTone.NORMAL);
+                }
+            }
             case ACCEPTED -> setStatus(messageLabel,
                 "Challenge accepted. Loading the authoritative match...", StatusTone.OK);
             case CANCELLED -> setStatus(messageLabel,
@@ -181,6 +241,7 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
             case EXPIRED -> setStatus(messageLabel,
                 "This challenge expired before another player joined.", StatusTone.ERROR);
         }
+        requestActions.setVisible(hasPendingRequest(current));
         refreshButtons();
     }
 
@@ -217,14 +278,73 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         }, 1L, 1L, TimeUnit.SECONDS);
     }
 
+    private void acceptRequest() {
+        if (!hasPendingRequest(challenge) || accepting || rejecting || cancelling
+            || fetchingMatch) {
+            return;
+        }
+        long expectedGeneration = generation();
+        accepting = true;
+        stopPolling();
+        retryButton.setVisible(false);
+        setStatus(messageLabel, "Accepting the join request...", StatusTone.NORMAL);
+        refreshButtons();
+
+        challengeService.acceptChallenge(challenge)
+            .whenComplete((setup, failure) -> postIfCurrent(expectedGeneration, () -> {
+                accepting = false;
+                if (failure != null) {
+                    logFailure("accept join request", failure);
+                    setStatus(messageLabel,
+                        userError(failure) + " Checking challenge state...",
+                        StatusTone.ERROR);
+                    retryButton.setVisible(true);
+                    refreshButtons();
+                    startPolling(expectedGeneration, challenge.challengeId());
+                    return;
+                }
+                game.showMultiplayerBattle(setup);
+            }));
+    }
+
+    private void rejectRequest() {
+        if (!hasPendingRequest(challenge) || accepting || rejecting || cancelling
+            || fetchingMatch) {
+            return;
+        }
+        long expectedGeneration = generation();
+        rejecting = true;
+        stopPolling();
+        retryButton.setVisible(false);
+        setStatus(messageLabel, "Declining the join request...", StatusTone.NORMAL);
+        refreshButtons();
+
+        challengeService.rejectJoinRequest(challenge)
+            .whenComplete((open, failure) -> postIfCurrent(expectedGeneration, () -> {
+                rejecting = false;
+                if (failure != null) {
+                    logFailure("reject join request", failure);
+                    setStatus(messageLabel,
+                        userError(failure) + " Checking challenge state...",
+                        StatusTone.ERROR);
+                    refreshButtons();
+                    startPolling(expectedGeneration, challenge.challengeId());
+                    return;
+                }
+                showChallenge(open);
+                startPolling(expectedGeneration, open.challengeId());
+            }));
+    }
+
     private void fetchMatch(long expectedGeneration, ChallengeSummary accepted) {
         if (fetchingMatch) {
             return;
         }
-        if (accepted.matchId() == null || accepted.matchId().isBlank()) {
+        if (accepted.acceptedJoinRequestId() == null
+            || accepted.acceptedJoinRequestId().isBlank()) {
             stopPolling();
             setStatus(messageLabel,
-                "The accepted challenge did not include a match ID. Retry shortly.",
+                "The accepted challenge did not include its request ID. Retry shortly.",
                 StatusTone.ERROR);
             retryButton.setVisible(true);
             return;
@@ -232,10 +352,10 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         stopPolling();
         fetchingMatch = true;
         retryButton.setVisible(false);
-        setStatus(messageLabel, "Loading match " + accepted.matchId() + "...", StatusTone.NORMAL);
+        setStatus(messageLabel, "Restoring the accepted match...", StatusTone.NORMAL);
         refreshButtons();
 
-        challengeService.getMatchSetup(accepted.matchId()).whenComplete((setup, failure) ->
+        challengeService.acceptChallenge(accepted).whenComplete((setup, failure) ->
             postIfCurrent(expectedGeneration, () -> {
                 fetchingMatch = false;
                 if (failure != null) {
@@ -251,7 +371,7 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
 
     private void cancelChallenge() {
         if (challenge == null || challenge.status() != ChallengeStatus.OPEN
-            || cancelling || fetchingMatch) {
+            || cancelling || accepting || rejecting || fetchingMatch) {
             return;
         }
         long expectedGeneration = generation();
@@ -277,6 +397,9 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
 
     private void retry() {
         long expectedGeneration = generation();
+        if (accepting || rejecting || cancelling || fetchingMatch) {
+            return;
+        }
         retryButton.setVisible(false);
         if (challenge != null && challenge.status() == ChallengeStatus.ACCEPTED) {
             fetchMatch(expectedGeneration, challenge);
@@ -288,7 +411,7 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
     }
 
     private void requestBack() {
-        if (creating || cancelling || fetchingMatch) {
+        if (creating || cancelling || accepting || rejecting || fetchingMatch) {
             setStatus(messageLabel, "Please wait for the current server request.", StatusTone.NORMAL);
             return;
         }
@@ -301,8 +424,20 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
 
     private void refreshButtons() {
         boolean open = challenge != null && challenge.status() == ChallengeStatus.OPEN;
-        cancelButton.setDisabled(!open || cancelling || fetchingMatch);
-        backButton.setDisabled(creating || cancelling || fetchingMatch);
+        boolean busy = creating || cancelling || accepting || rejecting || fetchingMatch;
+        boolean pending = hasPendingRequest(challenge);
+        acceptButton.setDisabled(!pending || busy);
+        rejectButton.setDisabled(!pending || busy);
+        cancelButton.setDisabled(!open || busy);
+        backButton.setDisabled(busy);
+    }
+
+    private static boolean hasPendingRequest(ChallengeSummary current) {
+        return current != null
+            && current.status() == ChallengeStatus.OPEN
+            && current.requestedPlayerId() != null
+            && current.requestedCharacterId() != null
+            && current.requestedAt() != null;
     }
 
     private void stopPolling() {

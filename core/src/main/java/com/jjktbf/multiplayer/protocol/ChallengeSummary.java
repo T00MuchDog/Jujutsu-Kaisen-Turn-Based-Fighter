@@ -16,6 +16,11 @@ public record ChallengeSummary(
     String ruleset,
     long createdAt,
     long expiresAt,
+    String joinRequestId,
+    String requestedPlayerId,
+    String requestedCharacterId,
+    Long requestedAt,
+    String acceptedJoinRequestId,
     String matchId
 ) {
 }

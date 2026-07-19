@@ -10,6 +10,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -32,7 +33,11 @@ class ProtocolJsonTest {
             .plan().queuedSegments().get(0).status());
         assertEquals(88, restored.player(PlayerSide.PLAYER_TWO).orElseThrow()
             .character().currentDefense());
+        assertEquals(205, tree.at("/roundStartCharacterStates/0/currentHp").intValue());
+        assertTrue(restored.players().get(0).readyForNextRound());
         assertThrows(UnsupportedOperationException.class, () -> restored.players().add(null));
+        assertThrows(UnsupportedOperationException.class,
+            () -> restored.roundStartCharacterStates().clear());
         assertThrows(UnsupportedOperationException.class,
             () -> restored.recentEvents().clear());
     }
@@ -60,6 +65,20 @@ class ProtocolJsonTest {
     }
 
     @Test
+    void readyNextRoundCommandRoundTripsWithoutPayload() throws Exception {
+        ActionCommand command = ActionCommand.readyNextRound("ready-1", "match-1", 42);
+
+        String json = mapper.writeValueAsString(command);
+        ActionCommand restored = mapper.readValue(json, ActionCommand.class);
+        JsonNode tree = mapper.readTree(json);
+
+        assertEquals(command, restored);
+        assertEquals(CommandType.READY_NEXT_ROUND, restored.type());
+        assertNull(restored.payload());
+        assertTrue(tree.get("payload").isNull());
+    }
+
+    @Test
     void challengeSummaryRoundTrips() throws Exception {
         ChallengeSummary summary = new ChallengeSummary(
             "challenge-1",
@@ -73,6 +92,11 @@ class ProtocolJsonTest {
             ProtocolVersion.STANDARD_RULESET,
             1_700_000_000_000L,
             1_700_000_300_000L,
+            "request-1",
+            "player-2",
+            "character-2",
+            1_700_000_010_000L,
+            null,
             null
         );
 
@@ -83,6 +107,8 @@ class ProtocolJsonTest {
         assertEquals(summary, restored);
         assertEquals("OPEN", tree.get("status").textValue());
         assertEquals("Yuji Itadori", restored.hostCharacterName());
+        assertEquals("player-2", restored.requestedPlayerId());
+        assertEquals("request-1", restored.joinRequestId());
         assertFalse(tree.has("matchId"));
     }
 
@@ -232,10 +258,10 @@ class ProtocolJsonTest {
         );
         PlayerState playerOne = new PlayerState(
             "player-1", "Guest Mantis", PlayerSide.PLAYER_ONE,
-            true, true, null, playerOneCharacter);
+            true, true, true, null, playerOneCharacter);
         PlayerState playerTwo = new PlayerState(
             "player-2", "Guest Crane", PlayerSide.PLAYER_TWO,
-            false, false, 1_700_000_060_000L, playerTwoCharacter);
+            false, false, false, 1_700_000_060_000L, playerTwoCharacter);
         BattleEventState event = new BattleEventState(
             "event-17",
             BattleEventType.DAMAGE_DEALT,
@@ -263,6 +289,10 @@ class ProtocolJsonTest {
             3,
             0,
             List.of(playerOne, playerTwo),
+            List.of(
+                new RoundStartCharacterState(PlayerSide.PLAYER_ONE, 205, 320),
+                new RoundStartCharacterState(PlayerSide.PLAYER_TWO, 171, 350)
+            ),
             null,
             null,
             null,

@@ -1,6 +1,6 @@
 package com.jjktbf.multiplayer.protocol;
 
-/** Request to accept a challenge with a canonical character. */
+/** Request to join a challenge with a canonical character. */
 public record ChallengeAcceptRequest(
     String characterId,
     String gameVersion,

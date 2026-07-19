@@ -7,6 +7,7 @@ import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
+import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.multiplayer.protocol.ActionCommand;
 import com.jjktbf.multiplayer.protocol.BattleEventType;
 import com.jjktbf.multiplayer.protocol.BattlePhase;
@@ -16,12 +17,14 @@ import com.jjktbf.multiplayer.protocol.MatchStatus;
 import com.jjktbf.multiplayer.protocol.PlanPlacement;
 import com.jjktbf.multiplayer.protocol.PlayerSide;
 import com.jjktbf.multiplayer.protocol.PlayerState;
+import com.jjktbf.multiplayer.protocol.RoundStartCharacterState;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -37,11 +40,13 @@ class HeadlessBattleSessionTest {
     );
 
     @Test
-    void validPlansUseCanonicalCostsAndResolveServerSide() {
+    void validPlansResolveServerSideAndHoldRoundEndPlaybackState() {
         Move attack = ceAttack("CE_ATTACK", 1, 40);
         HeadlessBattleSession session = session(10L, attack, attack);
         int canonicalCost = CeEfficiencyCalculator.computeActualCost(attack, 160);
         long initialVersion = session.getStateVersion();
+        List<RoundStartCharacterState> roundStartResources =
+            session.snapshot().roundStartCharacterStates();
 
         CommandResult first = session.applyCommand(
             "player-1",
@@ -65,14 +70,24 @@ class HeadlessBattleSessionTest {
 
         assertTrue(second.accepted());
         assertEquals(initialVersion + 2, second.state().stateVersion());
-        assertEquals(2, second.state().roundNumber());
+        assertEquals(BattlePhase.ROUND_END, second.state().phase());
+        assertEquals(1, second.state().roundNumber());
+        assertEquals(roundStartResources, second.state().roundStartCharacterStates());
         for (PlayerState player : second.state().players()) {
             assertEquals(player.character().maxCe() - canonicalCost, player.character().currentCe());
-            assertFalse(player.planSubmitted());
+            assertTrue(player.planSubmitted());
+            assertFalse(player.readyForNextRound());
+            assertEquals(1, player.character().plan().roundNumber());
+            assertEquals(1, player.character().plan().resolvedSegments().size());
         }
+        assertFalse(session.snapshotFor("player-2").player(PlayerSide.PLAYER_ONE).orElseThrow()
+            .character().plan().resolvedSegments().isEmpty());
         assertTrue(second.events().stream().anyMatch(
             event -> event.type() == BattleEventType.CE_DRAINED
                 && event.value() == canonicalCost
+        ));
+        assertFalse(second.events().stream().anyMatch(
+            event -> event.type() == BattleEventType.ROUND_START && event.roundNumber() == 2
         ));
     }
 
@@ -187,6 +202,129 @@ class HeadlessBattleSessionTest {
     }
 
     @Test
+    void roundEndRequiresBothReadyCommandsFromTheirSharedVersion() {
+        Move attack = physicalAttack("READY_ATTACK", 1, true);
+        HeadlessBattleSession session = session(133L, attack, attack);
+        submitBoth(session, attack, attack);
+        MatchState roundEnd = session.snapshot();
+        long sharedReadyVersion = roundEnd.stateVersion();
+        ActionCommand firstReady = readyAt("ready-first", sharedReadyVersion);
+        ActionCommand secondReady = readyAt("ready-second", sharedReadyVersion);
+
+        CommandResult first = session.applyCommand("player-1", firstReady);
+
+        assertTrue(first.accepted());
+        assertTrue(first.events().isEmpty());
+        assertEquals(sharedReadyVersion + 1, first.state().stateVersion());
+        assertEquals(BattlePhase.ROUND_END, first.state().phase());
+        assertEquals(1, first.state().roundNumber());
+        assertEquals(roundEnd.recentEvents(), first.state().recentEvents());
+        assertTrue(first.state().player(PlayerSide.PLAYER_ONE).orElseThrow()
+            .readyForNextRound());
+        assertFalse(first.state().player(PlayerSide.PLAYER_TWO).orElseThrow()
+            .readyForNextRound());
+        assertTrue(first.state().players().stream().allMatch(PlayerState::planSubmitted));
+
+        CommandResult second = session.applyCommand("player-2", secondReady);
+
+        assertTrue(second.accepted());
+        assertEquals(sharedReadyVersion + 2, second.state().stateVersion());
+        assertEquals(BattlePhase.PLANNING, second.state().phase());
+        assertEquals(2, second.state().roundNumber());
+        assertEquals(0, second.state().currentTick());
+        assertEquals(second.events(), second.state().recentEvents());
+        assertTrue(second.events().stream().anyMatch(
+            event -> event.type() == BattleEventType.ROUND_START && event.roundNumber() == 2
+        ));
+        assertTrue(second.events().stream().allMatch(event -> event.roundNumber() == 2));
+        for (PlayerState player : second.state().players()) {
+            assertFalse(player.planSubmitted());
+            assertFalse(player.readyForNextRound());
+            assertTrue(player.character().plan().queuedSegments().isEmpty());
+            assertTrue(player.character().plan().resolvedSegments().isEmpty());
+        }
+    }
+
+    @Test
+    void readyCommandsRejectWrongPhaseAndDuplicateReadinessWithoutMutation() {
+        Move attack = physicalAttack("READY_REJECTION_ATTACK", 1, true);
+        HeadlessBattleSession session = session(134L, attack, attack);
+        long planningVersion = session.getStateVersion();
+
+        CommandResult wrongPhase = session.applyCommand(
+            "player-1",
+            readyAt("ready-during-planning", planningVersion)
+        );
+
+        assertFalse(wrongPhase.accepted());
+        assertEquals("WRONG_PHASE", wrongPhase.error().code());
+        assertEquals(planningVersion, session.getStateVersion());
+
+        submitBoth(session, attack, attack);
+        assertTrue(session.applyCommand(
+            "player-1",
+            readyAt("accepted-ready", session.getStateVersion())
+        ).accepted());
+        long versionAfterReady = session.getStateVersion();
+
+        CommandResult duplicateReady = session.applyCommand(
+            "player-1",
+            readyAt("duplicate-ready", versionAfterReady)
+        );
+        CommandResult planDuringRoundEnd = session.applyCommand(
+            "player-2",
+            command(session, "plan-during-round-end", new PlanPlacement(attack.getId(), 1))
+        );
+
+        assertFalse(duplicateReady.accepted());
+        assertEquals("READY_ALREADY_SUBMITTED", duplicateReady.error().code());
+        assertFalse(planDuringRoundEnd.accepted());
+        assertEquals("WRONG_PHASE", planDuringRoundEnd.error().code());
+        assertEquals(versionAfterReady, session.getStateVersion());
+    }
+
+    @Test
+    void planningAndPlaybackRepeatAcrossMultipleReadyGatedRounds() {
+        Move attack = physicalAttack("REPEATED_ROUND_ATTACK", 1, true);
+        HeadlessBattleSession session = session(135L, attack, attack);
+
+        submitBoth(session, attack, attack, "round-1");
+        assertEquals(BattlePhase.ROUND_END, session.getPhase());
+        assertEquals(1, session.getRoundNumber());
+        long firstReadyVersion = session.getStateVersion();
+        assertTrue(session.applyCommand(
+            "player-1", readyAt("round-1-ready-1", firstReadyVersion)).accepted());
+        assertTrue(session.applyCommand(
+            "player-2", readyAt("round-1-ready-2", firstReadyVersion)).accepted());
+
+        MatchState roundTwoPlanning = session.snapshot();
+        List<RoundStartCharacterState> roundTwoStart =
+            roundTwoPlanning.roundStartCharacterStates();
+        assertEquals(BattlePhase.PLANNING, roundTwoPlanning.phase());
+        assertEquals(2, roundTwoPlanning.roundNumber());
+
+        submitBoth(session, attack, attack, "round-2");
+        MatchState roundTwoEnd = session.snapshot();
+        assertEquals(BattlePhase.ROUND_END, roundTwoEnd.phase());
+        assertEquals(2, roundTwoEnd.roundNumber());
+        assertEquals(roundTwoStart, roundTwoEnd.roundStartCharacterStates());
+        assertTrue(roundTwoEnd.players().stream().allMatch(player ->
+            player.character().plan().roundNumber() == 2));
+
+        long secondReadyVersion = session.getStateVersion();
+        assertTrue(session.applyCommand(
+            "player-2", readyAt("round-2-ready-2", secondReadyVersion)).accepted());
+        CommandResult nextRound = session.applyCommand(
+            "player-1", readyAt("round-2-ready-1", secondReadyVersion));
+
+        assertTrue(nextRound.accepted());
+        assertEquals(BattlePhase.PLANNING, nextRound.state().phase());
+        assertEquals(3, nextRound.state().roundNumber());
+        assertTrue(nextRound.state().recentEvents().stream().allMatch(
+            event -> event.roundNumber() == 3));
+    }
+
+    @Test
     void viewerSnapshotConcealsOnlyTheOpponentsUnresolvedPlan() {
         Move attack = ceAttack("SECRET_ATTACK", 10, 30);
         HeadlessBattleSession session = session(132L, attack, attack);
@@ -237,6 +375,8 @@ class HeadlessBattleSessionTest {
         Move knockout = physicalAttack("KNOCKOUT", 10_000, true);
         Move harmless = physicalAttack("HARMLESS", 1, true);
         HeadlessBattleSession session = session(15L, knockout, harmless);
+        List<RoundStartCharacterState> roundStart =
+            session.snapshot().roundStartCharacterStates();
 
         assertTrue(session.applyCommand(
             "player-1",
@@ -256,6 +396,11 @@ class HeadlessBattleSessionTest {
         assertEquals("KNOCKOUT", result.state().endReason());
         assertEquals(0, result.state().player(PlayerSide.PLAYER_TWO).orElseThrow()
             .character().currentHp());
+        assertEquals(roundStart, result.state().roundStartCharacterStates());
+        assertTrue(result.state().players().stream().allMatch(PlayerState::planSubmitted));
+        assertTrue(result.state().players().stream().noneMatch(PlayerState::readyForNextRound));
+        assertFalse(result.state().player(PlayerSide.PLAYER_ONE).orElseThrow()
+            .character().plan().resolvedSegments().isEmpty());
         assertTrue(result.events().stream().anyMatch(
             event -> event.type() == BattleEventType.BATTLE_OVER
         ));
@@ -279,6 +424,26 @@ class HeadlessBattleSessionTest {
         assertEquals("JSON_ATTACK", restored.player(PlayerSide.PLAYER_ONE).orElseThrow()
             .character().plan().queuedSegments().get(0).moveId());
         assertNotNull(restored.players().get(0).character().knownMoves().get(0).board());
+    }
+
+    @Test
+    void moveSnapshotsPreserveRawNatureAndRoleTags() {
+        Move physicalBlock = new Move.Builder("PHYSICAL_BLOCK")
+            .name("Physical Block")
+            .description("A physical defensive move.")
+            .category(MoveCategory.DEFENSIVE)
+            .tags(Set.of(MoveTag.PHYSICAL, MoveTag.DEFENSIVE))
+            .apCost(5)
+            .unleashPoint(1)
+            .freeMove(true)
+            .build();
+
+        var snapshot = session(160L, physicalBlock, physicalBlock).snapshot();
+        var move = snapshot.player(PlayerSide.PLAYER_ONE).orElseThrow()
+            .character().knownMoves().get(0);
+
+        assertTrue(move.tags().contains(MoveTag.PHYSICAL.name()));
+        assertTrue(move.tags().contains(MoveTag.DEFENSIVE.name()));
     }
 
     @Test
@@ -315,6 +480,25 @@ class HeadlessBattleSessionTest {
     }
 
     @Test
+    void forceEndDuringRoundGatePreservesResolvedRoundPlayback() {
+        Move attack = physicalAttack("PLAYBACK_ATTACK", 1, true);
+        HeadlessBattleSession session = session(171L, attack, attack);
+        submitBoth(session, attack, attack);
+        MatchState roundEnd = session.snapshot();
+        assertEquals(BattlePhase.ROUND_END, roundEnd.phase());
+
+        MatchState ended = session.forceEnd(
+            "player-1", MatchStatus.ENDED, "DISCONNECT_TIMEOUT");
+
+        assertEquals(roundEnd.roundNumber(), ended.roundNumber());
+        assertTrue(ended.recentEvents().size() > 1);
+        assertTrue(ended.recentEvents().stream()
+            .allMatch(event -> event.roundNumber() == ended.roundNumber()));
+        assertEquals(BattleEventType.BATTLE_OVER,
+            ended.recentEvents().get(ended.recentEvents().size() - 1).type());
+    }
+
+    @Test
     void configurableRoundLimitEndsAnUnresolvedFightAsDraw() {
         Move harmless = physicalAttack("ROUND_LIMIT_ATTACK", 1, true);
         HeadlessBattleSession session = session(18L, harmless, harmless, 1);
@@ -328,6 +512,12 @@ class HeadlessBattleSessionTest {
         assertNull(state.winnerPlayerId());
         assertEquals(1, state.roundNumber());
         assertEquals(4, state.stateVersion());
+        assertTrue(state.players().stream().allMatch(PlayerState::planSubmitted));
+        assertTrue(state.players().stream().noneMatch(PlayerState::readyForNextRound));
+        assertEquals(2, state.roundStartCharacterStates().size());
+        assertTrue(state.recentEvents().stream().anyMatch(
+            event -> event.type() == BattleEventType.BATTLE_OVER
+        ));
     }
 
     @Test
@@ -367,14 +557,27 @@ class HeadlessBattleSessionTest {
     }
 
     private static void submitBoth(HeadlessBattleSession session, Move first, Move second) {
+        submitBoth(session, first, second, "");
+    }
+
+    private static void submitBoth(
+        HeadlessBattleSession session,
+        Move first,
+        Move second,
+        String commandSuffix
+    ) {
         assertTrue(session.applyCommand(
             "player-1",
-            command(session, "command-1", new PlanPlacement(first.getId(), 1))
+            command(session, "command-1" + commandSuffix, new PlanPlacement(first.getId(), 1))
         ).accepted());
         assertTrue(session.applyCommand(
             "player-2",
-            command(session, "command-2", new PlanPlacement(second.getId(), 1))
+            command(session, "command-2" + commandSuffix, new PlanPlacement(second.getId(), 1))
         ).accepted());
+    }
+
+    private static ActionCommand readyAt(String commandId, long version) {
+        return ActionCommand.readyNextRound(commandId, "match-1", version);
     }
 
     private static ActionCommand command(

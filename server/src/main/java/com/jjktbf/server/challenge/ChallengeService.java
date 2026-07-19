@@ -3,6 +3,7 @@ package com.jjktbf.server.challenge;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeCreateRequest;
+import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeListResponse;
 import com.jjktbf.multiplayer.protocol.ChallengeStatus;
 import com.jjktbf.multiplayer.protocol.ChallengeSummary;
@@ -18,13 +19,15 @@ import com.jjktbf.server.service.ServiceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.security.SecureRandom;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.security.SecureRandom;
 
 /** Validates and persists the public challenge lifecycle. */
 public final class ChallengeService {
@@ -94,6 +97,11 @@ public final class ChallengeService {
             null,
             null,
             null,
+            null,
+            null,
+            null,
+            null,
+            null,
             null
         );
 
@@ -103,7 +111,24 @@ public final class ChallengeService {
                 throw new ServiceException(
                     ServiceErrorCode.FORBIDDEN, "The guest identity no longer exists.");
             }
-            if (challengeRepository.countOpenByCreator(connection, creator.playerId())
+            ChallengeRecord existing = challengeRepository.findMatchingOpenByCreator(
+                connection,
+                creator.playerId(),
+                request.characterId(),
+                request.gameVersion(),
+                request.protocolVersion(),
+                request.ruleset()
+            ).orElse(null);
+            if (existing != null) {
+                return toSummary(existing);
+            }
+            if (challengeRepository.countOpenByCreator(
+                connection,
+                creator.playerId(),
+                request.gameVersion(),
+                request.protocolVersion(),
+                request.ruleset()
+            )
                 >= maxOpenChallenges) {
                 throw new ServiceException(
                     ServiceErrorCode.TOO_MANY_OPEN_CHALLENGES,
@@ -150,6 +175,59 @@ public final class ChallengeService {
         });
     }
 
+    public ChallengeSummary getRequestedChallenge(SessionIdentity requester) {
+        requireIdentity(requester);
+        long now = clock.millis();
+        return database.transaction(connection -> {
+            challengeRepository.expireOpen(connection, now);
+            return toSummary(challengeRepository.findRecoverableRequest(
+                connection,
+                requester.playerId(),
+                ProtocolVersion.GAME_VERSION,
+                ProtocolVersion.PROTOCOL_VERSION,
+                ProtocolVersion.STANDARD_RULESET
+            ).orElseThrow(ChallengeService::challengeNotFound));
+        });
+    }
+
+    public ChallengeSummary getHostedChallenge(SessionIdentity host) {
+        requireIdentity(host);
+        long now = clock.millis();
+        return database.transaction(connection -> {
+            challengeRepository.expireOpen(connection, now);
+            return toSummary(challengeRepository.findRecoverableHosted(
+                connection,
+                host.playerId(),
+                ProtocolVersion.GAME_VERSION,
+                ProtocolVersion.PROTOCOL_VERSION,
+                ProtocolVersion.STANDARD_RULESET
+            ).orElseThrow(ChallengeService::challengeNotFound));
+        });
+    }
+
+    public AcceptedMatchSetup getAcceptedMatch(
+        SessionIdentity caller,
+        String matchId
+    ) {
+        requireIdentity(caller);
+        if (matchId == null || matchId.isBlank()) {
+            throw matchNotFound();
+        }
+        return database.transaction(connection -> {
+            ChallengeRecord challenge = challengeRepository.findByMatchId(connection, matchId)
+                .orElseThrow(ChallengeService::matchNotFound);
+            if (!caller.playerId().equals(challenge.creatorPlayerId())
+                && !caller.playerId().equals(challenge.acceptedPlayerId())) {
+                throw new ServiceException(
+                    ServiceErrorCode.PLAYER_NOT_IN_MATCH,
+                    "The player is not a participant in this match.");
+            }
+            validateCompatibility(
+                challenge.gameVersion(), challenge.protocolVersion(), challenge.ruleset());
+            return acceptedSetup(connection, challenge);
+        });
+    }
+
     public ChallengeSummary cancelChallenge(SessionIdentity caller, String challengeId) {
         requireIdentity(caller);
         requireChallengeId(challengeId);
@@ -179,50 +257,154 @@ public final class ChallengeService {
         return cancelled;
     }
 
-    public AcceptedMatchSetup acceptChallenge(
-        SessionIdentity accepter,
+    public ChallengeSummary requestJoin(
+        SessionIdentity requester,
         String challengeId,
         ChallengeAcceptRequest request
     ) {
-        requireIdentity(accepter);
+        requireIdentity(requester);
         requireChallengeId(challengeId);
         if (request == null) {
             throw incompatibleVersion();
         }
         validateCompatibility(
             request.gameVersion(), request.protocolVersion(), request.ruleset());
-        SorcererCharacter accepterCharacter = requireCharacter(request.characterId());
+        requireCharacter(request.characterId());
+        long now = clock.millis();
+
+        ChallengeSummary requested = database.transaction(connection -> {
+            challengeRepository.expireOpen(connection, now);
+            ChallengeRecord challenge = challengeRepository.findById(connection, challengeId)
+                .orElseThrow(ChallengeService::challengeNotFound);
+            validateCompatibility(
+                challenge.gameVersion(), challenge.protocolVersion(), challenge.ruleset());
+            if (challenge.creatorPlayerId().equals(requester.playerId())) {
+                throw new ServiceException(
+                    ServiceErrorCode.CANNOT_ACCEPT_OWN_CHALLENGE,
+                    "A player cannot join their own challenge.");
+            }
+            if (challenge.status() != ChallengeStatus.OPEN) {
+                throw challengeNotOpen(challenge.status());
+            }
+            if (requester.playerId().equals(challenge.requestedPlayerId())
+                && request.characterId().equals(challenge.requestedCharacterId())) {
+                return toSummary(challenge);
+            }
+            if (!challengeRepository.lockCreator(connection, requester.playerId())) {
+                throw new ServiceException(
+                    ServiceErrorCode.FORBIDDEN, "The guest identity no longer exists.");
+            }
+
+            ChallengeRecord current = challengeRepository.findById(connection, challengeId)
+                .orElseThrow(ChallengeService::challengeNotFound);
+            if (current.status() != ChallengeStatus.OPEN) {
+                throw challengeNotOpen(current.status());
+            }
+            if (requester.playerId().equals(current.requestedPlayerId())
+                && request.characterId().equals(current.requestedCharacterId())) {
+                return toSummary(current);
+            }
+            if (current.requestedPlayerId() != null) {
+                throw new ServiceException(
+                    ServiceErrorCode.CHALLENGE_REQUEST_PENDING,
+                    "Another join request is already pending for this challenge.");
+            }
+            if (challengeRepository.countPendingByRequester(
+                connection, requester.playerId()) >= 1) {
+                throw new ServiceException(
+                    ServiceErrorCode.TOO_MANY_PENDING_REQUESTS,
+                    "A player can only wait on one challenge at a time.");
+            }
+
+            if (challengeRepository.requestJoinOpen(
+                connection,
+                challengeId,
+                UUID.randomUUID().toString(),
+                requester.playerId(),
+                request.characterId(),
+                now
+            ) == 1) {
+                return toSummary(challengeRepository.findById(connection, challengeId)
+                    .orElseThrow(ChallengeService::challengeNotFound));
+            }
+
+            current = challengeRepository.findById(connection, challengeId)
+                .orElseThrow(ChallengeService::challengeNotFound);
+            if (current.status() != ChallengeStatus.OPEN) {
+                throw challengeNotOpen(current.status());
+            }
+            if (requester.playerId().equals(current.requestedPlayerId())
+                && request.characterId().equals(current.requestedCharacterId())) {
+                return toSummary(current);
+            }
+            throw new ServiceException(
+                ServiceErrorCode.CHALLENGE_REQUEST_PENDING,
+                "Another join request is already pending for this challenge.");
+        });
+        LOGGER.info(
+            "Challenge join requested challengeId={} requesterPlayerId={} characterId={}",
+            requested.challengeId(),
+            requester.playerId(),
+            request.characterId()
+        );
+        return requested;
+    }
+
+    public AcceptedMatchSetup acceptChallenge(
+        SessionIdentity host,
+        String challengeId,
+        ChallengeDecisionRequest decision
+    ) {
+        requireIdentity(host);
+        requireChallengeId(challengeId);
+        requireDecision(decision);
         long now = clock.millis();
 
         AcceptedMatchSetup accepted = database.transaction(connection -> {
             challengeRepository.expireOpen(connection, now);
             ChallengeRecord challenge = challengeRepository.findById(connection, challengeId)
                 .orElseThrow(ChallengeService::challengeNotFound);
+            requireHost(host, challenge, "accept join requests");
             validateCompatibility(
                 challenge.gameVersion(), challenge.protocolVersion(), challenge.ruleset());
-            if (challenge.creatorPlayerId().equals(accepter.playerId())) {
-                throw new ServiceException(
-                    ServiceErrorCode.CANNOT_ACCEPT_OWN_CHALLENGE,
-                    "A player cannot accept their own challenge.");
+            if (challenge.status() == ChallengeStatus.ACCEPTED) {
+                requireAcceptedRequest(decision, challenge);
+                return acceptedSetup(connection, challenge);
             }
             if (challenge.status() != ChallengeStatus.OPEN) {
                 throw challengeNotOpen(challenge.status());
             }
+            if (challenge.requestedPlayerId() == null) {
+                throw noPendingRequest();
+            }
 
             String matchId = UUID.randomUUID().toString();
             long serverSeed = secureRandom.nextLong();
-            if (challengeRepository.acceptOpen(
+            if (challengeRepository.acceptPendingOpen(
                 connection,
                 challengeId,
-                accepter.playerId(),
-                request.characterId(),
+                host.playerId(),
+                decision.expectedRequestId(),
+                decision.expectedRequesterId(),
+                decision.expectedRequestedAt(),
                 now,
                 matchId
             ) != 1) {
                 ChallengeRecord current = challengeRepository.findById(connection, challengeId)
                     .orElseThrow(ChallengeService::challengeNotFound);
-                throw challengeNotOpen(current.status());
+                requireHost(host, current, "accept join requests");
+                if (current.status() == ChallengeStatus.ACCEPTED) {
+                    requireAcceptedRequest(decision, current);
+                    return acceptedSetup(connection, current);
+                }
+                if (current.status() != ChallengeStatus.OPEN) {
+                    throw challengeNotOpen(current.status());
+                }
+                throw requestChanged();
             }
+
+            ChallengeRecord current = challengeRepository.findById(connection, challengeId)
+                .orElseThrow(ChallengeService::challengeNotFound);
 
             MatchStatus matchStatus = MatchStatus.WAITING;
             matchRepository.insertMatch(
@@ -231,61 +413,175 @@ public final class ChallengeService {
                 challengeId,
                 matchStatus,
                 serverSeed,
-                challenge.gameVersion(),
-                challenge.protocolVersion(),
-                challenge.ruleset(),
+                current.gameVersion(),
+                current.protocolVersion(),
+                current.ruleset(),
                 now
             );
             matchRepository.insertParticipant(
                 connection,
                 matchId,
-                challenge.creatorPlayerId(),
+                current.creatorPlayerId(),
                 PlayerSide.PLAYER_ONE,
-                challenge.hostCharacterId()
+                current.hostCharacterId()
             );
             matchRepository.insertParticipant(
                 connection,
                 matchId,
-                accepter.playerId(),
+                current.acceptedPlayerId(),
                 PlayerSide.PLAYER_TWO,
-                request.characterId()
+                current.acceptedCharacterId()
             );
-
-            AcceptedMatchParticipant playerOne = new AcceptedMatchParticipant(
-                challenge.creatorPlayerId(),
-                challenge.creatorDisplayName(),
-                PlayerSide.PLAYER_ONE,
-                challenge.hostCharacterId(),
-                requireCharacter(challenge.hostCharacterId())
-            );
-            AcceptedMatchParticipant playerTwo = new AcceptedMatchParticipant(
-                accepter.playerId(),
-                accepter.displayName(),
-                PlayerSide.PLAYER_TWO,
-                request.characterId(),
-                accepterCharacter
-            );
-            return new AcceptedMatchSetup(
-                matchId,
-                challengeId,
-                matchStatus,
-                serverSeed,
-                challenge.gameVersion(),
-                challenge.protocolVersion(),
-                challenge.ruleset(),
-                now,
-                playerOne,
-                playerTwo
-            );
+            return acceptedSetup(connection, current);
         });
         LOGGER.info(
-            "Challenge accepted challengeId={} matchId={} creatorPlayerId={} accepterPlayerId={}",
+            "Challenge accepted challengeId={} matchId={} creatorPlayerId={} requesterPlayerId={}",
             accepted.challengeId(),
             accepted.matchId(),
             accepted.playerOne().playerId(),
             accepted.playerTwo().playerId()
         );
         return accepted;
+    }
+
+    public ChallengeSummary rejectJoinRequest(
+        SessionIdentity host,
+        String challengeId,
+        ChallengeDecisionRequest decision
+    ) {
+        requireIdentity(host);
+        requireChallengeId(challengeId);
+        requireDecision(decision);
+        long now = clock.millis();
+
+        ChallengeSummary rejected = database.transaction(connection -> {
+            challengeRepository.expireOpen(connection, now);
+            ChallengeRecord challenge = challengeRepository.findById(connection, challengeId)
+                .orElseThrow(ChallengeService::challengeNotFound);
+            requireHost(host, challenge, "reject join requests");
+            if (challenge.status() != ChallengeStatus.OPEN) {
+                throw challengeNotOpen(challenge.status());
+            }
+            if (challenge.requestedPlayerId() == null) {
+                return toSummary(challenge);
+            }
+            int rejectedCount = challengeRepository.rejectPendingOpen(
+                connection,
+                challengeId,
+                host.playerId(),
+                decision.expectedRequestId(),
+                decision.expectedRequesterId(),
+                decision.expectedRequestedAt(),
+                now
+            );
+            ChallengeRecord current = challengeRepository.findById(connection, challengeId)
+                .orElseThrow(ChallengeService::challengeNotFound);
+            if (current.status() != ChallengeStatus.OPEN) {
+                throw challengeNotOpen(current.status());
+            }
+            if (rejectedCount != 1 && current.requestedPlayerId() != null) {
+                throw requestChanged();
+            }
+            return toSummary(current);
+        });
+        LOGGER.info(
+            "Challenge join request rejected challengeId={} creatorPlayerId={}",
+            rejected.challengeId(),
+            host.playerId()
+        );
+        return rejected;
+    }
+
+    public ChallengeSummary withdrawJoinRequest(
+        SessionIdentity requester,
+        String challengeId,
+        ChallengeDecisionRequest decision
+    ) {
+        requireIdentity(requester);
+        requireChallengeId(challengeId);
+        requireDecision(decision);
+        long now = clock.millis();
+        return database.transaction(connection -> {
+            challengeRepository.expireOpen(connection, now);
+            ChallengeRecord challenge = challengeRepository.findById(connection, challengeId)
+                .orElseThrow(ChallengeService::challengeNotFound);
+            if (challenge.status() != ChallengeStatus.OPEN) {
+                throw challengeNotOpen(challenge.status());
+            }
+            if (challenge.requestedPlayerId() == null) {
+                return toSummary(challenge);
+            }
+            if (!requester.playerId().equals(challenge.requestedPlayerId())) {
+                throw new ServiceException(
+                    ServiceErrorCode.FORBIDDEN,
+                    "Only the pending requester can withdraw this join request.");
+            }
+            if (!decision.expectedRequestId().equals(challenge.joinRequestId())) {
+                throw requestChanged();
+            }
+            int withdrawn = challengeRepository.withdrawPendingOpen(
+                connection,
+                challengeId,
+                requester.playerId(),
+                decision.expectedRequestId(),
+                now
+            );
+            ChallengeRecord current = challengeRepository.findById(connection, challengeId)
+                .orElseThrow(ChallengeService::challengeNotFound);
+            if (withdrawn == 1 || (current.status() == ChallengeStatus.OPEN
+                && current.requestedPlayerId() == null)) {
+                return toSummary(current);
+            }
+            if (current.status() != ChallengeStatus.OPEN) {
+                throw challengeNotOpen(current.status());
+            }
+            throw requestChanged();
+        });
+    }
+
+    private AcceptedMatchSetup acceptedSetup(
+        Connection connection,
+        ChallengeRecord challenge
+    ) throws SQLException {
+        if (challenge.status() != ChallengeStatus.ACCEPTED
+            || challenge.acceptedPlayerId() == null
+            || challenge.acceptedCharacterId() == null) {
+            throw new IllegalStateException("Accepted challenge data is incomplete");
+        }
+        MatchRepository.PersistedMatch match = matchRepository
+            .findByChallenge(connection, challenge.challengeId())
+            .orElseThrow(() -> new IllegalStateException(
+                "Accepted challenge does not have a persisted match"));
+        String requesterDisplayName = challengeRepository
+            .findPlayerDisplayName(connection, challenge.acceptedPlayerId())
+            .orElseThrow(() -> new IllegalStateException(
+                "Accepted challenge requester no longer exists"));
+        AcceptedMatchParticipant playerOne = new AcceptedMatchParticipant(
+            challenge.creatorPlayerId(),
+            challenge.creatorDisplayName(),
+            PlayerSide.PLAYER_ONE,
+            challenge.hostCharacterId(),
+            requireCharacter(challenge.hostCharacterId())
+        );
+        AcceptedMatchParticipant playerTwo = new AcceptedMatchParticipant(
+            challenge.acceptedPlayerId(),
+            requesterDisplayName,
+            PlayerSide.PLAYER_TWO,
+            challenge.acceptedCharacterId(),
+            requireCharacter(challenge.acceptedCharacterId())
+        );
+        return new AcceptedMatchSetup(
+            match.matchId(),
+            challenge.challengeId(),
+            match.status(),
+            match.serverSeed(),
+            challenge.gameVersion(),
+            challenge.protocolVersion(),
+            challenge.ruleset(),
+            match.createdAt(),
+            playerOne,
+            playerTwo
+        );
     }
 
     private ChallengeSummary toSummary(ChallengeRecord challenge) {
@@ -306,6 +602,11 @@ public final class ChallengeService {
             challenge.ruleset(),
             challenge.createdAt(),
             challenge.expiresAt(),
+            challenge.joinRequestId(),
+            challenge.requestedPlayerId(),
+            challenge.requestedCharacterId(),
+            challenge.requestedAt(),
+            challenge.acceptedJoinRequestId(),
             challenge.matchId()
         );
     }
@@ -340,6 +641,38 @@ public final class ChallengeService {
         }
     }
 
+    private static void requireDecision(ChallengeDecisionRequest decision) {
+        if (decision == null
+            || decision.expectedRequestId() == null
+            || decision.expectedRequestId().isBlank()) {
+            throw new ServiceException(
+                ServiceErrorCode.MALFORMED_REQUEST,
+                "The challenge decision does not identify a pending request.");
+        }
+    }
+
+    private static void requireAcceptedRequest(
+        ChallengeDecisionRequest decision,
+        ChallengeRecord challenge
+    ) {
+        if (!Objects.equals(
+            decision.expectedRequestId(), challenge.acceptedJoinRequestId())) {
+            throw requestChanged();
+        }
+    }
+
+    private static void requireHost(
+        SessionIdentity caller,
+        ChallengeRecord challenge,
+        String operation
+    ) {
+        if (!challenge.creatorPlayerId().equals(caller.playerId())) {
+            throw new ServiceException(
+                ServiceErrorCode.FORBIDDEN,
+                "Only the challenge creator can " + operation + ".");
+        }
+    }
+
     private static ServiceException incompatibleVersion() {
         return new ServiceException(
             ServiceErrorCode.INCOMPATIBLE_VERSION,
@@ -350,6 +683,23 @@ public final class ChallengeService {
     private static ServiceException challengeNotFound() {
         return new ServiceException(
             ServiceErrorCode.CHALLENGE_NOT_FOUND, "The challenge does not exist.");
+    }
+
+    private static ServiceException matchNotFound() {
+        return new ServiceException(
+            ServiceErrorCode.MATCH_NOT_FOUND, "The match does not exist or is no longer active.");
+    }
+
+    private static ServiceException noPendingRequest() {
+        return new ServiceException(
+            ServiceErrorCode.CHALLENGE_NO_PENDING_REQUEST,
+            "The challenge does not have a pending join request.");
+    }
+
+    private static ServiceException requestChanged() {
+        return new ServiceException(
+            ServiceErrorCode.CHALLENGE_NO_PENDING_REQUEST,
+            "The pending join request changed before the decision was applied.");
     }
 
     private static ServiceException challengeNotOpen(ChallengeStatus status) {

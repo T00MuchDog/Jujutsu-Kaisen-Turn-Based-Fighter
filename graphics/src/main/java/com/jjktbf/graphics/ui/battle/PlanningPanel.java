@@ -12,9 +12,11 @@ import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.multiplayer.protocol.PlanPlacement;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Full-screen round planner with two discrete action timelines and a move-card
@@ -30,6 +32,7 @@ public class PlanningPanel {
     private final List<Move> knownMoves = new ArrayList<>();
     private final int ceEfficiency;
     private final com.jjktbf.model.character.AbilityApplicator.AbilityFlags abilityFlags;
+    private final Map<String, Integer> authoritativeCeCosts;
     private final BattleUiAssets ui;
 
     private final TimelineBar offensiveBar = new TimelineBar(TimelineBar.Kind.OFFENSIVE, 0f, 0f, 1f, 1f);
@@ -66,10 +69,33 @@ public class PlanningPanel {
         this.plan = new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe());
         this.ceEfficiency = combatant.getEffectiveStats().getCursedEnergyEfficiency();
         this.abilityFlags = combatant.getAbilityFlags();
+        this.authoritativeCeCosts = Map.of();
         this.ui = ui;
         for (Move move : combatant.getCharacter().getKnownMoves()) {
             if (abilityFlags.lockedMoveTags.stream().noneMatch(move::hasTag)) knownMoves.add(move);
         }
+        resize(screenWidth, screenHeight);
+    }
+
+    /**
+     * Builds the same planner from server-declared online moves and budgets.
+     * The server remains authoritative; this panel only creates placement intent.
+     */
+    public PlanningPanel(
+        List<Move> moves,
+        Map<String, Integer> ceCosts,
+        int apBudget,
+        int ceBudget,
+        BattleUiAssets ui,
+        float screenWidth,
+        float screenHeight
+    ) {
+        this.plan = new BattlePlan(apBudget, ceBudget);
+        this.ceEfficiency = 0;
+        this.abilityFlags = null;
+        this.authoritativeCeCosts = ceCosts == null ? Map.of() : Map.copyOf(ceCosts);
+        this.ui = ui;
+        if (moves != null) knownMoves.addAll(moves);
         resize(screenWidth, screenHeight);
     }
 
@@ -79,6 +105,35 @@ public class PlanningPanel {
 
     public BattlePlan getPlan() { return plan; }
     public boolean isConfirmed() { return confirmed; }
+
+    /** Returns server-safe intent without exposing local domain objects. */
+    public List<PlanPlacement> getPlacements() {
+        return plan.allSegments().stream()
+            .map(segment -> new PlanPlacement(segment.getMove().getId(), segment.getStartTick()))
+            .toList();
+    }
+
+    /** Reopens a locally rejected online plan without discarding its placements. */
+    public void unlock() {
+        confirmed = false;
+    }
+
+    /** Displays an already accepted authoritative plan as immutable. */
+    public void lock() {
+        cancelActiveDrag();
+        confirmed = true;
+    }
+
+    private void cancelActiveDrag() {
+        if (draggingSegment != null) {
+            selectedSegment = plan.place(
+                draggingSegment.getMove(), originalTick, originalCeCost);
+        }
+        draggingMove = null;
+        draggingSegment = null;
+        draggingBoard = null;
+        snapValid = false;
+    }
 
     public PlanningInputProcessor inputProcessor() {
         return new PlanningInputProcessor();
@@ -239,6 +294,8 @@ public class PlanningPanel {
     }
 
     private int ceCost(Move move) {
+        Integer authoritativeCost = authoritativeCeCosts.get(move.getId());
+        if (authoritativeCost != null) return authoritativeCost;
         return CeEfficiencyCalculator.computeActualCost(move, ceEfficiency, abilityFlags);
     }
 
@@ -310,7 +367,7 @@ public class PlanningPanel {
 
         @Override
         public boolean touchDragged(int screenX, int screenY, int pointer) {
-            if (draggedMove() == null) return false;
+            if (confirmed || draggedMove() == null) return false;
             updatePointer(screenX, screenY);
             updateSnap();
             return true;
@@ -318,7 +375,7 @@ public class PlanningPanel {
 
         @Override
         public boolean touchUp(int screenX, int screenY, int pointer, int button) {
-            if (button != Buttons.LEFT || draggedMove() == null) return false;
+            if (confirmed || button != Buttons.LEFT || draggedMove() == null) return false;
             updatePointer(screenX, screenY);
             updateSnap();
 

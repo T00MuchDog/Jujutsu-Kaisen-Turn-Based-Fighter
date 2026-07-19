@@ -151,6 +151,20 @@ abstract class MultiplayerScreenBase implements Screen {
         });
     }
 
+    protected final void postIfCurrentOrElse(
+        long expectedGeneration,
+        Runnable callback,
+        Runnable staleCallback
+    ) {
+        Gdx.app.postRunnable(() -> {
+            if (isGenerationVisible(expectedGeneration) && game.getScreen() == this) {
+                callback.run();
+            } else if (staleCallback != null) {
+                staleCallback.run();
+            }
+        });
+    }
+
     protected final Table header(String title, String subtitle) {
         Table header = new Table(assets.editorSkin);
         header.setBackground(assets.editorSkin.getDrawable("battle-header"));
@@ -217,6 +231,13 @@ abstract class MultiplayerScreenBase implements Screen {
         Throwable cause = unwrap(failure);
         return cause instanceof ApiClientException apiFailure
             ? apiFailure.code() : "MULTIPLAYER_ERROR";
+    }
+
+    protected static boolean isAmbiguousFailure(Throwable failure) {
+        Throwable cause = unwrap(failure);
+        return cause instanceof ApiClientException apiFailure
+            && apiFailure.kind() != ApiClientException.Kind.HTTP_ERROR
+            && apiFailure.kind() != ApiClientException.Kind.CLIENT_CLOSED;
     }
 
     protected static void logFailure(String operation, Throwable failure) {

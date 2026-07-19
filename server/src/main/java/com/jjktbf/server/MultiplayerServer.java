@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeCreateRequest;
+import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
 import com.jjktbf.multiplayer.protocol.ErrorResponse;
 import com.jjktbf.multiplayer.protocol.GuestCreateRequest;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
@@ -50,6 +51,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Owns the multiplayer services and their runnable HTTP/WebSocket transport. */
 public final class MultiplayerServer implements AutoCloseable {
+    private static final String STRUCTURED_ERROR_WRITTEN = "structured-error-written";
     public static final int MAX_MESSAGE_BYTES = 32 * 1024;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MultiplayerServer.class);
@@ -192,21 +194,53 @@ public final class MultiplayerServer implements AutoCloseable {
             SessionIdentity identity = authenticate(context);
             writeJson(context, 200, challengeService.listOpenChallenges(identity));
         });
+        app.get("/api/challenges/requested", context -> {
+            SessionIdentity identity = authenticate(context);
+            writeJson(context, 200, challengeService.getRequestedChallenge(identity));
+        });
+        app.get("/api/challenges/hosted", context -> {
+            SessionIdentity identity = authenticate(context);
+            writeJson(context, 200, challengeService.getHostedChallenge(identity));
+        });
         app.get("/api/challenges/{challengeId}", context -> {
             authenticate(context);
             String challengeId = requireUuidPath(context, "challengeId");
             writeJson(context, 200, challengeService.getChallenge(challengeId));
         });
-        app.post("/api/challenges/{challengeId}/accept", context -> {
+        app.post("/api/challenges/{challengeId}/join", context -> {
             SessionIdentity identity = authenticate(context);
             String challengeId = requireUuidPath(context, "challengeId");
             ChallengeAcceptRequest request = readRequiredJson(
                 context, ChallengeAcceptRequest.class);
+            writeJson(context, 200,
+                challengeService.requestJoin(identity, challengeId, request));
+        });
+        app.post("/api/challenges/{challengeId}/accept", context -> {
+            SessionIdentity identity = authenticate(context);
+            String challengeId = requireUuidPath(context, "challengeId");
+            ChallengeDecisionRequest request = readRequiredJson(
+                context, ChallengeDecisionRequest.class);
             AcceptedMatchSetup accepted = challengeService.acceptChallenge(
                 identity, challengeId, request);
             matchManager.createMatch(accepted);
             MatchSetup setup = matchManager.getMatchSetup(identity, accepted.matchId());
             writeJson(context, 200, setup);
+        });
+        app.post("/api/challenges/{challengeId}/reject", context -> {
+            SessionIdentity identity = authenticate(context);
+            String challengeId = requireUuidPath(context, "challengeId");
+            ChallengeDecisionRequest request = readRequiredJson(
+                context, ChallengeDecisionRequest.class);
+            writeJson(context, 200,
+                challengeService.rejectJoinRequest(identity, challengeId, request));
+        });
+        app.post("/api/challenges/{challengeId}/withdraw", context -> {
+            SessionIdentity identity = authenticate(context);
+            String challengeId = requireUuidPath(context, "challengeId");
+            ChallengeDecisionRequest request = readRequiredJson(
+                context, ChallengeDecisionRequest.class);
+            writeJson(context, 200,
+                challengeService.withdrawJoinRequest(identity, challengeId, request));
         });
         app.post("/api/challenges/{challengeId}/cancel", context -> {
             SessionIdentity identity = authenticate(context);
@@ -216,7 +250,17 @@ public final class MultiplayerServer implements AutoCloseable {
         app.get("/api/matches/{matchId}", context -> {
             SessionIdentity identity = authenticate(context);
             String matchId = requireUuidPath(context, "matchId");
-            writeJson(context, 200, matchManager.getMatchSetup(identity, matchId));
+            MatchSetup setup;
+            try {
+                setup = matchManager.getMatchSetup(identity, matchId);
+            } catch (ServiceException failure) {
+                if (!ServiceErrorCode.MATCH_NOT_FOUND.name().equals(failure.code())) {
+                    throw failure;
+                }
+                restorePersistedMatch(identity, matchId);
+                setup = matchManager.getMatchSetup(identity, matchId);
+            }
+            writeJson(context, 200, setup);
         });
     }
 
@@ -235,6 +279,7 @@ public final class MultiplayerServer implements AutoCloseable {
             LOGGER.info(
                 "HTTP request rejected method={} path={} code={}",
                 context.method(), context.path(), exception.code());
+            context.attribute(STRUCTURED_ERROR_WRITTEN, true);
             writeJson(context, exception.suggestedStatus(), exception.toResponse());
         });
         app.exception(ContentTooLargeResponse.class, (exception, context) ->
@@ -255,8 +300,12 @@ public final class MultiplayerServer implements AutoCloseable {
             writeJson(context, 500, ErrorResponse.of(
                 "INTERNAL_ERROR", "The server could not complete the request."));
         });
-        app.error(404, context -> writeJson(context, 404, ErrorResponse.of(
-            "NOT_FOUND", "The requested route does not exist.")));
+        app.error(404, context -> {
+            if (!Boolean.TRUE.equals(context.attribute(STRUCTURED_ERROR_WRITTEN))) {
+                writeJson(context, 404, ErrorResponse.of(
+                    "NOT_FOUND", "The requested route does not exist."));
+            }
+        });
     }
 
     private void onSocketConnect(WsConnectContext context) {
@@ -376,15 +425,34 @@ public final class MultiplayerServer implements AutoCloseable {
             || isBlank(message.ruleset())) {
             throw new MalformedSocketMessageException();
         }
-        matchManager.joinMatch(
-            socket.identity,
-            message.matchId(),
-            message.gameVersion(),
-            message.protocolVersion(),
-            message.ruleset(),
-            socket.connection
-        );
+        try {
+            matchManager.joinMatch(
+                socket.identity,
+                message.matchId(),
+                message.gameVersion(),
+                message.protocolVersion(),
+                message.ruleset(),
+                socket.connection
+            );
+        } catch (ServiceException failure) {
+            if (!ServiceErrorCode.MATCH_NOT_FOUND.name().equals(failure.code())) {
+                throw failure;
+            }
+            restorePersistedMatch(socket.identity, message.matchId());
+            matchManager.joinMatch(
+                socket.identity,
+                message.matchId(),
+                message.gameVersion(),
+                message.protocolVersion(),
+                message.ruleset(),
+                socket.connection
+            );
+        }
         socket.joinedMatchId = message.matchId();
+    }
+
+    private void restorePersistedMatch(SessionIdentity identity, String matchId) {
+        matchManager.createMatch(challengeService.getAcceptedMatch(identity, matchId));
     }
 
     private void submitSocketAction(SocketContext socket, SocketMessage message) {
