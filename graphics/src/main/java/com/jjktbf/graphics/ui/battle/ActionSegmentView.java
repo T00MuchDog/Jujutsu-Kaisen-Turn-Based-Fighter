@@ -44,7 +44,7 @@ public class ActionSegmentView {
     public void setWidth(float w)             { bounds.width = w; }
 
     public Color typeColor() {
-        return MoveCardView.typeColorFor(move.getCategory());
+        return MoveCardView.typeColorFor(move);
     }
 
     public void draw(Batch batch, BitmapFont font, BattleUiAssets ui) {

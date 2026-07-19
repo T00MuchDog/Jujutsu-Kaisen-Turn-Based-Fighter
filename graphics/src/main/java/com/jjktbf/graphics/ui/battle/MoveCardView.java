@@ -1,12 +1,14 @@
 package com.jjktbf.graphics.ui.battle;
 
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.math.Rectangle;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
+import com.jjktbf.model.move.MoveTag;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +24,7 @@ public class MoveCardView {
     private static final float CE_BAR_W = 36f;
     private static final float CE_BAR_H = 38f;
     private static final float ACTION_BAR_MAX_H = 24f;
+    private static final float ROLE_ICON_SIZE = 18f;
 
     private final Move move;
     private final Rectangle bounds;
@@ -58,6 +61,72 @@ public class MoveCardView {
         };
     }
 
+    /** Returns the color from the move's role palette and its underlying nature. */
+    public static Color typeColorFor(Move move) {
+        if (move == null) return Color.GRAY;
+        if (isDefensiveRole(move)) return typeColorFor(MoveCategory.DEFENSIVE);
+        if (isUtilityRole(move)) return typeColorFor(MoveCategory.UTILITY);
+
+        boolean physical = hasNatureTag(move, MoveTag.PHYSICAL);
+        boolean innate = hasNatureTag(move, MoveTag.INNATE_TECHNIQUE);
+        boolean nonInnate = hasNatureTag(move, MoveTag.NON_INNATE_TECHNIQUE);
+        boolean cursedEnergy = hasNatureTag(move, MoveTag.CURSED_ENERGY);
+        boolean hasTechnique = innate || nonInnate;
+        int natureCount = (physical ? 1 : 0) + (innate ? 1 : 0) + (nonInnate ? 1 : 0)
+            + (cursedEnergy && !hasTechnique ? 1 : 0);
+
+        if (natureCount > 1) return new Color(0.130f, 0.690f, 0.570f, 1f);
+        if (physical) return new Color(0.850f, 0.380f, 0.190f, 1f);
+        if (innate) return new Color(0.560f, 0.280f, 0.820f, 1f);
+        if (nonInnate) return new Color(0.220f, 0.530f, 0.900f, 1f);
+        if (cursedEnergy) return new Color(0.150f, 0.620f, 0.910f, 1f);
+        return Color.GRAY;
+    }
+
+    /** Returns the card's move-nature tag, excluding ATTACK, DEFENSIVE, and UTILITY. */
+    public static String typeNameFor(Move move) {
+        if (move == null) return "UNKNOWN";
+        boolean physical = hasNatureTag(move, MoveTag.PHYSICAL);
+        boolean innate = hasNatureTag(move, MoveTag.INNATE_TECHNIQUE);
+        boolean nonInnate = hasNatureTag(move, MoveTag.NON_INNATE_TECHNIQUE);
+        boolean cursedEnergy = hasNatureTag(move, MoveTag.CURSED_ENERGY);
+
+        if (physical && innate && nonInnate) return "PHYSICAL + INNATE + NON-INNATE TECHNIQUE";
+        if (physical && innate) return "PHYSICAL + INNATE TECHNIQUE";
+        if (physical && nonInnate) return "PHYSICAL + NON-INNATE TECHNIQUE";
+        if (innate && nonInnate) return "INNATE + NON-INNATE TECHNIQUE";
+        if (innate) return "INNATE TECHNIQUE";
+        if (nonInnate) return "NON-INNATE TECHNIQUE";
+        if (physical && cursedEnergy) return "REINFORCEMENT";
+        if (physical) return "PHYSICAL";
+        if (cursedEnergy) return "CURSED ENERGY";
+        return "UNKNOWN";
+    }
+
+    /** Selects the tactical-role icon that sits beside the card title. */
+    public static Texture roleIconFor(Move move, BattleUiAssets ui) {
+        if (isDefensiveRole(move)) {
+            return ui.defenseEffectIcon;
+        }
+        if (isUtilityRole(move)) {
+            return ui.utilityEffectIcon;
+        }
+        return ui.attackEffectIcon;
+    }
+
+    private static boolean isDefensiveRole(Move move) {
+        return move != null && (move.isDefensive() || move.hasTag("DEFENSIVE"));
+    }
+
+    private static boolean isUtilityRole(Move move) {
+        return move != null && (move.hasTag("UTILITY") || move.getCategory() == MoveCategory.UTILITY);
+    }
+
+    private static boolean hasNatureTag(Move move, MoveTag tag) {
+        return move.getTags().contains(tag)
+            || move.getCategory() != null && move.getCategory().getTags().contains(tag);
+    }
+
     public void draw(Batch batch, BitmapFont font, BitmapFont statFont,
                      BattleUiAssets ui, int actualCeCost) {
         float x = bounds.x;
@@ -72,7 +141,7 @@ public class MoveCardView {
             ui.card.draw(batch, x, y, w, h);
         }
 
-        Color type = typeColorFor(move.getCategory());
+        Color type = typeColorFor(move);
         if (disabled) type = new Color(type).lerp(Color.GRAY, 0.65f);
         batch.setColor(type);
         batch.draw(ui.pixel, x + 10f, y + h / 2f, 9f, h / 2f - 12f);
@@ -82,9 +151,10 @@ public class MoveCardView {
         float textX = x + 30f;
         float textW = w - 40f;
         font.setColor(ink);
-        drawFitted(batch, font, move.getName(), textX, y + h - 24f, textW, 1);
+        drawFitted(batch, font, move.getName(), textX, y + h - 24f, textW - ROLE_ICON_SIZE - 4f, 1);
+        drawRoleIcon(batch, ui, x + w - ROLE_ICON_SIZE - 10f, y + h - ROLE_ICON_SIZE - 18f, disabled);
         font.setColor(disabled ? BattleUiAssets.MUTED : type);
-        drawFitted(batch, font, typeName(move.getCategory()), textX, y + h - 48f, textW, 1);
+        drawFitted(batch, font, typeNameFor(move), textX, y + h - 48f, textW, 1);
 
         font.setColor(ink);
         drawFitted(batch, font, move.getDescription(), textX, y + h - 74f, textW, 5);
@@ -152,17 +222,10 @@ public class MoveCardView {
         batch.setColor(Color.WHITE);
     }
 
-    private static String typeName(MoveCategory category) {
-        if (category == null) return "UNKNOWN";
-        return switch (category) {
-            case PHYSICAL -> "PHYSICAL";
-            case INNATE_TECHNIQUE -> "INNATE";
-            case NON_INNATE_TECHNIQUE -> "TECHNIQUE";
-            case CURSED_ENERGY -> "CURSED ENERGY";
-            case UTILITY -> "UTILITY";
-            case DEFENSIVE -> "DEFENSIVE";
-            default -> "HYBRID";
-        };
+    private void drawRoleIcon(Batch batch, BattleUiAssets ui, float x, float y, boolean muted) {
+        batch.setColor(muted ? BattleUiAssets.MUTED : Color.WHITE);
+        batch.draw(roleIconFor(move, ui), x, y, ROLE_ICON_SIZE, ROLE_ICON_SIZE);
+        batch.setColor(Color.WHITE);
     }
 
     /** Draws every word inside a fixed card area, reducing pixel size only if needed. */

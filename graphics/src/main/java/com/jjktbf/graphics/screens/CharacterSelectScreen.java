@@ -10,7 +10,6 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Rectangle;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
@@ -41,6 +40,9 @@ public class CharacterSelectScreen implements Screen {
     private static final float MOVE_PANEL_PADDING = 10f;
     private static final float MOVE_PANEL_HEADER_HEIGHT = 24f;
     private static final float MOVE_SCROLLBAR_WIDTH = 10f;
+    private static final float COMPACT_MOVE_CARD_HEIGHT_RATIO = 0.58f;
+    private static final float COMPACT_MOVE_CARD_MIN_HEIGHT = 48f;
+    private static final float COMPACT_MOVE_CARD_MAX_HEIGHT = 72f;
     private static final float MIN_CHARACTER_INFO_HEIGHT = 205f;
     private static final float DESCRIPTION_TARGET_HEIGHT = 45f;
     private static final String[] STAT_LABELS = {
@@ -275,8 +277,8 @@ public class CharacterSelectScreen implements Screen {
         float contentHeight = contentTop - contentBottom;
         List<Move> moves = learnedMovesFor(character);
 
-        float estimatedCardScale = moveCardScale(innerWidth - MOVE_PANEL_PADDING * 2f);
-        float estimatedCardHeight = MoveCardView.CARD_H * estimatedCardScale;
+        float estimatedCardWidth = compactMoveCardWidth(innerWidth - MOVE_PANEL_PADDING * 2f);
+        float estimatedCardHeight = compactMoveCardHeight(estimatedCardWidth);
         int moveRows = Math.max(1, (int) Math.ceil(moves.size() / (double) MOVE_COLUMNS));
         float visibleMoveRows = Math.min(2, moveRows);
         float desiredMovesHeight = moves.isEmpty()
@@ -412,16 +414,15 @@ public class CharacterSelectScreen implements Screen {
 
         float availableWidth = width - MOVE_PANEL_PADDING * 2f;
         if (availableWidth <= 0f) return;
-        float unscrolledScale = moveCardScale(availableWidth);
-        float unscrolledCardHeight = MoveCardView.CARD_H * unscrolledScale;
+        float unscrolledCardWidth = compactMoveCardWidth(availableWidth);
+        float unscrolledCardHeight = compactMoveCardHeight(unscrolledCardWidth);
         int rows = (int) Math.ceil(moves.size() / (double) MOVE_COLUMNS);
         float unscrolledContentHeight = rows * unscrolledCardHeight + (rows - 1) * MOVE_CARD_GAP;
         boolean hasScrollbar = unscrolledContentHeight > viewportHeight;
         float cardAreaWidth = availableWidth - (hasScrollbar ? MOVE_SCROLLBAR_WIDTH + 4f : 0f);
         if (cardAreaWidth <= 0f) return;
-        float cardScale = moveCardScale(cardAreaWidth);
-        float cardWidth = MoveCardView.CARD_W * cardScale;
-        float cardHeight = MoveCardView.CARD_H * cardScale;
+        float cardWidth = compactMoveCardWidth(cardAreaWidth);
+        float cardHeight = compactMoveCardHeight(cardWidth);
         float contentHeight = rows * cardHeight + (rows - 1) * MOVE_CARD_GAP;
 
         movesViewportBounds.set(x + MOVE_PANEL_PADDING, y + MOVE_PANEL_PADDING,
@@ -438,7 +439,7 @@ public class CharacterSelectScreen implements Screen {
             float cardX = gridX + column * (cardWidth + MOVE_CARD_GAP);
             float cardY = movesViewportBounds.y + movesViewportBounds.height - cardHeight
                 - row * (cardHeight + MOVE_CARD_GAP) + movesScrollOffset;
-            drawScaledMoveCard(moves.get(i), cardX, cardY, cardScale);
+            drawCompactMoveCard(moves.get(i), cardX, cardY, cardWidth, cardHeight);
         }
         endClip();
 
@@ -448,21 +449,82 @@ public class CharacterSelectScreen implements Screen {
         }
     }
 
-    private static float moveCardScale(float availableWidth) {
-        float cardWidth = Math.max(0.1f,
-            (availableWidth - (MOVE_COLUMNS - 1) * MOVE_CARD_GAP) / MOVE_COLUMNS);
-        return Math.min(1f, cardWidth / MoveCardView.CARD_W);
+    private static float compactMoveCardWidth(float availableWidth) {
+        return Math.min(MoveCardView.CARD_W, Math.max(0.1f,
+            (availableWidth - (MOVE_COLUMNS - 1) * MOVE_CARD_GAP) / MOVE_COLUMNS));
     }
 
-    private void drawScaledMoveCard(Move move, float x, float y, float scale) {
-        Matrix4 originalTransform = new Matrix4(batch.getTransformMatrix());
-        Matrix4 scaledTransform = new Matrix4(originalTransform)
-            .translate(x, y, 0f)
-            .scale(scale, scale, 1f);
-        batch.setTransformMatrix(scaledTransform);
-        new MoveCardView(move, 0f, 0f).draw(batch, assets.fontMedium, assets.fontSmall,
-            assets.battleUi, move.getBaseCeCost());
-        batch.setTransformMatrix(originalTransform);
+    private static float compactMoveCardHeight(float cardWidth) {
+        return Math.max(COMPACT_MOVE_CARD_MIN_HEIGHT,
+            Math.min(COMPACT_MOVE_CARD_MAX_HEIGHT, cardWidth * COMPACT_MOVE_CARD_HEIGHT_RATIO));
+    }
+
+    private void drawCompactMoveCard(Move move, float x, float y, float width, float height) {
+        assets.battleUi.card.draw(batch, x, y, width, height);
+
+        Color type = MoveCardView.typeColorFor(move);
+        batch.setColor(type);
+        batch.draw(assets.battleUi.pixel, x + 8f, y + 8f, 6f, height - 16f);
+        batch.setColor(Color.WHITE);
+
+        float textX = x + 22f;
+        float textWidth = width - 30f;
+        float roleIconSize = Math.min(16f, Math.max(10f, height - 34f));
+        int nameLines = height >= 58f ? 2 : 1;
+        assets.fontSmall.setColor(BattleUiAssets.TEXT);
+        drawCompactMoveName(move.getName(), textX, y + height - 10f,
+            textWidth - roleIconSize - 4f, nameLines);
+        batch.draw(MoveCardView.roleIconFor(move, assets.battleUi),
+            x + width - roleIconSize - 8f, y + height - roleIconSize - 6f, roleIconSize, roleIconSize);
+
+        assets.fontSmall.setColor(type);
+        drawFittedText(assets.fontSmall, MoveCardView.typeNameFor(move), textX, y + 14f, textWidth);
+    }
+
+    private void drawCompactMoveName(String name, float x, float topY, float width, int maxLines) {
+        BitmapFont font = assets.fontSmall;
+        float originalScaleX = font.getData().scaleX;
+        float originalScaleY = font.getData().scaleY;
+        List<String> lines = List.of(name == null || name.isBlank() ? "-" : name);
+
+        for (float scale = 1f; scale >= 0.55f; scale -= 0.10f) {
+            font.getData().setScale(originalScaleX * scale, originalScaleY * scale);
+            lines = wrap(font, name == null || name.isBlank() ? "-" : name, width);
+            boolean allLinesFit = lines.stream().allMatch(line -> textWidth(font, line) <= width);
+            if (lines.size() <= maxLines && allLinesFit) break;
+        }
+
+        boolean needsTruncation = lines.size() > maxLines
+            || lines.stream().anyMatch(line -> textWidth(font, line) > width);
+        if (needsTruncation) {
+            lines = new ArrayList<>(lines.subList(0, Math.min(maxLines, lines.size())));
+            int last = lines.size() - 1;
+            lines.set(last, ellipsize(font, lines.get(last), width));
+        }
+        for (int i = 0; i < lines.size(); i++) {
+            font.draw(batch, lines.get(i), x, topY - i * font.getLineHeight());
+        }
+        font.getData().setScale(originalScaleX, originalScaleY);
+    }
+
+    private static String ellipsize(BitmapFont font, String text, float width) {
+        String suffix = "...";
+        String result = text;
+        while (result.length() > 1 && textWidth(font, result + suffix) > width) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result + suffix;
+    }
+
+    private void drawFittedText(BitmapFont font, String text, float x, float y, float width) {
+        float originalScaleX = font.getData().scaleX;
+        float originalScaleY = font.getData().scaleY;
+        for (float scale = 1f; scale >= 0.55f; scale -= 0.10f) {
+            font.getData().setScale(originalScaleX * scale, originalScaleY * scale);
+            if (textWidth(font, text) <= width) break;
+        }
+        font.draw(batch, text, x, y);
+        font.getData().setScale(originalScaleX, originalScaleY);
     }
 
     private void beginClip(Rectangle bounds) {

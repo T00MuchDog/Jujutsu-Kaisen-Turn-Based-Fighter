@@ -1,6 +1,7 @@
 package com.jjktbf.model.move;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
@@ -44,6 +45,9 @@ public class Move {
 
     /** Determines the Power formula and Black Flash eligibility. */
     private final MoveCategory category;
+
+    /** Original data tags, retained for UI, filtering, and lossless DTO round-trips. */
+    private final Set<MoveTag> tags;
 
     /**
      * Which move pool (Combat Arts / Jujutsu Arts) this move draws its slot from.
@@ -177,6 +181,7 @@ public class Move {
         this.name                = b.name;
         this.description         = b.description;
         this.category            = b.category;
+        this.tags                = immutableTags(b.tags, b.category);
         this.pool                = b.pool != null ? b.pool : MovePool.fromCategory(b.category);
         this.basePower           = b.basePower;
         this.baseAccuracy        = b.baseAccuracy;
@@ -204,6 +209,13 @@ public class Move {
         this.isFreeMove          = b.isFreeMove;
     }
 
+    private static Set<MoveTag> immutableTags(Set<MoveTag> source, MoveCategory category) {
+        EnumSet<MoveTag> copy = EnumSet.noneOf(MoveTag.class);
+        if (source != null) copy.addAll(source);
+        else if (category != null) copy.addAll(category.getTags());
+        return Collections.unmodifiableSet(copy);
+    }
+
     // -------------------------------------------------------------------------
     // Accessors
     // -------------------------------------------------------------------------
@@ -212,6 +224,7 @@ public class Move {
     public String getName()                       { return name; }
     public String getDescription()                { return description; }
     public MoveCategory getCategory()             { return category; }
+    public Set<MoveTag> getTags()                 { return tags; }
     public MovePool getPool()                     { return pool; }
     public int getBasePower()                     { return basePower; }
     public double getBaseAccuracy()               { return baseAccuracy; }
@@ -244,12 +257,16 @@ public class Move {
     public boolean hasTag(String tagName) {
         if (tagName == null || tagName.isBlank()) return true;
         String normalized = tagName.trim().toUpperCase();
-        if ("ATTACK".equals(normalized)) return basePower > 0 && category != MoveCategory.DEFENSIVE && category != MoveCategory.UTILITY;
+        if ("ATTACK".equals(normalized)) {
+            return tags.contains(MoveTag.ATTACK)
+                || basePower > 0 && category != MoveCategory.DEFENSIVE && category != MoveCategory.UTILITY;
+        }
         if ("STUN".equals(normalized)) return stun;
         if ("GUARD_BREAK".equals(normalized)) return guardBreak;
         if ("HEAVY".equals(normalized)) return heavy;
         if ("CURSED_ENERGY".equals(normalized)) {
-            return category == MoveCategory.CURSED_ENERGY
+            return tags.contains(MoveTag.CURSED_ENERGY)
+                || category == MoveCategory.CURSED_ENERGY
                 || category == MoveCategory.PHYSICAL_CURSED_ENERGY
                 || category == MoveCategory.INNATE_TECHNIQUE
                 || category == MoveCategory.NON_INNATE_TECHNIQUE
@@ -259,7 +276,8 @@ public class Move {
                 || category == MoveCategory.PHYSICAL_INNATE_NON_INNATE_TECHNIQUE;
         }
         try {
-            return category.getTags().contains(MoveTag.valueOf(normalized));
+            MoveTag tag = MoveTag.valueOf(normalized);
+            return tags.contains(tag) || category.getTags().contains(tag);
         } catch (IllegalArgumentException e) {
             return false;
         }
@@ -409,6 +427,7 @@ public class Move {
         private String name                  = "";
         private String description           = "";
         private MoveCategory category        = MoveCategory.PHYSICAL;
+        private Set<MoveTag> tags;
         private MovePool pool;
         private int basePower                = 0;
         private double baseAccuracy          = 1.0;
@@ -439,6 +458,7 @@ public class Move {
         public Builder name(String v)                      { this.name = v; return this; }
         public Builder description(String v)               { this.description = v; return this; }
         public Builder category(MoveCategory v)            { this.category = v; return this; }
+        public Builder tags(Set<MoveTag> v)                { this.tags = v == null ? null : Set.copyOf(v); return this; }
         public Builder pool(MovePool v)                    { this.pool = v; return this; }
         public Builder basePower(int v)                    { this.basePower = v; return this; }
         public Builder baseAccuracy(double v)              { this.baseAccuracy = v; return this; }

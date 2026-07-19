@@ -3,8 +3,10 @@ package com.jjktbf.model.move;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Plain data object (DTO) for serialising/deserialising a Move to/from JSON.
@@ -194,6 +196,7 @@ public class MoveData {
 
     public Move toMove() {
         MoveCategory cat = derivedCategory();
+        Set<MoveTag> rawTags = parsedTags();
 
         Move.Builder b = new Move.Builder(id)
             .name(name)
@@ -221,11 +224,26 @@ public class MoveData {
             .requiredTechniqueId(requiredTechniqueId)
             .freeMove(isFreeMove);
 
+        if (!rawTags.isEmpty()) b.tags(rawTags);
         if (prerequisites != null)  b.prerequisites(prerequisites);
         if (onHitEffects  != null)  b.onHitEffects(toStatusEffects(onHitEffects));
         if (selfEffects   != null)  b.selfEffects(toStatusEffects(selfEffects));
 
         return b.build();
+    }
+
+    private Set<MoveTag> parsedTags() {
+        EnumSet<MoveTag> parsed = EnumSet.noneOf(MoveTag.class);
+        if (tags == null) return parsed;
+        for (String tag : tags) {
+            if (tag == null || tag.isBlank()) continue;
+            try {
+                parsed.add(MoveTag.valueOf(tag.trim().toUpperCase()));
+            } catch (IllegalArgumentException ignored) {
+                // Unknown future tags do not prevent older clients from loading the move.
+            }
+        }
+        return parsed;
     }
 
     private static List<StatusEffect> toStatusEffects(List<StatusEffectData> dtos) {
@@ -243,14 +261,9 @@ public class MoveData {
     /**
      * Reconstruct a MoveData from a {@link Move}.
      *
-     * <p><b>Tags are reconstructed from the move's derived category, not from a
-     * raw tag list</b> — {@link Move} stores only its {@link MoveCategory} (the
-     * canonical form in the domain). This is correct for the engine, but it is
-     * <b>lossy as a copy</b>: a MoveData that carries a multi-category raw tag
-     * set (e.g. an editor draft) will collapse to a single category's tag set.
-     *
-     * <p>For copying a MoveData (e.g. in editors), copy the DTO field-by-field
-     * instead of round-tripping through {@code fromMove(toMove())}.
+     * <p>Raw tags loaded from a {@code MoveData} are retained by {@link Move}, so
+     * defensive and utility moves keep their underlying physical, CE, or technique
+     * nature when saved back to data.
      */
     public static MoveData fromMove(Move move) {
         MoveData d = new MoveData();
@@ -258,15 +271,18 @@ public class MoveData {
         d.name                = move.getName();
         d.description         = move.getDescription();
 
-        // Build tags list from category + other flags
-        List<String> tagList = new java.util.ArrayList<>();
+        List<String> tagList = move.getTags().stream()
+            .map(MoveTag::name)
+            .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
         MoveCategory cat = move.getCategory();
-        // Expand category back to constituent tags
-        cat.getTags().forEach(t -> tagList.add(t.name()));
+        if (tagList.isEmpty() && cat != null) {
+            cat.getTags().forEach(t -> tagList.add(t.name()));
+        }
         // Add ATTACK if it's a damaging move (non-defensive, non-utility with basePower > 0)
         if (move.getBasePower() > 0
                 && cat != MoveCategory.DEFENSIVE
-                && cat != MoveCategory.UTILITY) {
+                && cat != MoveCategory.UTILITY
+                && !tagList.contains(MoveTag.ATTACK.name())) {
             tagList.add("ATTACK");
         }
         d.tags = tagList;

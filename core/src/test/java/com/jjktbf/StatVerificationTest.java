@@ -153,6 +153,28 @@ public class StatVerificationTest {
     }
 
     @Test
+    void nonDamagingMovesRetainTheirUnderlyingNatureTags() {
+        MoveData data = new MoveData();
+        data.id = "RAW_TAGS";
+        data.name = "CE Guard";
+        data.tags = List.of("DEFENSIVE", "PHYSICAL", "CURSED_ENERGY");
+        data.apCost = 10;
+        data.unleashPoint = 1;
+
+        Move move = data.toMove();
+
+        assertEquals(MoveCategory.DEFENSIVE, move.getCategory());
+        assertTrue(move.hasTag("DEFENSIVE"));
+        assertTrue(move.hasTag("PHYSICAL"));
+        assertTrue(move.hasTag("CURSED_ENERGY"));
+
+        MoveData roundTripped = MoveData.fromMove(move);
+        assertTrue(roundTripped.tags.contains("DEFENSIVE"));
+        assertTrue(roundTripped.tags.contains("PHYSICAL"));
+        assertTrue(roundTripped.tags.contains("CURSED_ENERGY"));
+    }
+
+    @Test
     void bundledCharacterDataBuildsWithinMovePools() throws IOException {
         Path movesPath = List.of(
                 Path.of("data", "moves", "all_moves.json"),
