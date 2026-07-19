@@ -288,6 +288,34 @@ public class StatVerificationTest {
     }
 
     @Test
+    void bundledCharacterMigrationCorrectsLegacySpritePaths() throws IOException {
+        Path savedCharacters = Files.createTempFile("characters", ".json");
+        try {
+            Files.writeString(savedCharacters, """
+                [
+                  { "id": "000000", "name": "Ren Kurogane", "spriteAsset": "assets/characters/yuji_frontsprite.png" },
+                  { "id": "000001", "name": "Custom Fighter", "spriteAsset": "assets/custom/fighter.png" }
+                ]
+                """);
+            String bundled = """
+                [
+                  { "id": "000000", "name": "Ren Kurogane" }
+                ]
+                """;
+
+            assertTrue(AppPaths.mergeBundledCharacters(savedCharacters,
+                new ByteArrayInputStream(bundled.getBytes(StandardCharsets.UTF_8))));
+
+            List<CharacterData> migrated = new ObjectMapper().readValue(
+                savedCharacters.toFile(), new TypeReference<List<CharacterData>>() {});
+            assertEquals("assets/sprites/characters/yuji_frontsprite.png", migrated.get(0).spriteAsset);
+            assertEquals("assets/custom/fighter.png", migrated.get(1).spriteAsset);
+        } finally {
+            Files.deleteIfExists(savedCharacters);
+        }
+    }
+
+    @Test
     void bundledAbilityAndTechniqueMigrationPreservesPlayerEdits() throws IOException {
         Path savedAbilities = Files.createTempFile("abilities", ".json");
         Path savedTechniques = Files.createTempFile("techniques", ".json");

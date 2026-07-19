@@ -78,6 +78,8 @@ public final class AppPaths {
     private static final String BUNDLED_CHARACTERS = "data/characters/all_characters.json";
     private static final String BUNDLED_ABILITIES = "data/abilities/all_abilities.json";
     private static final String BUNDLED_TECHNIQUES = "data/techniques/all_techniques.json";
+    private static final String LEGACY_CHARACTER_SPRITE_PREFIX = "assets/characters/";
+    private static final String CHARACTER_SPRITE_PREFIX = "assets/sprites/characters/";
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
         .enable(SerializationFeature.INDENT_OUTPUT);
@@ -294,10 +296,29 @@ public final class AppPaths {
      * Append default characters that do not already exist in a player's saved list.
      * Name matching is case-insensitive so player-edited characters are preserved.
      *
-     * @return true when at least one bundled character was appended
+     * @return true when saved character data was migrated or a bundled character was appended
      */
     static boolean mergeBundledCharacters(Path destination, InputStream bundledCharacters) throws IOException {
-        return mergeBundledDefinitions(destination, bundledCharacters);
+        boolean migrated = migrateLegacyCharacterSpritePaths(destination);
+        return mergeBundledDefinitions(destination, bundledCharacters) || migrated;
+    }
+
+    /** Update the sprite directory used by the shipped character data before v1.2.3. */
+    private static boolean migrateLegacyCharacterSpritePaths(Path destination) throws IOException {
+        List<LinkedHashMap<String, Object>> saved = MAPPER.readValue(
+            destination.toFile(), new TypeReference<>() {});
+        boolean changed = false;
+        for (Map<String, Object> character : saved) {
+            Object spriteAsset = character.get("spriteAsset");
+            if (spriteAsset instanceof String path
+                && path.startsWith(LEGACY_CHARACTER_SPRITE_PREFIX)) {
+                character.put("spriteAsset", CHARACTER_SPRITE_PREFIX
+                    + path.substring(LEGACY_CHARACTER_SPRITE_PREFIX.length()));
+                changed = true;
+            }
+        }
+        if (changed) MAPPER.writeValue(destination.toFile(), saved);
+        return changed;
     }
 
     /**
