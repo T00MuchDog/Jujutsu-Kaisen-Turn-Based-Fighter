@@ -158,14 +158,16 @@ public class MoveCardView {
 
         font.setColor(ink);
         drawFitted(batch, font, move.getDescription(), textX, y + h - 74f, textW, 5);
-        drawActionPointDots(batch, ui, x + 20f, y + 8f, w - 40f,
+        float extraActionBarHeight = drawActionPointDots(batch, ui, x + 20f, y + 8f, w - 40f,
             move.getApCost(), move.getUnleashPoint(), 6f, 4f);
 
         statFont.setColor(ink);
-        drawStatColumn(batch, statFont, textX, y + 55f, y + 35f,
+        drawStatColumn(batch, statFont, textX, y + 55f + extraActionBarHeight,
+            y + 35f + extraActionBarHeight,
             accuracyLabel(), move.getBasePower() > 0 ? "PWR " + move.getBasePower() : null);
         if (move.hasCeCost()) {
-            drawCeCostBar(batch, statFont, ui, x + w - 48f, y + 31f, actualCeCost);
+            drawCeCostBar(batch, statFont, ui, x + w - 48f, y + 24f + extraActionBarHeight,
+                actualCeCost);
         }
     }
 
@@ -175,11 +177,11 @@ public class MoveCardView {
             : "ACC " + (int) Math.round(move.getBaseAccuracy() * 100d) + "%";
     }
 
-    /** Draws the AP duration dots and their unleash-point marker. */
-    private static void drawActionPointDots(Batch batch, BattleUiAssets ui, float x, float bottomY,
-                                            float width, int apCost, int unleashPoint,
-                                            float dotSize, float gap) {
-        if (apCost <= 0 || width <= 0f) return;
+    /** Draws the AP duration dots and returns the height added by any extra rows. */
+    private static float drawActionPointDots(Batch batch, BattleUiAssets ui, float x, float bottomY,
+                                             float width, int apCost, int unleashPoint,
+                                             float dotSize, float gap) {
+        if (apCost <= 0 || width <= 0f) return 0f;
 
         float size = Math.min(width, Math.max(1f, dotSize));
         float spacing = Math.max(0f, gap);
@@ -220,6 +222,7 @@ public class MoveCardView {
             }
         }
         batch.setColor(Color.WHITE);
+        return (rowCount - 1) * rowStep;
     }
 
     private void drawRoleIcon(Batch batch, BattleUiAssets ui, float x, float y, boolean muted) {
@@ -248,7 +251,7 @@ public class MoveCardView {
             lines.set(last, ellipsize(font, lines.get(last), maxWidth));
         }
 
-        float lineHeight = font.getLineHeight();
+        float lineHeight = font.getLineHeight() * 0.7f;
         for (int i = 0; i < lines.size(); i++) {
             font.draw(batch, lines.get(i), x, y - i * lineHeight);
         }
@@ -284,7 +287,7 @@ public class MoveCardView {
         batch.setColor(Color.WHITE);
 
         font.setColor(Color.BLACK);
-        drawCentered(batch, font, "CE", x, y + CE_BAR_H + 10f, CE_BAR_W, CE_BAR_W);
+        drawCentered(batch, font, "CE", x, y + CE_BAR_H + 20f, CE_BAR_W, CE_BAR_W);
         font.setColor(Color.WHITE);
         drawCentered(batch, font, String.valueOf(cost), x,
             y + (CE_BAR_H + font.getCapHeight()) / 2f, CE_BAR_W, CE_BAR_W - 6f);
