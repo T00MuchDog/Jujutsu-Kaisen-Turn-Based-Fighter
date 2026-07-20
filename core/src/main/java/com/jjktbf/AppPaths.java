@@ -80,6 +80,16 @@ public final class AppPaths {
     private static final String BUNDLED_TECHNIQUES = "data/techniques/all_techniques.json";
     private static final String LEGACY_CHARACTER_SPRITE_PREFIX = "assets/characters/";
     private static final String CHARACTER_SPRITE_PREFIX = "assets/sprites/characters/";
+    private static final String YUJI_FRONT_SPRITE = CHARACTER_SPRITE_PREFIX + "yuji_frontsprite.png";
+    private static final String MEGUMI_FRONT_SPRITE = CHARACTER_SPRITE_PREFIX + "megumi_frontsprite.png";
+    private static final Map<String, String> LEGACY_DEFAULT_CHARACTER_SPRITES = Map.of(
+        "assets/characters/test_a.png", YUJI_FRONT_SPRITE,
+        "assets/characters/test_b.png", YUJI_FRONT_SPRITE,
+        "assets/characters/test_c.png", MEGUMI_FRONT_SPRITE,
+        "assets/sprites/characters/test_a.png", YUJI_FRONT_SPRITE,
+        "assets/sprites/characters/test_b.png", YUJI_FRONT_SPRITE,
+        "assets/sprites/characters/test_c.png", MEGUMI_FRONT_SPRITE
+    );
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
         .enable(SerializationFeature.INDENT_OUTPUT);
@@ -303,22 +313,33 @@ public final class AppPaths {
         return mergeBundledDefinitions(destination, bundledCharacters) || migrated;
     }
 
-    /** Update the sprite directory used by the shipped character data before v1.2.3. */
+    /** Update superseded sprite paths used by shipped character data. */
     private static boolean migrateLegacyCharacterSpritePaths(Path destination) throws IOException {
         List<LinkedHashMap<String, Object>> saved = MAPPER.readValue(
             destination.toFile(), new TypeReference<>() {});
         boolean changed = false;
         for (Map<String, Object> character : saved) {
             Object spriteAsset = character.get("spriteAsset");
-            if (spriteAsset instanceof String path
-                && path.startsWith(LEGACY_CHARACTER_SPRITE_PREFIX)) {
-                character.put("spriteAsset", CHARACTER_SPRITE_PREFIX
-                    + path.substring(LEGACY_CHARACTER_SPRITE_PREFIX.length()));
+            if (spriteAsset instanceof String path) {
+                String migrated = migrateLegacyCharacterSpritePath(path);
+                if (migrated.equals(path)) continue;
+                character.put("spriteAsset", migrated);
                 changed = true;
             }
         }
         if (changed) MAPPER.writeValue(destination.toFile(), saved);
         return changed;
+    }
+
+    private static String migrateLegacyCharacterSpritePath(String path) {
+        String normalized = path.replace('\\', '/');
+        String replacement = LEGACY_DEFAULT_CHARACTER_SPRITES.get(normalized);
+        if (replacement != null) return replacement;
+        if (normalized.startsWith(LEGACY_CHARACTER_SPRITE_PREFIX)) {
+            return CHARACTER_SPRITE_PREFIX
+                + normalized.substring(LEGACY_CHARACTER_SPRITE_PREFIX.length());
+        }
+        return path;
     }
 
     /**

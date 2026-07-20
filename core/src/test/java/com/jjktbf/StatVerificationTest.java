@@ -294,7 +294,10 @@ public class StatVerificationTest {
             Files.writeString(savedCharacters, """
                 [
                   { "id": "000000", "name": "Ren Kurogane", "spriteAsset": "assets/characters/yuji_frontsprite.png" },
-                  { "id": "000001", "name": "Custom Fighter", "spriteAsset": "assets/custom/fighter.png" }
+                  { "id": "000001", "name": "Legacy Test A", "spriteAsset": "assets/characters/test_a.png" },
+                  { "id": "000002", "name": "Legacy Test B", "spriteAsset": "assets/sprites/characters/test_b.png" },
+                  { "id": "000003", "name": "Legacy Test C", "spriteAsset": "assets\\\\characters\\\\test_c.png" },
+                  { "id": "000004", "name": "Custom Fighter", "spriteAsset": "assets/custom/fighter.png" }
                 ]
                 """);
             String bundled = """
@@ -309,7 +312,10 @@ public class StatVerificationTest {
             List<CharacterData> migrated = new ObjectMapper().readValue(
                 savedCharacters.toFile(), new TypeReference<List<CharacterData>>() {});
             assertEquals("assets/sprites/characters/yuji_frontsprite.png", migrated.get(0).spriteAsset);
-            assertEquals("assets/custom/fighter.png", migrated.get(1).spriteAsset);
+            assertEquals("assets/sprites/characters/yuji_frontsprite.png", migrated.get(1).spriteAsset);
+            assertEquals("assets/sprites/characters/yuji_frontsprite.png", migrated.get(2).spriteAsset);
+            assertEquals("assets/sprites/characters/megumi_frontsprite.png", migrated.get(3).spriteAsset);
+            assertEquals("assets/custom/fighter.png", migrated.get(4).spriteAsset);
         } finally {
             Files.deleteIfExists(savedCharacters);
         }
