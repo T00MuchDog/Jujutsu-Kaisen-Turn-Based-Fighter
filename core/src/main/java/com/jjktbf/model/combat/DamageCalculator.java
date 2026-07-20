@@ -71,10 +71,12 @@ public final class DamageCalculator {
 
         // --- 1. Hit roll ---
         boolean hit;
-        if (move.isNeverMiss()) {
+        if (defender.consumeGuaranteedDodge()) {
+            hit = false;
+        } else if (move.isNeverMiss() || attacker.consumeGuaranteedHit()) {
             hit = true;
         } else {
-            double modifiedAccuracy = (attacker.getEffectiveCombatStats().getAccuracy()
+            double modifiedAccuracy = (attacker.getAccuracy()
                 + attacker.getAbilityFlags().accuracyBonusFor(move)
                 + defender.getAbilityFlags().opponentAccuracyBonusFor(move))
                 * attacker.getAbilityFlags().accuracyMultiplierFor(move)
@@ -82,7 +84,7 @@ public final class DamageCalculator {
             int attackerAccuracy = (int) Math.round(Math.max(0, modifiedAccuracy));
             double hitChance = CombatStats.computeHitChance(
                 attackerAccuracy,
-                defender.getEffectiveCombatStats().getEvasion(),
+                defender.getEvasion(),
                 Math.min(1.0, Math.max(0.0,
                     move.getBaseAccuracy() + attacker.getStatusBaseAccuracyBonus()))
             );
@@ -124,6 +126,12 @@ public final class DamageCalculator {
                 * attacker.getAbilityFlags().damageMultiplierFor(move)
         );
         rawDamage = Math.max(1, rawDamage);
+        rawDamage = Math.max(0, (int) Math.round(rawDamage * Math.max(0.0,
+            1.0 + attacker.getStatusMagnitude(com.jjktbf.model.move.StatusEffectType.POWER_UP))));
+        rawDamage = Math.max(0, (int) Math.round(rawDamage * Math.max(0.0,
+            1.0 + defender.getStatusMagnitude(com.jjktbf.model.move.StatusEffectType.MARKED))));
+        rawDamage = Math.max(0, (int) Math.round(
+            attacker.modifyBattleStat(com.jjktbf.model.character.BattleStatKey.DAMAGE_DEALT, rawDamage)));
 
         // --- 7. Black Flash roll ---
         boolean blackFlash = false;
@@ -131,7 +139,7 @@ public final class DamageCalculator {
 
         if (move.isBlackFlashEligible()) {
             double bfChance = attacker.getCurrentBfChance();
-            blackFlash      = rng.nextDouble() < bfChance;
+            blackFlash = attacker.consumeGuaranteedBlackFlash() || rng.nextDouble() < bfChance;
 
             if (blackFlash) {
                 finalDamage = (int) Math.round(rawDamage * CombatStats.BF_DAMAGE_MULTIPLIER);

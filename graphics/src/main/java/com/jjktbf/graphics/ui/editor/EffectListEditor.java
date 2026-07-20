@@ -16,6 +16,7 @@ import com.jjktbf.model.character.AbilityEffectParameter;
 import com.jjktbf.model.character.AbilityEffectTarget;
 import com.jjktbf.model.character.AbilityEffectTiming;
 import com.jjktbf.model.character.AbilityEffectType;
+import com.jjktbf.model.character.BattleStatKey;
 import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveTag;
@@ -206,6 +207,20 @@ public class EffectListEditor extends Table {
             addRow(fields, "Stat", statBox);
         }
 
+        if (type.uses(AbilityEffectParameter.BATTLE_STAT)) {
+            SelectBox<String> statBox = new SelectBox<>(skin);
+            statBox.setItems(java.util.Arrays.stream(BattleStatKey.values())
+                .map(stat -> stat.label).toArray(String[]::new));
+            statBox.setSelected(battleStatLabel(effect.stringValue));
+            effect.stringValue = battleStatFromLabel(statBox.getSelected()).name();
+            statBox.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    effect.stringValue = battleStatFromLabel(statBox.getSelected()).name();
+                }
+            });
+            addRow(fields, "Battle stat", statBox);
+        }
+
         if (type.uses(AbilityEffectParameter.MOVE_SCOPE)) {
             SelectBox<String> scopeBox = new SelectBox<>(skin);
             scopeBox.setItems(moveScopeLabels(type != AbilityEffectType.LOCK_MOVE_TAG));
@@ -232,7 +247,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.DECIMAL)) {
-            boolean percentage = type == AbilityEffectType.BF_CHANCE_ADD;
+            boolean percentage = isPercentage(type);
             Double displayed = percentage && effect.doubleValue != null
                 ? effect.doubleValue * 100.0 : effect.doubleValue;
             TextField decimal = decimalField(displayed);
@@ -287,7 +302,10 @@ public class EffectListEditor extends Table {
 
         if (type.uses(AbilityEffectParameter.TARGET)) {
             SelectBox<String> targetBox = new SelectBox<>(skin);
-            targetBox.setItems(AbilityEffectTarget.SELF.name(), AbilityEffectTarget.ENEMY.name());
+            targetBox.setItems(
+                AbilityEffectTarget.SELF.name(),
+                AbilityEffectTarget.ENEMY.name(),
+                AbilityEffectTarget.BOTH.name());
             targetBox.setSelected(effect.target);
             effect.target = targetBox.getSelected();
             targetBox.addListener(new ChangeListener() {
@@ -334,7 +352,17 @@ public class EffectListEditor extends Table {
                     effect.magnitude = parseDouble(magnitude.getText());
                 }
             });
-            addRow(fields, "Magnitude (FOCUS fraction / CE OUTPUT points)", magnitude);
+            addRow(fields, "Magnitude", magnitude);
+        }
+
+        if (type.uses(AbilityEffectParameter.USES)) {
+            TextField uses = integerField(effect.uses);
+            uses.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    effect.uses = parseInteger(uses.getText());
+                }
+            });
+            addRow(fields, "Uses (-1 = unlimited)", uses);
         }
 
         return fields;
@@ -378,7 +406,7 @@ public class EffectListEditor extends Table {
             summary.append(" | ").append(effect.intValue >= 0 ? "+" : "").append(effect.intValue);
         }
         if (type.uses(AbilityEffectParameter.DECIMAL) && effect.doubleValue != null) {
-            if (type == AbilityEffectType.BF_CHANCE_ADD) {
+            if (isPercentage(type)) {
                 summary.append(" | ").append(formatNumber(effect.doubleValue * 100.0)).append('%');
             } else {
                 summary.append(" | x").append(formatNumber(effect.doubleValue));
@@ -394,6 +422,18 @@ public class EffectListEditor extends Table {
             summary.append(" | ").append(pretty(effect.stringValue));
             summary.append(" -> ").append(effect.target);
             summary.append(" @ ").append(effect.timing);
+        }
+        if (type.uses(AbilityEffectParameter.BATTLE_STAT) && effect.stringValue != null) {
+            summary.append(" | ").append(battleStatLabel(effect.stringValue));
+        }
+        if (type.uses(AbilityEffectParameter.TARGET) && !type.uses(AbilityEffectParameter.STATUS_TYPE)) {
+            summary.append(" -> ").append(effect.target);
+        }
+        if (type.uses(AbilityEffectParameter.DURATION)) {
+            summary.append(" | ").append(effect.durationRounds == null ? "?" : effect.durationRounds).append(" rounds");
+        }
+        if (type.uses(AbilityEffectParameter.USES)) {
+            summary.append(" | ").append(effect.uses).append(" uses");
         }
         return summary.toString();
     }
@@ -533,6 +573,9 @@ public class EffectListEditor extends Table {
             case MOVE_ACCURACY_ADD, OPPONENT_ACCURACY_ADD -> "Accuracy points (+/-)";
             case MODIFY_AP_BAR -> "AP change (+/-)";
             case COST_CE_PER_ROUND -> "CE cost per round";
+            case HEAL_HP, RESTORE_CE, DRAIN_CE, DEAL_DIRECT_DAMAGE, DAMAGE_SHIELD -> "Amount";
+            case TEMP_STAT_ADD -> "Amount (+/-)";
+            case TEMP_STAT_SET_VALUE -> "Exact value";
             default -> "Value";
         };
     }
@@ -541,8 +584,31 @@ public class EffectListEditor extends Table {
         return switch (type) {
             case STAT_DIVIDE -> "Divisor";
             case BF_CHANCE_ADD -> "Chance change % (+/-)";
+            case HEAL_HP_PERCENT, RESTORE_CE_PERCENT, DRAIN_CE_PERCENT,
+                 DEAL_MAX_HP_DAMAGE -> "Percentage";
+            case BATTLE_STAT_ADD -> "Amount (+/-)";
             default -> "Multiplier";
         };
+    }
+
+    private static boolean isPercentage(AbilityEffectType type) {
+        return type == AbilityEffectType.BF_CHANCE_ADD
+            || type == AbilityEffectType.HEAL_HP_PERCENT
+            || type == AbilityEffectType.RESTORE_CE_PERCENT
+            || type == AbilityEffectType.DRAIN_CE_PERCENT
+            || type == AbilityEffectType.DEAL_MAX_HP_DAMAGE;
+    }
+
+    private static String battleStatLabel(String value) {
+        try { return BattleStatKey.fromString(value).label; }
+        catch (Exception ex) { return BattleStatKey.MAX_AP.label; }
+    }
+
+    private static BattleStatKey battleStatFromLabel(String label) {
+        for (BattleStatKey stat : BattleStatKey.values()) {
+            if (stat.label.equals(label)) return stat;
+        }
+        return BattleStatKey.MAX_AP;
     }
 
     private static Integer parseInteger(String value) {

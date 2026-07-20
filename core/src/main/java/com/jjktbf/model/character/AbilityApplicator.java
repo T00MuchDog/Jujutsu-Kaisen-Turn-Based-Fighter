@@ -44,7 +44,7 @@ public final class AbilityApplicator {
         AbilityFlags flags = new AbilityFlags();
 
         for (Ability ability : abilities == null ? List.<Ability>of() : abilities) {
-            if (ability == null || !ability.isPassive()) continue;
+            if (ability == null || !ability.isPassive() || !ability.isAlwaysActive()) continue;
             for (AbilityEffectData eff : ability.getEffects()) {
                 if (eff == null || eff.type == null) {
                     System.err.println("[WARN] AbilityApplicator: missing ability effect type");
@@ -142,6 +142,16 @@ public final class AbilityApplicator {
                         // has no stat/slot side effects.
                     }
                     case STAT_BONUS_POINTS -> { /* editor/creator-only — no runtime effect */ }
+
+                    // Applied by PassiveAbilityEngine when their activation predicate fires.
+                    case HEAL_HP, HEAL_HP_PERCENT, RESTORE_CE, RESTORE_CE_PERCENT,
+                         DRAIN_CE, DRAIN_CE_PERCENT, DEAL_DIRECT_DAMAGE, DEAL_MAX_HP_DAMAGE,
+                         INSTANT_KILL, APPLY_STATUS, REMOVE_STATUS, CLEAR_STATUSES,
+                         TEMP_STAT_ADD, TEMP_STAT_MULTIPLY, TEMP_STAT_SET_VALUE,
+                         BATTLE_STAT_ADD, BATTLE_STAT_MULTIPLY, IGNORE_DAMAGE,
+                         DAMAGE_SHIELD, SURVIVE_FATAL_DAMAGE, GUARANTEE_NEXT_HIT,
+                         GUARANTEE_NEXT_DODGE, GUARANTEE_NEXT_BLACK_FLASH,
+                         CANCEL_NEXT_MOVE, TEMP_LOCK_MOVE_TAG -> { }
                 }
             }
         }
@@ -161,6 +171,63 @@ public final class AbilityApplicator {
         );
 
         return new ApplicationResult(modified, flags);
+    }
+
+    /** Apply battle-time character-stat effects without the character-editor clamp. */
+    public static CharacterStats applyRuntimeStats(
+        CharacterStats baseStats,
+        List<AbilityEffectData> effects
+    ) {
+        Map<StatKey, Integer> overrides = new EnumMap<>(StatKey.class);
+        Map<StatKey, Integer> additions = new EnumMap<>(StatKey.class);
+        Map<StatKey, Double> multipliers = new EnumMap<>(StatKey.class);
+        for (StatKey key : StatKey.values()) {
+            additions.put(key, 0);
+            multipliers.put(key, 1.0);
+        }
+        for (AbilityEffectData effect : effects == null ? List.<AbilityEffectData>of() : effects) {
+            if (effect == null || effect.type == null) continue;
+            AbilityEffectType type;
+            try { type = AbilityEffectType.fromName(effect.type); }
+            catch (IllegalArgumentException ex) { continue; }
+            if (type != AbilityEffectType.STAT_SET_MIN
+                && type != AbilityEffectType.STAT_SET_VALUE
+                && type != AbilityEffectType.TEMP_STAT_SET_VALUE
+                && type != AbilityEffectType.STAT_ADD
+                && type != AbilityEffectType.TEMP_STAT_ADD
+                && type != AbilityEffectType.STAT_MULTIPLY
+                && type != AbilityEffectType.TEMP_STAT_MULTIPLY
+                && type != AbilityEffectType.STAT_DIVIDE) continue;
+            StatKey key = resolveStatKey(effect.stat);
+            if (key == null) continue;
+            switch (type) {
+                case STAT_SET_MIN -> overrides.put(key, 0);
+                case STAT_SET_VALUE, TEMP_STAT_SET_VALUE ->
+                    overrides.put(key, nvl(effect.intValue, 0));
+                case STAT_ADD, TEMP_STAT_ADD ->
+                    additions.merge(key, nvl(effect.intValue, 0), Integer::sum);
+                case STAT_MULTIPLY, TEMP_STAT_MULTIPLY ->
+                    multipliers.merge(key, nvl(effect.doubleValue, 1.0), (a, b) -> a * b);
+                case STAT_DIVIDE -> {
+                    double divisor = effect.doubleValue != null && effect.doubleValue != 0
+                        ? effect.doubleValue : 1.0;
+                    multipliers.merge(key, divisor, (a, b) -> a / b);
+                }
+                default -> { }
+            }
+        }
+        return new CharacterStats(
+            finalStat(StatKey.VITALITY, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.STRENGTH, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.DURABILITY, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.SPEED, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.CURSED_ENERGY_RESERVES, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.CURSED_ENERGY_EFFICIENCY, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.CURSED_ENERGY_OUTPUT, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.JUJUTSU_SKILL, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.COMBAT_ABILITY, baseStats, overrides, additions, multipliers),
+            finalStat(StatKey.CURSED_TECHNIQUE_MASTERY, baseStats, overrides, additions, multipliers)
+        );
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -254,6 +321,78 @@ public final class AbilityApplicator {
 
         // Status automation
         public final java.util.List<AbilityEffectData> autoStatusEffects = new java.util.ArrayList<>();
+
+        /** Add one legacy continuous effect to this flag set. */
+        public void addEffect(AbilityEffectData effect) {
+            if (effect == null || effect.type == null) return;
+            AbilityEffectType type;
+            try { type = AbilityEffectType.fromName(effect.type); }
+            catch (IllegalArgumentException ex) { return; }
+            switch (type) {
+                case CE_COST_TO_MINIMUM -> {
+                    ceCostToMinimum = true;
+                    ceCostToMinimumEffects.add(effect);
+                }
+                case CE_COST_MULTIPLY -> {
+                    ceCostMultiplier *= nvl(effect.doubleValue, 1.0);
+                    ceCostMultiplierEffects.add(effect);
+                }
+                case MOVE_ACCURACY_ADD -> {
+                    accuracyBonus += nvl(effect.intValue, 0);
+                    accuracyAddEffects.add(effect);
+                }
+                case MOVE_ACCURACY_MULTIPLY -> {
+                    accuracyMultiplier *= nvl(effect.doubleValue, 1.0);
+                    accuracyMultiplierEffects.add(effect);
+                }
+                case OPPONENT_ACCURACY_ADD -> {
+                    opponentAccuracyBonus += nvl(effect.intValue, 0);
+                    opponentAccuracyAddEffects.add(effect);
+                }
+                case OPPONENT_ACCURACY_MULTIPLY -> {
+                    opponentAccuracyMultiplier *= nvl(effect.doubleValue, 1.0);
+                    opponentAccuracyMultiplierEffects.add(effect);
+                }
+                case DAMAGE_MULTIPLY -> {
+                    damageMultiplier *= nvl(effect.doubleValue, 1.0);
+                    damageMultiplierEffects.add(effect);
+                }
+                case BF_CHANCE_ADD -> bfChanceBonus += nvl(effect.doubleValue, 0.0);
+                case MODIFY_DEFENSE -> defenseMultiplier *= nvl(effect.doubleValue, 1.0);
+                case MODIFY_AP_BAR -> apBarBonus += nvl(effect.intValue, 0);
+                case COST_CE_PER_ROUND -> ceCostPerRound += nvl(effect.intValue, 0);
+                case GRANT_MOVE -> { if (effect.moveId != null) grantedMoveIds.add(effect.moveId); }
+                case LOCK_MOVE_TAG -> { if (effect.moveTag != null) lockedMoveTags.add(effect.moveTag); }
+                case AUTO_STATUS_APPLY -> autoStatusEffects.add(effect);
+                default -> { }
+            }
+        }
+
+        public AbilityFlags copy() {
+            AbilityFlags copy = new AbilityFlags();
+            copy.ceCostToMinimum = ceCostToMinimum;
+            copy.ceCostMultiplier = ceCostMultiplier;
+            copy.ceCostPerRound = ceCostPerRound;
+            copy.accuracyBonus = accuracyBonus;
+            copy.accuracyMultiplier = accuracyMultiplier;
+            copy.opponentAccuracyBonus = opponentAccuracyBonus;
+            copy.opponentAccuracyMultiplier = opponentAccuracyMultiplier;
+            copy.damageMultiplier = damageMultiplier;
+            copy.defenseMultiplier = defenseMultiplier;
+            copy.bfChanceBonus = bfChanceBonus;
+            copy.apBarBonus = apBarBonus;
+            copy.ceCostToMinimumEffects.addAll(ceCostToMinimumEffects);
+            copy.ceCostMultiplierEffects.addAll(ceCostMultiplierEffects);
+            copy.accuracyAddEffects.addAll(accuracyAddEffects);
+            copy.accuracyMultiplierEffects.addAll(accuracyMultiplierEffects);
+            copy.opponentAccuracyAddEffects.addAll(opponentAccuracyAddEffects);
+            copy.opponentAccuracyMultiplierEffects.addAll(opponentAccuracyMultiplierEffects);
+            copy.damageMultiplierEffects.addAll(damageMultiplierEffects);
+            copy.grantedMoveIds.addAll(grantedMoveIds);
+            copy.lockedMoveTags.addAll(lockedMoveTags);
+            copy.autoStatusEffects.addAll(autoStatusEffects);
+            return copy;
+        }
 
         private boolean appliesTo(AbilityEffectData effect, com.jjktbf.model.move.Move move) {
             return effect.moveTag == null || effect.moveTag.isBlank() || move.hasTag(effect.moveTag);

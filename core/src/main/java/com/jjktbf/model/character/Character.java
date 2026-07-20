@@ -126,7 +126,7 @@ public abstract class Character extends Entity {
         }
         if (abilities != null) {
             for (Ability a : abilities) {
-                if (!a.isPassive()) continue;
+                if (!a.isPassive() || !a.isAlwaysActive()) continue;
                 var effects = a.getEffects();
                 if (effects == null) continue;
                 for (var e : effects) {
@@ -151,7 +151,7 @@ public abstract class Character extends Entity {
                 && !ability.getActiveMoveId().isBlank()) {
                 ids.add(ability.getActiveMoveId());
             }
-            if (!ability.isPassive()) continue;
+            if (!ability.isPassive() || !ability.isAlwaysActive()) continue;
             for (AbilityEffectData effect : ability.getEffects()) {
                 if (AbilityEffectType.GRANT_MOVE.name().equalsIgnoreCase(effect.type)
                     && effect.moveId != null && !effect.moveId.isBlank()) {
@@ -166,7 +166,7 @@ public abstract class Character extends Entity {
         java.util.Set<String> tags = new java.util.HashSet<>();
         if (abilities == null) return tags;
         for (Ability ability : abilities) {
-            if (!ability.isPassive()) continue;
+            if (!ability.isPassive() || !ability.isAlwaysActive()) continue;
             for (AbilityEffectData effect : ability.getEffects()) {
                 if (AbilityEffectType.LOCK_MOVE_TAG.name().equalsIgnoreCase(effect.type)
                     && effect.moveTag != null && !effect.moveTag.isBlank()) {

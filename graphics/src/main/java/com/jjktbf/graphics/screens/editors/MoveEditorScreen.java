@@ -16,6 +16,7 @@ import com.jjktbf.graphics.ui.editor.HoverTextField;
 import com.jjktbf.graphics.ui.editor.TagPicker;
 import com.jjktbf.graphics.ui.editor.ValidationResult;
 import com.jjktbf.model.character.AbilityData;
+import com.jjktbf.model.character.AbilityConditionData;
 import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.AbilityRepository;
 import com.jjktbf.model.character.CharacterData;
@@ -258,6 +259,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 }
                 ability.activeMoveId = remappedIds.getOrDefault(
                     ability.activeMoveId, ability.activeMoveId);
+                remapConditionMoves(ability.activationCondition, remappedIds);
                 if (ability.effects == null) continue;
                 ability.effects.stream()
                     .filter(java.util.Objects::nonNull)
@@ -288,7 +290,28 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                     && moveId.equals(effect.moveId));
             if (grantsMove) return "granted move";
         }
+        if (conditionReferencesMove(ability.activationCondition, moveId)) {
+            return "activation condition";
+        }
         return null;
+    }
+
+    private static boolean conditionReferencesMove(AbilityConditionData condition, String moveId) {
+        if (condition == null) return false;
+        if (moveId.equals(condition.moveId)) return true;
+        return condition.children != null && condition.children.stream()
+            .anyMatch(child -> conditionReferencesMove(child, moveId));
+    }
+
+    private static void remapConditionMoves(
+        AbilityConditionData condition,
+        Map<String, String> remappedIds
+    ) {
+        if (condition == null) return;
+        condition.moveId = remappedIds.getOrDefault(condition.moveId, condition.moveId);
+        if (condition.children != null) {
+            condition.children.forEach(child -> remapConditionMoves(child, remappedIds));
+        }
     }
 
     // =========================================================================

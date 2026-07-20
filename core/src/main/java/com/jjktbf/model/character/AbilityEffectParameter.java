@@ -12,5 +12,7 @@ public enum AbilityEffectParameter {
     TARGET,
     TIMING,
     DURATION,
-    MAGNITUDE
+    MAGNITUDE,
+    USES,
+    BATTLE_STAT
 }

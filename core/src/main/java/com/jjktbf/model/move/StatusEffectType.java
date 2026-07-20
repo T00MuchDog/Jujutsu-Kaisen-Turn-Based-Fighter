@@ -36,7 +36,7 @@ public enum StatusEffectType {
     CE_OUTPUT_UP,
 
     // --- Special ---
-    /** Marks the target — certain follow-up moves deal bonus damage to marked targets. */
+    /** Marks the target, increasing incoming damage by the configured fraction. */
     MARKED,
 
     /** Reduces the target's max AP bar for the next round. */

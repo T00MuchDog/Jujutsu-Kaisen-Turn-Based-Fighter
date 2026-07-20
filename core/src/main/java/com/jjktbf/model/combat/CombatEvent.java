@@ -24,6 +24,10 @@ public class CombatEvent {
 
         // Damage
         DAMAGE_DEALT,
+        DAMAGE_IGNORED,
+        HP_RESTORED,
+        MAX_HP_CHANGED,
+        MAX_CE_CHANGED,
         BLACK_FLASH,        // BF proc — includes BF damage
 
         // CE
@@ -37,6 +41,9 @@ public class CombatEvent {
 
         // BFS
         BFS_EXPIRED,
+
+        // Abilities
+        ABILITY_ACTIVATED,
 
         // Round / battle
         ROUND_END,

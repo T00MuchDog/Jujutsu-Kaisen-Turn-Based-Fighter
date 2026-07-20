@@ -3,6 +3,10 @@ package com.jjktbf.model.combat;
 import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectTarget;
 import com.jjktbf.model.character.AbilityEffectTiming;
+import com.jjktbf.model.move.StatusEffectType;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Snapshot of the battle's current phase.
@@ -38,6 +42,14 @@ public class BattleState {
 
     /** Set during BATTLE_OVER to indicate who won. Null if ongoing. */
     private BattleCombatant winner;
+    private boolean roundEndMaintenanceComplete;
+    private final List<AutomaticStatusApplication> pendingAutomaticStatuses = new ArrayList<>();
+
+    public record AutomaticStatusApplication(
+        BattleCombatant source,
+        BattleCombatant target,
+        StatusEffectType status
+    ) { }
 
     public BattleState(BattleCombatant playerCombatant, BattleCombatant enemyCombatant) {
         this.playerCombatant = playerCombatant;
@@ -46,6 +58,7 @@ public class BattleState {
         this.roundNumber     = 1;
         this.currentTick     = 0;
         this.winner          = null;
+        this.roundEndMaintenanceComplete = false;
         applyAutomaticStatuses(AbilityEffectTiming.FIGHT_START);
         applyAutomaticStatuses(AbilityEffectTiming.ROUND_START);
     }
@@ -56,6 +69,7 @@ public class BattleState {
 
     public void transitionTo(Phase phase) {
         this.currentPhase = phase;
+        if (phase == Phase.ROUND_END) roundEndMaintenanceComplete = false;
         if (phase == Phase.RESOLUTION) {
             this.currentTick = 1;
         }
@@ -76,17 +90,41 @@ public class BattleState {
         applyAutomaticStatusesFrom(enemyCombatant, playerCombatant, timing);
     }
 
-    private static void applyAutomaticStatusesFrom(
+    private void applyAutomaticStatusesFrom(
         BattleCombatant owner,
         BattleCombatant enemy,
         AbilityEffectTiming timing
     ) {
         for (AbilityEffectData effect : owner.getAbilityFlags().autoStatusEffects) {
             if (!timing.name().equals(effect.timing)) continue;
-            BattleCombatant target = AbilityEffectTarget.ENEMY.name().equals(effect.target)
-                ? enemy : owner;
-            target.addAutomaticStatusEffect(effect);
+            if (AbilityEffectTarget.BOTH.name().equals(effect.target)) {
+                recordAutomaticStatus(owner, owner, effect);
+                recordAutomaticStatus(owner, enemy, effect);
+            } else {
+                BattleCombatant target = AbilityEffectTarget.ENEMY.name().equals(effect.target)
+                    ? enemy : owner;
+                recordAutomaticStatus(owner, target, effect);
+            }
         }
+    }
+
+    private void recordAutomaticStatus(
+        BattleCombatant source,
+        BattleCombatant target,
+        AbilityEffectData effect
+    ) {
+        if (!target.addAutomaticStatusEffect(effect)) return;
+        try {
+            pendingAutomaticStatuses.add(new AutomaticStatusApplication(
+                source, target, StatusEffectType.valueOf(effect.stringValue)));
+        } catch (IllegalArgumentException ignored) { }
+    }
+
+    public List<AutomaticStatusApplication> drainAutomaticStatusApplications() {
+        if (pendingAutomaticStatuses.isEmpty()) return List.of();
+        List<AutomaticStatusApplication> drained = List.copyOf(pendingAutomaticStatuses);
+        pendingAutomaticStatuses.clear();
+        return drained;
     }
 
     // -------------------------------------------------------------------------
@@ -126,6 +164,8 @@ public class BattleState {
     public int             getCurrentTick()     { return currentTick; }
     public BattleCombatant getWinner()          { return winner; }
     public boolean         isBattleOver()       { return currentPhase == Phase.BATTLE_OVER; }
+    public boolean         isRoundEndMaintenanceComplete() { return roundEndMaintenanceComplete; }
+    public void            markRoundEndMaintenanceComplete() { roundEndMaintenanceComplete = true; }
 
     @Override
     public String toString() {

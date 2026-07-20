@@ -209,10 +209,9 @@ public final class HeadlessBattleSession {
             0,
             "Round " + battleState.getRoundNumber() + " started."
         ));
-        initialEvents.addAll(toWireEvents(
-            resolver.processRoundStart(battleState),
-            battleState.getRoundNumber()
-        ));
+        List<CombatEvent> initialCombatEvents = resolver.processRoundStart(battleState);
+        initialEvents.addAll(toWireEvents(initialCombatEvents, battleState.getRoundNumber()));
+        if (battleState.isBattleOver()) finishFromBattleState();
         this.recentEvents = List.copyOf(initialEvents);
         this.roundStartCharacterStates = captureRoundStartCharacterStates();
     }
@@ -354,11 +353,7 @@ public final class HeadlessBattleSession {
                 );
             }
 
-            int ceCost = CeEfficiencyCalculator.computeActualCost(
-                move,
-                participant.combatant.getEffectiveStats().getCursedEnergyEfficiency(),
-                participant.combatant.getAbilityFlags()
-            );
+            int ceCost = participant.combatant.computeMoveCeCost(move);
             long endTick = (long) placement.startTick() + move.getApCost() - 1L;
             if (move.getApCost() < 1
                 || move.getUnleashPoint() < 1
@@ -684,6 +679,10 @@ public final class HeadlessBattleSession {
 
         battleState.transitionTo(BattleState.Phase.ROUND_END);
         events.addAll(toWireEvents(resolver.processRoundEnd(battleState), resolvedRound));
+        if (battleState.isBattleOver()) {
+            finishFromBattleState();
+            return events;
+        }
         status = ongoingConnectionStatus();
         return events;
     }
@@ -738,14 +737,21 @@ public final class HeadlessBattleSession {
             0,
             "Round " + wireRoundNumber + " started."
         ));
-        startEvents.addAll(toWireEvents(
-            resolver.processRoundStart(battleState),
-            wireRoundNumber
-        ));
+        List<CombatEvent> roundStartEvents = resolver.processRoundStart(battleState);
+        startEvents.addAll(toWireEvents(roundStartEvents, wireRoundNumber));
+        if (battleState.isBattleOver()) finishFromBattleState();
         recentEvents = List.copyOf(startEvents);
         roundStartCharacterStates = captureRoundStartCharacterStates();
         MatchState state = snapshot();
         return CommandResult.accepted(command.commandId(), recentEvents, state);
+    }
+
+    private void finishFromBattleState() {
+        ParticipantRuntime winner = runtimeFor(battleState.getWinner());
+        status = MatchStatus.ENDED;
+        winnerSide = winner == null ? null : winner.participant.side();
+        winnerPlayerId = winner == null ? null : winner.participant.playerId();
+        endReason = winner == null ? "DOUBLE_KNOCKOUT" : "KNOCKOUT";
     }
 
     private void attachPlan(
@@ -869,9 +875,9 @@ public final class HeadlessBattleSession {
             combatant.getCharacter().getId(),
             combatant.getCharacter().getName(),
             combatant.getCurrentHp(),
-            combatant.getEffectiveCombatStats().getMaxHp(),
+            combatant.getMaxHp(),
             combatant.getCurrentCe(),
-            combatant.getEffectiveCombatStats().getMaxCursedEnergy(),
+            combatant.getMaxCursedEnergy(),
             currentAp,
             maxAp,
             combatant.computeCurrentDefense(wireCurrentTick),
@@ -897,11 +903,7 @@ public final class HeadlessBattleSession {
 
     private MoveState moveState(ParticipantRuntime participant, Move move) {
         BattleCombatant combatant = participant.combatant;
-        int effectiveCeCost = CeEfficiencyCalculator.computeActualCost(
-            move,
-            combatant.getEffectiveStats().getCursedEnergyEfficiency(),
-            combatant.getAbilityFlags()
-        );
+        int effectiveCeCost = combatant.computeMoveCeCost(move);
         return new MoveState(
             move.getId(),
             move.getName(),
@@ -1061,7 +1063,9 @@ public final class HeadlessBattleSession {
 
     private static Integer eventValue(CombatEvent event) {
         return switch (event.getType()) {
-            case DAMAGE_DEALT, BLACK_FLASH, CE_DRAINED, CE_RESTORED -> event.getIntValue();
+            case DAMAGE_DEALT, DAMAGE_IGNORED, HP_RESTORED,
+                 MAX_HP_CHANGED, MAX_CE_CHANGED, BLACK_FLASH,
+                 CE_DRAINED, CE_RESTORED -> event.getIntValue();
             default -> null;
         };
     }
@@ -1165,7 +1169,9 @@ public final class HeadlessBattleSession {
         return new RoundStartCharacterState(
             participant.participant.side(),
             participant.combatant.getCurrentHp(),
-            participant.combatant.getCurrentCe()
+            participant.combatant.getMaxHp(),
+            participant.combatant.getCurrentCe(),
+            participant.combatant.getMaxCursedEnergy()
         );
     }
 

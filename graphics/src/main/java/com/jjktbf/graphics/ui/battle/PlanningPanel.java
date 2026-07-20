@@ -12,6 +12,7 @@ import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.StatusEffectType;
 import com.jjktbf.multiplayer.protocol.PlanPlacement;
 
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ public class PlanningPanel {
     private final int ceEfficiency;
     private final com.jjktbf.model.character.AbilityApplicator.AbilityFlags abilityFlags;
     private final Map<String, Integer> authoritativeCeCosts;
+    private final BattleCombatant localCombatant;
     private final BattleUiAssets ui;
 
     private final TimelineBar offensiveBar = new TimelineBar(TimelineBar.Kind.OFFENSIVE, 0f, 0f, 1f, 1f);
@@ -70,9 +72,13 @@ public class PlanningPanel {
         this.ceEfficiency = combatant.getEffectiveStats().getCursedEnergyEfficiency();
         this.abilityFlags = combatant.getAbilityFlags();
         this.authoritativeCeCosts = Map.of();
+        this.localCombatant = combatant;
         this.ui = ui;
         for (Move move : combatant.getCharacter().getKnownMoves()) {
             if (abilityFlags.lockedMoveTags.stream().noneMatch(move::hasTag)) knownMoves.add(move);
+        }
+        if (combatant.hasEffect(StatusEffectType.CE_SUPPRESSION)) {
+            knownMoves.removeIf(move -> move.hasTag("CURSED_ENERGY"));
         }
         resize(screenWidth, screenHeight);
     }
@@ -94,6 +100,7 @@ public class PlanningPanel {
         this.ceEfficiency = 0;
         this.abilityFlags = null;
         this.authoritativeCeCosts = ceCosts == null ? Map.of() : Map.copyOf(ceCosts);
+        this.localCombatant = null;
         this.ui = ui;
         if (moves != null) knownMoves.addAll(moves);
         resize(screenWidth, screenHeight);
@@ -296,7 +303,9 @@ public class PlanningPanel {
     private int ceCost(Move move) {
         Integer authoritativeCost = authoritativeCeCosts.get(move.getId());
         if (authoritativeCost != null) return authoritativeCost;
-        return CeEfficiencyCalculator.computeActualCost(move, ceEfficiency, abilityFlags);
+        return localCombatant != null
+            ? localCombatant.computeMoveCeCost(move)
+            : CeEfficiencyCalculator.computeActualCost(move, ceEfficiency, abilityFlags);
     }
 
     private TimelineBar barFor(BattlePlan.Board board) {

@@ -4,6 +4,8 @@ package com.jjktbf.multiplayer.protocol;
 public record RoundStartCharacterState(
     PlayerSide side,
     int currentHp,
-    int currentCe
+    int maxHp,
+    int currentCe,
+    int maxCe
 ) {
 }

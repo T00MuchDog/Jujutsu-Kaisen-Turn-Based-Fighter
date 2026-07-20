@@ -55,9 +55,9 @@ public class CombatantPanel {
     public void update(BattleCombatant combatant) {
         update(
             combatant.getCurrentHp(),
-            combatant.getEffectiveCombatStats().getMaxHp(),
+            combatant.getMaxHp(),
             combatant.getCurrentCe(),
-            combatant.getEffectiveCombatStats().getMaxCursedEnergy()
+            combatant.getMaxCursedEnergy()
         );
     }
 

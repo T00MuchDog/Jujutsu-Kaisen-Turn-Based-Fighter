@@ -3,6 +3,7 @@ package com.jjktbf.graphics.screens.editors;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
+import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
@@ -12,10 +13,13 @@ import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
 import com.jjktbf.graphics.ui.editor.EffectListEditor;
+import com.jjktbf.graphics.ui.editor.ConditionTreeEditor;
 import com.jjktbf.graphics.ui.editor.EnumSelectBox;
 import com.jjktbf.graphics.ui.editor.HoverTextField;
 import com.jjktbf.graphics.ui.editor.ValidationResult;
 import com.jjktbf.model.character.AbilityData;
+import com.jjktbf.model.character.AbilityConditionData;
+import com.jjktbf.model.character.AbilityConditionType;
 import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.AbilityRepository;
@@ -49,6 +53,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
     private Container<Actor> sourceValueContainer;
     private Container<Actor> activeSubContainer;
     private Container<Actor> effectsContainer;
+    private Container<Actor> activationContainer;
     private Label modeHint;
 
     public AbilityEditorScreen(JJKGame game, AssetLoader assets) {
@@ -69,6 +74,9 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         ability.category = CategoryEnum.PASSIVE.name();
         ability.sourceType = SourceTypeEnum.CHARACTER.name();
         ability.effects = new ArrayList<>();
+        ability.activationCondition = AbilityConditionData.always();
+        ability.activationChanceEnabled = false;
+        ability.activationChance = 1.0;
         ability.triggerThreshold = 0;
         ability.masteryThreshold = 0;
         return ability;
@@ -90,6 +98,10 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                 .filter(java.util.Objects::nonNull)
                 .map(AbilityEffectData::copy)
                 .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        draft.activationCondition = stored.activationCondition == null
+            ? AbilityConditionData.always() : stored.activationCondition.copy();
+        draft.activationChanceEnabled = Boolean.TRUE.equals(stored.activationChanceEnabled);
+        draft.activationChance = stored.activationChance == null ? 1.0 : stored.activationChance;
         draft.activeSubType = stored.activeSubType;
         draft.activeMoveId = stored.activeMoveId;
         draft.triggerCondition = stored.triggerCondition;
@@ -167,6 +179,15 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         if (ability.effects == null || ability.effects.isEmpty()) {
             return "A passive ability needs at least one effect.";
         }
+        String conditionError = AbilityConditionType.validationError(ability.activationCondition);
+        if (conditionError != null) return conditionError;
+        if (Boolean.TRUE.equals(ability.activationChanceEnabled)
+            && (ability.activationChance == null || !Double.isFinite(ability.activationChance)
+                || ability.activationChance < 0 || ability.activationChance > 1)) {
+            return "Activation chance must be between 0% and 100%.";
+        }
+        String conditionMoveError = validateConditionMoves(ability.activationCondition);
+        if (conditionMoveError != null) return conditionMoveError;
         for (int i = 0; i < ability.effects.size(); i++) {
             AbilityEffectData effect = ability.effects.get(i);
             AbilityEffectType type;
@@ -178,6 +199,17 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             String effectError = type.validationError(effect);
             if (effectError != null) {
                 return "Effect " + (i + 1) + " (" + type.displayName() + "): " + effectError;
+            }
+            if (!ability.isAlwaysActive()
+                && (type == AbilityEffectType.GRANT_MOVE
+                    || type == AbilityEffectType.UNLOCK_TECHNIQUE
+                    || type == AbilityEffectType.STAT_BONUS_POINTS
+                    || type == AbilityEffectType.LOCK_MOVE_TAG)) {
+                return "Effect " + (i + 1)
+                    + " changes character acquisition and must use Always active.";
+            }
+            if (!ability.isAlwaysActive() && type == AbilityEffectType.AUTO_STATUS_APPLY) {
+                return "Use Apply status for a conditional ability; automatic status timing is only for Always active.";
             }
             if (type == AbilityEffectType.GRANT_MOVE) {
                 String moveError = validateMoveReference(
@@ -284,11 +316,26 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             ability.triggerCondition = null;
             ability.triggerThreshold = 0;
             ability.effects = new ArrayList<>();
+            ability.activationCondition = null;
+            ability.activationChanceEnabled = null;
+            ability.activationChance = null;
         } else {
             ability.activeSubType = null;
             ability.activeMoveId = null;
             ability.triggerCondition = null;
             ability.triggerThreshold = 0;
+            if (ability.activationCondition == null) {
+                ability.activationCondition = AbilityConditionData.always();
+            }
+            if (ability.activationCondition.containsAlways()) {
+                ability.activationCondition = AbilityConditionData.always();
+            } else {
+                normalizeCondition(ability.activationCondition);
+            }
+            if (!Boolean.TRUE.equals(ability.activationChanceEnabled)) {
+                ability.activationChanceEnabled = null;
+                ability.activationChance = null;
+            }
             for (AbilityEffectData effect : ability.effects) {
                 AbilityEffectType.fromName(effect.type).clearUnusedFields(effect);
             }
@@ -410,6 +457,11 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         effectsContainer.setActor(buildEffects(ability));
         effects.add(effectsContainer).growX().row();
 
+        Table activation = formSection(form, "PASSIVE ACTIVATION");
+        activationContainer = new Container<>();
+        activationContainer.setActor(buildActivation(ability));
+        activation.add(activationContainer).growX().row();
+
         return form;
     }
 
@@ -511,6 +563,48 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             skin);
     }
 
+    private Actor buildActivation(AbilityData ability) {
+        if (!ability.isPassive()) {
+            return formHint("Active abilities are activated by choosing their linked move.");
+        }
+        if (ability.activationCondition == null) {
+            ability.activationCondition = AbilityConditionData.always();
+        }
+        Table table = new Table(skin);
+        table.defaults().left().pad(4).growX();
+
+        CheckBox enabled = new CheckBox(" Roll an activation chance when conditions are met", skin);
+        enabled.setChecked(Boolean.TRUE.equals(ability.activationChanceEnabled));
+        TextField chance = new HoverTextField(formatPercent(
+            ability.activationChance == null ? 1.0 : ability.activationChance), skin);
+        chance.setTextFieldFilter((field, character) -> Character.isDigit(character) || character == '.');
+        chance.setDisabled(!enabled.isChecked());
+        enabled.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                ability.activationChanceEnabled = enabled.isChecked();
+                if (ability.activationChance == null) ability.activationChance = 1.0;
+                chance.setDisabled(!enabled.isChecked());
+                markDirty();
+            }
+        });
+        chance.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                Double value = parseDouble(chance.getText());
+                ability.activationChance = value == null ? null : value / 100.0;
+                markDirty();
+            }
+        });
+        table.add(enabled).colspan(2).growX().row();
+        table.add(labelledRow("Activation chance %", chance)).colspan(2).growX().row();
+        table.add(new ConditionTreeEditor(
+            ability.activationCondition,
+            moveRepo.getAll(),
+            this::markDirty,
+            skin)).colspan(2).growX().row();
+        table.add(formHint("AND/OR groups may be nested. Always active replaces every other condition.")).colspan(2).row();
+        return table;
+    }
+
     private String modeHintText(AbilityData ability) {
         return ability.isActive()
             ? "When acquired, the linked move is added outside the normal move-slot and prerequisite rules."
@@ -522,6 +616,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         if (sourceValueContainer != null) sourceValueContainer.setActor(buildSourceValue(ability));
         if (activeSubContainer != null) activeSubContainer.setActor(buildActiveSettings(ability));
         if (effectsContainer != null) effectsContainer.setActor(buildEffects(ability));
+        if (activationContainer != null) activationContainer.setActor(buildActivation(ability));
         if (modeHint != null) modeHint.setText(modeHintText(ability));
     }
 
@@ -650,6 +745,42 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         } catch (NumberFormatException ex) {
             return null;
         }
+    }
+
+    private static Double parseDouble(String value) {
+        if (value == null || value.isBlank() || ".".equals(value)) return null;
+        try { return Double.valueOf(value); }
+        catch (NumberFormatException ex) { return null; }
+    }
+
+    private String validateConditionMoves(AbilityConditionData condition) {
+        if (condition == null) return null;
+        if (AbilityConditionType.MOVE_USED.name().equalsIgnoreCase(condition.type)) {
+            String error = validateMoveReference(
+                condition.moveId, "An activation condition references a move that does not exist.");
+            if (error != null) return error;
+        }
+        if (condition.children != null) {
+            for (AbilityConditionData child : condition.children) {
+                String error = validateConditionMoves(child);
+                if (error != null) return error;
+            }
+        }
+        return null;
+    }
+
+    private static void normalizeCondition(AbilityConditionData condition) {
+        AbilityConditionType type = AbilityConditionType.fromName(condition.type);
+        type.clearUnusedFields(condition);
+        if (condition.children != null) {
+            condition.children.forEach(AbilityEditorScreen::normalizeCondition);
+        }
+    }
+
+    private static String formatPercent(double fraction) {
+        double percentage = fraction * 100.0;
+        return percentage == Math.rint(percentage)
+            ? String.valueOf((long) percentage) : String.valueOf(percentage);
     }
 
     private static SourceTypeEnum safeSource(String source) {

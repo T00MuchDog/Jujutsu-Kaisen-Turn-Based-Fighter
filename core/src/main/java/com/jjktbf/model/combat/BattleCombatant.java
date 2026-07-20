@@ -3,6 +3,8 @@ package com.jjktbf.model.combat;
 import com.jjktbf.model.character.Ability;
 import com.jjktbf.model.character.AbilityApplicator;
 import com.jjktbf.model.character.AbilityEffectData;
+import com.jjktbf.model.character.AbilityEffectType;
+import com.jjktbf.model.character.BattleStatKey;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.CombatStats;
 // Explicit import to avoid ambiguity with java.lang.Character
@@ -13,6 +15,8 @@ import com.jjktbf.model.move.StatusEffectType;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Mutable battle-time wrapper around an immutable Character.
@@ -52,6 +56,14 @@ public class BattleCombatant {
      * Applied during combat resolution by CombatResolver / DamageCalculator.
      */
     private final AbilityApplicator.AbilityFlags abilityFlags;
+    private final List<Ability> abilities;
+
+    /** Conditional and timed effects added by the passive ability dispatcher. */
+    private final List<RuntimeAbilityEffect> runtimeAbilityEffects = new ArrayList<>();
+    private final Map<String, Boolean> abilityConditionState = new HashMap<>();
+    private final Map<String, List<AbilityTrigger>> abilityTriggerHistory = new HashMap<>();
+    private boolean passiveFightStartProcessed;
+    private int lastPassiveRoundStartRound;
 
     // --- Mutable battle state ---
     private int currentHp;
@@ -67,6 +79,7 @@ public class BattleCombatant {
      * so the no-arg tick signature is unchanged.
      */
     private final List<StatusEffect> expiredThisTick = new ArrayList<>();
+    private final List<StatusEffect> consumedStatusEffects = new ArrayList<>();
 
     // --- Black Flash State ---
     private boolean inBlackFlashState;
@@ -102,6 +115,7 @@ public class BattleCombatant {
      */
     public BattleCombatant(Character character, List<Ability> abilities) {
         this.character = character;
+        this.abilities = abilities == null ? List.of() : List.copyOf(abilities);
 
         // Apply passive ability effects to produce modified stats + flags
         AbilityApplicator.ApplicationResult result =
@@ -120,6 +134,8 @@ public class BattleCombatant {
         this.consecutiveBfsHits   = 0;
         this.bfsExpiresAfterRound = -1;
         this.timeline             = null;
+        this.passiveFightStartProcessed = false;
+        this.lastPassiveRoundStartRound = 0;
     }
 
     // -------------------------------------------------------------------------
@@ -127,7 +143,74 @@ public class BattleCombatant {
     // -------------------------------------------------------------------------
 
     public void applyDamage(int damage) {
-        currentHp = Math.max(0, currentHp - damage);
+        receiveDamage(damage);
+    }
+
+    /** Apply battle modifiers, shields, immunity, and fatal-hit protection. */
+    public int receiveDamage(int damage) {
+        int remaining = Math.max(0, (int) Math.round(
+            modifyBattleStat(BattleStatKey.DAMAGE_TAKEN, damage)));
+        if (remaining == 0) return 0;
+
+        if (hasEffect(StatusEffectType.BARRIER)) {
+            for (Iterator<StatusEffect> iterator = activeEffects.iterator(); iterator.hasNext();) {
+                StatusEffect effect = iterator.next();
+                if (effect.getType() != StatusEffectType.BARRIER) continue;
+                iterator.remove();
+                consumedStatusEffects.add(effect);
+                break;
+            }
+            return 0;
+        }
+
+        RuntimeAbilityEffect immunity = firstUsable(AbilityEffectType.IGNORE_DAMAGE);
+        if (immunity != null) {
+            consume(immunity);
+            return 0;
+        }
+
+        for (RuntimeAbilityEffect shield : matching(AbilityEffectType.DAMAGE_SHIELD)) {
+            if (remaining <= 0) break;
+            int absorbed = Math.min(remaining, shield.remainingCapacity);
+            remaining -= absorbed;
+            shield.remainingCapacity -= absorbed;
+            if (shield.remainingCapacity <= 0) runtimeAbilityEffects.remove(shield);
+        }
+
+        if (remaining >= currentHp) {
+            RuntimeAbilityEffect survival = firstUsable(AbilityEffectType.SURVIVE_FATAL_DAMAGE);
+            if (survival != null && currentHp > 0) {
+                remaining = Math.max(0, currentHp - 1);
+                consume(survival);
+            }
+        }
+        int applied = Math.min(currentHp, remaining);
+        currentHp -= applied;
+        return applied;
+    }
+
+    /** Apply an instant-kill effect, bypassing shields and immunity but not fatal-hit protection. */
+    public int receiveInstantKill() {
+        if (currentHp <= 0) return 0;
+        int before = currentHp;
+        RuntimeAbilityEffect survival = firstUsable(AbilityEffectType.SURVIVE_FATAL_DAMAGE);
+        if (survival != null) {
+            currentHp = 1;
+            consume(survival);
+        } else {
+            currentHp = 0;
+        }
+        return before - currentHp;
+    }
+
+    /** Restore HP and return the actual amount restored after caps/modifiers. */
+    public int heal(int amount) {
+        if (isDefeated()) return 0;
+        int modified = Math.max(0, (int) Math.round(
+            modifyBattleStat(BattleStatKey.HEALING, amount)));
+        int restored = Math.min(Math.max(0, getMaxHp() - currentHp), modified);
+        currentHp += restored;
+        return restored;
     }
 
     public boolean isDefeated() {
@@ -143,15 +226,23 @@ public class BattleCombatant {
      * requested if pool is nearly empty — move is still performed but CE goes to 0).
      */
     public int drainCe(int amount) {
-        int drained = Math.min(currentCe, amount);
+        int drained = Math.min(currentCe, Math.max(0, amount));
         currentCe -= drained;
         return drained;
     }
 
+    /** Restore CE and return the actual amount restored after caps/modifiers. */
+    public int restoreCe(int amount) {
+        int modified = Math.max(0, (int) Math.round(
+            modifyBattleStat(BattleStatKey.CE_RESTORATION, amount)));
+        int restored = Math.min(Math.max(0, getMaxCursedEnergy() - currentCe), modified);
+        currentCe += restored;
+        return restored;
+    }
+
     /** Restore a fraction of the max CE pool (used by Black Flash proc). */
     public void restoreCeFraction(double fraction) {
-        int amount = (int) Math.round(effectiveCombatStats.getMaxCursedEnergy() * fraction);
-        currentCe = Math.min(effectiveCombatStats.getMaxCursedEnergy(), currentCe + amount);
+        restoreCe((int) Math.round(getMaxCursedEnergy() * fraction));
     }
 
     public boolean hasAnyCe() {
@@ -222,7 +313,10 @@ public class BattleCombatant {
             ? CombatStats.BFS_BF_CHANCES[Math.min(consecutiveBfsHits, CombatStats.BFS_BF_CHANCES.length - 1)]
             : CombatStats.BF_BASE_CHANCE;
         // Add ability BF bonus, cap at 1.0
-        return Math.max(0.0, Math.min(1.0, base + abilityFlags.bfChanceBonus));
+        double chance = modifyBattleStat(
+            BattleStatKey.BLACK_FLASH_CHANCE,
+            base + getAbilityFlags().bfChanceBonus);
+        return Math.max(0.0, Math.min(1.0, chance));
     }
 
     // -------------------------------------------------------------------------
@@ -233,19 +327,46 @@ public class BattleCombatant {
         activeEffects.add(effect);
     }
 
+    public void addStatusEffect(StatusEffect effect, BattleState.Phase phase) {
+        if (effect == null) return;
+        int duration = effect.getDurationRounds();
+        if (duration != -1) {
+            boolean appliedAtRoundEnd = phase == BattleState.Phase.ROUND_END;
+            boolean waitsForNextPlanning = phase == BattleState.Phase.RESOLUTION
+                && affectsNextPlanning(effect.getType());
+            boolean waitsForNextRoundStart = effect.getType() == StatusEffectType.POISON
+                && phase == BattleState.Phase.RESOLUTION;
+            if (appliedAtRoundEnd || waitsForNextPlanning || waitsForNextRoundStart) duration++;
+        }
+        activeEffects.add(new StatusEffect(effect.getType(), duration, effect.getMagnitude()));
+    }
+
     /** Convert a validated AUTO_STATUS_APPLY descriptor into a live status. */
     public boolean addAutomaticStatusEffect(AbilityEffectData effect) {
+        return addAutomaticStatusEffect(effect, null);
+    }
+
+    public boolean addAutomaticStatusEffect(AbilityEffectData effect, BattleState.Phase phase) {
         if (effect == null || effect.stringValue == null) return false;
         try {
             StatusEffectType type = StatusEffectType.valueOf(effect.stringValue);
             int duration = effect.durationRounds != null ? effect.durationRounds : 1;
             double magnitude = effect.magnitude != null ? effect.magnitude : 0.0;
-            addStatusEffect(new StatusEffect(type, duration, magnitude));
+            StatusEffect status = new StatusEffect(type, duration, magnitude);
+            if (phase == null) addStatusEffect(status);
+            else addStatusEffect(status, phase);
             return true;
         } catch (IllegalArgumentException ex) {
             System.err.println("[WARN] Invalid automatic status: " + effect.stringValue);
             return false;
         }
+    }
+
+    private static boolean affectsNextPlanning(StatusEffectType type) {
+        return type == StatusEffectType.SPEED_UP
+            || type == StatusEffectType.AP_DRAIN
+            || type == StatusEffectType.CE_SUPPRESSION
+            || type == StatusEffectType.CURSED_SEAL;
     }
 
     public boolean hasEffect(StatusEffectType type) {
@@ -300,8 +421,221 @@ public class BattleCombatant {
         return drained;
     }
 
+    public List<StatusEffect> drainConsumedStatusEffects() {
+        if (consumedStatusEffects.isEmpty()) return List.of();
+        List<StatusEffect> drained = List.copyOf(consumedStatusEffects);
+        consumedStatusEffects.clear();
+        return drained;
+    }
+
     public void removeEffect(StatusEffectType type) {
         activeEffects.removeIf(e -> e.getType() == type);
+    }
+
+    public int removeStatusEffects(StatusEffectType type) {
+        int before = activeEffects.size();
+        activeEffects.removeIf(effect -> effect.getType() == type);
+        return before - activeEffects.size();
+    }
+
+    public int clearStatusEffects() {
+        int removed = activeEffects.size();
+        activeEffects.clear();
+        return removed;
+    }
+
+    // -------------------------------------------------------------------------
+    // Runtime ability effects
+    // -------------------------------------------------------------------------
+
+    public void addRuntimeAbilityEffect(AbilityEffectData effect) {
+        addRuntimeAbilityEffect(effect, 0, BattleState.Phase.PLANNING);
+    }
+
+    public void addRuntimeAbilityEffect(
+        AbilityEffectData effect,
+        int currentRound,
+        BattleState.Phase phase
+    ) {
+        if (effect == null || effect.type == null) return;
+        runtimeAbilityEffects.add(new RuntimeAbilityEffect(effect, currentRound, phase));
+        clampPoolsToMaximums();
+    }
+
+    public void tickRuntimeAbilityEffects(int completedRound) {
+        for (RuntimeAbilityEffect effect : new ArrayList<>(runtimeAbilityEffects)) {
+            if (effect.remainingRounds == -1) continue;
+            if (completedRound < effect.notBeforeExpiryRound) continue;
+            effect.remainingRounds--;
+            if (effect.remainingRounds <= 0) runtimeAbilityEffects.remove(effect);
+        }
+        clampPoolsToMaximums();
+    }
+
+    public boolean consumeGuaranteedHit() {
+        return consumeFirst(AbilityEffectType.GUARANTEE_NEXT_HIT);
+    }
+
+    public boolean consumeGuaranteedDodge() {
+        return consumeFirst(AbilityEffectType.GUARANTEE_NEXT_DODGE);
+    }
+
+    public boolean consumeGuaranteedBlackFlash() {
+        return consumeFirst(AbilityEffectType.GUARANTEE_NEXT_BLACK_FLASH);
+    }
+
+    public boolean consumeMoveCancellation() {
+        return consumeFirst(AbilityEffectType.CANCEL_NEXT_MOVE);
+    }
+
+    public double modifyBattleStat(BattleStatKey key, double baseValue) {
+        double additions = 0.0;
+        double multiplier = 1.0;
+        for (RuntimeAbilityEffect runtime : runtimeAbilityEffects) {
+            AbilityEffectData effect = runtime.effect;
+            AbilityEffectType type;
+            try { type = AbilityEffectType.fromName(effect.type); }
+            catch (IllegalArgumentException ex) { continue; }
+            if (type != AbilityEffectType.BATTLE_STAT_ADD
+                && type != AbilityEffectType.BATTLE_STAT_MULTIPLY) continue;
+            BattleStatKey effectKey;
+            try { effectKey = BattleStatKey.fromString(effect.stringValue); }
+            catch (IllegalArgumentException ex) { continue; }
+            if (effectKey != key) continue;
+            if (type == AbilityEffectType.BATTLE_STAT_ADD) {
+                additions += effect.doubleValue != null ? effect.doubleValue : 0.0;
+            } else {
+                multiplier *= effect.doubleValue != null ? effect.doubleValue : 1.0;
+            }
+        }
+        return (baseValue + additions) * multiplier;
+    }
+
+    public int computeMoveCeCost(com.jjktbf.model.move.Move move) {
+        int cost = CeEfficiencyCalculator.computeActualCost(
+            move,
+            getEffectiveStats().getCursedEnergyEfficiency(),
+            getAbilityFlags());
+        return Math.max(0, (int) Math.round(modifyBattleStat(BattleStatKey.CE_COST, cost)));
+    }
+
+    public boolean wasAbilityConditionTrue(String key) {
+        return abilityConditionState.getOrDefault(key, false);
+    }
+
+    public void setAbilityConditionTrue(String key, boolean value) {
+        abilityConditionState.put(key, value);
+    }
+
+    public void recordAbilityTrigger(String key, AbilityTrigger trigger) {
+        List<AbilityTrigger> history = abilityTriggerHistory.computeIfAbsent(
+            key, ignored -> new ArrayList<>());
+        history.add(trigger);
+        if (history.size() > 64) history.remove(0);
+    }
+
+    public List<AbilityTrigger> getAbilityTriggerHistory(String key) {
+        return List.copyOf(abilityTriggerHistory.getOrDefault(key, List.of()));
+    }
+
+    public void clearAbilityTriggerHistory(String key) {
+        abilityTriggerHistory.remove(key);
+    }
+
+    public boolean beginPassiveFightStart() {
+        if (passiveFightStartProcessed) return false;
+        passiveFightStartProcessed = true;
+        return true;
+    }
+
+    public boolean beginPassiveRoundStart(int roundNumber) {
+        if (roundNumber <= lastPassiveRoundStartRound) return false;
+        lastPassiveRoundStartRound = roundNumber;
+        return true;
+    }
+
+    private boolean consumeFirst(AbilityEffectType type) {
+        RuntimeAbilityEffect effect = firstUsable(type);
+        if (effect == null) return false;
+        consume(effect);
+        return true;
+    }
+
+    private RuntimeAbilityEffect firstUsable(AbilityEffectType type) {
+        return runtimeAbilityEffects.stream()
+            .filter(effect -> type.name().equalsIgnoreCase(effect.effect.type))
+            .filter(effect -> effect.remainingUses != 0)
+            .findFirst()
+            .orElse(null);
+    }
+
+    private List<RuntimeAbilityEffect> matching(AbilityEffectType type) {
+        return runtimeAbilityEffects.stream()
+            .filter(effect -> type.name().equalsIgnoreCase(effect.effect.type))
+            .toList();
+    }
+
+    private void consume(RuntimeAbilityEffect effect) {
+        if (effect.remainingUses == -1) return;
+        effect.remainingUses--;
+        if (effect.remainingUses <= 0) runtimeAbilityEffects.remove(effect);
+    }
+
+    private void clampPoolsToMaximums() {
+        currentHp = Math.min(currentHp, getMaxHp());
+        currentCe = Math.min(currentCe, getMaxCursedEnergy());
+    }
+
+    private static final class RuntimeAbilityEffect {
+        private final AbilityEffectData effect;
+        private int remainingRounds;
+        private int remainingUses;
+        private int remainingCapacity;
+        private final int notBeforeExpiryRound;
+
+        private RuntimeAbilityEffect(
+            AbilityEffectData source,
+            int currentRound,
+            BattleState.Phase phase
+        ) {
+            effect = source.copy();
+            remainingRounds = source.durationRounds == null ? -1 : source.durationRounds;
+            remainingUses = source.uses == null ? -1 : source.uses;
+            remainingCapacity = source.intValue == null ? 0 : Math.max(0, source.intValue);
+            boolean mustReachNextPlanning = phase == BattleState.Phase.ROUND_END
+                || (affectsPlanning(source) && phase == BattleState.Phase.RESOLUTION);
+            notBeforeExpiryRound = currentRound + (mustReachNextPlanning ? 1 : 0);
+        }
+
+        private static boolean affectsPlanning(AbilityEffectData effect) {
+            AbilityEffectType type;
+            try { type = AbilityEffectType.fromName(effect.type); }
+            catch (IllegalArgumentException ex) { return false; }
+            if (type == AbilityEffectType.TEMP_LOCK_MOVE_TAG) return true;
+            if (type == AbilityEffectType.BATTLE_STAT_ADD
+                || type == AbilityEffectType.BATTLE_STAT_MULTIPLY) {
+                try {
+                    BattleStatKey key = BattleStatKey.fromString(effect.stringValue);
+                    return key == BattleStatKey.MAX_AP || key == BattleStatKey.CE_COST;
+                } catch (IllegalArgumentException ignored) {
+                    return false;
+                }
+            }
+            if (type == AbilityEffectType.TEMP_STAT_ADD
+                || type == AbilityEffectType.TEMP_STAT_MULTIPLY
+                || type == AbilityEffectType.TEMP_STAT_SET_VALUE) {
+                try {
+                    com.jjktbf.model.character.StatKey key =
+                        com.jjktbf.model.character.StatKey.fromString(effect.stat);
+                    return key == com.jjktbf.model.character.StatKey.SPEED
+                        || key == com.jjktbf.model.character.StatKey.COMBAT_ABILITY
+                        || key == com.jjktbf.model.character.StatKey.CURSED_ENERGY_EFFICIENCY;
+                } catch (IllegalArgumentException ignored) {
+                    return false;
+                }
+            }
+            return false;
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -334,13 +668,36 @@ public class BattleCombatant {
 
     public Character getCharacter()                        { return character; }
     public CharacterStats getEffectiveStats() {
-        int ceOutputBonus = activeEffects.stream()
-            .filter(effect -> effect.getType() == StatusEffectType.CE_OUTPUT_UP)
-            .mapToInt(effect -> (int) Math.round(effect.getMagnitude()))
+        CharacterStats runtimeStats = AbilityApplicator.applyRuntimeStats(
+            effectiveStats,
+            runtimeAbilityEffects.stream().map(runtime -> runtime.effect).toList());
+        List<AbilityEffectData> statusModifiers = new ArrayList<>();
+        addStatusStatModifier(statusModifiers, StatusEffectType.CE_OUTPUT_UP,
+            com.jjktbf.model.character.StatKey.CURSED_ENERGY_OUTPUT, 1.0);
+        addStatusStatModifier(statusModifiers, StatusEffectType.SPEED_UP,
+            com.jjktbf.model.character.StatKey.SPEED, 1.0);
+        addStatusStatModifier(statusModifiers, StatusEffectType.CURSED_SEAL,
+            com.jjktbf.model.character.StatKey.CURSED_ENERGY_EFFICIENCY, -1.0);
+        return AbilityApplicator.applyRuntimeStats(runtimeStats, statusModifiers);
+    }
+
+    private void addStatusStatModifier(
+        List<AbilityEffectData> modifiers,
+        StatusEffectType status,
+        com.jjktbf.model.character.StatKey stat,
+        double direction
+    ) {
+        int amount = (int) Math.round(getStatusMagnitude(status) * direction);
+        if (amount == 0) return;
+        AbilityEffectData modifier = AbilityEffectData.statAdd(stat.fieldName, amount);
+        modifiers.add(modifier);
+    }
+
+    public double getStatusMagnitude(StatusEffectType type) {
+        return activeEffects.stream()
+            .filter(effect -> effect.getType() == type)
+            .mapToDouble(StatusEffect::getMagnitude)
             .sum();
-        return ceOutputBonus == 0
-            ? effectiveStats
-            : effectiveStats.withCursedEnergyOutput(effectiveStats.getCursedEnergyOutput() + ceOutputBonus);
     }
     public double getStatusBaseAccuracyBonus() {
         return activeEffects.stream()
@@ -348,14 +705,46 @@ public class BattleCombatant {
             .mapToDouble(StatusEffect::getMagnitude)
             .sum();
     }
-    public CombatStats getEffectiveCombatStats()           { return effectiveCombatStats; }
-    public AbilityApplicator.AbilityFlags getAbilityFlags(){ return abilityFlags; }
-    public int getMaxApBar()                              { return Math.max(0, effectiveCombatStats.getMaxApBar() + abilityFlags.apBarBonus); }
+    public CombatStats getEffectiveCombatStats()           { return new CombatStats(getEffectiveStats()); }
+    public AbilityApplicator.AbilityFlags getAbilityFlags(){
+        AbilityApplicator.AbilityFlags flags = abilityFlags.copy();
+        for (RuntimeAbilityEffect runtime : runtimeAbilityEffects) {
+            flags.addEffect(runtime.effect);
+            if (AbilityEffectType.TEMP_LOCK_MOVE_TAG.name().equals(runtime.effect.type)
+                && runtime.effect.moveTag != null) {
+                flags.lockedMoveTags.add(runtime.effect.moveTag);
+            }
+        }
+        return flags;
+    }
+    public int getMaxApBar() {
+        double base = getEffectiveCombatStats().getMaxApBar() + getAbilityFlags().apBarBonus
+            - getStatusMagnitude(StatusEffectType.AP_DRAIN);
+        return Math.max(0, (int) Math.round(modifyBattleStat(BattleStatKey.MAX_AP, base)));
+    }
+    public int getMaxHp() {
+        return Math.max(1, (int) Math.round(modifyBattleStat(
+            BattleStatKey.MAX_HP, getEffectiveCombatStats().getMaxHp())));
+    }
+    public int getMaxCursedEnergy() {
+        return Math.max(0, (int) Math.round(modifyBattleStat(
+            BattleStatKey.MAX_CE, getEffectiveCombatStats().getMaxCursedEnergy())));
+    }
+    public int getAccuracy() {
+        return Math.max(0, (int) Math.round(modifyBattleStat(
+            BattleStatKey.ACCURACY, getEffectiveCombatStats().getAccuracy())));
+    }
+    public int getEvasion() {
+        double base = getEffectiveCombatStats().getEvasion()
+            - getStatusMagnitude(StatusEffectType.BIND);
+        return Math.max(0, (int) Math.round(modifyBattleStat(BattleStatKey.EVASION, base)));
+    }
     public int getCurrentHp()                             { return currentHp; }
     public int getCurrentCe()                             { return currentCe; }
     public boolean isInBlackFlashState()                  { return inBlackFlashState; }
     public int getConsecutiveBfsHits()                    { return consecutiveBfsHits; }
     public int getBfsExpiresAfterRound()                  { return bfsExpiresAfterRound; }
+    public List<Ability> getAbilities()                   { return abilities; }
 
     /**
      * Compute this combatant's current defense value (dynamic — depends on current CE).
@@ -365,17 +754,20 @@ public class BattleCombatant {
         int baseDefense = CombatStats.computeDefense(
             getEffectiveStats(),
             currentCe,
-            effectiveCombatStats.getMaxCursedEnergy()
+            getMaxCursedEnergy()
         );
-        return (int) Math.round(baseDefense * abilityFlags.defenseMultiplier);
+        double statusMultiplier = Math.max(0.0,
+            1.0 + getStatusMagnitude(StatusEffectType.DEFENSE_UP));
+        double modified = baseDefense * getAbilityFlags().defenseMultiplier * statusMultiplier;
+        return Math.max(0, (int) Math.round(modifyBattleStat(BattleStatKey.DEFENSE, modified)));
     }
 
     @Override
     public String toString() {
         return String.format("%s  HP:%d/%d  CE:%d/%d  BFS:%s",
             character.getName(),
-            currentHp, effectiveCombatStats.getMaxHp(),
-            currentCe, effectiveCombatStats.getMaxCursedEnergy(),
+            currentHp, getMaxHp(),
+            currentCe, getMaxCursedEnergy(),
             inBlackFlashState ? "ACTIVE(x" + consecutiveBfsHits + ")" : "off"
         );
     }

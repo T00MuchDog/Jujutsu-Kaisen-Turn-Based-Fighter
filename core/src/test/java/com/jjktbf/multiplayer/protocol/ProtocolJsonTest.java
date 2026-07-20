@@ -290,8 +290,8 @@ class ProtocolJsonTest {
             0,
             List.of(playerOne, playerTwo),
             List.of(
-                new RoundStartCharacterState(PlayerSide.PLAYER_ONE, 205, 320),
-                new RoundStartCharacterState(PlayerSide.PLAYER_TWO, 171, 350)
+                new RoundStartCharacterState(PlayerSide.PLAYER_ONE, 205, 214, 320, 400),
+                new RoundStartCharacterState(PlayerSide.PLAYER_TWO, 171, 214, 350, 400)
             ),
             null,
             null,

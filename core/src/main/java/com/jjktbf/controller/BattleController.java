@@ -94,6 +94,7 @@ public class BattleController {
         state.transitionTo(BattleState.Phase.PLANNING);
         List<CombatEvent> abilityCostEvents = resolver.processRoundStart(state);
         if (!abilityCostEvents.isEmpty()) view.displayCombatEvents(abilityCostEvents, state);
+        if (state.isBattleOver()) return;
         view.displayRoundStart(state);
 
         // --- Player plan (two-board timeline UI) ---

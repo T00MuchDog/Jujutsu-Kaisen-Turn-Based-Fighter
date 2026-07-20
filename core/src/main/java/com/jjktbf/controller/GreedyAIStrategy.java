@@ -8,6 +8,7 @@ import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.StatusEffectType;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -76,12 +77,12 @@ public class GreedyAIStrategy implements AIStrategy {
     /** Known moves that fit both budgets, aren't ability-locked, and aren't stuck this round. */
     private List<Move> affordableMoves(BattleCombatant ai, List<Move> knownMoves, BattlePlan plan,
                                        AbilityFlags abilityFlags, Set<Move> stuck) {
-        int ceEfficiency = ai.getEffectiveStats().getCursedEnergyEfficiency();
         List<Move> affordable = new ArrayList<>();
         for (Move move : knownMoves) {
             if (stuck.contains(move)) continue;
             if (abilityFlags.lockedMoveTags.stream().anyMatch(move::hasTag)) continue;
-            int ceCost = CeEfficiencyCalculator.computeActualCost(move, ceEfficiency, abilityFlags);
+            if (ai.hasEffect(StatusEffectType.CE_SUPPRESSION) && move.hasTag("CURSED_ENERGY")) continue;
+            int ceCost = ai.computeMoveCeCost(move);
             if (plan.fitsBudgets(move, ceCost)) affordable.add(move);
         }
         return affordable;
@@ -136,9 +137,7 @@ public class GreedyAIStrategy implements AIStrategy {
     // -------------------------------------------------------------------------
 
     private boolean tryPlace(Move move, BattleCombatant ai, BattlePlan plan, RandomSource rng) {
-        int ceEfficiency = ai.getEffectiveStats().getCursedEnergyEfficiency();
-        AbilityFlags abilityFlags = ai.getAbilityFlags();
-        int ceCost = CeEfficiencyCalculator.computeActualCost(move, ceEfficiency, abilityFlags);
+        int ceCost = ai.computeMoveCeCost(move);
 
         if (move.isDefensive()) {
             return placeDefensive(move, ceCost, plan, rng)

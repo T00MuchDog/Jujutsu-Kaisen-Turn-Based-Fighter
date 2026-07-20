@@ -69,6 +69,15 @@ public class AbilityData {
     /** The list of effect primitives this ability applies. */
     public List<AbilityEffectData> effects;
 
+    /** Recursive activation predicate for passive abilities. Null means ALWAYS. */
+    public AbilityConditionData activationCondition;
+
+    /** Whether to roll {@link #activationChance} whenever the predicate becomes true. */
+    public Boolean activationChanceEnabled;
+
+    /** Activation probability as a fraction in [0, 1]. Null means 1.0. */
+    public Double activationChance;
+
     // ── Active-only fields ────────────────────────────────────────────────────
 
     /**
@@ -112,6 +121,15 @@ public class AbilityData {
     @JsonIgnore public boolean isActive()   { return "ACTIVE".equalsIgnoreCase(category); }
     @JsonIgnore public boolean isQueued()   { return "QUEUED".equalsIgnoreCase(activeSubType); }
     @JsonIgnore public boolean isTriggered(){ return "TRIGGERED".equalsIgnoreCase(activeSubType); }
+
+    @JsonIgnore public boolean isAlwaysActive() {
+        return activationCondition == null || activationCondition.containsAlways();
+    }
+
+    @JsonIgnore public double effectiveActivationChance() {
+        if (!Boolean.TRUE.equals(activationChanceEnabled)) return 1.0;
+        return activationChance == null ? 1.0 : Math.max(0.0, Math.min(1.0, activationChance));
+    }
 
     /**
      * Compute how many STAT_BONUS_POINTS this ability grants.

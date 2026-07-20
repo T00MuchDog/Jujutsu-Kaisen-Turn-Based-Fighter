@@ -64,6 +64,9 @@ public class AbilityEffectData {
     /** Magnitude for AUTO_STATUS_APPLY. */
     public Double magnitude;
 
+    /** Number of times a consumable effect may be used. -1 means unlimited. */
+    public Integer uses;
+
     /** Field-by-field copy used by editor drafts and immutable domain objects. */
     public AbilityEffectData copy() {
         AbilityEffectData copy = new AbilityEffectData();
@@ -84,6 +87,7 @@ public class AbilityEffectData {
         this.timing = source.timing;
         this.durationRounds = source.durationRounds;
         this.magnitude = source.magnitude;
+        this.uses = source.uses;
     }
 
     // ── Convenience constructors for editor use ───────────────────────────────
@@ -155,6 +159,7 @@ public class AbilityEffectData {
             + (timing      != null ? " time=" + timing : "")
             + (durationRounds != null ? " dur=" + durationRounds : "")
             + (magnitude   != null ? " mag=" + magnitude : "")
+            + (uses        != null ? " uses=" + uses : "")
             + " }";
     }
 }

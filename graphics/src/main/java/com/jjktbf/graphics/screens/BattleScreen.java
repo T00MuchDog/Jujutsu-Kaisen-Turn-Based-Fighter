@@ -213,9 +213,13 @@ public class BattleScreen implements Screen, BattleView {
     private float playbackTickElapsedMs;
     private boolean playbackComplete;
     private int onlinePlayerHp;
+    private int onlinePlayerMaxHp;
     private int onlinePlayerCe;
+    private int onlinePlayerMaxCe;
     private int onlineEnemyHp;
+    private int onlineEnemyMaxHp;
     private int onlineEnemyCe;
+    private int onlineEnemyMaxCe;
 
     public BattleScreen(JJKGame game, AssetLoader assets) {
         this.game   = game;
@@ -926,9 +930,13 @@ public class BattleScreen implements Screen, BattleView {
             playbackComplete = false;
             currentExecutionTick = 0;
             onlinePlayerHp = local.character().currentHp();
+            onlinePlayerMaxHp = local.character().maxHp();
             onlinePlayerCe = local.character().currentCe();
+            onlinePlayerMaxCe = local.character().maxCe();
             onlineEnemyHp = opponent.character().currentHp();
+            onlineEnemyMaxHp = opponent.character().maxHp();
             onlineEnemyCe = opponent.character().currentCe();
+            onlineEnemyMaxCe = opponent.character().maxCe();
             phaseLabel = state.status() == MatchStatus.WAITING
                 ? "WAITING FOR OPPONENT"
                 : "ROUND " + state.roundNumber() + "  —  PLANNING";
@@ -1101,12 +1109,20 @@ public class BattleScreen implements Screen, BattleView {
 
         onlinePlayerHp = roundStartValue(
             state, multiplayerSetup.playerSide(), true, onlinePlayer.character().currentHp());
+        onlinePlayerMaxHp = roundStartMaximum(
+            state, multiplayerSetup.playerSide(), true, onlinePlayer.character().maxHp());
         onlinePlayerCe = roundStartValue(
             state, multiplayerSetup.playerSide(), false, onlinePlayer.character().currentCe());
+        onlinePlayerMaxCe = roundStartMaximum(
+            state, multiplayerSetup.playerSide(), false, onlinePlayer.character().maxCe());
         onlineEnemyHp = roundStartValue(
             state, opposite(multiplayerSetup.playerSide()), true, onlineEnemy.character().currentHp());
+        onlineEnemyMaxHp = roundStartMaximum(
+            state, opposite(multiplayerSetup.playerSide()), true, onlineEnemy.character().maxHp());
         onlineEnemyCe = roundStartValue(
             state, opposite(multiplayerSetup.playerSide()), false, onlineEnemy.character().currentCe());
+        onlineEnemyMaxCe = roundStartMaximum(
+            state, opposite(multiplayerSetup.playerSide()), false, onlineEnemy.character().maxCe());
         processPlaybackEventsThrough(0);
         updatePanels();
     }
@@ -1176,10 +1192,32 @@ public class BattleScreen implements Screen, BattleView {
             } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
                 onlineEnemyHp = Math.max(0, onlineEnemyHp - value);
             }
+        } else if (value != null && event.type() == BattleEventType.HP_RESTORED) {
+            if (event.targetSide() == multiplayerSetup.playerSide()) {
+                onlinePlayerHp = Math.min(onlinePlayerMaxHp, onlinePlayerHp + value);
+            } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
+                onlineEnemyHp = Math.min(onlineEnemyMaxHp, onlineEnemyHp + value);
+            }
+        } else if (value != null && event.type() == BattleEventType.MAX_HP_CHANGED) {
+            if (event.targetSide() == multiplayerSetup.playerSide()) {
+                onlinePlayerMaxHp = Math.max(1, value);
+                onlinePlayerHp = Math.min(onlinePlayerHp, onlinePlayerMaxHp);
+            } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
+                onlineEnemyMaxHp = Math.max(1, value);
+                onlineEnemyHp = Math.min(onlineEnemyHp, onlineEnemyMaxHp);
+            }
+        } else if (value != null && event.type() == BattleEventType.MAX_CE_CHANGED) {
+            if (event.targetSide() == multiplayerSetup.playerSide()) {
+                onlinePlayerMaxCe = Math.max(0, value);
+                onlinePlayerCe = Math.min(onlinePlayerCe, onlinePlayerMaxCe);
+            } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
+                onlineEnemyMaxCe = Math.max(0, value);
+                onlineEnemyCe = Math.min(onlineEnemyCe, onlineEnemyMaxCe);
+            }
         } else if (value != null && event.type() == BattleEventType.CE_DRAINED) {
-            changePlaybackCe(event.sourceSide(), -value);
+            changePlaybackCe(event.targetSide() != null ? event.targetSide() : event.sourceSide(), -value);
         } else if (value != null && event.type() == BattleEventType.CE_RESTORED) {
-            changePlaybackCe(event.sourceSide(), value);
+            changePlaybackCe(event.targetSide() != null ? event.targetSide() : event.sourceSide(), value);
         }
 
         if (event.type() == BattleEventType.MOVE_FIRED && event.moveId() != null) {
@@ -1204,10 +1242,10 @@ public class BattleScreen implements Screen, BattleView {
     private void changePlaybackCe(PlayerSide side, int delta) {
         if (side == multiplayerSetup.playerSide()) {
             onlinePlayerCe = Math.max(0,
-                Math.min(onlinePlayer.character().maxCe(), onlinePlayerCe + delta));
+                Math.min(onlinePlayerMaxCe, onlinePlayerCe + delta));
         } else if (side == opposite(multiplayerSetup.playerSide())) {
             onlineEnemyCe = Math.max(0,
-                Math.min(onlineEnemy.character().maxCe(), onlineEnemyCe + delta));
+                Math.min(onlineEnemyMaxCe, onlineEnemyCe + delta));
         }
     }
 
@@ -1233,9 +1271,13 @@ public class BattleScreen implements Screen, BattleView {
         playbackComplete = true;
         resolvingTicks = false;
         onlinePlayerHp = onlinePlayer.character().currentHp();
+        onlinePlayerMaxHp = onlinePlayer.character().maxHp();
         onlinePlayerCe = onlinePlayer.character().currentCe();
+        onlinePlayerMaxCe = onlinePlayer.character().maxCe();
         onlineEnemyHp = onlineEnemy.character().currentHp();
+        onlineEnemyMaxHp = onlineEnemy.character().maxHp();
         onlineEnemyCe = onlineEnemy.character().currentCe();
+        onlineEnemyMaxCe = onlineEnemy.character().maxCe();
         updatePanels();
 
         if (isTerminal(multiplayerState.status())
@@ -1323,6 +1365,18 @@ public class BattleScreen implements Screen, BattleView {
     ) {
         for (RoundStartCharacterState start : state.roundStartCharacterStates()) {
             if (start.side() == side) return hp ? start.currentHp() : start.currentCe();
+        }
+        return fallback;
+    }
+
+    private static int roundStartMaximum(
+        MatchState state,
+        PlayerSide side,
+        boolean hp,
+        int fallback
+    ) {
+        for (RoundStartCharacterState start : state.roundStartCharacterStates()) {
+            if (start.side() == side) return hp ? start.maxHp() : start.maxCe();
         }
         return fallback;
     }
@@ -1537,14 +1591,12 @@ public class BattleScreen implements Screen, BattleView {
     private void updatePanels() {
         if (mode == BattleMode.MULTIPLAYER) {
             if (playerPanel != null && onlinePlayer != null) {
-                CharacterState character = onlinePlayer.character();
                 playerPanel.update(
-                    onlinePlayerHp, character.maxHp(), onlinePlayerCe, character.maxCe());
+                    onlinePlayerHp, onlinePlayerMaxHp, onlinePlayerCe, onlinePlayerMaxCe);
             }
             if (enemyPanel != null && onlineEnemy != null) {
-                CharacterState character = onlineEnemy.character();
                 enemyPanel.update(
-                    onlineEnemyHp, character.maxHp(), onlineEnemyCe, character.maxCe());
+                    onlineEnemyHp, onlineEnemyMaxHp, onlineEnemyCe, onlineEnemyMaxCe);
             }
             return;
         }

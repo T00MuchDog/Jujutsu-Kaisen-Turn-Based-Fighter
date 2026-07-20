@@ -127,7 +127,7 @@ public final class AbilityResolver {
                 grantedMoveIds.add(ability.activeMoveId);
             }
         }
-        if (!ability.isPassive() || ability.effects == null) return;
+        if (!ability.isPassive() || !ability.isAlwaysActive() || ability.effects == null) return;
 
         for (AbilityEffectData effect : ability.effects) {
             if (effect == null || effect.type == null) continue;
@@ -242,6 +242,7 @@ public final class AbilityResolver {
         public int statBonusPoints() {
             return abilities.stream()
                 .filter(AbilityData::isPassive)
+                .filter(AbilityData::isAlwaysActive)
                 .mapToInt(AbilityData::statBonusPoints)
                 .sum();
         }
@@ -249,6 +250,7 @@ public final class AbilityResolver {
         public List<String> lockedMoveTags() {
             return abilities.stream()
                 .filter(AbilityData::isPassive)
+                .filter(AbilityData::isAlwaysActive)
                 .filter(ability -> ability.effects != null)
                 .flatMap(ability -> ability.effects.stream())
                 .filter(java.util.Objects::nonNull)

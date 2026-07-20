@@ -9,6 +9,10 @@ public enum BattleEventType {
     MOVE_BLOCK_REDUCED,
     MOVE_STUNNED,
     DAMAGE_DEALT,
+    DAMAGE_IGNORED,
+    HP_RESTORED,
+    MAX_HP_CHANGED,
+    MAX_CE_CHANGED,
     BLACK_FLASH,
     CE_DRAINED,
     CE_RESTORED,
@@ -17,6 +21,7 @@ public enum BattleEventType {
     STATUS_EXPIRED,
     BFS_ENTERED,
     BFS_EXPIRED,
+    ABILITY_ACTIVATED,
     ROUND_START,
     ROUND_END,
     BATTLE_OVER

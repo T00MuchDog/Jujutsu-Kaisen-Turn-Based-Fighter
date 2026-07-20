@@ -140,6 +140,12 @@ public final class MatchManager implements AutoCloseable {
             setup.playerOne().playerId(),
             setup.playerTwo().playerId()
         );
+        MatchState state = candidate.session.snapshot();
+        if (isTerminal(state.status())) {
+            MatchResultType resultType = state.winnerPlayerId() == null
+                ? MatchResultType.DRAW : MatchResultType.VICTORY;
+            completeMatch(candidate, state, resultType, false);
+        }
         return candidate.session.snapshot();
     }
 

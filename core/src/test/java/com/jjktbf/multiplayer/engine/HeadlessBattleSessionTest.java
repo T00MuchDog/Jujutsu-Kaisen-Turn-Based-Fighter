@@ -2,6 +2,10 @@ package com.jjktbf.multiplayer.engine;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jjktbf.model.character.Character;
+import com.jjktbf.model.character.Ability;
+import com.jjktbf.model.character.AbilityConditionType;
+import com.jjktbf.model.character.AbilityData;
+import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
@@ -554,6 +558,46 @@ class HeadlessBattleSessionTest {
         );
         assertFalse(whileDisconnected.accepted());
         assertEquals("OPPONENT_DISCONNECTED", whileDisconnected.error().code());
+    }
+
+    @Test
+    void roundEndPassiveKnockoutEndsAuthoritativeSession() {
+        Move attack = physicalAttack("ROUND_END_ATTACK", 1, true);
+        AbilityData ability = new AbilityData();
+        ability.id = "ROUND_END_KILL";
+        ability.name = "Round End Kill";
+        ability.category = "PASSIVE";
+        ability.sourceType = "CHARACTER";
+        ability.activationCondition = AbilityConditionType.PHASE_REACHED.createDefault();
+        ability.activationCondition.phase = "ROUND_END";
+        ability.effects = List.of(AbilityEffectType.INSTANT_KILL.createDefault());
+        CharacterStats stats = new CharacterStats.Builder().build();
+        Character playerOne = new SorcererCharacter(
+            "character-1", "Character One", stats, null,
+            List.of(attack), List.of(new Ability(ability)));
+        Character playerTwo = new SorcererCharacter(
+            "character-2", "Character Two", stats, null, List.of(attack));
+        HeadlessBattleSession session = new HeadlessBattleSession(
+            "match-1",
+            new MatchParticipant("player-1", "Player One", playerOne, PlayerSide.PLAYER_ONE),
+            new MatchParticipant("player-2", "Player Two", playerTwo, PlayerSide.PLAYER_TWO),
+            10L,
+            HeadlessBattleSession.DEFAULT_MAX_ROUNDS,
+            FIXED_CLOCK);
+        session.setConnected("player-1", true);
+        session.setConnected("player-2", true);
+
+        assertTrue(session.applyCommand(
+            "player-1", command(session, "round-end-1", new PlanPlacement(attack.getId(), 1)))
+            .accepted());
+        CommandResult result = session.applyCommand(
+            "player-2", command(session, "round-end-2", new PlanPlacement(attack.getId(), 1)));
+
+        assertTrue(result.accepted());
+        assertEquals(MatchStatus.ENDED, result.state().status());
+        assertEquals(BattlePhase.BATTLE_OVER, result.state().phase());
+        assertEquals("player-1", result.state().winnerPlayerId());
+        assertTrue(result.events().stream().anyMatch(event -> event.type() == BattleEventType.BATTLE_OVER));
     }
 
     private static void submitBoth(HeadlessBattleSession session, Move first, Move second) {
