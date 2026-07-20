@@ -49,4 +49,21 @@
   "cursedTechniqueMastery" : 0,
   "moveIds" : [ "000000", "000001", "000008", "000011", "000012", "000020", "000021" ],
   "abilityIds" : [ ]
+}, {
+  "id" : "000003",
+  "name" : "Haruta Shigemo",
+  "description" : "An opportunistic curse user who relies on a hand-shaped cursed tool and attacks distracted opponents. Haruta is quick enough to pressure a weaker target, but lacks the durability and skill to stand against a true grade 1 sorcerer.",
+  "spriteAsset" : "assets/sprites/characters/yuji_frontsprite.png",
+  "vitality" : 45,
+  "strength" : 45,
+  "durability" : 40,
+  "speed" : 65,
+  "cursedEnergyReserves" : 45,
+  "cursedEnergyEfficiency" : 35,
+  "cursedEnergyOutput" : 40,
+  "jujutsuSkill" : 25,
+  "combatAbility" : 55,
+  "cursedTechniqueMastery" : 20,
+  "moveIds" : [ "000000", "000001", "000023", "000024" ],
+  "abilityIds" : [ ]
 } ]

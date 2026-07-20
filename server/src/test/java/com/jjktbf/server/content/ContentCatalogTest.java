@@ -12,7 +12,7 @@ class ContentCatalogTest {
     void loadsCanonicalClasspathDefinitionsIntoDomainCharacters() {
         ContentCatalog catalog = ContentCatalog.load();
 
-        assertEquals(3, catalog.characterSummaries().size());
+        assertEquals(4, catalog.characterSummaries().size());
         assertTrue(catalog.findCharacter("000000").isPresent());
         assertFalse(catalog.findCharacter("missing").isPresent());
         assertFalse(catalog.findCharacter("000000").orElseThrow().getKnownMoves().isEmpty());

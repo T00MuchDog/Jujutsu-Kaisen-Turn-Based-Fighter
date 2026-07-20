@@ -141,7 +141,7 @@ public class StatVerificationTest {
         List<MoveData> moves = new ObjectMapper().readValue(
             movesPath.toFile(), new TypeReference<List<MoveData>>() {});
 
-        assertEquals(23, moves.size());
+        assertEquals(25, moves.size());
         moves.forEach(move -> assertDoesNotThrow(move::toMove, move.name));
 
         MoveData surge = moves.stream()
@@ -203,8 +203,15 @@ public class StatVerificationTest {
 
         assertTrue(movesById.get("000000").isFreeMove());
         assertTrue(movesById.get("000001").isFreeMove());
-        assertEquals(List.of("Ren Kurogane", "Mina Ishikawa", "Sora Aizawa"),
+        assertEquals(List.of("Ren Kurogane", "Mina Ishikawa", "Sora Aizawa", "Haruta Shigemo"),
             characters.stream().map(character -> character.name).toList());
+
+        CharacterData haruta = characters.stream()
+            .filter(character -> "Haruta Shigemo".equals(character.name))
+            .findFirst()
+            .orElseThrow();
+        assertNull(haruta.innateTechniqueName);
+        assertEquals(List.of(), haruta.abilityIds);
 
         for (CharacterData character : characters) {
             List<Move> knownMoves = new ArrayList<>();
