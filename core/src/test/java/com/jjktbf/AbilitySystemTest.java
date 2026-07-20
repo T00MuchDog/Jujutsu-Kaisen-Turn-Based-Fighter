@@ -17,6 +17,7 @@ import com.jjktbf.model.character.AbilityResolver;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.BattleStatKey;
+import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
@@ -349,6 +350,12 @@ class AbilitySystemTest {
         for (AbilityData ability : abilities) {
             assertTrue(ability.isPassive() || ability.isActive(), ability.name);
             if (ability.isActive()) continue;
+            if (ability.isCoded()) {
+                assertTrue(CodedAbilityRegistry.supportsAbility(
+                    ability.codedAbilityKey, ability.codedFeature), ability.name);
+                assertTrue(ability.effects == null || ability.effects.isEmpty(), ability.name);
+                continue;
+            }
             assertFalse(ability.effects == null || ability.effects.isEmpty(), ability.name);
             for (AbilityEffectData effect : ability.effects) {
                 AbilityEffectType type = AbilityEffectType.fromName(effect.type);

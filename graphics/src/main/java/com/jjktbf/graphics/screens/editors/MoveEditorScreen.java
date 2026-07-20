@@ -137,6 +137,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                                   ? s.selfEffects.stream().map(MoveEditorScreen::copyEffect)
                                       .collect(java.util.stream.Collectors.toCollection(ArrayList::new))
                                   : new ArrayList<>();
+        d.codedAbilityKey       = s.codedAbilityKey;
+        d.codedAction           = s.codedAction;
         d.prerequisites         = s.prerequisites != null
                                   ? new LinkedHashMap<>(s.prerequisites) : null;
         d.requiredTechniqueId   = s.requiredTechniqueId;
@@ -176,6 +178,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
     @Override
     protected ValidationResult validateAndSave(MoveData d) {
+        if (d.isCoded()) {
+            return ValidationResult.error("Coded moves are defined in source and cannot be edited here.");
+        }
         if (d.name == null || d.name.trim().isEmpty()) {
             return ValidationResult.error("Name is required.");
         }

@@ -22,6 +22,8 @@ public class Ability {
     private final String sourceType;      // "CHARACTER" | "TECHNIQUE" | "MOVE" | "STAT_THRESHOLD"
     private final String sourceValue;     // nullable
     private final List<AbilityEffectData> effects;
+    private final String codedAbilityKey;
+    private final String codedFeature;
     private final AbilityConditionData activationCondition;
     private final boolean activationChanceEnabled;
     private final double activationChance;
@@ -46,6 +48,8 @@ public class Ability {
                 .map(AbilityEffectData::copy)
                 .toList()
             : List.of();
+        this.codedAbilityKey  = data.codedAbilityKey;
+        this.codedFeature     = data.codedFeature;
         this.activationCondition = data.activationCondition == null
             ? AbilityConditionData.always() : data.activationCondition.copy();
         this.activationChanceEnabled = Boolean.TRUE.equals(data.activationChanceEnabled);
@@ -69,6 +73,8 @@ public class Ability {
     public String getSourceType()       { return sourceType; }
     public String getSourceValue()      { return sourceValue; }
     public List<AbilityEffectData> getEffects() { return effects; }
+    public String getCodedAbilityKey()  { return codedAbilityKey; }
+    public String getCodedFeature()     { return codedFeature; }
     public String getActiveSubType()    { return activeSubType; }
     public String getActiveMoveId()     { return activeMoveId; }
     public String getTriggerCondition() { return triggerCondition; }
@@ -79,6 +85,7 @@ public class Ability {
 
     public boolean isPassive()  { return "PASSIVE".equalsIgnoreCase(category); }
     public boolean isActive()   { return "ACTIVE".equalsIgnoreCase(category); }
+    public boolean isCoded()    { return codedAbilityKey != null && !codedAbilityKey.isBlank(); }
     public boolean isAlwaysActive() { return activationCondition.containsAlways(); }
 
     /** Total STAT_BONUS_POINTS this ability contributes (for character editor budget). */

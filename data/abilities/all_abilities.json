@@ -12,4 +12,40 @@
   } ],
   "triggerThreshold" : 0,
   "masteryThreshold" : 0
+}, {
+  "id" : "000001",
+  "name" : "Miracle Reservoir",
+  "flavourText" : "The technique quietly removes the tiny coincidences that once made life feel impossible, keeping them beyond memory until they are needed.",
+  "mechanicText" : "At the start of battle, gain 6 MIRACLES. MIRACLES can avert fatal damage, and you can store up to 6.",
+  "category" : "PASSIVE",
+  "sourceType" : "TECHNIQUE",
+  "sourceValue" : "Miracles",
+  "codedAbilityKey" : "MIRACLES",
+  "codedFeature" : "RESERVOIR",
+  "effects" : [ ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000002",
+  "name" : "Fateful Reprieve",
+  "flavourText" : "At the instant fate closes in, a forgotten coincidence returns and turns an ending aside.",
+  "mechanicText" : "When damage would reduce you to 0 HP or below, expend 1 MIRACLE to negate that damage.",
+  "category" : "PASSIVE",
+  "sourceType" : "TECHNIQUE",
+  "sourceValue" : "Miracles",
+  "codedAbilityKey" : "MIRACLES",
+  "codedFeature" : "FATEFUL_REPRIEVE",
+  "effects" : [ ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000003",
+  "name" : "Fortune Reclaimed",
+  "flavourText" : "A near miss or a perfectly timed strike leaves another small impossibility behind to be collected.",
+  "mechanicText" : "Whenever an enemy attack naturally misses you or you land a BLACK FLASH, gain 1 MIRACLE, up to 6.",
+  "category" : "PASSIVE",
+  "sourceType" : "TECHNIQUE",
+  "sourceValue" : "Miracles",
+  "codedAbilityKey" : "MIRACLES",
+  "codedFeature" : "FORTUNE_RECLAIMED",
+  "effects" : [ ],
+  "masteryThreshold" : 0
 } ]

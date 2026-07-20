@@ -8,6 +8,7 @@ import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityResolver;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.SorcererCharacter;
+import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveData;
 
@@ -101,6 +102,10 @@ public final class ContentCatalog {
             }
             requireIdentifier(definition.id, "move ID");
             requireText(definition.name, "move name for " + definition.id);
+            if (!CodedAbilityRegistry.supportsMoveAction(
+                definition.codedAbilityKey, definition.codedAction)) {
+                throw invalid(MOVES_RESOURCE, "invalid coded action on move " + definition.id);
+            }
             try {
                 Move move = definition.toMove();
                 if (movesById.putIfAbsent(definition.id, move) != null) {
@@ -119,6 +124,10 @@ public final class ContentCatalog {
             }
             requireIdentifier(definition.id, "ability ID");
             requireText(definition.name, "ability name for " + definition.id);
+            if (!CodedAbilityRegistry.supportsAbility(
+                definition.codedAbilityKey, definition.codedFeature)) {
+                throw invalid(ABILITIES_RESOURCE, "invalid coded ability on " + definition.id);
+            }
             if (!abilityIds.add(definition.id)) {
                 throw invalid(ABILITIES_RESOURCE, "duplicate ability ID " + definition.id);
             }

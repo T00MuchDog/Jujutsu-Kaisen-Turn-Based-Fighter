@@ -7,6 +7,8 @@ import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.BattleStatKey;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.CombatStats;
+import com.jjktbf.model.character.coded.CodedAbilities;
+import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 // Explicit import to avoid ambiguity with java.lang.Character
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.move.StatusEffect;
@@ -57,6 +59,7 @@ public class BattleCombatant {
      */
     private final AbilityApplicator.AbilityFlags abilityFlags;
     private final List<Ability> abilities;
+    private final CodedAbilities codedAbilities;
 
     /** Conditional and timed effects added by the passive ability dispatcher. */
     private final List<RuntimeAbilityEffect> runtimeAbilityEffects = new ArrayList<>();
@@ -116,6 +119,7 @@ public class BattleCombatant {
     public BattleCombatant(Character character, List<Ability> abilities) {
         this.character = character;
         this.abilities = abilities == null ? List.of() : List.copyOf(abilities);
+        this.codedAbilities = CodedAbilityRegistry.create(this, this.abilities);
 
         // Apply passive ability effects to produce modified stats + flags
         AbilityApplicator.ApplicationResult result =
@@ -178,6 +182,9 @@ public class BattleCombatant {
         }
 
         if (remaining >= currentHp) {
+            if (currentHp > 0 && codedAbilities.preventFatalDamage()) {
+                return 0;
+            }
             RuntimeAbilityEffect survival = firstUsable(AbilityEffectType.SURVIVE_FATAL_DAMAGE);
             if (survival != null && currentHp > 0) {
                 remaining = Math.max(0, currentHp - 1);
@@ -193,6 +200,9 @@ public class BattleCombatant {
     public int receiveInstantKill() {
         if (currentHp <= 0) return 0;
         int before = currentHp;
+        if (codedAbilities.preventFatalDamage()) {
+            return 0;
+        }
         RuntimeAbilityEffect survival = firstUsable(AbilityEffectType.SURVIVE_FATAL_DAMAGE);
         if (survival != null) {
             currentHp = 1;
@@ -745,6 +755,7 @@ public class BattleCombatant {
     public int getConsecutiveBfsHits()                    { return consecutiveBfsHits; }
     public int getBfsExpiresAfterRound()                  { return bfsExpiresAfterRound; }
     public List<Ability> getAbilities()                   { return abilities; }
+    public CodedAbilities getCodedAbilities()              { return codedAbilities; }
 
     /**
      * Compute this combatant's current defense value (dynamic — depends on current CE).

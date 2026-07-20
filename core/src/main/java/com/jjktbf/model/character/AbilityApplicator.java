@@ -44,7 +44,8 @@ public final class AbilityApplicator {
         AbilityFlags flags = new AbilityFlags();
 
         for (Ability ability : abilities == null ? List.<Ability>of() : abilities) {
-            if (ability == null || !ability.isPassive() || !ability.isAlwaysActive()) continue;
+            if (ability == null || !ability.isPassive() || !ability.isAlwaysActive()
+                || ability.isCoded()) continue;
             for (AbilityEffectData eff : ability.getEffects()) {
                 if (eff == null || eff.type == null) {
                     System.err.println("[WARN] AbilityApplicator: missing ability effect type");
@@ -147,11 +148,11 @@ public final class AbilityApplicator {
                     case HEAL_HP, HEAL_HP_PERCENT, RESTORE_CE, RESTORE_CE_PERCENT,
                          DRAIN_CE, DRAIN_CE_PERCENT, DEAL_DIRECT_DAMAGE, DEAL_MAX_HP_DAMAGE,
                          INSTANT_KILL, APPLY_STATUS, REMOVE_STATUS, CLEAR_STATUSES,
-                         TEMP_STAT_ADD, TEMP_STAT_MULTIPLY, TEMP_STAT_SET_VALUE,
-                         BATTLE_STAT_ADD, BATTLE_STAT_MULTIPLY, IGNORE_DAMAGE,
-                         DAMAGE_SHIELD, SURVIVE_FATAL_DAMAGE, GUARANTEE_NEXT_HIT,
-                         GUARANTEE_NEXT_DODGE, GUARANTEE_NEXT_BLACK_FLASH,
-                         CANCEL_NEXT_MOVE, TEMP_LOCK_MOVE_TAG -> { }
+                          TEMP_STAT_ADD, TEMP_STAT_MULTIPLY, TEMP_STAT_SET_VALUE,
+                          BATTLE_STAT_ADD, BATTLE_STAT_MULTIPLY, IGNORE_DAMAGE,
+                          DAMAGE_SHIELD, SURVIVE_FATAL_DAMAGE, GUARANTEE_NEXT_HIT,
+                          GUARANTEE_NEXT_DODGE, GUARANTEE_NEXT_BLACK_FLASH,
+                          CANCEL_NEXT_MOVE, TEMP_LOCK_MOVE_TAG -> { }
                 }
             }
         }

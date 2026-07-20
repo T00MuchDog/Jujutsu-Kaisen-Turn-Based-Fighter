@@ -92,6 +92,8 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         draft.category = stored.category;
         draft.sourceType = stored.sourceType;
         draft.sourceValue = stored.sourceValue;
+        draft.codedAbilityKey = stored.codedAbilityKey;
+        draft.codedFeature = stored.codedFeature;
         draft.effects = stored.effects == null
             ? new ArrayList<>()
             : stored.effects.stream()
@@ -168,6 +170,10 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
 
         String sourceError = validateSource(ability);
         if (sourceError != null) return sourceError;
+
+        if (ability.isCoded()) {
+            return "Coded abilities are defined in source and cannot be edited here.";
+        }
 
         if (ability.isActive()) {
             String moveError = validateMoveReference(
@@ -408,6 +414,16 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
 
     @Override
     protected Actor buildDetailForm(AbilityData ability) {
+        if (ability.isCoded()) {
+            Table form = formRoot();
+            Table coded = formSection(form, "CODED ABILITY");
+            coded.add(idBadge(ability.id)).left().row();
+            coded.add(new Label(ability.name, skin)).left().row();
+            coded.add(formHint(ability.mechanicText)).growX().row();
+            coded.add(formHint("This ability is implemented by compiled game code and is read-only in the editor."))
+                .growX().row();
+            return form;
+        }
         Table form = formRoot();
 
         Table identity = formSection(form, "NAME");

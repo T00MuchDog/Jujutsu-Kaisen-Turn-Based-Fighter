@@ -1,6 +1,7 @@
 package com.jjktbf.multiplayer.protocol;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.jjktbf.model.character.coded.CodedAbilityState;
 
 import java.util.List;
 
@@ -20,11 +21,13 @@ public record CharacterState(
     int consecutiveBfsHits,
     Integer bfsExpiresAfterRound,
     List<StatusEffectState> statusEffects,
+    List<CodedAbilityState> codedAbilities,
     List<MoveState> knownMoves,
     PlanState plan
 ) {
     public CharacterState {
         statusEffects = statusEffects == null ? List.of() : List.copyOf(statusEffects);
+        codedAbilities = codedAbilities == null ? List.of() : List.copyOf(codedAbilities);
         knownMoves = knownMoves == null ? List.of() : List.copyOf(knownMoves);
     }
 }

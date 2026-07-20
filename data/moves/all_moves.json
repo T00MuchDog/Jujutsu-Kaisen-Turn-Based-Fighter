@@ -572,4 +572,38 @@
   "selfEffects" : [ { "type" : "CE_OUTPUT_UP", "durationRounds" : 1, "magnitude" : 15.0 } ],
   "prerequisites" : { "cursedEnergyOutput" : 60, "cursedEnergyEfficiency" : 40, "cursedEnergyReserves" : 50 },
   "isFreeMove" : false
+}, {
+  "id" : "000022",
+  "name" : "Miracle Creation",
+  "description" : "Erase a small coincidence from memory and condense it into a stored miracle.",
+  "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
+  "basePower" : 0,
+  "baseAccuracy" : 1.0,
+  "neverMiss" : true,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "apCost" : 15,
+  "unleashPoint" : 13,
+  "baseCeCost" : 60,
+  "hasCeCost" : true,
+  "minCeCost" : 40,
+  "maxCeCost" : 90,
+  "interruptType" : "NONE",
+  "defenseType" : "NONE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "codedAbilityKey" : "MIRACLES",
+  "codedAction" : "CREATE",
+  "prerequisites" : {
+    "cursedEnergyReserves" : 65,
+    "cursedEnergyEfficiency" : 55,
+    "cursedEnergyOutput" : 65,
+    "jujutsuSkill" : 60
+  },
+  "requiredTechniqueId" : "Miracles",
+  "isFreeMove" : false
 } ]

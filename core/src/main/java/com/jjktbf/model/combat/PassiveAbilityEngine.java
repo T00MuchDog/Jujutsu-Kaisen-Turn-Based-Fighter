@@ -29,6 +29,8 @@ public final class PassiveAbilityEngine {
         int processed = 0;
         while (!triggers.isEmpty() && processed++ < MAX_CHAINED_TRIGGERS) {
             AbilityTrigger trigger = triggers.removeFirst();
+            events.addAll(state.getPlayerCombatant().getCodedAbilities().onTrigger(state, trigger));
+            events.addAll(state.getEnemyCombatant().getCodedAbilities().onTrigger(state, trigger));
             evaluateOwner(state, state.getPlayerCombatant(), state.getEnemyCombatant(), trigger,
                 events, triggers, activatedThisChain);
             evaluateOwner(state, state.getEnemyCombatant(), state.getPlayerCombatant(), trigger,
@@ -52,7 +54,7 @@ public final class PassiveAbilityEngine {
         List<Ability> abilities = owner.getAbilities();
         for (int index = 0; index < abilities.size(); index++) {
             Ability ability = abilities.get(index);
-            if (ability == null || !ability.isPassive()) continue;
+            if (ability == null || !ability.isPassive() || ability.isCoded()) continue;
             if (ability.isAlwaysActive() && ability.getEffects().stream()
                 .noneMatch(effect -> safeType(effect).isTriggeredRuntimeEffect())) {
                 continue;
@@ -234,6 +236,7 @@ public final class PassiveAbilityEngine {
                             consumed.getType(),
                             tick));
                     }
+                    events.addAll(target.getCodedAbilities().drainPendingEvents(tick));
                     events.add(CombatEvent.of(damage == 0
                             ? CombatEvent.Type.DAMAGE_IGNORED : CombatEvent.Type.DAMAGE_DEALT)
                         .source(owner).target(target).intValue(damage).tick(tick)
@@ -288,7 +291,8 @@ public final class PassiveAbilityEngine {
             case TEMP_STAT_ADD, TEMP_STAT_MULTIPLY, TEMP_STAT_SET_VALUE,
                  BATTLE_STAT_ADD, BATTLE_STAT_MULTIPLY, IGNORE_DAMAGE, DAMAGE_SHIELD,
                  SURVIVE_FATAL_DAMAGE, GUARANTEE_NEXT_HIT, GUARANTEE_NEXT_DODGE,
-                 GUARANTEE_NEXT_BLACK_FLASH, CANCEL_NEXT_MOVE, TEMP_LOCK_MOVE_TAG -> {
+                 GUARANTEE_NEXT_BLACK_FLASH, CANCEL_NEXT_MOVE,
+                 TEMP_LOCK_MOVE_TAG -> {
                 for (BattleCombatant target : targets) {
                     addRuntimeEffect(state, owner, target, effect, tick, events);
                 }

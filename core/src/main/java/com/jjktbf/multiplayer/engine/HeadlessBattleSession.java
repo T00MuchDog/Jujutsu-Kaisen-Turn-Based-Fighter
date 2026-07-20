@@ -885,6 +885,7 @@ public final class HeadlessBattleSession {
             combatant.getConsecutiveBfsHits(),
             bfsExpiry,
             combatant.getActiveEffects().stream().map(this::statusEffectState).toList(),
+            combatant.getCodedAbilities().states(),
             combatant.getCharacter().getKnownMoves().stream()
                 .map(move -> moveState(participant, move))
                 .toList(),
@@ -1171,7 +1172,8 @@ public final class HeadlessBattleSession {
             participant.combatant.getCurrentHp(),
             participant.combatant.getMaxHp(),
             participant.combatant.getCurrentCe(),
-            participant.combatant.getMaxCursedEnergy()
+            participant.combatant.getMaxCursedEnergy(),
+            participant.combatant.getCodedAbilities().states()
         );
     }
 

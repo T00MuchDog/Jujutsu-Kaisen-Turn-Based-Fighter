@@ -1,6 +1,7 @@
 package com.jjktbf.model.move;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.util.EnumSet;
@@ -88,6 +89,12 @@ public class MoveData {
     /** List of self StatusEffect descriptors */
     public List<StatusEffectData> selfEffects;
 
+    /** Allow-listed compiled ability key for a move action outside normal status effects. */
+    public String codedAbilityKey;
+
+    /** Action interpreted by {@link #codedAbilityKey} when this move unleashes. */
+    public String codedAction;
+
     /** Prerequisite stats: {"strength": 80, "speed": 60, ...} */
     public Map<String, Integer> prerequisites;
 
@@ -99,6 +106,11 @@ public class MoveData {
     public String  requiredTechniqueId;
 
     public boolean isFreeMove = false;
+
+    @JsonIgnore
+    public boolean isCoded() {
+        return codedAbilityKey != null && !codedAbilityKey.isBlank();
+    }
 
     // -------------------------------------------------------------------------
     // Status effect sub-DTO
@@ -221,6 +233,8 @@ public class MoveData {
             .blockAffectedTags(blockAffectedTags)
             .blockDamageReduction(blockDamageReduction)
             .blockFlatReduction(blockFlatReduction)
+            .codedAbilityKey(codedAbilityKey)
+            .codedAction(codedAction)
             .requiredTechniqueId(requiredTechniqueId)
             .freeMove(isFreeMove);
 
@@ -306,6 +320,8 @@ public class MoveData {
                                     ? new java.util.ArrayList<>(move.getBlockAffectedTags()) : null;
         d.blockDamageReduction  = move.getBlockDamageReduction();
         d.blockFlatReduction    = move.getBlockFlatReduction();
+        d.codedAbilityKey       = move.getCodedAbilityKey();
+        d.codedAction           = move.getCodedAction();
         d.requiredTechniqueId = move.getRequiredTechniqueId();
         d.isFreeMove          = move.isFreeMove();
         d.prerequisites       = move.getPrerequisites().isEmpty() ? null

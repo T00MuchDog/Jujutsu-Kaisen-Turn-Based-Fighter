@@ -2,6 +2,7 @@ package com.jjktbf.multiplayer.protocol;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jjktbf.model.character.coded.CodedAbilityState;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ class ProtocolJsonTest {
             .plan().queuedSegments().get(0).status());
         assertEquals(88, restored.player(PlayerSide.PLAYER_TWO).orElseThrow()
             .character().currentDefense());
+        assertEquals(4, tree.at("/players/0/character/codedAbilities/0/currentValue").intValue());
         assertEquals(205, tree.at("/roundStartCharacterStates/0/currentHp").intValue());
         assertTrue(restored.players().get(0).readyForNextRound());
         assertThrows(UnsupportedOperationException.class, () -> restored.players().add(null));
@@ -236,6 +238,7 @@ class ProtocolJsonTest {
             2,
             4,
             List.of(new StatusEffectState("FOCUS", "Focus", 1, 0.15)),
+            List.of(new CodedAbilityState("MIRACLES", "Miracles", 4, 6)),
             List.of(divergentFist, basicBlock),
             playerOnePlan
         );
@@ -253,6 +256,7 @@ class ProtocolJsonTest {
             0,
             null,
             List.of(new StatusEffectState("DEFENSE_UP", "Defense Up", -1, 12.0)),
+            List.of(),
             List.of(basicBlock),
             new PlanState(3, 84, 0, 350, 0, null, null)
         );
@@ -290,8 +294,9 @@ class ProtocolJsonTest {
             0,
             List.of(playerOne, playerTwo),
             List.of(
-                new RoundStartCharacterState(PlayerSide.PLAYER_ONE, 205, 214, 320, 400),
-                new RoundStartCharacterState(PlayerSide.PLAYER_TWO, 171, 214, 350, 400)
+                new RoundStartCharacterState(PlayerSide.PLAYER_ONE, 205, 214, 320, 400,
+                    List.of(new CodedAbilityState("MIRACLES", "Miracles", 4, 6))),
+                new RoundStartCharacterState(PlayerSide.PLAYER_TWO, 171, 214, 350, 400, List.of())
             ),
             null,
             null,

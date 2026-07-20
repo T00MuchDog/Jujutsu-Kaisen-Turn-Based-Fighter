@@ -432,6 +432,8 @@ public class CombatResolver {
         // of whether the attack later hits, misses, or is blocked.
         applySelfEffects(state, attacker, move, tick, events);
         if (finishBattleIfNeeded(state, events, tick)) return;
+        events.addAll(attacker.getCodedAbilities().onMoveUnleashed(state, move, tick));
+        if (finishBattleIfNeeded(state, events, tick)) return;
 
         // --- Defensive moves: apply buff or register full block ---
         if (move.isDefensive()) {
@@ -478,6 +480,7 @@ public class CombatResolver {
 
             int appliedDamage = defender.receiveDamage(result.getFinalDamage());
             appendConsumedStatusEvents(state, defender, tick, events);
+            events.addAll(defender.getCodedAbilities().drainPendingEvents(tick));
 
             if (wasBlocked) {
                 events.add(CombatEvent.of(CombatEvent.Type.MOVE_BLOCK_REDUCED)
@@ -948,6 +951,7 @@ public class CombatResolver {
             BattleCombatant target = entry.getKey();
             int damage = target.receiveDamage(entry.getValue());
             appendConsumedStatusEvents(state, target, 0, events);
+            events.addAll(target.getCodedAbilities().drainPendingEvents(0));
             events.add(CombatEvent.of(damage == 0
                     ? CombatEvent.Type.DAMAGE_IGNORED : CombatEvent.Type.DAMAGE_DEALT)
                 .target(target).intValue(damage)
