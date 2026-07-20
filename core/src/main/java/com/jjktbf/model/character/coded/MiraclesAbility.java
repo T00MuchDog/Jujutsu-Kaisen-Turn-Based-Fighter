@@ -23,7 +23,7 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
     private final BattleCombatant owner;
     private final Set<String> features;
     private int miracles;
-    private int pendingFatalAversions;
+    private final List<Integer> pendingFatalAversions = new ArrayList<>();
 
     MiraclesAbility(BattleCombatant owner, Set<String> features) {
         this.owner = owner;
@@ -34,13 +34,11 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
     public List<CombatEvent> onTrigger(BattleState state, AbilityTrigger trigger) {
         if (trigger.type() == AbilityTrigger.Type.BATTLE_START && hasFeature(RESERVOIR)) {
             miracles = MAX_MIRACLES;
-            return List.of(event(trigger.tick(), owner.getCharacter().getName()
-                + " enters battle with " + miracles + " Miracles stored."));
+            return List.of(event(trigger.tick(), gainMessage(MAX_MIRACLES)));
         }
         if (!hasFeature(FORTUNE_RECLAIMED) || !gainsFrom(trigger)) return List.of();
         if (!addMiracle()) return List.of();
-        return List.of(event(trigger.tick(), owner.getCharacter().getName()
-            + " reclaims a Miracle (" + miracles + "/" + MAX_MIRACLES + ")."));
+        return List.of(event(trigger.tick(), gainMessage(1)));
     }
 
     @Override
@@ -53,8 +51,9 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
         }
         return List.of(CombatEvent.of(CombatEvent.Type.ABILITY_ACTIVATED)
             .source(owner).target(owner).move(move).tick(tick)
-            .message(owner.getCharacter().getName() + " creates a Miracle ("
-                + miracles + "/" + MAX_MIRACLES + ").")
+            .codedAbilityState(state())
+            .message(owner.getCharacter().getName() + " gains 1 Miracle through Miracle Creation ("
+                + remainingText(miracles) + ").")
             .build());
     }
 
@@ -62,26 +61,25 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
     public boolean preventFatalDamage() {
         if (!hasFeature(FATEFUL_REPRIEVE) || miracles <= 0) return false;
         miracles--;
-        pendingFatalAversions++;
+        pendingFatalAversions.add(miracles);
         return true;
     }
 
     @Override
     public List<CombatEvent> drainPendingEvents(int tick) {
-        if (pendingFatalAversions == 0) return List.of();
+        if (pendingFatalAversions.isEmpty()) return List.of();
         List<CombatEvent> events = new ArrayList<>();
-        int aversions = pendingFatalAversions;
-        pendingFatalAversions = 0;
-        for (int index = 0; index < aversions; index++) {
-            events.add(event(tick, "A stored Miracle averts a fatal blow for "
-                + owner.getCharacter().getName() + " (" + miracles + "/" + MAX_MIRACLES + ")."));
+        for (int remaining : pendingFatalAversions) {
+            events.add(event(tick, owner.getCharacter().getName()
+                + " uses 1 Miracle to avert a fatal blow (" + remainingText(remaining) + ").", remaining));
         }
+        pendingFatalAversions.clear();
         return events;
     }
 
     @Override
     public CodedAbilityState state() {
-        return new CodedAbilityState(KEY, "Miracles", miracles, MAX_MIRACLES);
+        return miracleState(miracles);
     }
 
     public static boolean supportsFeature(String feature) {
@@ -106,8 +104,28 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
         return true;
     }
 
+    private String gainMessage(int gained) {
+        return owner.getCharacter().getName() + " gains " + gained + " Miracle"
+            + (gained == 1 ? "" : "s") + " (" + remainingText(miracles) + ").";
+    }
+
+    private static String remainingText(int remaining) {
+        return remaining + "/" + MAX_MIRACLES + " remaining";
+    }
+
+    private static CodedAbilityState miracleState(int value) {
+        return new CodedAbilityState(KEY, "Miracles", value, MAX_MIRACLES);
+    }
+
     private CombatEvent event(int tick, String message) {
+        return event(tick, message, miracles);
+    }
+
+    private CombatEvent event(int tick, String message, int remaining) {
         return CombatEvent.of(CombatEvent.Type.ABILITY_ACTIVATED)
-            .source(owner).target(owner).tick(tick).message(message).build();
+            .source(owner).target(owner).tick(tick)
+            .codedAbilityState(miracleState(remaining))
+            .message(message)
+            .build();
     }
 }

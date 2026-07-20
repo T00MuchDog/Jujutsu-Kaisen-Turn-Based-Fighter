@@ -16,9 +16,12 @@ import com.jjktbf.graphics.multiplayer.MatchWebSocketClient;
 import com.jjktbf.graphics.multiplayer.MultiplayerMatchService;
 import com.jjktbf.graphics.multiplayer.MultiplayerSession;
 import com.jjktbf.graphics.ui.CombatantPanel;
+import com.jjktbf.graphics.ui.MiraclesMeter;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 import com.jjktbf.graphics.ui.battle.PlanningPanel;
 import com.jjktbf.model.character.Character;
+import com.jjktbf.model.character.coded.CodedAbilityState;
+import com.jjktbf.model.character.coded.MiraclesAbility;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
@@ -112,6 +115,7 @@ public class BattleScreen implements Screen, BattleView {
     // ── Panels ────────────────────────────────────────────────────────────────
     private CombatantPanel playerPanel;
     private CombatantPanel enemyPanel;
+    private final MiraclesMeter miraclesMeter = new MiraclesMeter();
     private Texture playerSprite;
     private Texture enemySprite;
     private final Rectangle executionHeaderBounds = new Rectangle();
@@ -216,6 +220,7 @@ public class BattleScreen implements Screen, BattleView {
     private int onlinePlayerMaxHp;
     private int onlinePlayerCe;
     private int onlinePlayerMaxCe;
+    private CodedAbilityState onlinePlayerMiracles;
     private int onlineEnemyHp;
     private int onlineEnemyMaxHp;
     private int onlineEnemyCe;
@@ -300,6 +305,8 @@ public class BattleScreen implements Screen, BattleView {
         multiplayerState = null;
         onlinePlayer = null;
         onlineEnemy = null;
+        onlinePlayerMiracles = null;
+        miraclesMeter.clear();
         onlineMoves = Map.of();
         logLines.clear();
 
@@ -437,8 +444,10 @@ public class BattleScreen implements Screen, BattleView {
         drawExecutionChrome(sw, sh);
         if (enemyPanel != null && hasEnemyRenderState())
             enemyPanel.draw(batch, assets.fontLog, assets.fontLarge, enemyCharacterName(), frameDelta);
-        if (playerPanel != null && hasPlayerRenderState())
+        if (playerPanel != null && hasPlayerRenderState()) {
             playerPanel.draw(batch, assets.fontLog, assets.fontLarge, playerCharacterName(), frameDelta);
+            miraclesMeter.draw(batch, assets.fontSmall, assets.battleUi);
+        }
         drawLog(sw, sh);
         drawNextRoundButton();
         drawMoveUnleashAnimation(sw, sh);
@@ -920,6 +929,9 @@ public class BattleScreen implements Screen, BattleView {
         multiplayerState = state;
         onlinePlayer = local;
         onlineEnemy = opponent;
+        if (!resolvingTicks || state.phase() == BattlePhase.PLANNING) {
+            onlinePlayerMiracles = findMiraclesState(local.character().codedAbilities());
+        }
         initOnlineMoves(local.character());
         initPanels();
 
@@ -994,6 +1006,7 @@ public class BattleScreen implements Screen, BattleView {
             ceCosts,
             apBudget,
             ceBudget,
+            findMiraclesState(character.codedAbilities()),
             assets.battleUi,
             Gdx.graphics.getWidth(),
             Gdx.graphics.getHeight()
@@ -1123,6 +1136,8 @@ public class BattleScreen implements Screen, BattleView {
             state, opposite(multiplayerSetup.playerSide()), false, onlineEnemy.character().currentCe());
         onlineEnemyMaxCe = roundStartMaximum(
             state, opposite(multiplayerSetup.playerSide()), false, onlineEnemy.character().maxCe());
+        onlinePlayerMiracles = roundStartMiraclesState(
+            state, multiplayerSetup.playerSide(), onlinePlayer.character().codedAbilities());
         processPlaybackEventsThrough(0);
         updatePanels();
     }
@@ -1220,6 +1235,13 @@ public class BattleScreen implements Screen, BattleView {
             changePlaybackCe(event.targetSide() != null ? event.targetSide() : event.sourceSide(), value);
         }
 
+        CodedAbilityState codedAbilityState = event.codedAbilityState();
+        if (event.sourceSide() == multiplayerSetup.playerSide()
+            && codedAbilityState != null
+            && MiraclesAbility.KEY.equals(codedAbilityState.key())) {
+            onlinePlayerMiracles = codedAbilityState;
+        }
+
         if (event.type() == BattleEventType.MOVE_FIRED && event.moveId() != null) {
             Move move = findOnlineMove(event.sourceSide(), event.moveId());
             if (move != null) playMoveUnleashAnimation(move);
@@ -1278,6 +1300,7 @@ public class BattleScreen implements Screen, BattleView {
         onlineEnemyMaxHp = onlineEnemy.character().maxHp();
         onlineEnemyCe = onlineEnemy.character().currentCe();
         onlineEnemyMaxCe = onlineEnemy.character().maxCe();
+        onlinePlayerMiracles = findMiraclesState(onlinePlayer.character().codedAbilities());
         updatePanels();
 
         if (isTerminal(multiplayerState.status())
@@ -1556,6 +1579,10 @@ public class BattleScreen implements Screen, BattleView {
         float playerY = margin + 66f + 58f * portraitScale + 84f * (s - 1f);
         playerPanel = new CombatantPanel(playerSprite, assets.battleUi,
             playerX, playerY, spriteWidth, spriteHeight, s);
+        miraclesMeter.setPosition(
+            playerX + spriteWidth + 24f * s,
+            playerY + spriteHeight / 2f
+        );
 
         // Log box, sized and positioned below the header. Dimensions track the
         // same height-driven portraitScale the sprites use, so the box shrinks
@@ -1594,6 +1621,7 @@ public class BattleScreen implements Screen, BattleView {
                 playerPanel.update(
                     onlinePlayerHp, onlinePlayerMaxHp, onlinePlayerCe, onlinePlayerMaxCe);
             }
+            miraclesMeter.setState(onlinePlayerMiracles);
             if (enemyPanel != null && onlineEnemy != null) {
                 enemyPanel.update(
                     onlineEnemyHp, onlineEnemyMaxHp, onlineEnemyCe, onlineEnemyMaxCe);
@@ -1601,7 +1629,31 @@ public class BattleScreen implements Screen, BattleView {
             return;
         }
         if (playerPanel != null && renderPlayer != null) playerPanel.update(renderPlayer);
+        miraclesMeter.setState(renderPlayer == null
+            ? null : findMiraclesState(renderPlayer.getCodedAbilities().states()));
         if (enemyPanel != null && renderEnemy != null) enemyPanel.update(renderEnemy);
+    }
+
+    private static CodedAbilityState findMiraclesState(List<CodedAbilityState> states) {
+        if (states == null) return null;
+        return states.stream()
+            .filter(state -> MiraclesAbility.KEY.equals(state.key()))
+            .findFirst()
+            .orElse(null);
+    }
+
+    private static CodedAbilityState roundStartMiraclesState(
+        MatchState state,
+        PlayerSide side,
+        List<CodedAbilityState> fallback
+    ) {
+        if (state.roundStartCharacterStates() == null) return findMiraclesState(fallback);
+        return state.roundStartCharacterStates().stream()
+            .filter(character -> character.side() == side)
+            .map(character -> findMiraclesState(character.codedAbilities()))
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElseGet(() -> findMiraclesState(fallback));
     }
 
     private boolean hasPlayerRenderState() {

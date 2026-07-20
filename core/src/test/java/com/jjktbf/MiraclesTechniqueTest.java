@@ -40,15 +40,20 @@ class MiraclesTechniqueTest {
         BattleCombatant owner = miracleCombatant("OWNER", List.of());
         BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
         BattleState state = new BattleState(owner, enemy);
-        new CombatResolver(new FixedRandom()).processRoundStart(state);
+        List<CombatEvent> startEvents = new CombatResolver(new FixedRandom()).processRoundStart(state);
 
         int hpBeforeLethalHit = owner.getCurrentHp();
         assertEquals(MiraclesAbility.MAX_MIRACLES, miracleCount(owner));
+        assertEquals("OWNER gains 6 Miracles (6/6 remaining).", startEvents.get(0).getMessage());
         assertTrue(owner.getActiveEffects().isEmpty());
         assertEquals(0, owner.receiveDamage(hpBeforeLethalHit));
         assertEquals(hpBeforeLethalHit, owner.getCurrentHp());
         assertEquals(MiraclesAbility.MAX_MIRACLES - 1, miracleCount(owner));
-        assertEquals(1, owner.getCodedAbilities().drainPendingEvents(1).size());
+        List<CombatEvent> aversionEvents = owner.getCodedAbilities().drainPendingEvents(1);
+        assertEquals(1, aversionEvents.size());
+        assertEquals("OWNER uses 1 Miracle to avert a fatal blow (5/6 remaining).",
+            aversionEvents.get(0).getMessage());
+        assertEquals(5, aversionEvents.get(0).getCodedAbilityState().currentValue());
         assertTrue(owner.getCodedAbilities().drainPendingEvents(1).isEmpty());
 
         owner.clearStatusEffects();
@@ -65,15 +70,17 @@ class MiraclesTechniqueTest {
         Move attack = attack("ATTACK");
 
         owner.receiveDamage(owner.getCurrentHp());
-        engine.process(state, AbilityTrigger.move(
+        List<CombatEvent> missedEvents = engine.process(state, AbilityTrigger.move(
             AbilityTrigger.Type.ATTACK_MISSED, enemy, owner, attack, 1));
         assertEquals(MiraclesAbility.MAX_MIRACLES, miracleCount(owner));
+        assertEquals("OWNER gains 1 Miracle (6/6 remaining).", missedEvents.get(0).getMessage());
 
         owner.receiveDamage(owner.getCurrentHp());
         owner.receiveDamage(owner.getCurrentHp());
-        engine.process(state, AbilityTrigger.move(
+        List<CombatEvent> blackFlashEvents = engine.process(state, AbilityTrigger.move(
             AbilityTrigger.Type.BLACK_FLASH, owner, enemy, attack, 2));
         assertEquals(MiraclesAbility.MAX_MIRACLES - 1, miracleCount(owner));
+        assertEquals("OWNER gains 1 Miracle (5/6 remaining).", blackFlashEvents.get(0).getMessage());
 
         engine.process(state, AbilityTrigger.move(
             AbilityTrigger.Type.ATTACK_MISSED, enemy, owner, attack, 3));
@@ -142,7 +149,7 @@ class MiraclesTechniqueTest {
         List<CombatEvent> events = resolver.resolveRound(state);
         assertEquals(MiraclesAbility.MAX_MIRACLES, miracleCount(owner));
         assertTrue(events.stream().anyMatch(event -> event.getType() == CombatEvent.Type.ABILITY_ACTIVATED
-            && event.getMessage().contains("creates a Miracle")));
+            && "OWNER gains 1 Miracle through Miracle Creation (6/6 remaining).".equals(event.getMessage())));
     }
 
     @Test

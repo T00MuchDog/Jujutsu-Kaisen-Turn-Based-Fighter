@@ -280,6 +280,7 @@ class ProtocolJsonTest {
             divergentFist.moveId(),
             divergentFist.name(),
             39,
+            new CodedAbilityState("MIRACLES", "Miracles", 4, 6),
             "Yuji Itadori dealt 39 damage."
         );
 

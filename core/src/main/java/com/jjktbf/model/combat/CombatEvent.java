@@ -1,5 +1,6 @@
 package com.jjktbf.model.combat;
 
+import com.jjktbf.model.character.coded.CodedAbilityState;
 import com.jjktbf.model.move.Move;
 
 /**
@@ -56,6 +57,8 @@ public class CombatEvent {
     private final Move            move;       // relevant move (may be null)
     private final int             intValue;   // damage, CE amount, etc.
     private final int             tick;       // AP tick this event occurred on (0 = system/round events)
+    /** Optional post-event resource snapshot for a coded ability. */
+    private final CodedAbilityState codedAbilityState;
     private final String          message;    // human-readable description
 
     private CombatEvent(Builder b) {
@@ -65,6 +68,7 @@ public class CombatEvent {
         this.move      = b.move;
         this.intValue  = b.intValue;
         this.tick      = b.tick;
+        this.codedAbilityState = b.codedAbilityState;
         this.message   = b.message;
     }
 
@@ -74,6 +78,7 @@ public class CombatEvent {
     public Move            getMove()     { return move; }
     public int             getIntValue() { return intValue; }
     public int             getTick()     { return tick; }
+    public CodedAbilityState getCodedAbilityState() { return codedAbilityState; }
     public String          getMessage()  { return message; }
 
     @Override
@@ -94,6 +99,7 @@ public class CombatEvent {
         private Move            move;
         private int             intValue;
         private int             tick;
+        private CodedAbilityState codedAbilityState;
         private String          message = "";
 
         private Builder(Type type) { this.type = type; }
@@ -103,6 +109,10 @@ public class CombatEvent {
         public Builder move(Move v)               { this.move     = v; return this; }
         public Builder intValue(int v)            { this.intValue = v; return this; }
         public Builder tick(int v)                { this.tick     = v; return this; }
+        public Builder codedAbilityState(CodedAbilityState v) {
+            this.codedAbilityState = v;
+            return this;
+        }
         public Builder message(String v)          { this.message  = v; return this; }
 
         public CombatEvent build() { return new CombatEvent(this); }

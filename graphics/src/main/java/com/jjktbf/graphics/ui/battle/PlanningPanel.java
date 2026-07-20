@@ -1,12 +1,14 @@
 package com.jjktbf.graphics.ui.battle;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input.Buttons;
 import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.math.Rectangle;
+import com.jjktbf.graphics.ui.MiraclesMeter;
+import com.jjktbf.model.character.coded.CodedAbilityState;
+import com.jjktbf.model.character.coded.MiraclesAbility;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
@@ -36,6 +38,7 @@ public class PlanningPanel {
     private final Map<String, Integer> authoritativeCeCosts;
     private final BattleCombatant localCombatant;
     private final BattleUiAssets ui;
+    private final MiraclesMeter miraclesMeter = new MiraclesMeter();
 
     private final TimelineBar offensiveBar = new TimelineBar(TimelineBar.Kind.OFFENSIVE, 0f, 0f, 1f, 1f);
     private final TimelineBar defensiveBar = new TimelineBar(TimelineBar.Kind.DEFENSIVE, 0f, 0f, 1f, 1f);
@@ -57,6 +60,7 @@ public class PlanningPanel {
     private int originalCeCost;
     private int draggingTick;
     private boolean snapValid;
+    private boolean clickingMoveCard;
     private float dragMouseX;
     private float dragMouseY;
 
@@ -74,6 +78,7 @@ public class PlanningPanel {
         this.authoritativeCeCosts = Map.of();
         this.localCombatant = combatant;
         this.ui = ui;
+        miraclesMeter.setState(findMiraclesState(combatant.getCodedAbilities().states()));
         for (Move move : combatant.getCharacter().getKnownMoves()) {
             if (abilityFlags.lockedMoveTags.stream().noneMatch(move::hasTag)) knownMoves.add(move);
         }
@@ -92,6 +97,7 @@ public class PlanningPanel {
         Map<String, Integer> ceCosts,
         int apBudget,
         int ceBudget,
+        CodedAbilityState miraclesState,
         BattleUiAssets ui,
         float screenWidth,
         float screenHeight
@@ -102,6 +108,7 @@ public class PlanningPanel {
         this.authoritativeCeCosts = ceCosts == null ? Map.of() : Map.copyOf(ceCosts);
         this.localCombatant = null;
         this.ui = ui;
+        miraclesMeter.setState(miraclesState);
         if (moves != null) knownMoves.addAll(moves);
         resize(screenWidth, screenHeight);
     }
@@ -140,6 +147,7 @@ public class PlanningPanel {
         draggingSegment = null;
         draggingBoard = null;
         snapValid = false;
+        clickingMoveCard = false;
     }
 
     public PlanningInputProcessor inputProcessor() {
@@ -153,10 +161,10 @@ public class PlanningPanel {
         compactLayout = width < 700f;
 
         float margin = Math.min(MARGIN, Math.max(18f, width * 0.045f));
-        float headerH = compactLayout ? 88f : 58f;
+        float headerH = compactLayout ? 118f : 58f;
         headerBounds.set(margin, height - margin - headerH, width - margin * 2f, headerH);
         if (compactLayout) {
-            lockInBounds.set(headerBounds.x + headerBounds.width - 104f, headerBounds.y + 48f, 92f, 28f);
+            lockInBounds.set(headerBounds.x + headerBounds.width - 104f, headerBounds.y + 78f, 92f, 28f);
         } else {
             lockInBounds.set(headerBounds.x + headerBounds.width - 156f, headerBounds.y + 10f, 142f, headerH - 20f);
         }
@@ -241,13 +249,18 @@ public class PlanningPanel {
         ui.header.draw(batch, headerBounds.x, headerBounds.y, headerBounds.width, headerBounds.height);
         titleFont.setColor(Color.WHITE);
         titleFont.draw(batch, compactLayout ? "PLAN ROUND" : "BUILD YOUR TIMELINE",
-            headerBounds.x + 18f, headerBounds.y + (compactLayout ? 76f : 39f));
+            headerBounds.x + 18f, headerBounds.y + (compactLayout ? 106f : 39f));
         float statX = compactLayout ? headerBounds.x + 12f : headerBounds.x + Math.min(340f, headerBounds.width * 0.42f);
         float statWidth = compactLayout ? 82f : 104f;
         drawStat(batch, font, statX, headerBounds.y + (compactLayout ? 12f : 15f), statWidth,
             "AP", plan.remainingApBudget(), plan.apBudget(), BattleUiAssets.YELLOW);
         drawStat(batch, font, statX + statWidth + 8f, headerBounds.y + (compactLayout ? 12f : 15f),
             compactLayout ? 82f : 108f, "CE", plan.remainingCe(), plan.ceBudget(), BattleUiAssets.CURSED_ENERGY);
+        miraclesMeter.setPosition(
+            compactLayout ? headerBounds.x + 12f : statX + statWidth * 2f + 40f,
+            headerBounds.y + (compactLayout ? 59f : headerBounds.height / 2f)
+        );
+        miraclesMeter.draw(batch, font, ui);
 
         if (confirmed) {
             ui.lockButtonDisabled.draw(batch, lockInBounds.x, lockInBounds.y, lockInBounds.width, lockInBounds.height);
@@ -308,6 +321,14 @@ public class PlanningPanel {
             : CeEfficiencyCalculator.computeActualCost(move, ceEfficiency, abilityFlags);
     }
 
+    private static CodedAbilityState findMiraclesState(List<CodedAbilityState> states) {
+        if (states == null) return null;
+        return states.stream()
+            .filter(state -> MiraclesAbility.KEY.equals(state.key()))
+            .findFirst()
+            .orElse(null);
+    }
+
     private TimelineBar barFor(BattlePlan.Board board) {
         return board == BattlePlan.Board.OFFENSIVE ? offensiveBar : defensiveBar;
     }
@@ -342,8 +363,19 @@ public class PlanningPanel {
     public class PlanningInputProcessor extends InputAdapter {
         @Override
         public boolean touchDown(int screenX, int screenY, int pointer, int button) {
-            if (button != Buttons.LEFT || confirmed) return false;
+            if (confirmed) return false;
             updatePointer(screenX, screenY);
+            refresh();
+
+            if (button == Buttons.RIGHT) {
+                ActionSegmentView hit = hitSegment();
+                if (hit == null || !plan.remove(hit.getSegment())) return false;
+                if (selectedSegment == hit.getSegment()) selectedSegment = null;
+                hoveredSegment = null;
+                return true;
+            }
+
+            if (button != Buttons.LEFT) return false;
 
             if (lockInBounds.contains(dragMouseX, dragMouseY)) {
                 confirmed = true;
@@ -358,6 +390,7 @@ public class PlanningPanel {
                     draggingMove = card.getMove();
                     draggingSegment = null;
                     draggingBoard = BattlePlan.boardFor(draggingMove);
+                    clickingMoveCard = true;
                     updateSnap();
                     return true;
                 }
@@ -378,6 +411,7 @@ public class PlanningPanel {
         public boolean touchDragged(int screenX, int screenY, int pointer) {
             if (confirmed || draggedMove() == null) return false;
             updatePointer(screenX, screenY);
+            clickingMoveCard = false;
             updateSnap();
             return true;
         }
@@ -390,8 +424,9 @@ public class PlanningPanel {
 
             Move move = draggedMove();
             boolean droppedOnTimeline = barFor(draggingBoard).getBounds().contains(dragMouseX, dragMouseY);
-            ActionSegment placed = droppedOnTimeline && snapValid
-                ? plan.place(move, draggingTick, ceCost(move)) : null;
+            ActionSegment placed = clickingMoveCard
+                ? plan.placeFirstFit(move, ceCost(move))
+                : droppedOnTimeline && snapValid ? plan.place(move, draggingTick, ceCost(move)) : null;
             if (placed != null) {
                 selectedSegment = placed;
             } else if (droppedOnTimeline && draggingSegment != null) {
@@ -426,12 +461,13 @@ public class PlanningPanel {
             draggingSegment = null;
             draggingBoard = null;
             snapValid = false;
+            clickingMoveCard = false;
             updateHover();
         }
 
         private void updatePointer(int screenX, int screenY) {
             dragMouseX = screenX;
-            dragMouseY = Gdx.graphics.getHeight() - screenY;
+            dragMouseY = screenHeight - screenY;
         }
 
         private void updateSnap() {

@@ -1007,6 +1007,7 @@ public final class HeadlessBattleSession {
                 move == null ? null : move.getId(),
                 move == null ? null : move.getName(),
                 eventValue(event),
+                event.getCodedAbilityState(),
                 event.getMessage()
             ));
         }
@@ -1024,6 +1025,7 @@ public final class HeadlessBattleSession {
             type,
             roundNumber,
             tick,
+            null,
             null,
             null,
             null,
@@ -1055,6 +1057,7 @@ public final class HeadlessBattleSession {
             loser == null ? null : loser.participant.side(),
             loser == null ? null : loser.combatant.getCharacter().getId(),
             loser == null ? null : loser.combatant.getCharacter().getName(),
+            null,
             null,
             null,
             null,
