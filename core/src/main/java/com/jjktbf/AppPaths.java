@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.Set;
 
 /**
@@ -51,11 +53,10 @@ import java.util.Set;
  *
  * <h3>Seeding</h3>
  * On first launch the bundled default game-data JSON (shipped on the classpath
- * under {@code data/...}) is copied into the per-user data directory. Existing
- * records with a matching bundled name are refreshed from the release on later
- * launches. Player-created records with no bundled match remain available.
- * Authored technique trees are also refreshed so release tree changes remain
- * available without replacing player-created techniques.
+ * under {@code data/...}) is copied into the per-user data directory. Editor
+ * changes persist while the player runs the same game version. Installing a
+ * newer release replaces every bundled game-data catalog with the definitions
+ * shipped in that release.
  *
  * <p>This class is pure Java (no libGDX) so it can live in the {@code core}
  * module and be used by both the repositories and the desktop launcher.
@@ -81,6 +82,14 @@ public final class AppPaths {
     private static final String BUNDLED_CHARACTERS = "data/characters/all_characters.json";
     private static final String BUNDLED_ABILITIES = "data/abilities/all_abilities.json";
     private static final String BUNDLED_TECHNIQUES = "data/techniques/all_techniques.json";
+    private static final String BUNDLED_VERSION = "jjktbf-version.properties";
+    private static final String DATA_VERSION_FILE = "data-release-version";
+    private static final List<String> BUNDLED_DATA_FILES = List.of(
+        BUNDLED_MOVES,
+        BUNDLED_ABILITIES,
+        BUNDLED_TECHNIQUES,
+        BUNDLED_CHARACTERS
+    );
     private static final String LEGACY_CHARACTER_SPRITE_PREFIX = "assets/characters/";
     private static final String CHARACTER_SPRITE_PREFIX = "assets/sprites/characters/";
     private static final String YUJI_FRONT_SPRITE = CHARACTER_SPRITE_PREFIX + "yuji_frontsprite.png";
@@ -236,86 +245,75 @@ public final class AppPaths {
     // -------------------------------------------------------------------------
 
     /**
-     * Copy the bundled default game-data JSON (classpath {@code data/...}) into
-     * the per-user data directory. Matching bundled moves, abilities, and
-     * characters are refreshed from the release; player-created records remain.
-     * Bundled technique trees are also refreshed on upgrade.
-     *
-     * <p>This mirrors the bundled files onto disk using the same classpath
-     * layout (e.g. {@code data/characters/all_characters.json}) by walking the
-     * known data subdirectories and files. Only the JSON shipped under the
-     * classpath {@code data} root is copied.
+     * Seed missing data files on first launch. When the bundled game version
+     * changes, replace every editable game-data catalog with the new release.
+     * The recorded version is updated only after all catalogs have been copied.
      */
     public static void seedDataIfAbsent() {
         ClassLoader cl = loader();
-        // Moves and abilities must be seeded first: user repositories can have
-        // different positional IDs, so later tree and character state is mapped
-        // back to the local IDs by content name.
-        seedOneSafely(cl, BUNDLED_MOVES, Map.of(), Map.of());
-        seedOneSafely(cl, BUNDLED_ABILITIES, Map.of(), Map.of());
-
-        Map<String, String> moveIdMappings = bundledToSavedIdMappings(cl, BUNDLED_MOVES);
-        Map<String, String> abilityIdMappings = bundledToSavedIdMappings(cl, BUNDLED_ABILITIES);
-        seedOneSafely(cl, BUNDLED_TECHNIQUES, moveIdMappings, abilityIdMappings);
-        seedOneSafely(cl, BUNDLED_CHARACTERS, moveIdMappings, abilityIdMappings);
-    }
-
-    private static void seedOneSafely(
-        ClassLoader cl,
-        String resource,
-        Map<String, String> moveIdMappings,
-        Map<String, String> abilityIdMappings
-    ) {
         try {
-            seedOne(cl, resource, moveIdMappings, abilityIdMappings);
+            String bundledVersion = bundledGameVersion(cl);
+            if (bundledVersion.equals(savedDataVersion())) {
+                copyBundledData(cl, false);
+            } else {
+                copyBundledData(cl, true);
+                Files.writeString(root().resolve(DATA_VERSION_FILE), bundledVersion);
+            }
         } catch (IOException e) {
-            writeSeedError(resource, e);
+            writeSeedError("bundled game data", e);
         }
     }
 
-    private static void seedOne(
-        ClassLoader cl,
-        String resource,
-        Map<String, String> moveIdMappings,
-        Map<String, String> abilityIdMappings
-    ) throws IOException {
-        Path dest = dataDir().resolve(resource.substring("data/".length()));
-        try (InputStream in = cl.getResourceAsStream(resource)) {
-            if (Files.exists(dest)) {
-                if (BUNDLED_MOVES.equals(resource) && in != null) {
-                    mergeBundledMoves(dest, in);
-                } else if (BUNDLED_CHARACTERS.equals(resource) && in != null) {
-                    mergeBundledCharacters(dest, in, moveIdMappings, abilityIdMappings);
-                } else if (BUNDLED_ABILITIES.equals(resource) && in != null) {
-                    mergeBundledAbilities(dest, in);
-                } else if (BUNDLED_TECHNIQUES.equals(resource) && in != null) {
-                    mergeBundledTechniques(dest, in, moveIdMappings, abilityIdMappings);
-                }
-                return;
-            }
+    private static String bundledGameVersion(ClassLoader cl) throws IOException {
+        Properties properties = new Properties();
+        try (InputStream in = cl.getResourceAsStream(BUNDLED_VERSION)) {
             if (in == null) {
-                // The bundled data is missing from this build; the repository
-                // will fall back to its built-in seed. Not fatal.
-                return;
+                throw new IOException("Missing bundled game version resource");
             }
-            Files.createDirectories(dest.getParent());
-            if (BUNDLED_TECHNIQUES.equals(resource) || BUNDLED_CHARACTERS.equals(resource)) {
-                // A partial profile can already contain moves/abilities with
-                // locally resequenced IDs. Start with an empty catalog so the
-                // normal merge path can remap its technique references.
-                MAPPER.writeValue(dest.toFile(), List.of());
-                if (BUNDLED_TECHNIQUES.equals(resource)) {
-                    mergeBundledTechniques(dest, in, moveIdMappings, abilityIdMappings);
-                } else {
-                    mergeBundledCharacters(dest, in, moveIdMappings, abilityIdMappings);
-                }
-            } else {
-                try (OutputStream out = Files.newOutputStream(dest)) {
+            properties.load(in);
+        }
+        String version = properties.getProperty("game.version");
+        if (version == null || version.isBlank() || version.contains("${")) {
+            throw new IOException("Invalid bundled game version");
+        }
+        return version.trim();
+    }
+
+    private static String savedDataVersion() throws IOException {
+        Path versionFile = root().resolve(DATA_VERSION_FILE);
+        if (!Files.isRegularFile(versionFile)) return "";
+        return Files.readString(versionFile).trim();
+    }
+
+    private static void copyBundledData(ClassLoader cl, boolean replaceExisting) throws IOException {
+        List<StagedDataFile> staged = new ArrayList<>();
+        try {
+            for (String resource : BUNDLED_DATA_FILES) {
+                Path destination = dataDir().resolve(resource.substring("data/".length()));
+                if (!replaceExisting && Files.exists(destination)) continue;
+                Files.createDirectories(destination.getParent());
+                Path temporary = Files.createTempFile(destination.getParent(), ".seed-", ".tmp");
+                staged.add(new StagedDataFile(temporary, destination));
+                try (InputStream in = cl.getResourceAsStream(resource);
+                     OutputStream out = Files.newOutputStream(temporary)) {
+                    if (in == null) throw new IOException("Missing bundled data resource: " + resource);
                     in.transferTo(out);
                 }
             }
+            for (StagedDataFile file : staged) {
+                try {
+                    Files.move(file.temporary(), file.destination(),
+                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+                    Files.move(file.temporary(), file.destination(), StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        } finally {
+            for (StagedDataFile file : staged) Files.deleteIfExists(file.temporary());
         }
     }
+
+    private record StagedDataFile(Path temporary, Path destination) {}
 
     /**
      * Refresh bundled moves by name so release balance changes replace stale

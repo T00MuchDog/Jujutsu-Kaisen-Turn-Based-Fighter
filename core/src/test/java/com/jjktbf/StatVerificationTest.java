@@ -555,7 +555,7 @@ public class StatVerificationTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    void releaseSeedRemapsBundledTechniqueStateToLocalRepositoryIds() throws Exception {
+    void firstReleaseSeedReplacesEveryBundledCatalog() throws Exception {
         Path resourceRoot = Files.createTempDirectory("bundled-data");
         Path profileRoot = Files.createTempDirectory("player-data");
         String previousDataRoot = System.getProperty(AppPaths.DATA_ROOT_SYSTEM_PROPERTY);
@@ -563,6 +563,7 @@ public class StatVerificationTest {
         URLClassLoader resourceLoader = new URLClassLoader(
             new java.net.URL[] { resourceRoot.toUri().toURL() }, null);
         try {
+            writeJson(resourceRoot, "jjktbf-version.properties", "game.version=1.0.0\n");
             writeJson(resourceRoot, "data/moves/all_moves.json", """
                 [ { "id": "000000", "name": "Tree Move", "description": "Release move" } ]
                 """);
@@ -642,20 +643,22 @@ public class StatVerificationTest {
             List<Map<String, Object>> moves = mapper.readValue(
                 profileRoot.resolve("data/moves/all_moves.json").toFile(),
                 new TypeReference<List<Map<String, Object>>>() {});
-            assertEquals("Release move", moves.get(1).get("description"));
+            assertEquals(1, moves.size());
+            assertEquals("Release move", moves.get(0).get("description"));
 
             List<Map<String, Object>> abilities = mapper.readValue(
                 profileRoot.resolve("data/abilities/all_abilities.json").toFile(),
                 new TypeReference<List<Map<String, Object>>>() {});
-            assertEquals("Release ability", abilities.get(1).get("flavourText"));
+            assertEquals(1, abilities.size());
+            assertEquals("Release ability", abilities.get(0).get("flavourText"));
 
             List<Map<String, Object>> techniques = mapper.readValue(
                 profileRoot.resolve("data/techniques/all_techniques.json").toFile(),
                 new TypeReference<List<Map<String, Object>>>() {});
             List<Map<String, Object>> tree =
                 (List<Map<String, Object>>) techniques.get(0).get("skillTree");
-            assertEquals("000001", tree.get(0).get("contentId"));
-            assertEquals("000001", tree.get(1).get("contentId"));
+            assertEquals("000000", tree.get(0).get("contentId"));
+            assertEquals("000000", tree.get(1).get("contentId"));
             List<Map<String, Object>> prerequisites =
                 (List<Map<String, Object>>) tree.get(1).get("prerequisites");
             assertEquals(Boolean.TRUE, prerequisites.get(0).get("attached"));
@@ -667,9 +670,9 @@ public class StatVerificationTest {
             assertEquals("Release character", haruta.get("description"));
             assertEquals("Miracles", haruta.get("innateTechniqueName"));
             assertEquals(15, haruta.get("cursedTechniqueMastery"));
-            assertEquals(List.of("000001"), haruta.get("moveIds"));
-            assertEquals(List.of("000001"), haruta.get("abilityIds"));
-            assertEquals(List.of("000001"), haruta.get("availableAbilityIds"));
+            assertEquals(List.of("000000"), haruta.get("moveIds"));
+            assertEquals(List.of("000000"), haruta.get("abilityIds"));
+            assertEquals(List.of("000000"), haruta.get("availableAbilityIds"));
         } finally {
             Thread.currentThread().setContextClassLoader(previousLoader);
             if (previousDataRoot == null) {
@@ -678,6 +681,98 @@ public class StatVerificationTest {
                 System.setProperty(AppPaths.DATA_ROOT_SYSTEM_PROPERTY, previousDataRoot);
             }
             resourceLoader.close();
+            AppPaths.deleteRecursively(resourceRoot);
+            AppPaths.deleteRecursively(profileRoot);
+        }
+    }
+
+    @Test
+    void editorDataPersistsUntilTheBundledReleaseVersionChanges() throws Exception {
+        Path resourceRoot = Files.createTempDirectory("bundled-data");
+        Path profileRoot = Files.createTempDirectory("player-data");
+        String previousDataRoot = System.getProperty(AppPaths.DATA_ROOT_SYSTEM_PROPERTY);
+        ClassLoader previousLoader = Thread.currentThread().getContextClassLoader();
+        URLClassLoader initialLoader = new URLClassLoader(
+            new java.net.URL[] { resourceRoot.toUri().toURL() }, null);
+        URLClassLoader updatedLoader = null;
+        try {
+            writeJson(resourceRoot, "jjktbf-version.properties", "game.version=1.0.0\n");
+            writeJson(resourceRoot, "data/moves/all_moves.json", """
+                [ { "id": "000000", "name": "Release One Move" } ]
+                """);
+            writeJson(resourceRoot, "data/abilities/all_abilities.json", """
+                [ { "id": "000000", "name": "Release One Ability" } ]
+                """);
+            writeJson(resourceRoot, "data/techniques/all_techniques.json", """
+                [ { "id": "000000", "name": "Release One Technique" } ]
+                """);
+            writeJson(resourceRoot, "data/characters/all_characters.json", """
+                [ { "id": "000000", "name": "Release One Character" } ]
+                """);
+
+            System.setProperty(AppPaths.DATA_ROOT_SYSTEM_PROPERTY, profileRoot.toString());
+            Thread.currentThread().setContextClassLoader(initialLoader);
+            AppPaths.seedDataIfAbsent();
+
+            writeJson(profileRoot, "data/moves/all_moves.json", """
+                [ { "id": "000000", "name": "Player Move" } ]
+                """);
+            writeJson(profileRoot, "data/abilities/all_abilities.json", """
+                [ { "id": "000000", "name": "Player Ability" } ]
+                """);
+            writeJson(profileRoot, "data/techniques/all_techniques.json", """
+                [ { "id": "000000", "name": "Player Technique" } ]
+                """);
+            writeJson(profileRoot, "data/characters/all_characters.json", """
+                [ { "id": "000000", "name": "Player Character" } ]
+                """);
+
+            AppPaths.seedDataIfAbsent();
+            assertTrue(Files.readString(profileRoot.resolve("data/moves/all_moves.json"))
+                .contains("Player Move"));
+            assertTrue(Files.readString(profileRoot.resolve("data/abilities/all_abilities.json"))
+                .contains("Player Ability"));
+            assertTrue(Files.readString(profileRoot.resolve("data/techniques/all_techniques.json"))
+                .contains("Player Technique"));
+            assertTrue(Files.readString(profileRoot.resolve("data/characters/all_characters.json"))
+                .contains("Player Character"));
+
+            writeJson(resourceRoot, "jjktbf-version.properties", "game.version=1.0.1\n");
+            writeJson(resourceRoot, "data/moves/all_moves.json", """
+                [ { "id": "000000", "name": "Release Two Move" } ]
+                """);
+            writeJson(resourceRoot, "data/abilities/all_abilities.json", """
+                [ { "id": "000000", "name": "Release Two Ability" } ]
+                """);
+            writeJson(resourceRoot, "data/techniques/all_techniques.json", """
+                [ { "id": "000000", "name": "Release Two Technique" } ]
+                """);
+            writeJson(resourceRoot, "data/characters/all_characters.json", """
+                [ { "id": "000000", "name": "Release Two Character" } ]
+                """);
+            updatedLoader = new URLClassLoader(
+                new java.net.URL[] { resourceRoot.toUri().toURL() }, null);
+            Thread.currentThread().setContextClassLoader(updatedLoader);
+            AppPaths.seedDataIfAbsent();
+
+            assertTrue(Files.readString(profileRoot.resolve("data/moves/all_moves.json"))
+                .contains("Release Two Move"));
+            assertTrue(Files.readString(profileRoot.resolve("data/abilities/all_abilities.json"))
+                .contains("Release Two Ability"));
+            assertTrue(Files.readString(profileRoot.resolve("data/techniques/all_techniques.json"))
+                .contains("Release Two Technique"));
+            assertTrue(Files.readString(profileRoot.resolve("data/characters/all_characters.json"))
+                .contains("Release Two Character"));
+            assertEquals("1.0.1", Files.readString(profileRoot.resolve("data-release-version")).trim());
+        } finally {
+            Thread.currentThread().setContextClassLoader(previousLoader);
+            if (previousDataRoot == null) {
+                System.clearProperty(AppPaths.DATA_ROOT_SYSTEM_PROPERTY);
+            } else {
+                System.setProperty(AppPaths.DATA_ROOT_SYSTEM_PROPERTY, previousDataRoot);
+            }
+            if (updatedLoader != null) updatedLoader.close();
+            initialLoader.close();
             AppPaths.deleteRecursively(resourceRoot);
             AppPaths.deleteRecursively(profileRoot);
         }

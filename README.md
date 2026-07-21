@@ -69,10 +69,10 @@ The `-XstartOnFirstThread` option is macOS-only. PostgreSQL/Docker setup, non-ma
 > **Where data lives:** On first launch the game copies its bundled default
 > data into a per-user directory (`~/Library/Application Support/JujutsuKaisenFighter/`
 > on macOS, `%APPDATA%\JujutsuKaisenFighter\` on Windows). The in-game editors
-> read and write there. On launch, bundled moves, abilities, and characters are
-> refreshed by name from the installed release, so updated stats and balance
-> changes take effect. Player-created records remain. Bundled technique-tree
-> layouts are synchronized on upgrade.
+> read and write there, so edits persist while you use the same game version.
+> When a newer release is launched, its bundled moves, abilities, characters,
+> and techniques replace the local catalogs in full. The new release therefore
+> becomes the authoritative game-data state for that profile.
 
 ### Run tests
 ```bash

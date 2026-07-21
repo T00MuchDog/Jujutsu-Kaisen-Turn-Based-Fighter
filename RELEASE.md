@@ -163,6 +163,15 @@ rejects it because Windows MSI versioning disallows it.
 
 Steps: edit `<revision>` in `pom.xml`, commit, tag `v<version>`, push the tag.
 
+### Authoring release data
+
+Installers bundle the JSON under the repository's `data/` directory. Before
+tagging a release, ensure your intended move, ability, technique, and character
+changes are saved there and committed. To edit that release source through the
+game's editors, launch the development build with
+`-Djjktbf.data.root="$PWD"`; this maps the editor's data directory to
+`$PWD/data`.
+
 ---
 
 ## 5. How to test an update over an older installation
@@ -176,12 +185,12 @@ lives **outside** the app, in a per-user directory:
 | Windows | `%APPDATA%\JujutsuKaisenFighter\`                       |
 | Linux   | `~/.jujutsukaisenfighter/` (or `$XDG_DATA_HOME`)        |
 
-On first launch the bundled defaults are copied there; on every subsequent
-launch, bundled moves, abilities, and characters with a matching name are
-replaced by the definitions shipped in the installed release. Player-created
-records without a bundled match remain. Bundled technique-tree metadata is also
-synchronized so authored release layouts carry forward. To verify an upgrade
-manually:
+On first launch the bundled defaults are copied there, and editor changes then
+persist for that installed version. When a newer release is launched, every
+game-data catalog (moves, abilities, techniques, and characters) is replaced by
+the definitions shipped in that release, including any player-created entries.
+This keeps every upgraded profile aligned with the release's authoritative data.
+To verify an upgrade manually:
 
 1. Install and run version N (e.g. `1.0.0`). Make a change in an editor and
    save it — or just note the existing data.

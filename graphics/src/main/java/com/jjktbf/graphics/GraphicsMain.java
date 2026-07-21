@@ -19,9 +19,9 @@ import com.jjktbf.AppPaths;
 public class GraphicsMain {
 
     public static void main(String[] args) {
-        // First-run / upgrade-safe seeding: copy the bundled default game-data
-        // JSON from the classpath into the per-user data directory. Existing
-        // files are never overwritten, so player data survives upgrades.
+        // First-run / upgrade-safe seeding: copy bundled game-data JSON into the
+        // per-user data directory. Editor data persists for a game version and
+        // is replaced only after launching a newer release.
         // Must run before any repository is constructed (those read the files).
         try {
             AppPaths.seedDataIfAbsent();

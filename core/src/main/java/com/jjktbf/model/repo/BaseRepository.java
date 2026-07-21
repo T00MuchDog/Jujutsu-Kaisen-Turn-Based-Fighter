@@ -62,10 +62,9 @@ public abstract class BaseRepository<D> {
     /**
      * @param dataDirectory relative directory holding the JSON file
      *                      (e.g. {@code "data/characters"}). Resolved against
-     *                      the per-user application-data directory via
-     *                      {@link AppPaths#resolve(String)}, so the game works
-     *                      regardless of the current working directory and
-     *                      player data survives upgrades.
+      *                      the per-user application-data directory via
+      *                      {@link AppPaths#resolve(String)}, so the game works
+      *                      regardless of the current working directory.
      * @param fileName      the JSON file name (e.g. {@code "all_moves.json"}).
      */
     protected BaseRepository(String dataDirectory, String fileName) {
