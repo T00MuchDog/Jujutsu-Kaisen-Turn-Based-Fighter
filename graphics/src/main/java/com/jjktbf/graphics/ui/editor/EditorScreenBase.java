@@ -279,8 +279,11 @@ public abstract class EditorScreenBase<D> implements Screen {
         actionBar.setBackground(skin.getDrawable("battle-header"));
         actionBar.pad(8f);
 
-        dirtyLabel = new Label("", skin, "small");
-        dirtyLabel.setColor(skin.get("text-dirty", Color.class));
+        // The action bar sits on the dark-blue battle-header, so the dirty /
+        // status labels use the small-white style (white base colour) — Label
+        // actor colour multiplies the style fontColour, so recolouring a
+        // TEXT_DARK "small" label to white still renders as dark navy.
+        dirtyLabel = new Label("", skin, "small-white");
         actionBar.add(dirtyLabel).left().padRight(PAD);
 
         saveButton = new TextButton("SAVE", skin, "primary");
@@ -293,7 +296,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         });
         actionBar.add(saveButton, cancelButton).left().padRight(PAD);
 
-        statusLabel = new Label("", skin, "small");
+        statusLabel = new Label("", skin, "small-white");
         actionBar.add(statusLabel).expandX().left();
 
         root.add(actionBar).growX().padTop(PAD);
@@ -343,6 +346,19 @@ public abstract class EditorScreenBase<D> implements Screen {
                 if (keycode == Input.Keys.UP)   { nudgeSelection(-1); event.cancel(); return true; }
                 if (keycode == Input.Keys.DOWN) { nudgeSelection(+1); event.cancel(); return true; }
                 if (keycode == Input.Keys.S && Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)) { save(); event.cancel(); return true; }
+                return false;
+            }
+
+            @Override public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                // LibGDX does not clear keyboard focus when you click outside a
+                // TextField, so a focused numeric field (e.g. StatField) would
+                // never get its focus-lost commit. Drop focus when the click
+                // didn't land on a TextField (and no modal is open); the field's
+                // FocusListener then runs and commits its value.
+                if (topmostDialog() != null) return false;
+                Actor target = stage.hit(x, y, true);
+                if (target instanceof TextField) return false;
+                if (stage.getKeyboardFocus() != null) stage.setKeyboardFocus(null);
                 return false;
             }
         });
@@ -656,8 +672,10 @@ public abstract class EditorScreenBase<D> implements Screen {
 
     protected void setStatus(String msg, boolean error) {
         statusLabel.setText(msg);
-        statusLabel.setColor(error ? skin.get("text-error", Color.class)
-                                   : skin.get("text-ok", Color.class));
+        // The status label lives in the dark-blue action bar, where the
+        // text-error/text-ok colours (dark red / green) are hard to read.
+        // Keep it white regardless of tone so messages stay legible.
+        statusLabel.setColor(Color.WHITE);
     }
 
     // =========================================================================

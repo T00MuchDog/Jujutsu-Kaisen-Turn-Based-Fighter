@@ -14,7 +14,7 @@ import java.util.Optional;
  *
  * <p>Move/ability membership remains child-owned and is discovered from the
  * move and ability repositories. Technique records persist only the matching
- * skill-tree nodes' layout and prerequisite metadata.
+ * technique-tree nodes' layout and prerequisite metadata.
  *
  * <p>On first run with no data file and no bundled resource the repository
  * starts empty.

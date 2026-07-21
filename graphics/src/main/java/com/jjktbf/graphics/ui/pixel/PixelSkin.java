@@ -345,6 +345,14 @@ public final class PixelSkin {
             new com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle(fontSmall, TEXT_DARK);
         skin.add("small", small, com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle.class);
 
+        // Small font with a WHITE base colour for labels that sit directly on
+        // dark-blue chrome (battle-header / battle-palette). Label actor colour
+        // MULTIPLIES the style's fontColour, so a "small" label recoloured to
+        // white still renders as TEXT_DARK — this style starts white instead.
+        com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle smallWhite =
+            new com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle(fontSmall, Color.WHITE);
+        skin.add("small-white", smallWhite, com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle.class);
+
         com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle title =
             new com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle(fontLarge, Color.WHITE);
         skin.add("title", title, com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle.class);

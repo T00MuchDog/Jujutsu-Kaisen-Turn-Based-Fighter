@@ -1,6 +1,9 @@
 package com.jjktbf.graphics.ui.editor;
 
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
@@ -8,19 +11,23 @@ import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.FocusListener;
 import com.badlogic.gdx.utils.Align;
 
 import java.util.function.IntConsumer;
 
 /**
  * A stat editor row: Label + TextField (type a value) + Slider with the min
- * and max labels at the edges, all kept in sync and clamped to {@code [min,max]}.
+ * and max labels at the edges.
  *
  * Mirrors the Pokémon Showdown stat-box feel: a clickable text field next to a
  * slider with the bounds shown on either side.
  *
- * Every change — whether typed in the field or dragged on the slider — fires
- * the supplied {@link IntConsumer} with the clamped value.
+ * Text editing is free-form while the field has keyboard focus: the user can
+ * type, delete and edit digits like any text box (digits only, no live
+ * clamping). The value is parsed, clamped to {@code [min,max]} and pushed to
+ * {@code onChange} only when the field loses focus or the user presses Enter.
+ * Dragging the slider commits immediately, as before.
  */
 public class StatField extends Table {
 
@@ -72,10 +79,12 @@ public class StatField extends Table {
         maxLabel.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
         add(maxLabel).padRight(6);
 
-        // Numeric text field (type a value)
+        // Numeric text field (type a value). Digits only — the field is
+        // free-form while focused; clamping happens on commit (focus loss /
+        // Enter), not on every keystroke, so intermediate edits like "5" while
+        // typing "50" don't snap to the min.
         valueField = new HoverTextField(String.valueOf(clamp(initial)), skin);
-        valueField.setTextFieldFilter((TextField tf, char c) ->
-            Character.isDigit(c) || (c == '-' && tf.getCursorPosition() == 0));
+        valueField.setTextFieldFilter((TextField tf, char c) -> Character.isDigit(c));
         valueField.setDisabled(disabled);
         // Fixed-ish width for the numeric input
         Container<TextField> fc = new Container<>(valueField);
@@ -95,18 +104,48 @@ public class StatField extends Table {
             }
         });
 
-        valueField.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
-                if (suppress) return;
-                String s = valueField.getText().trim();
-                if (s.isEmpty()) return;
-                try {
-                    int v = clamp(Integer.parseInt(s));
-                    if ((int) slider.getValue() != v) slider.setValue(v);
-                    onChange.accept(v);
-                } catch (NumberFormatException ignored) { /* keep typing */ }
+        // Commit on Enter (don't wait for focus loss).
+        valueField.addListener(new InputListener() {
+            @Override public boolean keyDown(InputEvent event, int keycode) {
+                if (keycode == Input.Keys.ENTER) {
+                    commit();
+                    return true;
+                }
+                return false;
             }
         });
+
+        // Commit when the field loses keyboard focus (e.g. clicking elsewhere).
+        valueField.addListener(new FocusListener() {
+            @Override public void keyboardFocusChanged(FocusEvent event, Actor actor, boolean focused) {
+                if (!focused) commit();
+            }
+        });
+    }
+
+    /**
+     * Parse the current text, clamp it to {@code [min,max]} and push the result
+     * out. Called on focus loss and Enter. Empty / non-numeric text falls back
+     * to the current slider value so the field always settles on something valid.
+     */
+    private void commit() {
+        if (suppress) return;
+        String s = valueField.getText().trim();
+        int v;
+        if (s.isEmpty()) {
+            v = (int) slider.getValue();
+        } else {
+            try {
+                v = clamp(Integer.parseInt(s));
+            } catch (NumberFormatException ignored) {
+                v = (int) slider.getValue();
+            }
+        }
+        suppress = true;
+        valueField.setText(String.valueOf(v));
+        if ((int) slider.getValue() != v) slider.setValue(v);
+        suppress = false;
+        onChange.accept(v);
     }
 
     /** Programmatically set the value without firing change handlers. */

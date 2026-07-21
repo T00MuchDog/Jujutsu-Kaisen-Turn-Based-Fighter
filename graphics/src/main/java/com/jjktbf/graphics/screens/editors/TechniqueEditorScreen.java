@@ -26,7 +26,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Technique identity editor and authoring surface for its discovered skill tree. */
+/** Technique identity editor and authoring surface for its discovered technique tree. */
 public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData> {
 
     private final TechniqueRepository repo;
@@ -143,7 +143,7 @@ public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData>
                 && ability.sourceValue.equalsIgnoreCase(technique.name));
         if (referencedByMove || referencedByAbility) {
             return ValidationResult.error(
-                "Cannot delete a technique while moves or abilities belong to its skill tree.");
+                "Cannot delete a technique while moves or abilities belong to its technique tree.");
         }
         try {
             repo.delete(id);
@@ -166,7 +166,7 @@ public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData>
         identity.add(labelledField("Description", technique.description,
             value -> technique.description = value)).growX().row();
 
-        Table tree = formSection(form, "SKILL TREE");
+        Table tree = formSection(form, "TECHNIQUE TREE");
         tree.add(formHint(
             "Drag nodes with left click. Right click a node to attach it or edit prerequisites."))
             .left().row();

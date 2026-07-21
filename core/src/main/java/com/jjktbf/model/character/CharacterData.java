@@ -67,7 +67,7 @@ public class CharacterData {
     public List<String> abilityIds;
 
     /**
-     * Ability IDs unlocked by technique skill-tree nodes and available for normal
+     * Ability IDs unlocked by technique-tree nodes and available for normal
      * assignment. They do not become active until also present in {@link #abilityIds}.
      */
     public List<String> availableAbilityIds;
@@ -173,7 +173,7 @@ public class CharacterData {
                 technique, SkillTreeNodeData.MOVE, moveId);
             if (node != null && !TechniqueSkillTree.isUnlocked(technique, node, this)) {
                 throw new IllegalArgumentException(
-                    "Skill-tree prerequisites are not met for move " + move.name);
+                    "Technique-tree prerequisites are not met for move " + move.name);
             }
         }
     }

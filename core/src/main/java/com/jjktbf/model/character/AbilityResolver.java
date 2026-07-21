@@ -129,7 +129,7 @@ public final class AbilityResolver {
         return switch (source) {
             case "CHARACTER" -> definition.id != null && explicitIds.contains(definition.id);
             // Technique ownership makes a node eligible to be authored in its
-            // skill tree; the character must still explicitly activate it.
+            // technique tree; the character must still explicitly activate it.
             case "TECHNIQUE" -> definition.id != null && explicitIds.contains(definition.id)
                 && containsIgnoreCase(techniqueNames, definition.sourceValue)
                 && treeAllows(definition, character, techniques);

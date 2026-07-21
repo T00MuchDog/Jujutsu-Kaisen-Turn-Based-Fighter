@@ -194,7 +194,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         String lockedTreeNode = firstActiveLockedTreeNode(d);
         if (lockedTreeNode != null) {
             return ValidationResult.error(
-                "Deactivate locked skill-tree node \"" + lockedTreeNode + "\" before saving.");
+                "Deactivate locked technique-tree node \"" + lockedTreeNode + "\" before saving.");
         }
         java.util.Set<String> referencedMoveIds = new java.util.LinkedHashSet<>(
             d.moveIds == null ? List.of() : d.moveIds);
@@ -355,8 +355,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         abilitiesSection.add(abilityAssignmentContainer).growX().row();
         rebuildAbilityAssignment(cd);
 
-        // ── Technique skill tree ───────────────────────────────────────────────
-        Table skillTreeSection = formSection(form, "SKILL TREE");
+        // ── Technique tree ───────────────────────────────────────────────
+        Table skillTreeSection = formSection(form, "TECHNIQUE TREE");
         skillTreeContainer = new Container<>();
         skillTreeSection.add(skillTreeContainer).growX().row();
         rebuildSkillTree(cd);
@@ -365,14 +365,14 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     }
 
     // =========================================================================
-    // Technique skill tree
+    // Technique tree
     // =========================================================================
 
     private void rebuildSkillTree(CharacterData character) {
         if (skillTreeContainer == null) return;
         List<InnateTechniqueData> techniques = accessibleTechniques(character);
         if (techniques.isEmpty()) {
-            Label empty = new Label("Choose an innate technique to view its skill tree.", skin, "small");
+            Label empty = new Label("Choose an innate technique to view its technique tree.", skin, "small");
             empty.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
             skillTreeContainer.setActor(empty);
             return;
@@ -523,13 +523,13 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (technique == null) return "Technique definition is missing";
         SkillTreeNodeData node = TechniqueSkillTree.nodeForContent(
             technique, SkillTreeNodeData.ABILITY, ability.id);
-        if (node == null) return "This ability is not in the technique skill tree";
+        if (node == null) return "This ability is not in the technique tree";
         if (!TechniqueSkillTree.isUnlocked(technique, node, character)) {
             List<String> unmet = TechniqueSkillTree.unmetPrerequisites(technique, node, character);
-            return unmet.isEmpty() ? "Skill-tree node is locked" : String.join("; ", unmet);
+            return unmet.isEmpty() ? "Technique-tree node is locked" : String.join("; ", unmet);
         }
         return TechniqueSkillTree.isActive(node, character)
-            ? null : "Toggle this ability in the skill tree first";
+            ? null : "Toggle this ability in the technique tree first";
     }
 
     private String firstActiveLockedTreeNode(CharacterData character) {
@@ -927,7 +927,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                     .map(ability -> ability.name)
                     .toList();
                 return automatic.isEmpty()
-                    ? "Technique abilities unlocked in the skill tree appear in AVAILABLE."
+                    ? "Technique abilities unlocked in the technique tree appear in AVAILABLE."
                     : "Auto-granted: " + String.join(", ", automatic);
             }
         }, skin);
@@ -983,7 +983,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private static String sourceRequirement(AbilityData ability) {
         String source = ability.sourceType == null ? "CHARACTER" : ability.sourceType.toUpperCase();
         return switch (source) {
-            case "TECHNIQUE" -> "activate in the " + ability.sourceValue + " skill tree";
+            case "TECHNIQUE" -> "activate in the " + ability.sourceValue + " technique tree";
             case "MOVE" -> "know move " + ability.sourceValue;
             case "STAT_THRESHOLD" -> ability.sourceValue;
             case "ABILITY" -> "have ability " + ability.sourceValue;

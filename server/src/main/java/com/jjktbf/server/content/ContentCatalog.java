@@ -190,7 +190,7 @@ public final class ContentCatalog {
                         technique, node, definition)) {
                         throw invalid(CHARACTERS_RESOURCE,
                             "character " + definition.id
-                                + " does not meet skill-tree prerequisites for move " + moveId);
+                                + " does not meet technique-tree prerequisites for move " + moveId);
                     }
                 }
                 moves.add(move);

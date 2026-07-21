@@ -512,7 +512,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                     ability.sourceValue = techniqueNameFromLabel(value));
                 table.add(labelledRow("Technique", technique)).growX().row();
                 table.add(formHint(
-                    "This ability is added to the technique's skill tree. Configure its unlock rules there."))
+                    "This ability is added to its technique tree. Configure its unlock rules there."))
                     .row();
             }
             case MOVE -> {
