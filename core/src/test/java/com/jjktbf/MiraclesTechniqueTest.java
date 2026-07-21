@@ -99,7 +99,16 @@ class MiraclesTechniqueTest {
         List<MoveData> moves = mapper.readValue(
             dataFile("moves", "all_moves.json").toFile(), new TypeReference<>() { });
 
-        assertTrue(techniques.stream().anyMatch(technique -> "Miracles".equals(technique.name)));
+        InnateTechniqueData miracles = techniques.stream()
+            .filter(technique -> "Miracles".equals(technique.name))
+            .findFirst()
+            .orElseThrow();
+        assertEquals(4, miracles.skillTree.size());
+        assertTrue(miracles.skillTree.stream().anyMatch(node -> "node-000000".equals(node.id)
+            && node.x == 693.99994f && node.y == 236f));
+        assertTrue(miracles.skillTree.stream().anyMatch(node -> "node-000002".equals(node.id)
+            && node.prerequisites.stream().anyMatch(requirement -> requirement.hasAttachment()
+                && "node-000001".equals(requirement.nodeId))));
         List<AbilityData> miracleDefinitions = abilityData.stream()
             .filter(ability -> "Miracles".equals(ability.sourceValue))
             .toList();

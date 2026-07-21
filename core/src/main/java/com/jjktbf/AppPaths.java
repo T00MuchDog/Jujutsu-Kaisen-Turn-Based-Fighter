@@ -13,12 +13,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -50,9 +52,11 @@ import java.util.Set;
  * <h3>Seeding</h3>
  * On first launch the bundled default game-data JSON (shipped on the classpath
  * under {@code data/...}) is copied into the per-user data directory. Existing
- * files are never overwritten. Missing bundled move, character, ability, and
- * technique definitions are appended by name on later launches, so player edits
- * survive upgrades while new default content becomes available.
+ * files are never overwritten wholesale. Missing bundled move, character,
+ * ability, and technique definitions are appended by name on later launches.
+ * Authored technique trees and the matching characters' technique state are
+ * refreshed selectively so release tree changes remain available without
+ * replacing unrelated player edits.
  *
  * <p>This class is pure Java (no libGDX) so it can live in the {@code core}
  * module and be used by both the repositories and the desktop launcher.
@@ -234,8 +238,9 @@ public final class AppPaths {
 
     /**
      * Copy the bundled default game-data JSON (classpath {@code data/...}) into
-     * the per-user data directory. Existing files are preserved, so this is
-     * safe to call on every launch and never clobbers player data on upgrade.
+     * the per-user data directory. Existing records keep their player-owned
+     * fields; bundled technique trees and the matching character technique
+     * state are refreshed on upgrade.
      *
      * <p>This mirrors the bundled files onto disk using the same classpath
      * layout (e.g. {@code data/characters/all_characters.json}) by walking the
@@ -244,36 +249,48 @@ public final class AppPaths {
      */
     public static void seedDataIfAbsent() {
         ClassLoader cl = loader();
-        // Known data files shipped on the classpath under data/ (see graphics
-        // POM resources). Listed explicitly so seeding works without a live
-        // filesystem walk of the jar, which is awkward to do portably.
-        String[] bundled = {
-            BUNDLED_CHARACTERS,
-            BUNDLED_MOVES,
-            BUNDLED_ABILITIES,
-            BUNDLED_TECHNIQUES,
-        };
-        for (String resource : bundled) {
-            try {
-                seedOne(cl, resource);
-            } catch (IOException e) {
-                writeSeedError(resource, e);
-            }
+        // Moves and abilities must be seeded first: user repositories can have
+        // different positional IDs, so later tree and character state is mapped
+        // back to the local IDs by content name.
+        seedOneSafely(cl, BUNDLED_MOVES, Map.of(), Map.of());
+        seedOneSafely(cl, BUNDLED_ABILITIES, Map.of(), Map.of());
+
+        Map<String, String> moveIdMappings = bundledToSavedIdMappings(cl, BUNDLED_MOVES);
+        Map<String, String> abilityIdMappings = bundledToSavedIdMappings(cl, BUNDLED_ABILITIES);
+        seedOneSafely(cl, BUNDLED_TECHNIQUES, moveIdMappings, abilityIdMappings);
+        seedOneSafely(cl, BUNDLED_CHARACTERS, moveIdMappings, abilityIdMappings);
+    }
+
+    private static void seedOneSafely(
+        ClassLoader cl,
+        String resource,
+        Map<String, String> moveIdMappings,
+        Map<String, String> abilityIdMappings
+    ) {
+        try {
+            seedOne(cl, resource, moveIdMappings, abilityIdMappings);
+        } catch (IOException e) {
+            writeSeedError(resource, e);
         }
     }
 
-    private static void seedOne(ClassLoader cl, String resource) throws IOException {
+    private static void seedOne(
+        ClassLoader cl,
+        String resource,
+        Map<String, String> moveIdMappings,
+        Map<String, String> abilityIdMappings
+    ) throws IOException {
         Path dest = dataDir().resolve(resource.substring("data/".length()));
         try (InputStream in = cl.getResourceAsStream(resource)) {
             if (Files.exists(dest)) {
                 if (BUNDLED_MOVES.equals(resource) && in != null) {
                     mergeBundledMoves(dest, in);
                 } else if (BUNDLED_CHARACTERS.equals(resource) && in != null) {
-                    mergeBundledCharacters(dest, in);
+                    mergeBundledCharacters(dest, in, moveIdMappings, abilityIdMappings);
                 } else if (BUNDLED_ABILITIES.equals(resource) && in != null) {
                     mergeBundledAbilities(dest, in);
                 } else if (BUNDLED_TECHNIQUES.equals(resource) && in != null) {
-                    mergeBundledTechniques(dest, in);
+                    mergeBundledTechniques(dest, in, moveIdMappings, abilityIdMappings);
                 }
                 return;
             }
@@ -283,8 +300,20 @@ public final class AppPaths {
                 return;
             }
             Files.createDirectories(dest.getParent());
-            try (OutputStream out = Files.newOutputStream(dest)) {
-                in.transferTo(out);
+            if (BUNDLED_TECHNIQUES.equals(resource) || BUNDLED_CHARACTERS.equals(resource)) {
+                // A partial profile can already contain moves/abilities with
+                // locally resequenced IDs. Start with an empty catalog so the
+                // normal merge path can remap its technique references.
+                MAPPER.writeValue(dest.toFile(), List.of());
+                if (BUNDLED_TECHNIQUES.equals(resource)) {
+                    mergeBundledTechniques(dest, in, moveIdMappings, abilityIdMappings);
+                } else {
+                    mergeBundledCharacters(dest, in, moveIdMappings, abilityIdMappings);
+                }
+            } else {
+                try (OutputStream out = Files.newOutputStream(dest)) {
+                    in.transferTo(out);
+                }
             }
         }
     }
@@ -304,13 +333,26 @@ public final class AppPaths {
 
     /**
      * Append default characters that do not already exist in a player's saved list.
-     * Name matching is case-insensitive so player-edited characters are preserved.
+     * Matching bundled technique ownership and node selections are refreshed while
+     * unrelated character fields remain player-owned.
      *
      * @return true when saved character data was migrated or a bundled character was appended
      */
     static boolean mergeBundledCharacters(Path destination, InputStream bundledCharacters) throws IOException {
+        return mergeBundledCharacters(destination, bundledCharacters, Map.of(), Map.of());
+    }
+
+    static boolean mergeBundledCharacters(
+        Path destination,
+        InputStream bundledCharacters,
+        Map<String, String> moveIdMappings,
+        Map<String, String> abilityIdMappings
+    ) throws IOException {
         boolean migrated = migrateLegacyCharacterSpritePaths(destination);
-        return mergeBundledDefinitions(destination, bundledCharacters) || migrated;
+        boolean merged = mergeBundledDefinitions(destination, bundledCharacters,
+            (saved, bundled) -> mergeBundledCharacterTechniqueState(
+                saved, bundled, moveIdMappings, abilityIdMappings));
+        return migrated || merged;
     }
 
     /** Update superseded sprite paths used by shipped character data. */
@@ -354,39 +396,236 @@ public final class AppPaths {
 
     /**
      * Append default techniques that do not already exist in a player's saved list.
-     * Name matching is case-insensitive so player-edited techniques are preserved.
+     * A matching bundled technique also refreshes its authored tree metadata.
      *
-     * @return true when at least one bundled technique was appended
+     * @return true when at least one bundled technique was appended or its tree changed
      */
     static boolean mergeBundledTechniques(Path destination, InputStream bundledTechniques) throws IOException {
-        return mergeBundledDefinitions(destination, bundledTechniques);
+        return mergeBundledTechniques(destination, bundledTechniques, Map.of(), Map.of());
     }
 
-    private static boolean mergeBundledDefinitions(Path destination, InputStream bundledDefinitions) throws IOException {
+    static boolean mergeBundledTechniques(
+        Path destination,
+        InputStream bundledTechniques,
+        Map<String, String> moveIdMappings,
+        Map<String, String> abilityIdMappings
+    ) throws IOException {
+        return mergeBundledDefinitions(destination, bundledTechniques,
+            (saved, bundled) -> mergeBundledTechniqueTreeState(
+                saved, bundled, moveIdMappings, abilityIdMappings));
+    }
+
+    @FunctionalInterface
+    private interface DefinitionStateMerger {
+        boolean merge(
+            LinkedHashMap<String, Object> saved,
+            LinkedHashMap<String, Object> bundled
+        );
+    }
+
+    private static boolean mergeBundledDefinitions(Path destination, InputStream bundledDefinitions)
+        throws IOException {
+        return mergeBundledDefinitions(destination, bundledDefinitions, null);
+    }
+
+    private static boolean mergeBundledDefinitions(
+        Path destination,
+        InputStream bundledDefinitions,
+        DefinitionStateMerger stateMerger
+    ) throws IOException {
         List<LinkedHashMap<String, Object>> saved = MAPPER.readValue(
             destination.toFile(), new TypeReference<>() {});
         List<LinkedHashMap<String, Object>> bundled = MAPPER.readValue(
             bundledDefinitions, new TypeReference<>() {});
 
-        Set<String> savedNames = new HashSet<>();
-        for (Map<String, Object> definition : saved) {
+        Map<String, LinkedHashMap<String, Object>> savedByName = new LinkedHashMap<>();
+        for (LinkedHashMap<String, Object> definition : saved) {
             String name = normalizedDefinitionName(definition);
-            if (name != null) savedNames.add(name);
+            if (name != null) savedByName.putIfAbsent(name, definition);
         }
 
         boolean changed = false;
+        Set<String> processedBundledNames = new HashSet<>();
         for (LinkedHashMap<String, Object> definition : bundled) {
             String name = normalizedDefinitionName(definition);
-            if (name == null || !savedNames.add(name)) continue;
+            if (name == null || !processedBundledNames.add(name)) continue;
 
-            LinkedHashMap<String, Object> copy = new LinkedHashMap<>(definition);
-            copy.put("id", String.format("%06d", saved.size()));
-            saved.add(copy);
-            changed = true;
+            LinkedHashMap<String, Object> target = savedByName.get(name);
+            if (target == null) {
+                target = new LinkedHashMap<>(definition);
+                target.put("id", String.format("%06d", saved.size()));
+                saved.add(target);
+                savedByName.put(name, target);
+                changed = true;
+            }
+            if (stateMerger != null && stateMerger.merge(target, definition)) {
+                changed = true;
+            }
         }
 
         if (changed) MAPPER.writeValue(destination.toFile(), saved);
         return changed;
+    }
+
+    private static Map<String, String> bundledToSavedIdMappings(ClassLoader cl, String resource) {
+        Path destination = dataDir().resolve(resource.substring("data/".length()));
+        if (!Files.isRegularFile(destination)) return Map.of();
+        try (InputStream input = cl.getResourceAsStream(resource)) {
+            if (input == null) return Map.of();
+            List<LinkedHashMap<String, Object>> saved = MAPPER.readValue(
+                destination.toFile(), new TypeReference<>() {});
+            List<LinkedHashMap<String, Object>> bundled = MAPPER.readValue(
+                input, new TypeReference<>() {});
+            Map<String, String> savedIdsByName = new LinkedHashMap<>();
+            for (int index = 0; index < saved.size(); index++) {
+                Map<String, Object> definition = saved.get(index);
+                String name = normalizedDefinitionName(definition);
+                if (name != null) {
+                    savedIdsByName.putIfAbsent(name, String.format("%06d", index));
+                }
+            }
+
+            Map<String, String> mappings = new LinkedHashMap<>();
+            for (int index = 0; index < bundled.size(); index++) {
+                Map<String, Object> definition = bundled.get(index);
+                String sourceId = identifierOf(definition);
+                String targetId = savedIdsByName.get(normalizedDefinitionName(definition));
+                if (targetId == null) continue;
+                mappings.put(String.format("%06d", index), targetId);
+                if (sourceId != null) mappings.put(sourceId, targetId);
+            }
+            return mappings;
+        } catch (IOException e) {
+            writeSeedError(resource + " ID mapping", e);
+            return Map.of();
+        }
+    }
+
+    private static boolean mergeBundledTechniqueTreeState(
+        LinkedHashMap<String, Object> saved,
+        LinkedHashMap<String, Object> bundled,
+        Map<String, String> moveIdMappings,
+        Map<String, String> abilityIdMappings
+    ) {
+        if (!bundled.containsKey("skillTree")) return false;
+        return replaceField(saved, "skillTree", remapTechniqueTree(
+            bundled.get("skillTree"), moveIdMappings, abilityIdMappings));
+    }
+
+    private static boolean mergeBundledCharacterTechniqueState(
+        LinkedHashMap<String, Object> saved,
+        LinkedHashMap<String, Object> bundled,
+        Map<String, String> moveIdMappings,
+        Map<String, String> abilityIdMappings
+    ) {
+        boolean bundledHasTechniqueState = bundled.containsKey("innateTechniqueName")
+            || bundled.containsKey("availableAbilityIds");
+        if (!bundledHasTechniqueState && !hasCharacterTechniqueState(saved)) return false;
+
+        boolean changed = false;
+        if (bundled.containsKey("innateTechniqueName")) {
+            changed |= replaceField(saved, "innateTechniqueName",
+                deepCopyJsonValue(bundled.get("innateTechniqueName")));
+        } else {
+            changed |= replaceField(saved, "innateTechniqueName", null);
+        }
+        if (bundled.containsKey("cursedTechniqueMastery")) {
+            changed |= replaceField(saved, "cursedTechniqueMastery",
+                deepCopyJsonValue(bundled.get("cursedTechniqueMastery")));
+        }
+        changed |= replaceMappedIdentifierListIfPresent(
+            saved, bundled, "moveIds", moveIdMappings);
+        changed |= replaceMappedIdentifierListIfPresent(
+            saved, bundled, "abilityIds", abilityIdMappings);
+        if (bundled.containsKey("availableAbilityIds")) {
+            changed |= replaceMappedIdentifierListIfPresent(
+                saved, bundled, "availableAbilityIds", abilityIdMappings);
+        } else {
+            changed |= replaceField(saved, "availableAbilityIds", null);
+        }
+        return changed;
+    }
+
+    private static boolean hasCharacterTechniqueState(Map<String, Object> character) {
+        Object technique = character.get("innateTechniqueName");
+        if (technique instanceof String name && !name.isBlank()) return true;
+        return character.get("availableAbilityIds") instanceof List<?> ids && !ids.isEmpty();
+    }
+
+    private static boolean replaceMappedIdentifierListIfPresent(
+        Map<String, Object> saved,
+        Map<String, Object> bundled,
+        String field,
+        Map<String, String> idMappings
+    ) {
+        if (!bundled.containsKey(field)) return false;
+        return replaceField(saved, field,
+            remapIdentifierList(bundled.get(field), idMappings));
+    }
+
+    private static Object remapTechniqueTree(
+        Object tree,
+        Map<String, String> moveIdMappings,
+        Map<String, String> abilityIdMappings
+    ) {
+        Object copy = deepCopyJsonValue(tree);
+        if (!(copy instanceof List<?> nodes)) return copy;
+        Map<String, String> moves = moveIdMappings == null ? Map.of() : moveIdMappings;
+        Map<String, String> abilities = abilityIdMappings == null ? Map.of() : abilityIdMappings;
+        for (Object candidate : nodes) {
+            if (!(candidate instanceof Map<?, ?>)) continue;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> node = (Map<String, Object>) candidate;
+            Object type = node.get("contentType");
+            Object contentId = node.get("contentId");
+            if (!(type instanceof String contentType) || !(contentId instanceof String sourceId)) continue;
+            Map<String, String> mappings = "MOVE".equalsIgnoreCase(contentType)
+                ? moves : "ABILITY".equalsIgnoreCase(contentType) ? abilities : Map.of();
+            String mappedId = mappings.get(sourceId);
+            if (mappedId != null) node.put("contentId", mappedId);
+        }
+        return copy;
+    }
+
+    private static Object remapIdentifierList(Object value, Map<String, String> idMappings) {
+        if (!(value instanceof List<?> values)) return deepCopyJsonValue(value);
+        Map<String, String> mappings = idMappings == null ? Map.of() : idMappings;
+        List<Object> remapped = new ArrayList<>(values.size());
+        for (Object entry : values) {
+            if (entry instanceof String id && mappings.containsKey(id)) {
+                remapped.add(mappings.get(id));
+            } else {
+                remapped.add(deepCopyJsonValue(entry));
+            }
+        }
+        return remapped;
+    }
+
+    private static Object deepCopyJsonValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> copy = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                copy.put(String.valueOf(entry.getKey()), deepCopyJsonValue(entry.getValue()));
+            }
+            return copy;
+        }
+        if (value instanceof List<?> values) {
+            List<Object> copy = new ArrayList<>(values.size());
+            for (Object entry : values) copy.add(deepCopyJsonValue(entry));
+            return copy;
+        }
+        return value;
+    }
+
+    private static boolean replaceField(Map<String, Object> target, String field, Object value) {
+        if (value == null) {
+            if (!target.containsKey(field)) return false;
+            target.remove(field);
+            return true;
+        }
+        if (target.containsKey(field) && Objects.equals(target.get(field), value)) return false;
+        target.put(field, value);
+        return true;
     }
 
     /** Keep the two guaranteed baseline moves free in older player move data. */
@@ -410,6 +649,12 @@ public final class AppPaths {
         Object name = definition.get("name");
         if (!(name instanceof String text) || text.isBlank()) return null;
         return text.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String identifierOf(Map<String, Object> definition) {
+        Object id = definition.get("id");
+        if (!(id instanceof String text) || text.isBlank()) return null;
+        return text;
     }
 
     /**

@@ -71,7 +71,8 @@ The `-XstartOnFirstThread` option is macOS-only. PostgreSQL/Docker setup, non-ma
 > on macOS, `%APPDATA%\JujutsuKaisenFighter\` on Windows). The in-game editors
 > read and write there, so your edits persist across launches and survive
 > upgrades. On launch, newly bundled move definitions are appended by name
-> without overwriting existing player moves.
+> without overwriting existing player moves. Bundled technique-tree layouts and
+> matching character technique/node selections are synchronized on upgrade.
 
 ### Run tests
 ```bash

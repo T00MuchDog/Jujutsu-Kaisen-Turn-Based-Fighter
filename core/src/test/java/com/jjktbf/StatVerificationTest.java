@@ -10,6 +10,7 @@ import com.jjktbf.model.move.*;
 import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -210,8 +211,10 @@ public class StatVerificationTest {
             .filter(character -> "Haruta Shigemo".equals(character.name))
             .findFirst()
             .orElseThrow();
-        assertNull(haruta.innateTechniqueName);
-        assertEquals(List.of(), haruta.abilityIds);
+        assertEquals("Miracles", haruta.innateTechniqueName);
+        assertEquals(15, haruta.cursedTechniqueMastery);
+        assertEquals(List.of("000001", "000002", "000003"), haruta.abilityIds);
+        assertEquals(List.of("000001", "000003", "000002"), haruta.availableAbilityIds);
 
         for (CharacterData character : characters) {
             List<Move> knownMoves = new ArrayList<>();
@@ -381,6 +384,283 @@ public class StatVerificationTest {
         } finally {
             Files.deleteIfExists(savedAbilities);
             Files.deleteIfExists(savedTechniques);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void bundledTechniqueMigrationCarriesTreesAndCharacterNodeState() throws IOException {
+        Path savedTechniques = Files.createTempFile("techniques", ".json");
+        Path savedCharacters = Files.createTempFile("characters", ".json");
+        try {
+            Files.writeString(savedTechniques, """
+                [
+                  {
+                    "id": "000004",
+                    "name": "Miracles",
+                    "description": "Player edit",
+                    "skillTree": [
+                      {
+                        "id": "node-old",
+                        "contentType": "MOVE",
+                        "contentId": "old-move",
+                        "x": 1,
+                        "y": 2,
+                        "prerequisites": []
+                      }
+                    ]
+                  }
+                ]
+                """);
+            String bundledTechniques = """
+                [
+                  {
+                    "id": "000000",
+                    "name": "Miracles",
+                    "description": "Bundled description",
+                    "skillTree": [
+                      {
+                        "id": "node-move",
+                        "contentType": "MOVE",
+                        "contentId": "base-move",
+                        "x": 420.5,
+                        "y": 85.25,
+                        "prerequisites": [
+                          { "type": "STAT", "stat": "strength", "minimum": 100 }
+                        ]
+                      },
+                      {
+                        "id": "node-ability",
+                        "contentType": "ABILITY",
+                        "contentId": "base-ability",
+                        "x": 720,
+                        "y": 85.25,
+                        "prerequisites": [
+                          {
+                            "type": "NODE",
+                            "nodeId": "node-move",
+                            "attached": true
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+                """;
+            Map<String, String> moveIds = Map.of("base-move", "local-move");
+            Map<String, String> abilityIds = Map.of("base-ability", "local-ability");
+
+            assertTrue(AppPaths.mergeBundledTechniques(
+                savedTechniques,
+                new ByteArrayInputStream(bundledTechniques.getBytes(StandardCharsets.UTF_8)),
+                moveIds,
+                abilityIds));
+
+            List<Map<String, Object>> migratedTechniques = new ObjectMapper().readValue(
+                savedTechniques.toFile(), new TypeReference<List<Map<String, Object>>>() {});
+            Map<String, Object> migratedTechnique = migratedTechniques.get(0);
+            assertEquals("Player edit", migratedTechnique.get("description"));
+            List<Map<String, Object>> tree = (List<Map<String, Object>>) migratedTechnique.get("skillTree");
+            assertEquals(2, tree.size());
+            assertEquals("local-move", tree.get(0).get("contentId"));
+            assertEquals(420.5, ((Number) tree.get(0).get("x")).doubleValue());
+            assertEquals("local-ability", tree.get(1).get("contentId"));
+            List<Map<String, Object>> prerequisites =
+                (List<Map<String, Object>>) tree.get(1).get("prerequisites");
+            assertEquals("node-move", prerequisites.get(0).get("nodeId"));
+            assertEquals(Boolean.TRUE, prerequisites.get(0).get("attached"));
+
+            Files.writeString(savedCharacters, """
+                [
+                  {
+                    "id": "000004",
+                    "name": "Haruta",
+                    "description": "Player character edit",
+                    "spriteAsset": "assets/custom/haruta.png",
+                    "innateTechniqueName": "Old Technique",
+                    "cursedTechniqueMastery": 0,
+                    "moveIds": [ "old-move" ],
+                    "abilityIds": [ "old-ability" ],
+                    "availableAbilityIds": [ "old-ability" ]
+                  }
+                ]
+                """);
+            String bundledCharacters = """
+                [
+                  {
+                    "id": "000000",
+                    "name": "Haruta",
+                    "innateTechniqueName": "Miracles",
+                    "cursedTechniqueMastery": 15,
+                    "moveIds": [ "base-move" ],
+                    "abilityIds": [ "base-ability" ],
+                    "availableAbilityIds": [ "base-ability" ]
+                  }
+                ]
+                """;
+
+            assertTrue(AppPaths.mergeBundledCharacters(
+                savedCharacters,
+                new ByteArrayInputStream(bundledCharacters.getBytes(StandardCharsets.UTF_8)),
+                moveIds,
+                abilityIds));
+
+            List<Map<String, Object>> migratedCharacters = new ObjectMapper().readValue(
+                savedCharacters.toFile(), new TypeReference<List<Map<String, Object>>>() {});
+            Map<String, Object> migratedCharacter = migratedCharacters.get(0);
+            assertEquals("000004", migratedCharacter.get("id"));
+            assertEquals("Player character edit", migratedCharacter.get("description"));
+            assertEquals("assets/custom/haruta.png", migratedCharacter.get("spriteAsset"));
+            assertEquals("Miracles", migratedCharacter.get("innateTechniqueName"));
+            assertEquals(15, migratedCharacter.get("cursedTechniqueMastery"));
+            assertEquals(List.of("local-move"), migratedCharacter.get("moveIds"));
+            assertEquals(List.of("local-ability"), migratedCharacter.get("abilityIds"));
+            assertEquals(List.of("local-ability"), migratedCharacter.get("availableAbilityIds"));
+
+            String bundledWithoutTechnique = """
+                [ {
+                  "id": "000000",
+                  "name": "Haruta",
+                  "cursedTechniqueMastery": 0,
+                  "moveIds": [ "base-move" ],
+                  "abilityIds": [ ]
+                } ]
+                """;
+            assertTrue(AppPaths.mergeBundledCharacters(
+                savedCharacters,
+                new ByteArrayInputStream(bundledWithoutTechnique.getBytes(StandardCharsets.UTF_8)),
+                moveIds,
+                abilityIds));
+            migratedCharacters = new ObjectMapper().readValue(
+                savedCharacters.toFile(), new TypeReference<List<Map<String, Object>>>() {});
+            migratedCharacter = migratedCharacters.get(0);
+            assertFalse(migratedCharacter.containsKey("innateTechniqueName"));
+            assertFalse(migratedCharacter.containsKey("availableAbilityIds"));
+            assertEquals(0, migratedCharacter.get("cursedTechniqueMastery"));
+            assertEquals(List.of("local-move"), migratedCharacter.get("moveIds"));
+            assertEquals(List.of(), migratedCharacter.get("abilityIds"));
+        } finally {
+            Files.deleteIfExists(savedTechniques);
+            Files.deleteIfExists(savedCharacters);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void releaseSeedRemapsBundledTechniqueStateToLocalRepositoryIds() throws Exception {
+        Path resourceRoot = Files.createTempDirectory("bundled-data");
+        Path profileRoot = Files.createTempDirectory("player-data");
+        String previousDataRoot = System.getProperty(AppPaths.DATA_ROOT_SYSTEM_PROPERTY);
+        ClassLoader previousLoader = Thread.currentThread().getContextClassLoader();
+        URLClassLoader resourceLoader = new URLClassLoader(
+            new java.net.URL[] { resourceRoot.toUri().toURL() }, null);
+        try {
+            writeJson(resourceRoot, "data/moves/all_moves.json", """
+                [ { "id": "000000", "name": "Tree Move" } ]
+                """);
+            writeJson(resourceRoot, "data/abilities/all_abilities.json", """
+                [ { "id": "000000", "name": "Tree Ability" } ]
+                """);
+            writeJson(resourceRoot, "data/techniques/all_techniques.json", """
+                [ {
+                  "id": "000000",
+                  "name": "Miracles",
+                  "skillTree": [ {
+                    "id": "node-move",
+                    "contentType": "MOVE",
+                    "contentId": "000000",
+                    "x": 300,
+                    "y": 120,
+                    "prerequisites": []
+                  }, {
+                    "id": "node-ability",
+                    "contentType": "ABILITY",
+                    "contentId": "000000",
+                    "x": 600,
+                    "y": 120,
+                    "prerequisites": [ {
+                      "type": "NODE",
+                      "nodeId": "node-move",
+                      "attached": true
+                    } ]
+                  } ]
+                } ]
+                """);
+            writeJson(resourceRoot, "data/characters/all_characters.json", """
+                [ {
+                  "id": "000000",
+                  "name": "Haruta",
+                  "innateTechniqueName": "Miracles",
+                  "cursedTechniqueMastery": 15,
+                  "moveIds": [ "000000" ],
+                  "abilityIds": [ "000000" ],
+                  "availableAbilityIds": [ "000000" ]
+                } ]
+                """);
+
+            writeJson(profileRoot, "data/moves/all_moves.json", """
+                [
+                  { "id": "000000", "name": "Custom Move" },
+                  { "id": "000001", "name": "Tree Move" }
+                ]
+                """);
+            writeJson(profileRoot, "data/abilities/all_abilities.json", """
+                [
+                  { "id": "000000", "name": "Custom Ability" },
+                  { "id": "000001", "name": "Tree Ability" }
+                ]
+                """);
+            writeJson(profileRoot, "data/techniques/all_techniques.json", """
+                [ { "id": "000000", "name": "Miracles", "skillTree": [] } ]
+                """);
+            writeJson(profileRoot, "data/characters/all_characters.json", """
+                [ {
+                  "id": "000000",
+                  "name": "Haruta",
+                  "description": "Player edit",
+                  "cursedTechniqueMastery": 0,
+                  "moveIds": [ "000000" ],
+                  "abilityIds": [ "000000" ],
+                  "availableAbilityIds": [ "000000" ]
+                } ]
+                """);
+
+            System.setProperty(AppPaths.DATA_ROOT_SYSTEM_PROPERTY, profileRoot.toString());
+            Thread.currentThread().setContextClassLoader(resourceLoader);
+            AppPaths.seedDataIfAbsent();
+
+            ObjectMapper mapper = new ObjectMapper();
+            List<Map<String, Object>> techniques = mapper.readValue(
+                profileRoot.resolve("data/techniques/all_techniques.json").toFile(),
+                new TypeReference<List<Map<String, Object>>>() {});
+            List<Map<String, Object>> tree =
+                (List<Map<String, Object>>) techniques.get(0).get("skillTree");
+            assertEquals("000001", tree.get(0).get("contentId"));
+            assertEquals("000001", tree.get(1).get("contentId"));
+            List<Map<String, Object>> prerequisites =
+                (List<Map<String, Object>>) tree.get(1).get("prerequisites");
+            assertEquals(Boolean.TRUE, prerequisites.get(0).get("attached"));
+
+            List<Map<String, Object>> characters = mapper.readValue(
+                profileRoot.resolve("data/characters/all_characters.json").toFile(),
+                new TypeReference<List<Map<String, Object>>>() {});
+            Map<String, Object> haruta = characters.get(0);
+            assertEquals("Player edit", haruta.get("description"));
+            assertEquals("Miracles", haruta.get("innateTechniqueName"));
+            assertEquals(15, haruta.get("cursedTechniqueMastery"));
+            assertEquals(List.of("000001"), haruta.get("moveIds"));
+            assertEquals(List.of("000001"), haruta.get("abilityIds"));
+            assertEquals(List.of("000001"), haruta.get("availableAbilityIds"));
+        } finally {
+            Thread.currentThread().setContextClassLoader(previousLoader);
+            if (previousDataRoot == null) {
+                System.clearProperty(AppPaths.DATA_ROOT_SYSTEM_PROPERTY);
+            } else {
+                System.setProperty(AppPaths.DATA_ROOT_SYSTEM_PROPERTY, previousDataRoot);
+            }
+            resourceLoader.close();
+            AppPaths.deleteRecursively(resourceRoot);
+            AppPaths.deleteRecursively(profileRoot);
         }
     }
 
@@ -570,6 +850,12 @@ public class StatVerificationTest {
         // Baseline stats (all 80), full CE. Defense caps CE reinforcement by Output:
         //   ceReinf = min(80, 80*0.5=40) = 40; DEF = (40*6 + 80*2)/6 = 67
         assertEquals(25, result.getFinalDamage());
+    }
+
+    private static void writeJson(Path root, String relativePath, String contents) throws IOException {
+        Path file = root.resolve(relativePath);
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, contents);
     }
 
     private static final class FixedRandom extends Random {

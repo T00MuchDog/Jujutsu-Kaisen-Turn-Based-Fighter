@@ -1,5 +1,55 @@
 [ {
   "id" : "000000",
   "name" : "Miracles",
-  "description" : "A cursed technique that erases small miracles and their memories from its user, storing them until fate must be bent to preserve their life."
+  "description" : "A cursed technique that erases small miracles and their memories from its user, storing them until fate must be bent to preserve their life.",
+  "skillTree" : [ {
+    "id" : "node-000000",
+    "contentType" : "MOVE",
+    "contentId" : "000022",
+    "x" : 693.99994,
+    "y" : 236.0,
+    "prerequisites" : [ {
+      "type" : "STAT",
+      "stat" : "cursedEnergyReserves",
+      "minimum" : 50
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 60
+    } ]
+  }, {
+    "id" : "node-000001",
+    "contentType" : "ABILITY",
+    "contentId" : "000001",
+    "x" : 16.999878,
+    "y" : 222.00006,
+    "prerequisites" : [ ]
+  }, {
+    "id" : "node-000002",
+    "contentType" : "ABILITY",
+    "contentId" : "000002",
+    "x" : 344.00006,
+    "y" : 108.99988,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000001",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 15
+    } ]
+  }, {
+    "id" : "node-000003",
+    "contentType" : "ABILITY",
+    "contentId" : "000003",
+    "x" : 344.00018,
+    "y" : 346.0,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000001",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 15
+    } ]
+  } ]
 } ]
