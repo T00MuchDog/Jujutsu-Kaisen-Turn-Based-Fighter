@@ -83,6 +83,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private Container<Actor> abilityAssignmentContainer;
     private Container<Actor> skillTreeContainer;
     private CheckBox pointBuyToggle;
+    private Label baseStatTotalLabel;
     private Label budgetLabel;
 
     public CharacterEditorScreen(JJKGame game, AssetLoader assets) {
@@ -281,6 +282,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                     statFields[StatKey.CURSED_TECHNIQUE_MASTERY.ordinal()]
                         .setValueProgrammatic(0);
                 }
+                refreshBaseStatTotalLabel(cd);
                 refreshDerivedPreview(cd);
                 refreshBudgetLabel(cd);
                 rebuildAbilityAssignment(cd);
@@ -308,7 +310,10 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 markDirty();
             }
         });
-        stats.add(pointBuyToggle).left().row();
+        baseStatTotalLabel = new Label("", skin);
+        stats.add(pointBuyToggle).left().expandX();
+        stats.add(baseStatTotalLabel).right().padRight(10f).row();
+        refreshBaseStatTotalLabel(cd);
 
         // Budget label (point-buy only)
         budgetLabel = new Label("", skin, "small");
@@ -325,6 +330,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             StatField sf = new StatField(sk.label, val, fieldMinimum, STAT_MAX, v -> {
                 sk.set(cd, v);
                 pruneLockedTechniqueSelections(cd);
+                refreshBaseStatTotalLabel(cd);
                 refreshDerivedPreview(cd);
                 if (pointBuyToggle.isChecked()) refreshBudgetLabel(cd);
                 rebuildAbilityAssignment(cd);
@@ -567,8 +573,16 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             statFields[sk.ordinal()].setValueProgrammatic(value);
         }
         refreshCtmLock();
+        refreshBaseStatTotalLabel(cd);
         refreshDerivedPreview(cd);
         refreshBudgetLabel(cd);
+    }
+
+    private void refreshBaseStatTotalLabel(CharacterData cd) {
+        if (baseStatTotalLabel == null) return;
+        int total = 0;
+        for (StatKey stat : STAT_ORDER) total += stat.get(cd);
+        baseStatTotalLabel.setText("Base Stat Total: " + total);
     }
 
     private void refreshCtmLock() {
@@ -662,9 +676,9 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                     if (assigned.contains(md.id) || granted.contains(md.id)) continue;
                     String sub = md.tags != null ? String.join(", ", md.tags) : "";
                     String error = moveAssignmentError(cd, abilityResult, md, false);
-                    items.add(error == null
-                        ? new AssignmentPanel.Item(md.id, md.name, sub)
-                        : new AssignmentPanel.Item(md.id, md.name, sub, true, error));
+                    if (error == null) {
+                        items.add(new AssignmentPanel.Item(md.id, md.name, sub));
+                    }
                 }
                 return items;
             }

@@ -276,6 +276,10 @@ public class CharacterSelectScreen implements Screen {
         // Name — top-left corner, prominent.
         assets.fontXLarge.setColor(BattleUiAssets.TEXT);
         drawBold(assets.fontXLarge, character.name, innerLeft, innerTop);
+        String baseStatTotalText = "Base Stat Total: " + baseStatTotal(character);
+        assets.fontMedium.setColor(BattleUiAssets.TEXT);
+        drawBold(assets.fontMedium, baseStatTotalText,
+            innerRight - textWidth(assets.fontMedium, baseStatTotalText), innerTop);
 
         // Content region sits below the name.
         float contentTop = innerTop - 48f;
@@ -359,6 +363,12 @@ public class CharacterSelectScreen implements Screen {
             drawBold(font, STAT_LABELS[i], x, y);
             drawBold(font, value, valueX, y);
         }
+    }
+
+    private static int baseStatTotal(CharacterData character) {
+        return character.vitality + character.strength + character.durability + character.speed
+            + character.combatAbility + character.cursedEnergyReserves + character.cursedEnergyEfficiency
+            + character.cursedEnergyOutput + character.jujutsuSkill + character.cursedTechniqueMastery;
     }
 
     private void drawDescription(String description, float x, float width, float topY, float bottomY,

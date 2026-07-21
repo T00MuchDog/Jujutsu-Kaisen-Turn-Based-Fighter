@@ -1,6 +1,9 @@
 package com.jjktbf.graphics.screens.editors;
 
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
@@ -8,6 +11,8 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.FocusListener;
+import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
@@ -21,6 +26,7 @@ import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.AbilityRepository;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.CharacterRepository;
+import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.InterruptType;
 import com.jjktbf.model.move.MoveData;
@@ -353,6 +359,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             d.stun = tags.contains(MoveTag.STUN);
             d.guardBreak = tags.contains(MoveTag.GUARD_BREAK);
             d.heavy = tags.contains(MoveTag.HEAVY);
+            ensureTechniqueStatPrerequisites(d, tags);
             refreshConditionalSections(d);
         }, skin);
         // Sync the draft's tags with the picker's coupling-enforced initial set
@@ -558,64 +565,106 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
     private Actor buildPrerequisitesEditor(MoveData d) {
         Table t = new Table(skin);
-        t.defaults().left().pad(3);
-        Map<String, Integer> map = d.prerequisites == null
-            ? new LinkedHashMap<>() : new LinkedHashMap<>(d.prerequisites);
+        Table statRow = new Table(skin);
+        statRow.defaults().center().padLeft(6f).padRight(6f);
 
-        Label count = new Label(map.size() + " requirement(s)", skin, "small");
-        count.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
-        t.add(count).colspan(4).row();
+        for (StatKey stat : StatKey.values()) {
+            Table statColumn = new Table(skin);
+            statColumn.defaults().center();
 
-        if (map.isEmpty()) {
-            t.add(formHint("(none — add one below)")).colspan(4).row();
-        } else {
-            // Snapshot the keys to avoid CME while rebuilding on remove.
-            for (String stat : new ArrayList<>(map.keySet())) {
-                Label lbl = new Label(stat + " >= " + map.get(stat), skin, "small");
-                t.add(lbl).left().growX();
-                TextButton rm = new TextButton("X", skin);
-                final String statKey = stat;
-                rm.addListener(new ChangeListener() {
-                    @Override public void changed(ChangeEvent event, Actor actor) {
-                        map.remove(statKey);
-                        d.prerequisites = map.isEmpty() ? null : new LinkedHashMap<>(map);
-                        markDirty();
-                        rebuildDetail();
-                    }
-                });
-                t.add(rm).right().row();
-            }
+            Label label = new Label(stat.label, skin, "small");
+            label.setAlignment(Align.center);
+            label.setWrap(true);
+            statColumn.add(label).width(82f).height(48f).row();
+
+            TextField valueField = new HoverTextField(
+                String.valueOf(prerequisiteValue(d, stat)), skin);
+            valueField.setTextFieldFilter((TextField tf, char c) -> Character.isDigit(c));
+            wirePrerequisiteField(valueField, d, stat);
+            statColumn.add(valueField).width(64f);
+
+            statRow.add(statColumn);
         }
 
-        // Add row: stat name + value + Add button
-        Table addRow = new Table(skin);
-        addRow.defaults().pad(3);
-        TextField statField = new HoverTextField("", skin);
-        statField.setMessageText("stat (e.g. strength)");
-        TextField valField = new HoverTextField("", skin);
-        valField.setMessageText("value");
-        valField.setTextFieldFilter((TextField tf, char c) -> Character.isDigit(c) || c == '-');
-        TextButton addBtn = new TextButton("Add", skin);
-        addBtn.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
-                String s = statField.getText().trim();
-                String v = valField.getText().trim();
-                if (s.isEmpty() || v.isEmpty()) return;
-                try {
-                    int vi = Integer.parseInt(v);
-                    map.put(s, vi);
-                    d.prerequisites = new LinkedHashMap<>(map);
-                    markDirty();
-                    rebuildDetail();
-                } catch (NumberFormatException ignored) {}
+        t.add(statRow).center().expandX().row();
+        t.add(formHint("Set each stat's minimum value (0 means no threshold)."))
+            .padTop(6f).center().row();
+        return t;
+    }
+
+    /** Match the character editor's numeric fields: commit on Enter or focus loss. */
+    private void wirePrerequisiteField(TextField field, MoveData d, StatKey stat) {
+        field.addListener(new InputListener() {
+            @Override public boolean keyDown(InputEvent event, int keycode) {
+                if (keycode == Input.Keys.ENTER) {
+                    commitPrerequisite(field, d, stat);
+                    return true;
+                }
+                return false;
             }
         });
-        addRow.add(statField).width(180).padRight(6);
-        addRow.add(valField).width(80).padRight(6);
-        addRow.add(addBtn);
-        t.add(addRow).colspan(4).growX().row();
+        field.addListener(new FocusListener() {
+            @Override public void keyboardFocusChanged(
+                FocusEvent event, Actor actor, boolean focused
+            ) {
+                if (!focused) commitPrerequisite(field, d, stat);
+            }
+        });
+    }
 
-        return t;
+    private void commitPrerequisite(TextField field, MoveData d, StatKey stat) {
+        String text = field.getText().trim();
+        int value = 0;
+        if (!text.isEmpty()) {
+            try {
+                value = Math.max(0, Math.min(300, Integer.parseInt(text)));
+            } catch (NumberFormatException ignored) {
+                value = prerequisiteValue(d, stat);
+            }
+        }
+        field.setText(String.valueOf(value));
+
+        Map<String, Integer> updated = d.prerequisites == null
+            ? new LinkedHashMap<>() : new LinkedHashMap<>(d.prerequisites);
+        updated.entrySet().removeIf(
+            entry -> entry.getKey() != null && stat.matches(entry.getKey()));
+        updated.put(stat.fieldName, value);
+        d.prerequisites = updated;
+        markDirty();
+    }
+
+    private static int prerequisiteValue(MoveData d, StatKey stat) {
+        if (d.prerequisites == null) return 0;
+        for (Map.Entry<String, Integer> entry : d.prerequisites.entrySet()) {
+            if (entry.getKey() != null && stat.matches(entry.getKey())) {
+                return entry.getValue() == null ? 0
+                    : Math.max(0, Math.min(300, entry.getValue()));
+            }
+        }
+        return 0;
+    }
+
+    /** Technique moves require their governing stat key, even at the default threshold. */
+    private static void ensureTechniqueStatPrerequisites(MoveData d, Set<MoveTag> tags) {
+        Map<String, Integer> updated = d.prerequisites == null
+            ? new LinkedHashMap<>() : new LinkedHashMap<>(d.prerequisites);
+        boolean changed = false;
+        if (tags.contains(MoveTag.INNATE_TECHNIQUE)
+            && !hasPrerequisite(updated, StatKey.CURSED_TECHNIQUE_MASTERY)) {
+            updated.put(StatKey.CURSED_TECHNIQUE_MASTERY.fieldName, 0);
+            changed = true;
+        }
+        if (tags.contains(MoveTag.NON_INNATE_TECHNIQUE)
+            && !hasPrerequisite(updated, StatKey.JUJUTSU_SKILL)) {
+            updated.put(StatKey.JUJUTSU_SKILL.fieldName, 0);
+            changed = true;
+        }
+        if (changed) d.prerequisites = updated;
+    }
+
+    private static boolean hasPrerequisite(Map<String, Integer> prerequisites, StatKey stat) {
+        return prerequisites.keySet().stream()
+            .anyMatch(key -> key != null && stat.matches(key));
     }
 
     /**
