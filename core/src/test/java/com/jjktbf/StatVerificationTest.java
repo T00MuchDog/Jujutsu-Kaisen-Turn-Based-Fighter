@@ -231,7 +231,7 @@ public class StatVerificationTest {
     }
 
     @Test
-    void bundledMoveMigrationAddsMissingMovesWithoutOverwritingPlayerMoves() throws IOException {
+    void bundledMoveMigrationRefreshesBundledMovesAndPreservesCustomMoves() throws IOException {
         Path savedMoves = Files.createTempFile("moves", ".json");
         try {
             Files.writeString(savedMoves, """
@@ -253,8 +253,9 @@ public class StatVerificationTest {
             List<MoveData> migrated = new ObjectMapper().readValue(
                 savedMoves.toFile(), new TypeReference<List<MoveData>>() {});
             assertEquals(3, migrated.size());
-            assertEquals("Player edit", migrated.get(0).description);
+            assertEquals("Bundled default", migrated.get(0).description);
             assertTrue(migrated.get(0).isFreeMove);
+            assertEquals("Custom Move", migrated.get(1).name);
             assertEquals("000002", migrated.get(2).id);
             assertEquals("Jab", migrated.get(2).name);
         } finally {
@@ -263,7 +264,7 @@ public class StatVerificationTest {
     }
 
     @Test
-    void bundledCharacterMigrationAddsMissingCharactersWithoutOverwritingPlayerCharacters() throws IOException {
+    void bundledCharacterMigrationRefreshesBundledCharactersAndPreservesCustomCharacters() throws IOException {
         Path savedCharacters = Files.createTempFile("characters", ".json");
         try {
             Files.writeString(savedCharacters, """
@@ -286,7 +287,7 @@ public class StatVerificationTest {
             List<CharacterData> migrated = new ObjectMapper().readValue(
                 savedCharacters.toFile(), new TypeReference<List<CharacterData>>() {});
             assertEquals(4, migrated.size());
-            assertEquals("Player edit", migrated.get(0).description);
+            assertEquals("Bundled default", migrated.get(0).description);
             assertEquals("Custom Fighter", migrated.get(1).name);
             assertEquals("000002", migrated.get(2).id);
             assertEquals("Mina Ishikawa", migrated.get(2).name);
@@ -312,7 +313,11 @@ public class StatVerificationTest {
                 """);
             String bundled = """
                 [
-                  { "id": "000000", "name": "Ren Kurogane" }
+                  {
+                    "id": "000000",
+                    "name": "Ren Kurogane",
+                    "spriteAsset": "assets/sprites/characters/yuji_frontsprite.png"
+                  }
                 ]
                 """;
 
@@ -332,7 +337,7 @@ public class StatVerificationTest {
     }
 
     @Test
-    void bundledAbilityAndTechniqueMigrationPreservesPlayerEdits() throws IOException {
+    void bundledAbilityMigrationRefreshesBundledDefinitionsAndPreservesCustomOnes() throws IOException {
         Path savedAbilities = Files.createTempFile("abilities", ".json");
         Path savedTechniques = Files.createTempFile("techniques", ".json");
         try {
@@ -355,7 +360,8 @@ public class StatVerificationTest {
             List<Map<String, Object>> migratedAbilities = new ObjectMapper().readValue(
                 savedAbilities.toFile(), new TypeReference<List<Map<String, Object>>>() {});
             assertEquals(3, migratedAbilities.size());
-            assertEquals("Player edit", migratedAbilities.get(0).get("flavourText"));
+            assertEquals("Bundled default", migratedAbilities.get(0).get("flavourText"));
+            assertEquals("Custom Ability", migratedAbilities.get(1).get("name"));
             assertEquals("000002", migratedAbilities.get(2).get("id"));
             assertEquals("Six Eyes", migratedAbilities.get(2).get("name"));
 
@@ -490,6 +496,8 @@ public class StatVerificationTest {
                   {
                     "id": "000000",
                     "name": "Haruta",
+                    "description": "Bundled character description",
+                    "spriteAsset": "assets/sprites/characters/haruta.png",
                     "innateTechniqueName": "Miracles",
                     "cursedTechniqueMastery": 15,
                     "moveIds": [ "base-move" ],
@@ -509,8 +517,8 @@ public class StatVerificationTest {
                 savedCharacters.toFile(), new TypeReference<List<Map<String, Object>>>() {});
             Map<String, Object> migratedCharacter = migratedCharacters.get(0);
             assertEquals("000004", migratedCharacter.get("id"));
-            assertEquals("Player character edit", migratedCharacter.get("description"));
-            assertEquals("assets/custom/haruta.png", migratedCharacter.get("spriteAsset"));
+            assertEquals("Bundled character description", migratedCharacter.get("description"));
+            assertEquals("assets/sprites/characters/haruta.png", migratedCharacter.get("spriteAsset"));
             assertEquals("Miracles", migratedCharacter.get("innateTechniqueName"));
             assertEquals(15, migratedCharacter.get("cursedTechniqueMastery"));
             assertEquals(List.of("local-move"), migratedCharacter.get("moveIds"));
@@ -556,10 +564,10 @@ public class StatVerificationTest {
             new java.net.URL[] { resourceRoot.toUri().toURL() }, null);
         try {
             writeJson(resourceRoot, "data/moves/all_moves.json", """
-                [ { "id": "000000", "name": "Tree Move" } ]
+                [ { "id": "000000", "name": "Tree Move", "description": "Release move" } ]
                 """);
             writeJson(resourceRoot, "data/abilities/all_abilities.json", """
-                [ { "id": "000000", "name": "Tree Ability" } ]
+                [ { "id": "000000", "name": "Tree Ability", "flavourText": "Release ability" } ]
                 """);
             writeJson(resourceRoot, "data/techniques/all_techniques.json", """
                 [ {
@@ -590,6 +598,7 @@ public class StatVerificationTest {
                 [ {
                   "id": "000000",
                   "name": "Haruta",
+                  "description": "Release character",
                   "innateTechniqueName": "Miracles",
                   "cursedTechniqueMastery": 15,
                   "moveIds": [ "000000" ],
@@ -601,13 +610,13 @@ public class StatVerificationTest {
             writeJson(profileRoot, "data/moves/all_moves.json", """
                 [
                   { "id": "000000", "name": "Custom Move" },
-                  { "id": "000001", "name": "Tree Move" }
+                  { "id": "000001", "name": "Tree Move", "description": "Player move edit" }
                 ]
                 """);
             writeJson(profileRoot, "data/abilities/all_abilities.json", """
                 [
                   { "id": "000000", "name": "Custom Ability" },
-                  { "id": "000001", "name": "Tree Ability" }
+                  { "id": "000001", "name": "Tree Ability", "flavourText": "Player ability edit" }
                 ]
                 """);
             writeJson(profileRoot, "data/techniques/all_techniques.json", """
@@ -630,6 +639,16 @@ public class StatVerificationTest {
             AppPaths.seedDataIfAbsent();
 
             ObjectMapper mapper = new ObjectMapper();
+            List<Map<String, Object>> moves = mapper.readValue(
+                profileRoot.resolve("data/moves/all_moves.json").toFile(),
+                new TypeReference<List<Map<String, Object>>>() {});
+            assertEquals("Release move", moves.get(1).get("description"));
+
+            List<Map<String, Object>> abilities = mapper.readValue(
+                profileRoot.resolve("data/abilities/all_abilities.json").toFile(),
+                new TypeReference<List<Map<String, Object>>>() {});
+            assertEquals("Release ability", abilities.get(1).get("flavourText"));
+
             List<Map<String, Object>> techniques = mapper.readValue(
                 profileRoot.resolve("data/techniques/all_techniques.json").toFile(),
                 new TypeReference<List<Map<String, Object>>>() {});
@@ -645,7 +664,7 @@ public class StatVerificationTest {
                 profileRoot.resolve("data/characters/all_characters.json").toFile(),
                 new TypeReference<List<Map<String, Object>>>() {});
             Map<String, Object> haruta = characters.get(0);
-            assertEquals("Player edit", haruta.get("description"));
+            assertEquals("Release character", haruta.get("description"));
             assertEquals("Miracles", haruta.get("innateTechniqueName"));
             assertEquals(15, haruta.get("cursedTechniqueMastery"));
             assertEquals(List.of("000001"), haruta.get("moveIds"));

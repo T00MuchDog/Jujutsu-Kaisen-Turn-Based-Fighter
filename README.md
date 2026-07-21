@@ -69,10 +69,10 @@ The `-XstartOnFirstThread` option is macOS-only. PostgreSQL/Docker setup, non-ma
 > **Where data lives:** On first launch the game copies its bundled default
 > data into a per-user directory (`~/Library/Application Support/JujutsuKaisenFighter/`
 > on macOS, `%APPDATA%\JujutsuKaisenFighter\` on Windows). The in-game editors
-> read and write there, so your edits persist across launches and survive
-> upgrades. On launch, newly bundled move definitions are appended by name
-> without overwriting existing player moves. Bundled technique-tree layouts and
-> matching character technique/node selections are synchronized on upgrade.
+> read and write there. On launch, bundled moves, abilities, and characters are
+> refreshed by name from the installed release, so updated stats and balance
+> changes take effect. Player-created records remain. Bundled technique-tree
+> layouts are synchronized on upgrade.
 
 ### Run tests
 ```bash
@@ -107,14 +107,14 @@ the full process; the short version:
 ### How to cut a new release
 
 ```bash
-git commit -am "Release 1.2.8"
+git commit -am "Release 1.2.9"
 
-mvn -Drevision=1.2.8 clean verify
+mvn -Drevision=1.2.9 clean verify
 
-git tag v1.2.8
+git tag v1.2.9
 
 git push origin HEAD
-git push origin v1.2.8
+git push origin v1.2.9
 ```
 
 Pushing the tag triggers GitHub Actions, which builds macOS (arm64 + x64) and

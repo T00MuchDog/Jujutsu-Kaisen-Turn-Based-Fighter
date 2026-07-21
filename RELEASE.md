@@ -177,10 +177,11 @@ lives **outside** the app, in a per-user directory:
 | Linux   | `~/.jujutsukaisenfighter/` (or `$XDG_DATA_HOME`)        |
 
 On first launch the bundled defaults are copied there; on every subsequent
-launch missing definitions are appended without replacing player-owned fields.
-Bundled technique-tree metadata and the matching characters' technique/node
-state are synchronized so authored release layouts and unlock selections carry
-forward. To verify an upgrade manually:
+launch, bundled moves, abilities, and characters with a matching name are
+replaced by the definitions shipped in the installed release. Player-created
+records without a bundled match remain. Bundled technique-tree metadata is also
+synchronized so authored release layouts carry forward. To verify an upgrade
+manually:
 
 1. Install and run version N (e.g. `1.0.0`). Make a change in an editor and
    save it — or just note the existing data.

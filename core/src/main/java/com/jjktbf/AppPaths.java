@@ -52,11 +52,10 @@ import java.util.Set;
  * <h3>Seeding</h3>
  * On first launch the bundled default game-data JSON (shipped on the classpath
  * under {@code data/...}) is copied into the per-user data directory. Existing
- * files are never overwritten wholesale. Missing bundled move, character,
- * ability, and technique definitions are appended by name on later launches.
- * Authored technique trees and the matching characters' technique state are
- * refreshed selectively so release tree changes remain available without
- * replacing unrelated player edits.
+ * records with a matching bundled name are refreshed from the release on later
+ * launches. Player-created records with no bundled match remain available.
+ * Authored technique trees are also refreshed so release tree changes remain
+ * available without replacing player-created techniques.
  *
  * <p>This class is pure Java (no libGDX) so it can live in the {@code core}
  * module and be used by both the repositories and the desktop launcher.
@@ -238,9 +237,9 @@ public final class AppPaths {
 
     /**
      * Copy the bundled default game-data JSON (classpath {@code data/...}) into
-     * the per-user data directory. Existing records keep their player-owned
-     * fields; bundled technique trees and the matching character technique
-     * state are refreshed on upgrade.
+     * the per-user data directory. Matching bundled moves, abilities, and
+     * characters are refreshed from the release; player-created records remain.
+     * Bundled technique trees are also refreshed on upgrade.
      *
      * <p>This mirrors the bundled files onto disk using the same classpath
      * layout (e.g. {@code data/characters/all_characters.json}) by walking the
@@ -319,24 +318,25 @@ public final class AppPaths {
     }
 
     /**
-     * Append default moves that do not already exist in a player's saved list.
-     * Name matching is case-insensitive so player-edited moves are preserved.
+     * Refresh bundled moves by name so release balance changes replace stale
+     * local definitions. Player-created moves without a bundled name remain.
      * Basic Strike and Basic Block are additionally migrated to their mandated
      * free-move status.
      *
-     * @return true when at least one bundled move was appended
+     * @return true when at least one bundled move was refreshed or appended
      */
     static boolean mergeBundledMoves(Path destination, InputStream bundledMoves) throws IOException {
-        boolean appended = mergeBundledDefinitions(destination, bundledMoves);
-        return markBaselineMovesFree(destination) || appended;
+        boolean refreshed = mergeBundledDefinitions(destination, bundledMoves,
+            AppPaths::replaceBundledDefinition);
+        return markBaselineMovesFree(destination) || refreshed;
     }
 
     /**
-     * Append default characters that do not already exist in a player's saved list.
-     * Matching bundled technique ownership and node selections are refreshed while
-     * unrelated character fields remain player-owned.
+     * Refresh bundled characters by name so release stats, loadouts, and other
+     * authored fields replace stale local definitions. Player-created characters
+     * without a bundled name remain.
      *
-     * @return true when saved character data was migrated or a bundled character was appended
+     * @return true when saved character data was migrated, refreshed, or appended
      */
     static boolean mergeBundledCharacters(Path destination, InputStream bundledCharacters) throws IOException {
         return mergeBundledCharacters(destination, bundledCharacters, Map.of(), Map.of());
@@ -350,7 +350,7 @@ public final class AppPaths {
     ) throws IOException {
         boolean migrated = migrateLegacyCharacterSpritePaths(destination);
         boolean merged = mergeBundledDefinitions(destination, bundledCharacters,
-            (saved, bundled) -> mergeBundledCharacterTechniqueState(
+            (saved, bundled) -> replaceBundledCharacterDefinition(
                 saved, bundled, moveIdMappings, abilityIdMappings));
         return migrated || merged;
     }
@@ -385,13 +385,14 @@ public final class AppPaths {
     }
 
     /**
-     * Append default abilities that do not already exist in a player's saved list.
-     * Name matching is case-insensitive so player-edited abilities are preserved.
+     * Refresh bundled abilities by name so release changes replace stale local
+     * definitions. Player-created abilities without a bundled name remain.
      *
-     * @return true when at least one bundled ability was appended
+     * @return true when at least one bundled ability was refreshed or appended
      */
     static boolean mergeBundledAbilities(Path destination, InputStream bundledAbilities) throws IOException {
-        return mergeBundledDefinitions(destination, bundledAbilities);
+        return mergeBundledDefinitions(destination, bundledAbilities,
+            AppPaths::replaceBundledDefinition);
     }
 
     /**
@@ -512,55 +513,57 @@ public final class AppPaths {
             bundled.get("skillTree"), moveIdMappings, abilityIdMappings));
     }
 
-    private static boolean mergeBundledCharacterTechniqueState(
+    private static boolean replaceBundledDefinition(
+        LinkedHashMap<String, Object> saved,
+        LinkedHashMap<String, Object> bundled
+    ) {
+        LinkedHashMap<String, Object> replacement = bundledDefinitionWithSavedId(saved, bundled);
+        if (saved.equals(replacement)) return false;
+        saved.clear();
+        saved.putAll(replacement);
+        return true;
+    }
+
+    private static boolean replaceBundledCharacterDefinition(
         LinkedHashMap<String, Object> saved,
         LinkedHashMap<String, Object> bundled,
         Map<String, String> moveIdMappings,
         Map<String, String> abilityIdMappings
     ) {
-        boolean bundledHasTechniqueState = bundled.containsKey("innateTechniqueName")
-            || bundled.containsKey("availableAbilityIds");
-        if (!bundledHasTechniqueState && !hasCharacterTechniqueState(saved)) return false;
-
-        boolean changed = false;
-        if (bundled.containsKey("innateTechniqueName")) {
-            changed |= replaceField(saved, "innateTechniqueName",
-                deepCopyJsonValue(bundled.get("innateTechniqueName")));
-        } else {
-            changed |= replaceField(saved, "innateTechniqueName", null);
-        }
-        if (bundled.containsKey("cursedTechniqueMastery")) {
-            changed |= replaceField(saved, "cursedTechniqueMastery",
-                deepCopyJsonValue(bundled.get("cursedTechniqueMastery")));
-        }
-        changed |= replaceMappedIdentifierListIfPresent(
-            saved, bundled, "moveIds", moveIdMappings);
-        changed |= replaceMappedIdentifierListIfPresent(
-            saved, bundled, "abilityIds", abilityIdMappings);
-        if (bundled.containsKey("availableAbilityIds")) {
-            changed |= replaceMappedIdentifierListIfPresent(
-                saved, bundled, "availableAbilityIds", abilityIdMappings);
-        } else {
-            changed |= replaceField(saved, "availableAbilityIds", null);
-        }
-        return changed;
+        LinkedHashMap<String, Object> replacement = bundledDefinitionWithSavedId(saved, bundled);
+        remapIdentifierList(replacement, "moveIds", moveIdMappings);
+        remapIdentifierList(replacement, "abilityIds", abilityIdMappings);
+        remapIdentifierList(replacement, "availableAbilityIds", abilityIdMappings);
+        if (saved.equals(replacement)) return false;
+        saved.clear();
+        saved.putAll(replacement);
+        return true;
     }
 
-    private static boolean hasCharacterTechniqueState(Map<String, Object> character) {
-        Object technique = character.get("innateTechniqueName");
-        if (technique instanceof String name && !name.isBlank()) return true;
-        return character.get("availableAbilityIds") instanceof List<?> ids && !ids.isEmpty();
-    }
-
-    private static boolean replaceMappedIdentifierListIfPresent(
+    private static LinkedHashMap<String, Object> bundledDefinitionWithSavedId(
         Map<String, Object> saved,
-        Map<String, Object> bundled,
+        Map<String, Object> bundled
+    ) {
+        LinkedHashMap<String, Object> replacement = new LinkedHashMap<>();
+        Object savedId = saved.get("id");
+        for (Map.Entry<String, Object> entry : bundled.entrySet()) {
+            replacement.put(entry.getKey(), "id".equals(entry.getKey()) && savedId != null
+                ? deepCopyJsonValue(savedId)
+                : deepCopyJsonValue(entry.getValue()));
+        }
+        if (!replacement.containsKey("id") && savedId != null) {
+            replacement.put("id", deepCopyJsonValue(savedId));
+        }
+        return replacement;
+    }
+
+    private static void remapIdentifierList(
+        Map<String, Object> definition,
         String field,
         Map<String, String> idMappings
     ) {
-        if (!bundled.containsKey(field)) return false;
-        return replaceField(saved, field,
-            remapIdentifierList(bundled.get(field), idMappings));
+        if (!definition.containsKey(field)) return;
+        definition.put(field, remapIdentifierList(definition.get(field), idMappings));
     }
 
     private static Object remapTechniqueTree(
