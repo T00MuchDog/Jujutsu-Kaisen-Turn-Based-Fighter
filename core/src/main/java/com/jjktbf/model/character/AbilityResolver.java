@@ -155,7 +155,8 @@ public final class AbilityResolver {
         if (technique == null) return false;
         SkillTreeNodeData node = TechniqueSkillTree.nodeForContent(
             technique, SkillTreeNodeData.ABILITY, definition.id);
-        return node != null && TechniqueSkillTree.isUnlocked(technique, node, character);
+        return node != null && TechniqueSkillTree.isActive(node, character)
+            && TechniqueSkillTree.isUnlocked(technique, node, character);
     }
 
     private static void collectGrants(

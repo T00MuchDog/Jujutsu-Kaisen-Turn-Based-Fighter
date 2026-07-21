@@ -182,8 +182,17 @@ public final class TechniqueSkillTree {
 
     public static boolean isActive(SkillTreeNodeData node, CharacterData character) {
         if (node == null || character == null || node.contentId == null) return false;
-        List<String> ids = SkillTreeNodeData.MOVE.equalsIgnoreCase(node.contentType)
-            ? character.moveIds : character.abilityIds;
+        List<String> ids;
+        if (SkillTreeNodeData.MOVE.equalsIgnoreCase(node.contentType)) {
+            ids = character.moveIds;
+        } else if (SkillTreeNodeData.ABILITY.equalsIgnoreCase(node.contentType)) {
+            // Old character saves used abilityIds for this state. Preserve that
+            // behavior until the character is next edited and writes this list.
+            ids = character.availableAbilityIds != null
+                ? character.availableAbilityIds : character.abilityIds;
+        } else {
+            return false;
+        }
         return ids != null && ids.contains(node.contentId);
     }
 
@@ -193,8 +202,19 @@ public final class TechniqueSkillTree {
             if (character.moveIds == null) character.moveIds = new ArrayList<>();
             updateSelection(character.moveIds, node.contentId, active);
         } else if (SkillTreeNodeData.ABILITY.equalsIgnoreCase(node.contentType)) {
-            if (character.abilityIds == null) character.abilityIds = new ArrayList<>();
-            updateSelection(character.abilityIds, node.contentId, active);
+            if (character.availableAbilityIds == null) {
+                character.availableAbilityIds = new ArrayList<>();
+                if (character.abilityIds != null) {
+                    character.availableAbilityIds.addAll(character.abilityIds);
+                }
+            }
+            updateSelection(character.availableAbilityIds, node.contentId, active);
+            // Turning a node off also removes its normal assignment, because an
+            // unavailable technique ability cannot remain active on the character.
+            if (!active && character.abilityIds != null) {
+                character.abilityIds = new ArrayList<>(character.abilityIds);
+                character.abilityIds.removeIf(node.contentId::equals);
+            }
         }
     }
 

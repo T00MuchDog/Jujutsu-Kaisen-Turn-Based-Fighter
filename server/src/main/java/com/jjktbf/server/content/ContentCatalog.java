@@ -164,6 +164,8 @@ public final class ContentCatalog {
                     "character " + definition.id + " has no moveIds array");
             }
             verifyReferences(definition.abilityIds, abilityIds, "ability", definition.id);
+            verifyReferences(definition.availableAbilityIds, abilityIds,
+                "available ability", definition.id);
 
             AbilityResolver.Result resolved = AbilityResolver.resolve(
                 definition, abilityDefinitions, movesById::containsKey, techniqueDefinitions);

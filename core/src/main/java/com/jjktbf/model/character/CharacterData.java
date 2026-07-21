@@ -61,10 +61,16 @@ public class CharacterData {
     public List<String> moveIds;
 
     /**
-     * 6-digit ability IDs from AbilityRepository.
+     * 6-digit ability IDs assigned from the character's available pool.
      * Resolved to Ability domain objects at load time via toCharacter().
      */
     public List<String> abilityIds;
+
+    /**
+     * Ability IDs unlocked by technique skill-tree nodes and available for normal
+     * assignment. They do not become active until also present in {@link #abilityIds}.
+     */
+    public List<String> availableAbilityIds;
 
     // -------------------------------------------------------------------------
     // Derived helpers

@@ -108,6 +108,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         cd.cursedTechniqueMastery = 0;
         cd.moveIds    = new ArrayList<>();
         cd.abilityIds = new ArrayList<>();
+        cd.availableAbilityIds = new ArrayList<>();
         return cd;
     }
 
@@ -123,6 +124,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (d.innateTechniqueName == null) d.cursedTechniqueMastery = 0;
         d.moveIds    = stored.moveIds    != null ? new ArrayList<>(stored.moveIds)    : new ArrayList<>();
         d.abilityIds = stored.abilityIds != null ? new ArrayList<>(stored.abilityIds) : new ArrayList<>();
+        d.availableAbilityIds = stored.availableAbilityIds != null
+            ? new ArrayList<>(stored.availableAbilityIds) : null;
         return d;
     }
 
@@ -175,6 +178,17 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             if (missingAbility != null) {
                 return ValidationResult.error(
                     "Remove missing ability reference " + missingAbility + " before saving.");
+            }
+        }
+        if (d.availableAbilityIds != null) {
+            String missingAvailableAbility = d.availableAbilityIds.stream()
+                .filter(abilityId -> abilityId == null || abilityRepo.findById(abilityId).isEmpty())
+                .map(String::valueOf)
+                .findFirst().orElse(null);
+            if (missingAvailableAbility != null) {
+                return ValidationResult.error(
+                    "Remove missing available ability reference " + missingAvailableAbility
+                        + " before saving.");
             }
         }
         String lockedTreeNode = firstActiveLockedTreeNode(d);
@@ -423,8 +437,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 : moveAssignmentError(character, resolvedAbilities(character), move, false);
         }
         AbilityData ability = abilityRepo.findById(node.contentId).orElse(null);
-        return ability == null ? "This ability no longer exists."
-            : abilityAssignmentConflict(character, ability.id);
+        return ability == null ? "This ability no longer exists." : null;
     }
 
     private InnateTechniqueData currentTechnique(CharacterData character) {
@@ -500,11 +513,23 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             && resolvedAbilities(character).hasTechnique(move.requiredTechniqueId);
     }
 
-    private boolean isCurrentTechniqueAbility(CharacterData character, String abilityId) {
-        if (character == null || abilityId == null) return false;
-        AbilityData ability = abilityRepo.findById(abilityId).orElse(null);
-        return isTechniqueSource(ability) && ability.sourceValue != null
-            && resolvedAbilities(character).hasTechnique(ability.sourceValue);
+    private String techniqueAbilityAvailabilityError(CharacterData character, AbilityData ability) {
+        if (!isTechniqueSource(ability)) return null;
+        AbilityResolver.Result resolved = resolvedAbilities(character);
+        if (ability.sourceValue == null || !resolved.hasTechnique(ability.sourceValue)) {
+            return "Needs technique " + String.valueOf(ability.sourceValue);
+        }
+        InnateTechniqueData technique = techniqueForName(ability.sourceValue);
+        if (technique == null) return "Technique definition is missing";
+        SkillTreeNodeData node = TechniqueSkillTree.nodeForContent(
+            technique, SkillTreeNodeData.ABILITY, ability.id);
+        if (node == null) return "This ability is not in the technique skill tree";
+        if (!TechniqueSkillTree.isUnlocked(technique, node, character)) {
+            List<String> unmet = TechniqueSkillTree.unmetPrerequisites(technique, node, character);
+            return unmet.isEmpty() ? "Skill-tree node is locked" : String.join("; ", unmet);
+        }
+        return TechniqueSkillTree.isActive(node, character)
+            ? null : "Toggle this ability in the skill tree first";
     }
 
     private String firstActiveLockedTreeNode(CharacterData character) {
@@ -815,10 +840,15 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 List<String> assigned = cd.abilityIds != null ? cd.abilityIds : List.of();
                 AbilityResolver.Result resolved = resolvedAbilities(cd);
                 for (AbilityData ad : all) {
-                    if (isTechniqueSource(ad)) continue;
                     if (assigned.contains(ad.id) || resolved.containsAbility(ad.id)) continue;
                     String sub = abilitySublabel(ad);
-                    if (isCharacterSource(ad)) {
+                    if (isTechniqueSource(ad)) {
+                        String availabilityError = techniqueAbilityAvailabilityError(cd, ad);
+                        items.add(availabilityError == null
+                            ? new AssignmentPanel.Item(ad.id, ad.name, sub)
+                            : new AssignmentPanel.Item(
+                                ad.id, ad.name, sub, true, availabilityError));
+                    } else if (isCharacterSource(ad)) {
                         String conflict = abilityAssignmentConflict(cd, ad.id);
                         items.add(conflict == null
                             ? new AssignmentPanel.Item(ad.id, ad.name, sub)
@@ -835,21 +865,25 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 List<AssignmentPanel.Item> items = new ArrayList<>();
                 List<String> assigned = cd.abilityIds != null ? cd.abilityIds : List.of();
                 for (String aid : assigned) {
-                    if (isCurrentTechniqueAbility(cd, aid)) continue;
                     AbilityData ad = aid == null ? null : abilityRepo.findById(aid).orElse(null);
                     if (ad == null) {
                         items.add(new AssignmentPanel.Item(
                             aid, "Missing ability " + String.valueOf(aid),
                             "Click to remove this broken reference"));
                     } else {
-                        String sub = isCharacterSource(ad)
-                            ? abilitySublabel(ad)
-                            : "Explicit reference; source rules still apply";
+                        String sub = abilitySublabel(ad);
+                        if (isTechniqueSource(ad)) {
+                            String availabilityError = techniqueAbilityAvailabilityError(cd, ad);
+                            if (availabilityError != null) {
+                                sub += " | UNAVAILABLE: " + availabilityError;
+                            }
+                        } else if (!isCharacterSource(ad)) {
+                            sub = "Explicit reference; source rules still apply";
+                        }
                         items.add(new AssignmentPanel.Item(ad.id, ad.name, sub));
                     }
                 }
                 for (AbilityData ad : resolvedAbilities(cd).abilities()) {
-                    if (isTechniqueSource(ad)) continue;
                     if (assigned.contains(ad.id)) continue;
                     items.add(new AssignmentPanel.Item(
                         ad.id, ad.name, abilitySublabel(ad), true, "Auto-granted: " + sourceRequirement(ad)));
@@ -859,8 +893,12 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
             @Override public boolean canAssign(String id) {
                 AbilityData ability = abilityRepo.findById(id).orElse(null);
-                return ability != null && isCharacterSource(ability)
-                    && abilityAssignmentConflict(cd, id) == null;
+                if (ability == null) return false;
+                if (isTechniqueSource(ability)) {
+                    return techniqueAbilityAvailabilityError(cd, ability) == null
+                        && abilityAssignmentConflict(cd, id) == null;
+                }
+                return isCharacterSource(ability) && abilityAssignmentConflict(cd, id) == null;
             }
 
             @Override public void onAssign(String id) {
@@ -870,6 +908,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 refreshDerivedPreview(cd);
                 refreshBudgetLabel(cd);
                 rebuildMoveAssignment(cd);
+                rebuildSkillTree(cd);
             }
 
             @Override public void onUnassign(String id) {
@@ -878,6 +917,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 refreshDerivedPreview(cd);
                 refreshBudgetLabel(cd);
                 rebuildMoveAssignment(cd);
+                rebuildSkillTree(cd);
             }
 
             @Override public String budgetSummary() {
@@ -887,7 +927,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                     .map(ability -> ability.name)
                     .toList();
                 return automatic.isEmpty()
-                    ? "Technique abilities are activated in the skill tree below."
+                    ? "Technique abilities unlocked in the skill tree appear in AVAILABLE."
                     : "Auto-granted: " + String.join(", ", automatic);
             }
         }, skin);

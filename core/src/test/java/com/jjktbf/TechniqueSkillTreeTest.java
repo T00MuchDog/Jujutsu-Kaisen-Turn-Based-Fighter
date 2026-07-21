@@ -82,10 +82,13 @@ class TechniqueSkillTreeTest {
         TechniqueSkillTree.setActive(moveNode, character, true);
         assertTrue(TechniqueSkillTree.isUnlocked(technique, abilityNode, character));
         TechniqueSkillTree.setActive(abilityNode, character, true);
+        assertTrue(character.availableAbilityIds.contains("A1"));
+        assertFalse(character.abilityIds.contains("A1"));
 
         TechniqueSkillTree.setActive(moveNode, character, false);
         assertTrue(TechniqueSkillTree.pruneLockedSelections(technique, character));
         assertFalse(TechniqueSkillTree.isActive(abilityNode, character));
+        assertFalse(character.availableAbilityIds.contains("A1"));
     }
 
     @Test
@@ -100,6 +103,7 @@ class TechniqueSkillTreeTest {
         CharacterData character = new CharacterData();
         character.innateTechniqueName = "Miracles";
         character.abilityIds = new ArrayList<>();
+        character.availableAbilityIds = new ArrayList<>();
         character.cursedTechniqueMastery = 99;
 
         assertFalse(AbilityResolver.resolve(
@@ -110,6 +114,10 @@ class TechniqueSkillTreeTest {
             character, List.of(ability), ignored -> true, List.of(technique))
             .containsAbility("A1"));
         character.cursedTechniqueMastery = 100;
+        assertFalse(AbilityResolver.resolve(
+            character, List.of(ability), ignored -> true, List.of(technique))
+            .containsAbility("A1"));
+        character.availableAbilityIds.add("A1");
         assertTrue(AbilityResolver.resolve(
             character, List.of(ability), ignored -> true, List.of(technique))
             .containsAbility("A1"));
@@ -118,20 +126,30 @@ class TechniqueSkillTreeTest {
     @Test
     void treeMetadataSurvivesJsonRoundTrip() throws Exception {
         InnateTechniqueData technique = technique();
+        AbilityData ability = ability("A1", "Miracles");
         TechniqueSkillTree.synchronize(
-            technique, List.of(move("M1", "Miracles")), List.of());
-        SkillTreeNodeData node = technique.skillTree.get(0);
-        node.x = 432f;
-        node.y = 123f;
+            technique, List.of(move("M1", "Miracles")), List.of(ability));
+        SkillTreeNodeData moveNode = node(technique, SkillTreeNodeData.MOVE, "M1");
+        SkillTreeNodeData abilityNode = node(technique, SkillTreeNodeData.ABILITY, "A1");
+        moveNode.x = 432f;
+        moveNode.y = 123f;
+        SkillTreePrerequisiteData connection = new SkillTreePrerequisiteData();
+        connection.type = SkillTreePrerequisiteData.NODE;
+        connection.nodeId = moveNode.id;
+        connection.attached = true;
+        abilityNode.prerequisites.add(connection);
 
         ObjectMapper mapper = new ObjectMapper();
         InnateTechniqueData restored = mapper.readValue(
             mapper.writeValueAsString(technique), InnateTechniqueData.class);
 
         assertNotNull(restored.skillTree);
-        assertEquals(node.id, restored.skillTree.get(0).id);
-        assertEquals(432f, restored.skillTree.get(0).x);
-        assertEquals(123f, restored.skillTree.get(0).y);
+        SkillTreeNodeData restoredMove = node(restored, SkillTreeNodeData.MOVE, "M1");
+        SkillTreeNodeData restoredAbility = node(restored, SkillTreeNodeData.ABILITY, "A1");
+        assertEquals(moveNode.id, restoredMove.id);
+        assertEquals(432f, restoredMove.x);
+        assertEquals(123f, restoredMove.y);
+        assertTrue(restoredAbility.prerequisites.get(0).hasAttachment());
     }
 
     private static InnateTechniqueData technique() {

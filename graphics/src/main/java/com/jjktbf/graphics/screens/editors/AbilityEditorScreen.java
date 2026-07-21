@@ -396,12 +396,14 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             CharacterRepository characterRepo = new CharacterRepository("data/characters");
             characterRepo.load();
             for (CharacterData character : characterRepo.getAll()) {
-                if (character.abilityIds == null) continue;
-                character.abilityIds = character.abilityIds.stream()
-                    .filter(abilityId -> !id.equals(abilityId))
-                    .map(abilityId -> remappedIds.getOrDefault(abilityId, abilityId))
-                    .distinct()
-                    .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+                if (character.abilityIds != null) {
+                    character.abilityIds = remapCharacterAbilityIds(
+                        character.abilityIds, id, remappedIds);
+                }
+                if (character.availableAbilityIds != null) {
+                    character.availableAbilityIds = remapCharacterAbilityIds(
+                        character.availableAbilityIds, id, remappedIds);
+                }
             }
 
             repo.delete(id);
@@ -413,6 +415,18 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         } catch (Exception ex) {
             return ValidationResult.error("Delete failed: " + ex.getMessage());
         }
+    }
+
+    private static List<String> remapCharacterAbilityIds(
+        List<String> ids,
+        String deletedId,
+        Map<String, String> remappedIds
+    ) {
+        return ids.stream()
+            .filter(abilityId -> !deletedId.equals(abilityId))
+            .map(abilityId -> remappedIds.getOrDefault(abilityId, abilityId))
+            .distinct()
+            .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
     }
 
     @Override

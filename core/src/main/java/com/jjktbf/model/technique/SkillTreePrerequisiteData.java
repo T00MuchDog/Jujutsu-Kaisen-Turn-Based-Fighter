@@ -1,6 +1,5 @@
 package com.jjktbf.model.technique;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -28,8 +27,8 @@ public class SkillTreePrerequisiteData {
     /** True when the node requirement should also render as a connector. */
     public Boolean attached;
 
-    @JsonIgnore
-    public boolean isAttached() {
+    /** Whether this node requirement is rendered as a persistent connector. */
+    public boolean hasAttachment() {
         return NODE.equalsIgnoreCase(type) && Boolean.TRUE.equals(attached);
     }
 

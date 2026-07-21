@@ -171,7 +171,7 @@ public class SkillTreeCanvas extends WidgetGroup {
         for (SkillTreeNodeData target : technique.skillTree) {
             if (target == null || target.prerequisites == null) continue;
             for (SkillTreePrerequisiteData requirement : target.prerequisites) {
-                if (requirement == null || !requirement.isAttached()) continue;
+                if (requirement == null || !requirement.hasAttachment()) continue;
                 SkillTreeNodeData source = TechniqueSkillTree.nodeById(technique, requirement.nodeId);
                 if (source == null) continue;
                 float startX = source.x + NODE_WIDTH;
@@ -201,7 +201,7 @@ public class SkillTreeCanvas extends WidgetGroup {
         for (SkillTreeNodeData target : technique.skillTree) {
             if (target == null || target.prerequisites == null) continue;
             for (SkillTreePrerequisiteData requirement : target.prerequisites) {
-                if (requirement == null || !requirement.isAttached()) continue;
+                if (requirement == null || !requirement.hasAttachment()) continue;
                 SkillTreeNodeData source = TechniqueSkillTree.nodeById(technique, requirement.nodeId);
                 if (source == null) continue;
                 float startX = source.x + NODE_WIDTH;
@@ -561,7 +561,7 @@ public class SkillTreeCanvas extends WidgetGroup {
         }
         SkillTreeNodeData node = TechniqueSkillTree.nodeById(technique, prerequisite.nodeId);
         return "Node: " + (node == null ? prerequisite.nodeId : contentName(node))
-            + (prerequisite.isAttached() ? " (attached)" : "");
+            + (prerequisite.hasAttachment() ? " (attached)" : "");
     }
 
     private String contentName(SkillTreeNodeData node) {
@@ -628,6 +628,7 @@ public class SkillTreeCanvas extends WidgetGroup {
         private float startX;
         private float startY;
         private boolean dragged;
+        private boolean hovered;
 
         private NodeView(SkillTreeNodeData node) {
             super(skin);
@@ -694,22 +695,32 @@ public class SkillTreeCanvas extends WidgetGroup {
                 }
 
                 @Override public void enter(InputEvent event, float x, float y, int pointer, Actor fromActor) {
-                    if (pointer == -1) setBackground(skin.getDrawable("textfield-over"));
+                    if (pointer == -1) {
+                        hovered = true;
+                        refreshState();
+                    }
                 }
 
                 @Override public void exit(InputEvent event, float x, float y, int pointer, Actor toActor) {
-                    if (pointer == -1) setBackground(skin.getDrawable("white-panel"));
+                    if (pointer == -1) {
+                        hovered = false;
+                        refreshState();
+                    }
                 }
             });
         }
 
         private void refreshState() {
+            boolean active = character != null && TechniqueSkillTree.isActive(node, character);
+            // The same yellow-outline treatment used on hover remains while the
+            // character has the node toggled on.
+            setBackground(skin.getDrawable(active || hovered ? "textfield-over" : "white-panel"));
             if (character == null) {
                 name.setColor(skin.get("text-dark", Color.class));
                 description.setColor(skin.get("text-dark", Color.class));
                 return;
             }
-            if (TechniqueSkillTree.isActive(node, character)) {
+            if (active) {
                 name.setColor(skin.get("text-ok", Color.class));
                 description.setColor(skin.get("text-dark", Color.class));
             } else if (TechniqueSkillTree.isUnlocked(technique, node, character)) {
