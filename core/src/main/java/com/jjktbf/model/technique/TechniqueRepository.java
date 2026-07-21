@@ -12,10 +12,9 @@ import java.util.Optional;
  *
  * <p>ID scheme and CRUD behaviour are inherited from {@link BaseRepository}.
  *
- * <p>A technique's move/ability contents are <b>not</b> stored here — they are
- * discovered at runtime via {@link InnateTechnique#moves} and
- * {@link InnateTechnique#abilities}, which query the move and ability
- * repositories for entries referencing the technique's name.
+ * <p>Move/ability membership remains child-owned and is discovered from the
+ * move and ability repositories. Technique records persist only the matching
+ * skill-tree nodes' layout and prerequisite metadata.
  *
  * <p>On first run with no data file and no bundled resource the repository
  * starts empty.

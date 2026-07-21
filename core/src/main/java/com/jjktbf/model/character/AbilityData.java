@@ -27,7 +27,7 @@ import java.util.List;
  *
  * Source types:
  *   CHARACTER      — intrinsic to the character (no prerequisite)
- *   TECHNIQUE      — requires possessing a named innate technique
+ *   TECHNIQUE      — appears as an activatable node in a named technique's tree
  *   MOVE           — requires knowing a specific move (by ID)
  *   STAT_THRESHOLD — requires a stat to be at or above a threshold ("strength>=200")
  *   ABILITY        — granted by possessing another specific ability (by ID or name)
@@ -112,12 +112,9 @@ public class AbilityData {
     public int triggerThreshold;
 
     /**
-     * Mastery threshold at which a technique-sourced ability unlocks and is
-     * auto-granted to a character. For {@code sourceType == "TECHNIQUE"}
-     * abilities, this is compared against the character's cursed-technique-mastery
-     * (or a substitute stat for Copy-like abilities) — see
-     * {@link com.jjktbf.model.technique.InnateTechnique#abilities}. Ignored for
-     * non-technique abilities. Zero = unlocked from the start.
+     * Legacy technique mastery threshold. New technique progression is authored
+     * in {@code InnateTechniqueData.skillTree}; synchronization migrates a
+     * positive legacy value into a mastery prerequisite when adding the node.
      */
     public int masteryThreshold;
 

@@ -3,6 +3,8 @@ package com.jjktbf.model.technique;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import java.util.List;
+
 /**
  * DTO for {@link InnateTechnique}, persisted as JSON by
  * {@link TechniqueRepository}.
@@ -24,6 +26,9 @@ public class InnateTechniqueData {
 
     /** Free-form description / flavour text. */
     public String description;
+
+    /** Authored layout and unlock rules for the discovered move/ability nodes. */
+    public List<SkillTreeNodeData> skillTree;
 
     public InnateTechnique toTechnique() {
         return new InnateTechnique(id, name, description);

@@ -11,6 +11,9 @@ import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveData;
+import com.jjktbf.model.technique.InnateTechniqueData;
+import com.jjktbf.model.technique.SkillTreeNodeData;
+import com.jjktbf.model.technique.TechniqueSkillTree;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,6 +32,7 @@ public final class ContentCatalog {
     public static final String MOVES_RESOURCE = "/data/moves/all_moves.json";
     public static final String CHARACTERS_RESOURCE = "/data/characters/all_characters.json";
     public static final String ABILITIES_RESOURCE = "/data/abilities/all_abilities.json";
+    public static final String TECHNIQUES_RESOURCE = "/data/techniques/all_techniques.json";
 
     private final Map<String, SorcererCharacter> charactersById;
     private final List<CharacterSummary> characterSummaries;
@@ -50,7 +54,9 @@ public final class ContentCatalog {
             mapper, CHARACTERS_RESOURCE, new TypeReference<>() { });
         List<AbilityData> abilities = read(
             mapper, ABILITIES_RESOURCE, new TypeReference<>() { });
-        return build(moves, characters, abilities);
+        List<InnateTechniqueData> techniques = read(
+            mapper, TECHNIQUES_RESOURCE, new TypeReference<>() { });
+        return build(moves, characters, abilities, techniques);
     }
 
     /** Creates a minimal catalog for focused service tests and future embedding. */
@@ -87,15 +93,22 @@ public final class ContentCatalog {
     private static ContentCatalog build(
         List<MoveData> moveDefinitions,
         List<CharacterData> characterDefinitions,
-        List<AbilityData> abilityDefinitions
+        List<AbilityData> abilityDefinitions,
+        List<InnateTechniqueData> techniqueDefinitions
     ) {
         requireNonEmpty(moveDefinitions, MOVES_RESOURCE);
         requireNonEmpty(characterDefinitions, CHARACTERS_RESOURCE);
         if (abilityDefinitions == null) {
             throw invalid(ABILITIES_RESOURCE, "top-level JSON value must be an array");
         }
+        if (techniqueDefinitions == null) {
+            throw invalid(TECHNIQUES_RESOURCE, "top-level JSON value must be an array");
+        }
+        techniqueDefinitions.forEach(technique -> TechniqueSkillTree.synchronize(
+            technique, moveDefinitions, abilityDefinitions));
 
         Map<String, Move> movesById = new LinkedHashMap<>();
+        Map<String, MoveData> moveDataById = new LinkedHashMap<>();
         for (MoveData definition : moveDefinitions) {
             if (definition == null) {
                 throw invalid(MOVES_RESOURCE, "contains a null move definition");
@@ -111,6 +124,7 @@ public final class ContentCatalog {
                 if (movesById.putIfAbsent(definition.id, move) != null) {
                     throw invalid(MOVES_RESOURCE, "duplicate move ID " + definition.id);
                 }
+                moveDataById.put(definition.id, definition);
             } catch (IllegalArgumentException exception) {
                 throw invalid(MOVES_RESOURCE,
                     "invalid move " + definition.id + ": " + exception.getMessage(), exception);
@@ -152,7 +166,7 @@ public final class ContentCatalog {
             verifyReferences(definition.abilityIds, abilityIds, "ability", definition.id);
 
             AbilityResolver.Result resolved = AbilityResolver.resolve(
-                definition, abilityDefinitions, movesById::containsKey);
+                definition, abilityDefinitions, movesById::containsKey, techniqueDefinitions);
             LinkedHashSet<String> resolvedMoveIds = new LinkedHashSet<>(definition.moveIds);
             resolvedMoveIds.addAll(resolved.grantedMoveIds());
             List<Move> moves = new ArrayList<>();
@@ -161,6 +175,21 @@ public final class ContentCatalog {
                 if (move == null) {
                     throw invalid(CHARACTERS_RESOURCE,
                         "character " + definition.id + " references unknown move " + moveId);
+                }
+                if (definition.moveIds.contains(moveId)) {
+                    MoveData moveData = moveDataById.get(moveId);
+                    InnateTechniqueData technique = moveData == null ? null
+                        : TechniqueSkillTree.techniqueByName(
+                            techniqueDefinitions, moveData.requiredTechniqueId);
+                    SkillTreeNodeData node = technique == null ? null
+                        : TechniqueSkillTree.nodeForContent(
+                            technique, SkillTreeNodeData.MOVE, moveId);
+                    if (node != null && !TechniqueSkillTree.isUnlocked(
+                        technique, node, definition)) {
+                        throw invalid(CHARACTERS_RESOURCE,
+                            "character " + definition.id
+                                + " does not meet skill-tree prerequisites for move " + moveId);
+                    }
                 }
                 moves.add(move);
             }

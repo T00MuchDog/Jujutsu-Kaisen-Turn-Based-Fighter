@@ -158,6 +158,7 @@ public final class PixelSkin {
         Drawable scrollKnobH  = patch("scroll-knob-h", SCROLL_KNOB);
         Drawable scrollKnobV  = patch("scroll-knob-v", SCROLL_KNOB);
         Drawable listSel      = patch("list-sel",   new Color(SELECTION.r, SELECTION.g, SELECTION.b, 0.85f));
+        Drawable whitePixel   = patch("white-pixel", Color.WHITE);
         // Pure-white dropdown + list background (was parchment, which let the
         // screen colour bleed through).
         Drawable whitePanel   = textfield;
@@ -189,6 +190,7 @@ public final class PixelSkin {
         skin.add("scroll-knob-h", scrollKnobH,  Drawable.class);
         skin.add("scroll-knob-v", scrollKnobV,  Drawable.class);
         skin.add("list-sel",      listSel,      Drawable.class);
+        skin.add("white-pixel",   whitePixel,   Drawable.class);
 
         registerLabelStyles(skin);
         registerTextButtonStyles(skin, card, cardOver, cardDisabled, primary, primaryOver);

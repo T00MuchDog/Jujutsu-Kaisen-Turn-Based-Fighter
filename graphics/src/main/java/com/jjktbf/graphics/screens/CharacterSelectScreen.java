@@ -22,6 +22,7 @@ import com.jjktbf.model.character.CharacterRepository;
 import com.jjktbf.model.character.CombatStats;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveRepository;
+import com.jjktbf.model.technique.TechniqueRepository;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ public class CharacterSelectScreen implements Screen {
     private static final String CHAR_DATA_DIR = "data/characters";
     private static final String MOVE_DATA_DIR = "data/moves";
     private static final String ABILITY_DATA_DIR = "data/abilities";
+    private static final String TECHNIQUE_DATA_DIR = "data/techniques";
     private static final float ROW_HEIGHT = 44f;
     private static final int MOVE_COLUMNS = 5;
     private static final float MOVE_CARD_GAP = 8f;
@@ -58,6 +60,7 @@ public class CharacterSelectScreen implements Screen {
     private final CharacterRepository charRepo;
     private final MoveRepository moveRepo;
     private final AbilityRepository abilityRepo;
+    private final TechniqueRepository techniqueRepo;
     /** Guards against double-dispose of native batch resources. */
     private boolean disposed;
     private final Rectangle headerBounds = new Rectangle();
@@ -89,6 +92,7 @@ public class CharacterSelectScreen implements Screen {
         charRepo = new CharacterRepository(CHAR_DATA_DIR);
         moveRepo = new MoveRepository(MOVE_DATA_DIR);
         abilityRepo = new AbilityRepository(ABILITY_DATA_DIR);
+        techniqueRepo = new TechniqueRepository(TECHNIQUE_DATA_DIR);
     }
 
     @Override
@@ -108,6 +112,7 @@ public class CharacterSelectScreen implements Screen {
         try {
             moveRepo.load();
             abilityRepo.load();
+            techniqueRepo.load();
             charRepo.load();
             characters = charRepo.getAll();
             if (characters.isEmpty()) {
@@ -184,7 +189,8 @@ public class CharacterSelectScreen implements Screen {
             cursorIndex = 0;
             resetMoveScroll();
         } else {
-            game.startBattle(playerChoice, characters.get(cursorIndex), moveRepo, abilityRepo);
+            game.startBattle(
+                playerChoice, characters.get(cursorIndex), moveRepo, abilityRepo, techniqueRepo);
         }
     }
 
@@ -378,7 +384,7 @@ public class CharacterSelectScreen implements Screen {
         resetMoveScroll();
         learnedMovesError = null;
         try {
-            learnedMoves = character.toCharacter(moveRepo, abilityRepo).getKnownMoves();
+            learnedMoves = character.toCharacter(moveRepo, abilityRepo, techniqueRepo).getKnownMoves();
         } catch (Exception e) {
             learnedMoves = List.of();
             learnedMovesError = e.getMessage();

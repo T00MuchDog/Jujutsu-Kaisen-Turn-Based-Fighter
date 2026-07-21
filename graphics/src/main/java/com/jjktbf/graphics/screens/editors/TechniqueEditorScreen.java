@@ -1,190 +1,264 @@
 package com.jjktbf.graphics.screens.editors;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
+import com.jjktbf.graphics.ui.editor.SkillTreeCanvas;
 import com.jjktbf.graphics.ui.editor.ValidationResult;
+import com.jjktbf.model.character.AbilityData;
+import com.jjktbf.model.character.AbilityEffectType;
+import com.jjktbf.model.character.AbilityRepository;
+import com.jjktbf.model.character.CharacterData;
+import com.jjktbf.model.character.CharacterRepository;
+import com.jjktbf.model.move.MoveData;
+import com.jjktbf.model.move.MoveRepository;
 import com.jjktbf.model.technique.InnateTechniqueData;
+import com.jjktbf.model.technique.SkillTreeNodeData;
+import com.jjktbf.model.technique.SkillTreePrerequisiteData;
 import com.jjktbf.model.technique.TechniqueRepository;
+import com.jjktbf.model.technique.TechniqueSkillTree;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
-/**
- * Graphical CRUD editor for {@link InnateTechniqueData}. Master-detail layout,
- * mouse + keyboard driven, pixel-art themed.
- *
- * <p>A technique owns only its identity: a {@code name} (matched
- * case-insensitively against {@code MoveData.requiredTechniqueId} and
- * {@code CharacterData.innateTechniqueName}) and a {@code description}. Its
- * move/ability progression is <b>discovered</b> at runtime, not stored — so this
- * editor intentionally exposes only those two fields.
- *
- * <p>The detail form additionally lists (read-only) the moves and abilities that
- * currently reference this technique's name, so the author can see what the
- * progression looks like without leaving the editor.
- */
+/** Technique identity editor and authoring surface for its discovered skill tree. */
 public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData> {
 
     private final TechniqueRepository repo;
+    private final MoveRepository moveRepo;
+    private final AbilityRepository abilityRepo;
 
     public TechniqueEditorScreen(JJKGame game, AssetLoader assets) {
         super(game, assets);
         repo = new TechniqueRepository("data/techniques");
+        moveRepo = new MoveRepository("data/moves");
+        abilityRepo = new AbilityRepository("data/abilities");
     }
-
-    // =========================================================================
-    // Abstract hooks
-    // =========================================================================
 
     @Override protected String title() { return "TECHNIQUE EDITOR"; }
 
     @Override protected InnateTechniqueData newDraft() {
-        InnateTechniqueData t = new InnateTechniqueData();
-        t.name        = "New Technique";
-        t.description = "";
-        return t;
+        InnateTechniqueData technique = new InnateTechniqueData();
+        technique.name = "New Technique";
+        technique.description = "";
+        technique.skillTree = new ArrayList<>();
+        return technique;
     }
 
     @Override protected InnateTechniqueData draftFromRecord(InnateTechniqueData stored) {
-        InnateTechniqueData d = new InnateTechniqueData();
-        d.id          = stored.id;
-        d.name        = stored.name;
-        d.description = stored.description;
-        return d;
+        InnateTechniqueData copy = new InnateTechniqueData();
+        copy.id = stored.id;
+        copy.name = stored.name;
+        copy.description = stored.description;
+        copy.skillTree = new ArrayList<>();
+        if (stored.skillTree != null) {
+            stored.skillTree.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(SkillTreeNodeData::copy)
+                .forEach(copy.skillTree::add);
+        }
+        TechniqueSkillTree.synchronize(copy, moveRepo.getAll(), abilityRepo.getAll());
+        return copy;
     }
 
-    @Override protected String idOf(InnateTechniqueData r) { return r.id; }
-
+    @Override protected String idOf(InnateTechniqueData record) { return record.id; }
     @Override protected String nextId() { return repo.nextId(); }
-
     @Override protected void stampNewId(InnateTechniqueData draft) { draft.id = repo.nextId(); }
 
-    @Override protected String listLabel(InnateTechniqueData r) {
-        return r.name == null || r.name.isEmpty() ? "(unnamed)" : r.name;
+    @Override protected String listLabel(InnateTechniqueData record) {
+        return record.name == null || record.name.isEmpty() ? "(unnamed)" : record.name;
     }
 
     @Override protected boolean isNewDraft(InnateTechniqueData draft) {
-        return draft.id == null || draft.id.isEmpty()
-            || repo.findById(draft.id).isEmpty();
+        return draft.id == null || draft.id.isEmpty() || repo.findById(draft.id).isEmpty();
     }
 
     @Override
     protected void reloadRecords() throws IOException {
         repo.load();
+        moveRepo.load();
+        abilityRepo.load();
         records.clear();
         records.addAll(repo.getAll());
     }
 
     @Override
-    protected ValidationResult validateAndSave(InnateTechniqueData d) {
-        if (d.name == null || d.name.trim().isEmpty()) {
+    protected ValidationResult validateAndSave(InnateTechniqueData technique) {
+        if (technique.name == null || technique.name.trim().isEmpty()) {
             return ValidationResult.error("Name is required.");
         }
-        // Guard against duplicate names (case-insensitive) — two techniques with
-        // the same name would make move/character technique references ambiguous.
+        technique.name = technique.name.trim();
         for (InnateTechniqueData existing : repo.getAll()) {
-            if (d.id != null && d.id.equals(existing.id)) continue; // skip self on edit
-            if (d.name.equalsIgnoreCase(existing.name)) {
-                return ValidationResult.error("A technique named \"" + existing.name + "\" already exists.");
+            if (technique.id != null && technique.id.equals(existing.id)) continue;
+            if (existing.name != null && technique.name.equalsIgnoreCase(existing.name)) {
+                return ValidationResult.error(
+                    "A technique named \"" + existing.name + "\" already exists.");
             }
         }
+
+        String previousName = repo.findById(technique.id)
+            .map(existing -> existing.name).orElse(null);
+        CharacterRepository characterRepo = null;
+        boolean renamed = previousName != null && !previousName.equals(technique.name);
         try {
-            if (isNewDraft(d)) {
-                d.id = null;
-                repo.add(d);
+            if (renamed) {
+                characterRepo = new CharacterRepository("data/characters");
+                characterRepo.load();
+                rewriteTechniqueReferences(previousName, technique.name, characterRepo);
+            }
+            TechniqueSkillTree.synchronize(technique, moveRepo.getAll(), abilityRepo.getAll());
+            applyAuthoredPrerequisites(technique);
+
+            if (isNewDraft(technique)) {
+                technique.id = null;
+                repo.add(technique);
             } else {
-                repo.update(d);
+                repo.update(technique);
             }
             repo.save();
-        } catch (Exception e) {
-            return ValidationResult.error("Save failed: " + e.getMessage());
+            moveRepo.save();
+            abilityRepo.save();
+            if (characterRepo != null) characterRepo.save();
+        } catch (Exception exception) {
+            return ValidationResult.error("Save failed: " + exception.getMessage());
         }
-        return ValidationResult.ok("Saved \"" + d.name + "\".");
+        return ValidationResult.ok("Saved \"" + technique.name + "\".");
     }
 
     @Override
     protected ValidationResult delete(String id) {
+        InnateTechniqueData technique = repo.findById(id).orElse(null);
+        if (technique == null) return ValidationResult.error("Technique no longer exists.");
+        boolean referencedByMove = moveRepo.getAll().stream().anyMatch(move ->
+            move.requiredTechniqueId != null
+                && move.requiredTechniqueId.equalsIgnoreCase(technique.name));
+        boolean referencedByAbility = abilityRepo.getAll().stream().anyMatch(ability ->
+            "TECHNIQUE".equalsIgnoreCase(ability.sourceType)
+                && ability.sourceValue != null
+                && ability.sourceValue.equalsIgnoreCase(technique.name));
+        if (referencedByMove || referencedByAbility) {
+            return ValidationResult.error(
+                "Cannot delete a technique while moves or abilities belong to its skill tree.");
+        }
         try {
             repo.delete(id);
             repo.save();
             return ValidationResult.ok("Deleted.");
-        } catch (Exception e) {
-            return ValidationResult.error("Delete failed: " + e.getMessage());
+        } catch (Exception exception) {
+            return ValidationResult.error("Delete failed: " + exception.getMessage());
         }
     }
 
-    // =========================================================================
-    // Detail form
-    // =========================================================================
-
     @Override
-    protected Actor buildDetailForm(InnateTechniqueData d) {
+    protected Actor buildDetailForm(InnateTechniqueData technique) {
+        TechniqueSkillTree.synchronize(technique, moveRepo.getAll(), abilityRepo.getAll());
         Table form = formRoot();
 
         Table identity = formSection(form, "NAME");
-        identity.add(idBadge(d.id)).left().row();
-        identity.add(labelledField("Name", d.name,
-                s -> { d.name = s; })).growX().row();
-        identity.add(labelledField("Description", d.description,
-                s -> { d.description = s; })).growX().row();
+        identity.add(idBadge(technique.id)).left().row();
+        identity.add(labelledField("Name", technique.name, value -> technique.name = value))
+            .growX().row();
+        identity.add(labelledField("Description", technique.description,
+            value -> technique.description = value)).growX().row();
 
-        Table refs = formSection(form, "REFERENCING MOVES & ABILITIES");
-        refs.add(formHint("(discovered at runtime from the move/ability editors — read-only here)"))
+        Table tree = formSection(form, "SKILL TREE");
+        tree.add(formHint(
+            "Drag nodes with left click. Right click a node to attach it or edit prerequisites."))
             .left().row();
-
-        // Read-only list of moves that reference this technique. Computed live
-        // from a fresh MoveRepository so editor-side move edits are reflected.
-        int moveCount = 0;
-        try {
-            com.jjktbf.model.move.MoveRepository moveRepo = new com.jjktbf.model.move.MoveRepository("data/moves");
-            moveRepo.load();
-            for (com.jjktbf.model.move.MoveData md : moveRepo.getAll()) {
-                if (md.requiredTechniqueId != null && md.requiredTechniqueId.equalsIgnoreCase(d.name)) {
-                    refs.add(referenceLabel(md.name + "  (move)")).left().row();
-                    moveCount++;
-                }
-            }
-        } catch (IOException e) {
-            refs.add(formHint("(could not load moves: " + e.getMessage() + ")")).left().row();
-        }
-        if (moveCount == 0) {
-            refs.add(formHint("(no moves reference this technique yet)")).left().row();
-        }
-
-        // Read-only list of abilities sourced from this technique.
-        int abilityCount = 0;
-        try {
-            com.jjktbf.model.character.AbilityRepository abilityRepo =
-                new com.jjktbf.model.character.AbilityRepository("data/abilities");
-            abilityRepo.load();
-            for (com.jjktbf.model.character.AbilityData ad : abilityRepo.getAll()) {
-                if ("TECHNIQUE".equalsIgnoreCase(ad.sourceType)
-                    && ad.sourceValue != null && ad.sourceValue.equalsIgnoreCase(d.name)) {
-                    refs.add(referenceLabel(ad.name + "  (ability, mastery ≥ " + ad.masteryThreshold + ")"))
-                        .left().row();
-                    abilityCount++;
-                }
-            }
-        } catch (IOException e) {
-            refs.add(formHint("(could not load abilities: " + e.getMessage() + ")")).left().row();
-        }
-        if (abilityCount == 0) {
-            refs.add(formHint("(no abilities reference this technique yet)")).left().row();
-        }
-
+        SkillTreeCanvas canvas = new SkillTreeCanvas(
+            technique,
+            moveRepo.getAll(),
+            abilityRepo.getAll(),
+            null,
+            true,
+            this::markDirty,
+            message -> setStatus(message, false),
+            null,
+            skin);
+        ScrollPane scroll = new ScrollPane(canvas, skin);
+        scroll.setFadeScrollBars(false);
+        scroll.setFlickScroll(false);
+        scroll.setScrollingDisabled(false, true);
+        tree.add(scroll).height(SkillTreeCanvas.VIEW_HEIGHT + 24f).growX().row();
         return form;
     }
 
-    // =========================================================================
-    // Helpers
-    // =========================================================================
+    private void rewriteTechniqueReferences(
+        String previousName,
+        String newName,
+        CharacterRepository characterRepo
+    ) {
+        for (MoveData move : moveRepo.getAll()) {
+            if (move.requiredTechniqueId != null
+                && move.requiredTechniqueId.equalsIgnoreCase(previousName)) {
+                move.requiredTechniqueId = newName;
+            }
+        }
+        for (AbilityData ability : abilityRepo.getAll()) {
+            if ("TECHNIQUE".equalsIgnoreCase(ability.sourceType)
+                && ability.sourceValue != null
+                && ability.sourceValue.equalsIgnoreCase(previousName)) {
+                ability.sourceValue = newName;
+            }
+            if (ability.effects == null) continue;
+            ability.effects.stream()
+                .filter(java.util.Objects::nonNull)
+                .filter(effect -> AbilityEffectType.UNLOCK_TECHNIQUE.name().equalsIgnoreCase(effect.type))
+                .filter(effect -> effect.stringValue != null
+                    && effect.stringValue.equalsIgnoreCase(previousName))
+                .forEach(effect -> effect.stringValue = newName);
+        }
+        for (CharacterData character : characterRepo.getAll()) {
+            if (character.innateTechniqueName != null
+                && character.innateTechniqueName.equalsIgnoreCase(previousName)) {
+                character.innateTechniqueName = newName;
+            }
+        }
+    }
 
-    private Label referenceLabel(String text) {
-        Label l = new Label("• " + text, skin, "small");
-        l.setColor(skin.get("text-dark", com.badlogic.gdx.graphics.Color.class));
-        return l;
+    private void applyAuthoredPrerequisites(InnateTechniqueData technique) {
+        if (technique.skillTree == null) return;
+        for (SkillTreeNodeData node : technique.skillTree) {
+            if (node == null) continue;
+            if (SkillTreeNodeData.MOVE.equalsIgnoreCase(node.contentType)) {
+                MoveData move = moveRepo.findById(node.contentId).orElse(null);
+                if (move == null) continue;
+                Map<String, Integer> prerequisites = new LinkedHashMap<>();
+                if (node.prerequisites != null) {
+                    for (SkillTreePrerequisiteData requirement : node.prerequisites) {
+                        if (requirement == null || requirement.minimum == null) continue;
+                        String stat = null;
+                        if (SkillTreePrerequisiteData.MASTERY.equalsIgnoreCase(requirement.type)) {
+                            stat = "cursedTechniqueMastery";
+                        } else if (SkillTreePrerequisiteData.STAT.equalsIgnoreCase(requirement.type)) {
+                            stat = requirement.stat;
+                        }
+                        if (stat != null) prerequisites.merge(
+                            stat, requirement.minimum, Math::max);
+                    }
+                }
+                if (move.tags != null && move.tags.contains("INNATE_TECHNIQUE")) {
+                    prerequisites.putIfAbsent("cursedTechniqueMastery", 0);
+                }
+                move.prerequisites = prerequisites.isEmpty() ? null : prerequisites;
+            } else if (SkillTreeNodeData.ABILITY.equalsIgnoreCase(node.contentType)) {
+                AbilityData ability = abilityRepo.findById(node.contentId).orElse(null);
+                if (ability == null) continue;
+                ability.masteryThreshold = node.prerequisites == null ? 0
+                    : node.prerequisites.stream()
+                        .filter(java.util.Objects::nonNull)
+                        .filter(requirement -> SkillTreePrerequisiteData.MASTERY
+                            .equalsIgnoreCase(requirement.type))
+                        .map(requirement -> requirement.minimum)
+                        .filter(java.util.Objects::nonNull)
+                        .mapToInt(Integer::intValue)
+                        .max().orElse(0);
+            }
+        }
     }
 }

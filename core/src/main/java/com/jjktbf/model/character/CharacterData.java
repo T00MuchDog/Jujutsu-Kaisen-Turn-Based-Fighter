@@ -5,6 +5,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveRepository;
+import com.jjktbf.model.technique.InnateTechniqueData;
+import com.jjktbf.model.technique.SkillTreeNodeData;
+import com.jjktbf.model.technique.TechniqueRepository;
+import com.jjktbf.model.technique.TechniqueSkillTree;
 
 import java.util.*;
 
@@ -95,8 +99,21 @@ public class CharacterData {
     }
 
     public Character toCharacter(MoveRepository moveRepo, AbilityRepository abilityRepo) {
+        return toCharacter(moveRepo, abilityRepo, null);
+    }
+
+    public Character toCharacter(
+        MoveRepository moveRepo,
+        AbilityRepository abilityRepo,
+        TechniqueRepository techniqueRepo
+    ) {
         CharacterStats stats = toCharacterStats();
         List<Move> moves = new ArrayList<>();
+        List<InnateTechniqueData> techniques = techniqueRepo == null ? null : techniqueRepo.getAll();
+        if (techniques != null) {
+            techniques.forEach(technique -> TechniqueSkillTree.synchronize(
+                technique, moveRepo.getAll(), abilityRepo == null ? List.of() : abilityRepo.getAll()));
+        }
         AbilityResolver.Result resolvedAbilities = AbilityResolver.resolve(
             this, abilityRepo, moveId -> moveId != null && moveRepo.findById(moveId)
                 .map(move -> {
@@ -107,11 +124,13 @@ public class CharacterData {
                         return false;
                     }
                 })
-                .orElse(false));
+                .orElse(false), techniqueRepo);
         List<Ability> abilities = resolvedAbilities.toDomainAbilities();
         Set<String> resolvedMoveIds = new LinkedHashSet<>();
         if (moveIds != null) resolvedMoveIds.addAll(moveIds);
         resolvedMoveIds.addAll(resolvedAbilities.grantedMoveIds());
+
+        validateSelectedMoveNodes(moveRepo, techniques);
 
         for (String moveId : resolvedMoveIds) {
                 if (moveId == null || moveId.isBlank()) {
@@ -131,6 +150,26 @@ public class CharacterData {
         }
 
         return new SorcererCharacter(id, name, stats, innateTechniqueName, moves, abilities);
+    }
+
+    private void validateSelectedMoveNodes(
+        MoveRepository moveRepo,
+        List<InnateTechniqueData> techniques
+    ) {
+        if (moveIds == null || techniques == null) return;
+        for (String moveId : moveIds) {
+            MoveData move = moveRepo.findById(moveId).orElse(null);
+            if (move == null || move.requiredTechniqueId == null) continue;
+            InnateTechniqueData technique = TechniqueSkillTree.techniqueByName(
+                techniques, move.requiredTechniqueId);
+            if (technique == null) continue;
+            SkillTreeNodeData node = TechniqueSkillTree.nodeForContent(
+                technique, SkillTreeNodeData.MOVE, moveId);
+            if (node != null && !TechniqueSkillTree.isUnlocked(technique, node, this)) {
+                throw new IllegalArgumentException(
+                    "Skill-tree prerequisites are not met for move " + move.name);
+            }
+        }
     }
 
     // -------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
+import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
@@ -15,6 +16,7 @@ import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.ui.editor.AssignmentPanel;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
 import com.jjktbf.graphics.ui.editor.StatField;
+import com.jjktbf.graphics.ui.editor.SkillTreeCanvas;
 import com.jjktbf.graphics.ui.editor.ValidationResult;
 import com.jjktbf.model.character.AbilityApplicator;
 import com.jjktbf.model.character.AbilityData;
@@ -32,11 +34,17 @@ import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MovePool;
 import com.jjktbf.model.move.MoveRepository;
 import com.jjktbf.model.move.MoveTag;
+import com.jjktbf.model.technique.InnateTechniqueData;
+import com.jjktbf.model.technique.SkillTreeNodeData;
+import com.jjktbf.model.technique.TechniqueRepository;
+import com.jjktbf.model.technique.TechniqueSkillTree;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Graphical CRUD editor for {@link CharacterData}. Master-detail layout with:
@@ -66,12 +74,14 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private final CharacterRepository  charRepo;
     private final MoveRepository       moveRepo;
     private final AbilityRepository   abilityRepo;
+    private final TechniqueRepository techniqueRepo;
 
     // Form handles (refreshed on selection change)
     private StatField[] statFields;
     private Label derivedPreview;
     private Container<Actor> moveAssignmentContainer;
     private Container<Actor> abilityAssignmentContainer;
+    private Container<Actor> skillTreeContainer;
     private CheckBox pointBuyToggle;
     private Label budgetLabel;
 
@@ -80,6 +90,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         charRepo    = new CharacterRepository("data/characters");
         moveRepo    = new MoveRepository("data/moves");
         abilityRepo = new AbilityRepository("data/abilities");
+        techniqueRepo = new TechniqueRepository("data/techniques");
     }
 
     // =========================================================================
@@ -136,6 +147,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         charRepo.load();
         moveRepo.load();
         abilityRepo.load();
+        techniqueRepo.load();
         records.clear();
         records.addAll(charRepo.getAll());
     }
@@ -165,6 +177,11 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                     "Remove missing ability reference " + missingAbility + " before saving.");
             }
         }
+        String lockedTreeNode = firstActiveLockedTreeNode(d);
+        if (lockedTreeNode != null) {
+            return ValidationResult.error(
+                "Deactivate locked skill-tree node \"" + lockedTreeNode + "\" before saving.");
+        }
         java.util.Set<String> referencedMoveIds = new java.util.LinkedHashSet<>(
             d.moveIds == null ? List.of() : d.moveIds);
         referencedMoveIds.addAll(resolvedAbilities(d).grantedMoveIds());
@@ -190,7 +207,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             d.id = charRepo.nextId();
         }
         try {
-            d.toCharacter(moveRepo, abilityRepo);
+            d.toCharacter(moveRepo, abilityRepo, techniqueRepo);
         } catch (Exception e) {
             return ValidationResult.error("Invalid character: " + e.getMessage());
         }
@@ -238,22 +255,27 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         identity.add(labelledField("Sprite Asset (assets/sprites/characters/...)", cd.spriteAsset,
                 s -> { cd.spriteAsset = (s == null || s.isBlank()) ? null : s; }))
             .growX().row();
-        identity.add(labelledField("Innate Technique (blank = none)",
-                cd.innateTechniqueName,
-                s -> {
-                    cd.innateTechniqueName = (s == null || s.isBlank()) ? null : s;
-                    refreshCtmLock();
-                    // Clear CTM when technique removed
-                    if (cd.innateTechniqueName == null && statFields != null) {
-                        StatKey.CURSED_TECHNIQUE_MASTERY.set(cd, 0);
-                        statFields[StatKey.CURSED_TECHNIQUE_MASTERY.ordinal()]
-                            .setValueProgrammatic(0);
-                    }
-                    refreshDerivedPreview(cd);
-                    refreshBudgetLabel(cd);
-                    rebuildAbilityAssignment(cd);
-                    rebuildMoveAssignment(cd);
-                })).growX().row();
+        SelectBox<String> techniqueSelect = techniqueSelect(cd.innateTechniqueName);
+        techniqueSelect.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                String previousTechnique = cd.innateTechniqueName;
+                clearTechniqueSelections(cd, previousTechnique);
+                cd.innateTechniqueName = techniqueNameFromLabel(techniqueSelect.getSelected());
+                refreshCtmLock();
+                if (cd.innateTechniqueName == null && statFields != null) {
+                    StatKey.CURSED_TECHNIQUE_MASTERY.set(cd, 0);
+                    statFields[StatKey.CURSED_TECHNIQUE_MASTERY.ordinal()]
+                        .setValueProgrammatic(0);
+                }
+                refreshDerivedPreview(cd);
+                refreshBudgetLabel(cd);
+                rebuildAbilityAssignment(cd);
+                rebuildMoveAssignment(cd);
+                rebuildSkillTree(cd);
+                markDirty();
+            }
+        });
+        identity.add(labelledRow("Innate Technique", techniqueSelect)).growX().row();
 
         // ── Stats (mode toggle + sliders) ───────────────────────────────────────
         Table stats = formSection(form, "STATS");
@@ -262,12 +284,13 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             @Override public void changed(ChangeEvent event, Actor actor) {
                 if (pointBuyToggle.isChecked()) {
                     applyPointBuy(cd);
-                } else {
-                    refreshDerivedPreview(cd);
                 }
+                pruneLockedTechniqueSelections(cd);
+                refreshDerivedPreview(cd);
                 refreshBudgetLabel(cd);
                 rebuildAbilityAssignment(cd);
                 rebuildMoveAssignment(cd);
+                rebuildSkillTree(cd);
                 markDirty();
             }
         });
@@ -284,12 +307,15 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             StatKey sk = STAT_ORDER[i];
             int val = sk.get(cd);
             boolean locked = (sk == StatKey.CURSED_TECHNIQUE_MASTERY && !hasTechnique);
-            StatField sf = new StatField(sk.label, val, STAT_MIN, STAT_MAX, v -> {
+            int fieldMinimum = sk == StatKey.CURSED_TECHNIQUE_MASTERY ? 0 : STAT_MIN;
+            StatField sf = new StatField(sk.label, val, fieldMinimum, STAT_MAX, v -> {
                 sk.set(cd, v);
+                pruneLockedTechniqueSelections(cd);
                 refreshDerivedPreview(cd);
                 if (pointBuyToggle.isChecked()) refreshBudgetLabel(cd);
                 rebuildAbilityAssignment(cd);
                 rebuildMoveAssignment(cd);
+                rebuildSkillTree(cd);
                 markDirty();
             }, locked, skin);
             statFields[i] = sf;
@@ -315,7 +341,192 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         abilitiesSection.add(abilityAssignmentContainer).growX().row();
         rebuildAbilityAssignment(cd);
 
+        // ── Technique skill tree ───────────────────────────────────────────────
+        Table skillTreeSection = formSection(form, "SKILL TREE");
+        skillTreeContainer = new Container<>();
+        skillTreeSection.add(skillTreeContainer).growX().row();
+        rebuildSkillTree(cd);
+
         return form;
+    }
+
+    // =========================================================================
+    // Technique skill tree
+    // =========================================================================
+
+    private void rebuildSkillTree(CharacterData character) {
+        if (skillTreeContainer == null) return;
+        List<InnateTechniqueData> techniques = accessibleTechniques(character);
+        if (techniques.isEmpty()) {
+            Label empty = new Label("Choose an innate technique to view its skill tree.", skin, "small");
+            empty.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
+            skillTreeContainer.setActor(empty);
+            return;
+        }
+
+        Set<String> displayedNames = techniques.stream()
+            .map(technique -> technique.name.toLowerCase())
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        Table trees = new Table(skin);
+        trees.defaults().growX().left().padBottom(8f);
+        for (InnateTechniqueData technique : techniques) {
+            Label heading = new Label(technique.name, skin);
+            heading.setColor(skin.get("text-dark", com.badlogic.gdx.graphics.Color.class));
+            trees.add(heading).left().row();
+            SkillTreeCanvas canvas = new SkillTreeCanvas(
+                technique,
+                moveRepo.getAll(),
+                abilityRepo.getAll(),
+                character,
+                false,
+                () -> onTreeSelectionChanged(character, displayedNames),
+                message -> setStatus(message, false),
+                node -> treeActivationError(character, node),
+                skin);
+            ScrollPane scroll = new ScrollPane(canvas, skin);
+            scroll.setFadeScrollBars(false);
+            scroll.setFlickScroll(false);
+            scroll.setScrollingDisabled(false, true);
+            trees.add(scroll).height(SkillTreeCanvas.VIEW_HEIGHT + 24f).growX().row();
+        }
+        skillTreeContainer.setActor(trees);
+        skillTreeContainer.height(
+            techniques.size() * (SkillTreeCanvas.VIEW_HEIGHT + 60f));
+    }
+
+    private void onTreeSelectionChanged(CharacterData character, Set<String> displayedNames) {
+        Set<String> accessibleNames = resolvedAbilities(character).accessibleTechniqueNames().stream()
+            .map(String::toLowerCase)
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        for (String previousName : displayedNames) {
+            if (!accessibleNames.contains(previousName)) {
+                clearTechniqueSelections(character, previousName);
+            }
+        }
+        markDirty();
+        refreshDerivedPreview(character);
+        refreshBudgetLabel(character);
+        rebuildMoveAssignment(character);
+        rebuildAbilityAssignment(character);
+        if (!accessibleNames.equals(displayedNames)) {
+            com.badlogic.gdx.Gdx.app.postRunnable(() -> rebuildSkillTree(character));
+        }
+    }
+
+    private String treeActivationError(CharacterData character, SkillTreeNodeData node) {
+        if (SkillTreeNodeData.MOVE.equalsIgnoreCase(node.contentType)) {
+            if (resolvedAbilities(character).grantedMoveIds().contains(node.contentId)) {
+                return "This move is already granted by an active ability.";
+            }
+            MoveData move = moveRepo.findById(node.contentId).orElse(null);
+            return move == null ? "This move no longer exists."
+                : moveAssignmentError(character, resolvedAbilities(character), move, false);
+        }
+        AbilityData ability = abilityRepo.findById(node.contentId).orElse(null);
+        return ability == null ? "This ability no longer exists."
+            : abilityAssignmentConflict(character, ability.id);
+    }
+
+    private InnateTechniqueData currentTechnique(CharacterData character) {
+        return character == null ? null : techniqueForName(character.innateTechniqueName);
+    }
+
+    private List<InnateTechniqueData> accessibleTechniques(CharacterData character) {
+        if (character == null) return List.of();
+        return resolvedAbilities(character).accessibleTechniqueNames().stream()
+            .map(this::techniqueForName)
+            .filter(java.util.Objects::nonNull)
+            .toList();
+    }
+
+    private void pruneLockedTechniqueSelections(CharacterData character) {
+        for (InnateTechniqueData technique : accessibleTechniques(character)) {
+            TechniqueSkillTree.pruneLockedSelections(technique, character);
+        }
+    }
+
+    private InnateTechniqueData techniqueForName(String name) {
+        InnateTechniqueData stored = techniqueRepo.findByName(name).orElse(null);
+        if (stored == null) return null;
+        InnateTechniqueData copy = new InnateTechniqueData();
+        copy.id = stored.id;
+        copy.name = stored.name;
+        copy.description = stored.description;
+        copy.skillTree = new ArrayList<>();
+        if (stored.skillTree != null) {
+            stored.skillTree.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(SkillTreeNodeData::copy)
+                .forEach(copy.skillTree::add);
+        }
+        TechniqueSkillTree.synchronize(copy, moveRepo.getAll(), abilityRepo.getAll());
+        return copy;
+    }
+
+    private void clearTechniqueSelections(CharacterData character, String techniqueName) {
+        InnateTechniqueData technique = techniqueForName(techniqueName);
+        if (technique == null || technique.skillTree == null) return;
+        for (SkillTreeNodeData node : technique.skillTree) {
+            TechniqueSkillTree.setActive(node, character, false);
+        }
+    }
+
+    private SelectBox<String> techniqueSelect(String currentName) {
+        final String none = "[none]";
+        List<String> names = new ArrayList<>();
+        names.add(none);
+        techniqueRepo.getAll().stream()
+            .map(technique -> technique.name)
+            .filter(java.util.Objects::nonNull)
+            .forEach(names::add);
+        if (currentName != null && names.stream().noneMatch(currentName::equalsIgnoreCase)) {
+            names.add(currentName);
+        }
+        SelectBox<String> select = new SelectBox<>(skin);
+        select.setItems(names.toArray(new String[0]));
+        select.setSelected(currentName == null ? none : names.stream()
+            .filter(currentName::equalsIgnoreCase).findFirst().orElse(currentName));
+        return select;
+    }
+
+    private static String techniqueNameFromLabel(String label) {
+        return label == null || "[none]".equals(label) ? null : label;
+    }
+
+    private boolean isCurrentTechniqueMove(CharacterData character, String moveId) {
+        if (character == null || moveId == null) return false;
+        MoveData move = moveRepo.findById(moveId).orElse(null);
+        return move != null && move.requiredTechniqueId != null
+            && resolvedAbilities(character).hasTechnique(move.requiredTechniqueId);
+    }
+
+    private boolean isCurrentTechniqueAbility(CharacterData character, String abilityId) {
+        if (character == null || abilityId == null) return false;
+        AbilityData ability = abilityRepo.findById(abilityId).orElse(null);
+        return isTechniqueSource(ability) && ability.sourceValue != null
+            && resolvedAbilities(character).hasTechnique(ability.sourceValue);
+    }
+
+    private String firstActiveLockedTreeNode(CharacterData character) {
+        for (InnateTechniqueData technique : accessibleTechniques(character)) {
+            if (technique.skillTree == null) continue;
+            String locked = technique.skillTree.stream()
+                .filter(node -> TechniqueSkillTree.isActive(node, character))
+                .filter(node -> !TechniqueSkillTree.isUnlocked(technique, node, character))
+                .map(this::skillTreeNodeName)
+                .findFirst().orElse(null);
+            if (locked != null) return locked;
+        }
+        return null;
+    }
+
+    private String skillTreeNodeName(SkillTreeNodeData node) {
+        if (SkillTreeNodeData.MOVE.equalsIgnoreCase(node.contentType)) {
+            return moveRepo.findById(node.contentId).map(move -> move.name)
+                .orElse("Missing move " + node.contentId);
+        }
+        return abilityRepo.findById(node.contentId).map(ability -> ability.name)
+            .orElse("Missing ability " + node.contentId);
     }
 
     // =========================================================================
@@ -422,6 +633,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 AbilityResolver.Result abilityResult = resolvedAbilities(cd);
                 List<String> granted = abilityResult.grantedMoveIds();
                 for (MoveData md : allMoves) {
+                    if (isCurrentTechniqueMove(cd, md.id)) continue;
                     if (assigned.contains(md.id) || granted.contains(md.id)) continue;
                     String sub = md.tags != null ? String.join(", ", md.tags) : "";
                     String error = moveAssignmentError(cd, abilityResult, md, false);
@@ -437,6 +649,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 List<String> assigned = cd.moveIds != null ? cd.moveIds : List.of();
                 List<String> granted = resolvedAbilities(cd).grantedMoveIds();
                 for (String mid : assigned) {
+                    if (isCurrentTechniqueMove(cd, mid)) continue;
                     MoveData md = mid == null ? null : moveRepo.findById(mid).orElse(null);
                     if (md == null) {
                         items.add(new AssignmentPanel.Item(
@@ -456,6 +669,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                     }
                 }
                 for (String moveId : resolvedAbilities(cd).grantedMoveIds()) {
+                    if (isCurrentTechniqueMove(cd, moveId)) continue;
                     if (assigned.contains(moveId)) continue;
                     MoveData md = moveRepo.findById(moveId).orElse(null);
                     if (md != null) {
@@ -601,6 +815,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 List<String> assigned = cd.abilityIds != null ? cd.abilityIds : List.of();
                 AbilityResolver.Result resolved = resolvedAbilities(cd);
                 for (AbilityData ad : all) {
+                    if (isTechniqueSource(ad)) continue;
                     if (assigned.contains(ad.id) || resolved.containsAbility(ad.id)) continue;
                     String sub = abilitySublabel(ad);
                     if (isCharacterSource(ad)) {
@@ -620,6 +835,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 List<AssignmentPanel.Item> items = new ArrayList<>();
                 List<String> assigned = cd.abilityIds != null ? cd.abilityIds : List.of();
                 for (String aid : assigned) {
+                    if (isCurrentTechniqueAbility(cd, aid)) continue;
                     AbilityData ad = aid == null ? null : abilityRepo.findById(aid).orElse(null);
                     if (ad == null) {
                         items.add(new AssignmentPanel.Item(
@@ -633,6 +849,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                     }
                 }
                 for (AbilityData ad : resolvedAbilities(cd).abilities()) {
+                    if (isTechniqueSource(ad)) continue;
                     if (assigned.contains(ad.id)) continue;
                     items.add(new AssignmentPanel.Item(
                         ad.id, ad.name, abilitySublabel(ad), true, "Auto-granted: " + sourceRequirement(ad)));
@@ -670,14 +887,17 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                     .map(ability -> ability.name)
                     .toList();
                 return automatic.isEmpty()
-                    ? "Non-character sources are granted automatically when their requirements are met."
+                    ? "Technique abilities are activated in the skill tree below."
                     : "Auto-granted: " + String.join(", ", automatic);
             }
         }, skin);
     }
 
     private AbilityResolver.Result resolvedAbilities(CharacterData cd) {
-        return AbilityResolver.resolve(cd, abilityRepo, this::isValidMoveDefinition);
+        techniqueRepo.getAll().forEach(technique -> TechniqueSkillTree.synchronize(
+            technique, moveRepo.getAll(), abilityRepo.getAll()));
+        return AbilityResolver.resolve(
+            cd, abilityRepo, this::isValidMoveDefinition, techniqueRepo);
     }
 
     private boolean isValidMoveDefinition(String moveId) {
@@ -699,7 +919,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (probe.abilityIds == null) probe.abilityIds = new ArrayList<>();
         if (!probe.abilityIds.contains(abilityId)) probe.abilityIds.add(abilityId);
         try {
-            probe.toCharacter(moveRepo, abilityRepo);
+            probe.toCharacter(moveRepo, abilityRepo, techniqueRepo);
             return null;
         } catch (Exception ex) {
             return "Cannot assign: " + ex.getMessage();
@@ -708,6 +928,10 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
     private static boolean isCharacterSource(AbilityData ability) {
         return ability.sourceType == null || "CHARACTER".equalsIgnoreCase(ability.sourceType);
+    }
+
+    private static boolean isTechniqueSource(AbilityData ability) {
+        return ability != null && "TECHNIQUE".equalsIgnoreCase(ability.sourceType);
     }
 
     private static String abilitySublabel(AbilityData ability) {
@@ -719,7 +943,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private static String sourceRequirement(AbilityData ability) {
         String source = ability.sourceType == null ? "CHARACTER" : ability.sourceType.toUpperCase();
         return switch (source) {
-            case "TECHNIQUE" -> ability.sourceValue + " at mastery " + ability.masteryThreshold;
+            case "TECHNIQUE" -> "activate in the " + ability.sourceValue + " skill tree";
             case "MOVE" -> "know move " + ability.sourceValue;
             case "STAT_THRESHOLD" -> ability.sourceValue;
             case "ABILITY" -> "have ability " + ability.sourceValue;

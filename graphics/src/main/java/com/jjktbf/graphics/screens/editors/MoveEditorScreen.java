@@ -216,6 +216,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 repo.update(d);
             }
             repo.save();
+            TechniqueTreeRepositorySync.synchronize();
         } catch (Exception e) {
             return ValidationResult.error("Save failed: " + e.getMessage());
         }
@@ -277,6 +278,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             repo.save();
             abilityRepo.save();
             characterRepo.save();
+            TechniqueTreeRepositorySync.synchronize(
+                com.jjktbf.model.technique.SkillTreeNodeData.MOVE, remappedIds, id);
             return ValidationResult.ok("Deleted.");
         } catch (Exception e) {
             return ValidationResult.error("Delete failed: " + e.getMessage());

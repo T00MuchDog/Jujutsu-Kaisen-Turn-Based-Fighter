@@ -13,10 +13,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * An innate cursed technique — a thin identity record.
+ * An innate cursed technique domain view.
  *
- * <p>A technique <b>owns no move/ability lists</b>. Its progression is
- * <i>discovered</i> at runtime by querying the move and ability repositories
+ * <p>Move/ability membership is discovered by querying the child repositories
  * for entries that reference this technique's {@link #name}:
  * <ul>
  *   <li>{@link #moves(int, MoveRepository)} — every {@link MoveData} whose
@@ -28,9 +27,9 @@ import java.util.Objects;
  *       filtered to {@code masteryThreshold <= mastery}, sorted ascending.</li>
  * </ul>
  *
- * <p>This single-source-of-truth design means editing a move's CTM prerequisite
- * automatically re-sorts its technique progression — no duplicated id-lists to
- * keep in sync.
+ * <p>Authored node positions and multi-part unlock requirements are persisted on
+ * {@link InnateTechniqueData#skillTree}. These methods remain lightweight
+ * repository discovery helpers for callers that only need mastery filtering.
  *
  * <p>Technique identity is by {@link #name} (case-insensitive), matching the
  * existing string-based coupling on {@code MoveData.requiredTechniqueId} and

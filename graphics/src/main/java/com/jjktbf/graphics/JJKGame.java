@@ -27,6 +27,7 @@ import com.jjktbf.model.character.CharacterRepository;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.AbilityRepository;
 import com.jjktbf.model.move.MoveRepository;
+import com.jjktbf.model.technique.TechniqueRepository;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
 
 import java.io.IOException;
@@ -313,7 +314,8 @@ public class JJKGame extends Game {
      * to the render thread safely.
      */
     public void startBattle(CharacterData playerData, CharacterData cpuData,
-                            MoveRepository moveRepo, AbilityRepository abilityRepo) {
+                            MoveRepository moveRepo, AbilityRepository abilityRepo,
+                            TechniqueRepository techniqueRepo) {
         battleScreen.prepareLocal();
         battleScreen.setCombatantSprites(
             assets.characterBattleSprite(playerData.spriteAsset, false, assets.playerSprite),
@@ -322,8 +324,8 @@ public class JJKGame extends Game {
 
         Thread battleThread = new Thread(() -> {
             try {
-                Character player = playerData.toCharacter(moveRepo, abilityRepo);
-                Character cpu    = cpuData.toCharacter(moveRepo, abilityRepo);
+                Character player = playerData.toCharacter(moveRepo, abilityRepo, techniqueRepo);
+                Character cpu    = cpuData.toCharacter(moveRepo, abilityRepo, techniqueRepo);
                 BattleController controller = new BattleController(battleScreen);
                 controller.runBattle(player, cpu);
             } catch (Throwable t) {

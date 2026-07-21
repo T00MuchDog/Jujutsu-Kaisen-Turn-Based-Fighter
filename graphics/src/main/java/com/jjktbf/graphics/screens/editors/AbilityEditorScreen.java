@@ -152,6 +152,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                 repo.update(ability);
             }
             repo.save();
+            TechniqueTreeRepositorySync.synchronize();
         } catch (Exception ex) {
             return ValidationResult.error("Save failed: " + ex.getMessage());
         }
@@ -406,6 +407,8 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             repo.delete(id);
             repo.save();
             characterRepo.save();
+            TechniqueTreeRepositorySync.synchronize(
+                com.jjktbf.model.technique.SkillTreeNodeData.ABILITY, remappedIds, id);
             return ValidationResult.ok("Deleted.");
         } catch (Exception ex) {
             return ValidationResult.error("Delete failed: " + ex.getMessage());
@@ -494,18 +497,9 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                 SelectBox<String> technique = techniqueSelect(ability.sourceValue, value ->
                     ability.sourceValue = techniqueNameFromLabel(value));
                 table.add(labelledRow("Technique", technique)).growX().row();
-                TextField mastery = new HoverTextField(String.valueOf(ability.masteryThreshold), skin);
-                mastery.setTextFieldFilter((field, character) ->
-                    Character.isDigit(character) || character == '-');
-                mastery.addListener(new ChangeListener() {
-                    @Override public void changed(ChangeEvent event, Actor actor) {
-                        Integer value = parseInteger(mastery.getText());
-                        ability.masteryThreshold = value == null ? -1 : value;
-                        markDirty();
-                    }
-                });
-                table.add(labelledRow("Mastery needed (0-300)", mastery)).growX().row();
-                table.add(formHint("Granted automatically when the technique and mastery match.")).row();
+                table.add(formHint(
+                    "This ability is added to the technique's skill tree. Configure its unlock rules there."))
+                    .row();
             }
             case MOVE -> {
                 SelectBox<String> move = moveSelect(ability.sourceValue,

@@ -1,5 +1,10 @@
 package com.jjktbf.model.character;
 
+import com.jjktbf.model.technique.InnateTechniqueData;
+import com.jjktbf.model.technique.SkillTreeNodeData;
+import com.jjktbf.model.technique.TechniqueRepository;
+import com.jjktbf.model.technique.TechniqueSkillTree;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -33,6 +38,19 @@ public final class AbilityResolver {
         return resolve(character, repository == null ? List.of() : repository.getAll(), moveExists);
     }
 
+    public static Result resolve(
+        CharacterData character,
+        AbilityRepository repository,
+        Predicate<String> moveExists,
+        TechniqueRepository techniqueRepository
+    ) {
+        return resolve(
+            character,
+            repository == null ? List.of() : repository.getAll(),
+            moveExists,
+            techniqueRepository == null ? null : techniqueRepository.getAll());
+    }
+
     /**
      * Resolve ability acquisition to a fixed point. An acquired ability may
      * grant a move or technique which then unlocks another sourced ability.
@@ -45,6 +63,15 @@ public final class AbilityResolver {
         CharacterData character,
         List<AbilityData> definitions,
         Predicate<String> moveExists
+    ) {
+        return resolve(character, definitions, moveExists, null);
+    }
+
+    public static Result resolve(
+        CharacterData character,
+        List<AbilityData> definitions,
+        Predicate<String> moveExists,
+        List<InnateTechniqueData> techniques
     ) {
         if (character == null || definitions == null || definitions.isEmpty()) {
             return Result.empty(character);
@@ -69,7 +96,7 @@ public final class AbilityResolver {
             for (AbilityData definition : definitions) {
                 if (definition == null || resolved.containsKey(keyOf(definition))) continue;
                 if (!isEligible(definition, character, explicitIds, availableMoveIds,
-                                techniqueNames.keySet(), resolved.values())) {
+                                techniqueNames.keySet(), resolved.values(), techniques)) {
                     continue;
                 }
 
@@ -93,15 +120,19 @@ public final class AbilityResolver {
         Set<String> explicitIds,
         Set<String> availableMoveIds,
         Set<String> techniqueNames,
-        java.util.Collection<AbilityData> resolved
+        java.util.Collection<AbilityData> resolved,
+        List<InnateTechniqueData> techniques
     ) {
         String source = definition.sourceType == null
             ? "CHARACTER" : definition.sourceType.trim().toUpperCase(Locale.ROOT);
 
         return switch (source) {
             case "CHARACTER" -> definition.id != null && explicitIds.contains(definition.id);
-            case "TECHNIQUE" -> containsIgnoreCase(techniqueNames, definition.sourceValue)
-                && definition.masteryThreshold <= character.cursedTechniqueMastery;
+            // Technique ownership makes a node eligible to be authored in its
+            // skill tree; the character must still explicitly activate it.
+            case "TECHNIQUE" -> definition.id != null && explicitIds.contains(definition.id)
+                && containsIgnoreCase(techniqueNames, definition.sourceValue)
+                && treeAllows(definition, character, techniques);
             case "MOVE" -> definition.sourceValue != null
                 && availableMoveIds.contains(definition.sourceValue);
             case "STAT_THRESHOLD" -> parseStatRequirement(definition.sourceValue)
@@ -111,6 +142,20 @@ public final class AbilityResolver {
                 matchesAbilityReference(ability, definition.sourceValue));
             default -> definition.id != null && explicitIds.contains(definition.id);
         };
+    }
+
+    private static boolean treeAllows(
+        AbilityData definition,
+        CharacterData character,
+        List<InnateTechniqueData> techniques
+    ) {
+        if (techniques == null) return true;
+        InnateTechniqueData technique = TechniqueSkillTree.techniqueByName(
+            techniques, definition.sourceValue);
+        if (technique == null) return false;
+        SkillTreeNodeData node = TechniqueSkillTree.nodeForContent(
+            technique, SkillTreeNodeData.ABILITY, definition.id);
+        return node != null && TechniqueSkillTree.isUnlocked(technique, node, character);
     }
 
     private static void collectGrants(

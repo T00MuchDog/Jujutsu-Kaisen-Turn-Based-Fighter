@@ -144,7 +144,7 @@ class AbilitySystemTest {
             new com.jjktbf.model.character.CharacterData();
         character.strength = 80;
         character.cursedTechniqueMastery = 60;
-        character.abilityIds = List.of("A");
+        character.abilityIds = List.of("A", "B");
         character.moveIds = List.of();
 
         AbilityResolver.Result result = AbilityResolver.resolve(
