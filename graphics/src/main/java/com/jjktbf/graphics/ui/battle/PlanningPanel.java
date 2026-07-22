@@ -178,9 +178,16 @@ public class PlanningPanel {
         float labelWidth = compactLayout ? 0f : Math.min(150f, Math.max(108f, width * 0.12f));
         float timelineX = margin + labelWidth;
         float timelineW = width - timelineX - margin;
-        float timelineH = Math.min(84f, Math.max(54f, height * 0.115f));
+        float timelineH = MiraclesMeter.timelineHeightForViewport(height);
         float boardAreaBottom = paletteBounds.y + paletteBounds.height + 26f;
         float boardAreaTop = headerBounds.y - 24f;
+        if (miraclesMeter.isVisible()) {
+            float miracleSize = MiraclesMeter.sizeForViewport(height);
+            float miracleY = headerBounds.y - 16f - miracleSize;
+            miraclesMeter.setBounds(headerBounds.x, miracleY, miracleSize);
+            // Compact timeline labels sit above their bars, so leave them a little more clearance.
+            boardAreaTop = miracleY - (compactLayout ? 28f : 16f);
+        }
         float boardGap = compactLayout ? 30f : 18f;
         float boardGroupHeight = timelineH * 2f + boardGap;
         float defensiveY = boardAreaBottom + Math.max(0f, (boardAreaTop - boardAreaBottom - boardGroupHeight) / 2f);
@@ -231,6 +238,7 @@ public class PlanningPanel {
         refresh();
         batch.begin();
         drawHeader(batch, font, titleFont);
+        miraclesMeter.draw(batch, ui);
         drawTimelineLabel(batch, font, offensiveBar, "OFFENSE", ui.offenseIcon, BattleUiAssets.OFFENSE);
         drawTimelineLabel(batch, font, defensiveBar, "DEFENSE", ui.defenseIcon, BattleUiAssets.DEFENSE);
 
@@ -256,11 +264,6 @@ public class PlanningPanel {
             "AP", plan.remainingApBudget(), plan.apBudget(), BattleUiAssets.YELLOW);
         drawStat(batch, font, statX + statWidth + 8f, headerBounds.y + (compactLayout ? 12f : 15f),
             compactLayout ? 82f : 108f, "CE", plan.remainingCe(), plan.ceBudget(), BattleUiAssets.CURSED_ENERGY);
-        miraclesMeter.setPosition(
-            compactLayout ? headerBounds.x + 12f : statX + statWidth * 2f + 40f,
-            headerBounds.y + (compactLayout ? 59f : headerBounds.height / 2f)
-        );
-        miraclesMeter.draw(batch, font, ui);
 
         if (confirmed) {
             ui.lockButtonDisabled.draw(batch, lockInBounds.x, lockInBounds.y, lockInBounds.width, lockInBounds.height);

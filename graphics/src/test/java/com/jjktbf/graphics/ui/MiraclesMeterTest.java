@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MiraclesMeterTest {
 
     @Test
-    void onlyMiraclesStateShowsSixClampedLeftToRightSegments() {
+    void onlyMiraclesStateSelectsAClampedCounterGraphic() {
         MiraclesMeter meter = new MiraclesMeter();
 
         meter.setState(new CodedAbilityState("OTHER", "Other", 6, 6));
@@ -19,12 +19,12 @@ class MiraclesMeterTest {
 
         meter.setState(new CodedAbilityState(MiraclesAbility.KEY, "Miracles", 4, 6));
         assertTrue(meter.isVisible());
-        assertEquals(4, meter.activeSegments());
+        assertEquals(4, meter.imageIndex());
 
         meter.setState(new CodedAbilityState(MiraclesAbility.KEY, "Miracles", 9, 6));
-        assertEquals(MiraclesAbility.MAX_MIRACLES, meter.activeSegments());
+        assertEquals(MiraclesAbility.MAX_MIRACLES, meter.imageIndex());
 
         meter.setState(new CodedAbilityState(MiraclesAbility.KEY, "Miracles", -1, 6));
-        assertEquals(0, meter.activeSegments());
+        assertEquals(0, meter.imageIndex());
     }
 }

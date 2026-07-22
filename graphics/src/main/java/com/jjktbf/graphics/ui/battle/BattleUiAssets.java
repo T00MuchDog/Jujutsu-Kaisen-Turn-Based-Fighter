@@ -51,6 +51,7 @@ public final class BattleUiAssets {
     public final Texture attackEffectIcon;
     public final Texture defenseEffectIcon;
     public final Texture utilityEffectIcon;
+    private final Texture[] miracleCounters = new Texture[7];
 
     public BattleUiAssets() {
         header = frame(new Color(0.110f, 0.145f, 0.235f, 1f),
@@ -94,6 +95,10 @@ public final class BattleUiAssets {
         attackEffectIcon = effectIcon("assets/Moves/Attack_Icon.png");
         defenseEffectIcon = effectIcon("assets/Moves/Defense_Icon.png");
         utilityEffectIcon = effectIcon("assets/Moves/Utility_Icon.png");
+        for (int count = 0; count < miracleCounters.length; count++) {
+            miracleCounters[count] = loadTexture(
+                "assets/ui/techniques/miracles/miracle_counter_" + count + ".png");
+        }
     }
 
     public NinePatch track(TimelineBar.Kind kind, boolean targeted) {
@@ -103,6 +108,11 @@ public final class BattleUiAssets {
 
     public NinePatch segment(boolean highlighted) {
         return highlighted ? segmentActive : segment;
+    }
+
+    /** Returns the authored Miracles graphic for a counter value clamped to its 0-6 range. */
+    public Texture miracleCounter(int count) {
+        return miracleCounters[Math.max(0, Math.min(miracleCounters.length - 1, count))];
     }
 
     public void dispose() {
@@ -197,6 +207,10 @@ public final class BattleUiAssets {
      * rest of the kit; tracked in {@link #ownedTextures} for disposal.
      */
     private Texture effectIcon(String internalPath) {
+        return loadTexture(internalPath);
+    }
+
+    private Texture loadTexture(String internalPath) {
         Texture texture = new Texture(Gdx.files.internal(internalPath));
         texture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
         ownedTextures.add(texture);

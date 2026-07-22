@@ -446,7 +446,7 @@ public class BattleScreen implements Screen, BattleView {
             enemyPanel.draw(batch, assets.fontLog, assets.fontLarge, enemyCharacterName(), frameDelta);
         if (playerPanel != null && hasPlayerRenderState()) {
             playerPanel.draw(batch, assets.fontLog, assets.fontLarge, playerCharacterName(), frameDelta);
-            miraclesMeter.draw(batch, assets.fontSmall, assets.battleUi);
+            miraclesMeter.draw(batch, assets.battleUi);
         }
         drawLog(sw, sh);
         drawNextRoundButton();
@@ -1579,9 +1579,11 @@ public class BattleScreen implements Screen, BattleView {
         float playerY = margin + 66f + 58f * portraitScale + 84f * (s - 1f);
         playerPanel = new CombatantPanel(playerSprite, assets.battleUi,
             playerX, playerY, spriteWidth, spriteHeight, s);
-        miraclesMeter.setPosition(
+        float miracleSize = MiraclesMeter.sizeForViewport(height);
+        miraclesMeter.setBounds(
             playerX + spriteWidth + 24f * s,
-            playerY + spriteHeight / 2f
+            playerY + (spriteHeight - miracleSize) / 2f,
+            miracleSize
         );
 
         // Log box, sized and positioned below the header. Dimensions track the
