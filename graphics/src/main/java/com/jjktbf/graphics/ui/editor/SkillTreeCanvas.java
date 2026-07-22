@@ -43,7 +43,7 @@ public class SkillTreeCanvas extends WidgetGroup {
 
     public static final float VIEW_HEIGHT = 500f;
     private static final float NODE_WIDTH = 270f;
-    private static final float NODE_HEIGHT = 116f;
+    private static final float NODE_HEIGHT = 116f * 0.8f;
     private static final float MIN_WIDTH = 1800f;
     private static final float BOARD_PADDING = 60f;
     private static final float LINE_WIDTH = 4f;
