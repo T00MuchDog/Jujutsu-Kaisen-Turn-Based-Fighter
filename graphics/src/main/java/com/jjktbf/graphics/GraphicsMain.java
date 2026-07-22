@@ -9,10 +9,14 @@ import com.jjktbf.AppPaths;
  *
  * Configures the LibGDX LWJGL3 window and launches JJKGame.
  *
- * To run:
- *   mvn -Drevision=1.0.0 -pl core,graphics -am clean verify
- *   java -XstartOnFirstThread -jar graphics/target/graphics-1.0.0.jar   (macOS)
- *   java -jar graphics/target/graphics-1.0.0.jar                        (Windows/Linux)
+ * To run (player mode):
+ *   mvn -Drevision=1.2.11 -pl core,graphics -am clean verify
+ *   java -XstartOnFirstThread -jar graphics/target/graphics-1.2.11.jar   (macOS)
+ *   java -jar graphics/target/graphics-1.2.11.jar                        (Windows/Linux)
+ *
+ * To author balance changes that ship in releases, add the authoring flag
+ * and run from the repo root so the source data/ folder is found:
+ *   java -XstartOnFirstThread -Djjktbf.authoring=true -jar graphics/target/graphics-1.2.11.jar
  *
  * Or directly from your IDE by running this class's main() method.
  */

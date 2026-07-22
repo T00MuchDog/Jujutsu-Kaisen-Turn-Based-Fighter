@@ -1,6 +1,11 @@
 package com.jjktbf.graphics;
 
 import com.badlogic.gdx.Game;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.jjktbf.AppPaths;
 import com.jjktbf.controller.BattleController;
 import com.jjktbf.graphics.multiplayer.ChallengeService;
@@ -66,6 +71,15 @@ public class JJKGame extends Game {
 
     private AssetLoader assets;
 
+    // Authoring-mode overlay: a small persistent "AUTHORING" badge drawn in the
+    // top-right corner over every screen, so the developer can see at a glance
+    // that saves are going to the source data/ files. Player builds never set
+    // the flag, so this is a no-op (isAuthoringMode() is false) for releases.
+    private SpriteBatch overlayBatch;
+    private final GlyphLayout overlayLayout = new GlyphLayout();
+    private static final Color AUTHORING_BADGE_COLOR = new Color(
+        0xFF / 255f, 0xE3 / 255f, 0x2E / 255f, 1f); // #FFE32E, the hover yellow
+
     // One application-lifetime multiplayer service graph.
     private ClientNetworkConfig clientNetworkConfig;
     private MultiplayerSession multiplayerSession;
@@ -105,6 +119,9 @@ public class JJKGame extends Game {
     public void create() {
         assets = new AssetLoader();
         assets.load();
+        if (AppPaths.isAuthoringMode()) {
+            overlayBatch = new SpriteBatch();
+        }
 
         try {
             clientNetworkConfig = ClientNetworkConfig.load();
@@ -153,8 +170,38 @@ public class JJKGame extends Game {
         setScreen(mainMenuScreen);
     }
 
+    /**
+     * Render the active screen, then (in authoring mode only) draw a small
+     * "AUTHORING" badge in the top-right corner over the finished frame. This
+     * is the single draw-after-every-screen hook, so the badge persists across
+     * menus, editors, battle, and character select regardless of how each
+     * screen renders.
+     */
+    @Override
+    public void render() {
+        super.render();
+        if (overlayBatch == null) return;
+        int w = Gdx.graphics.getWidth();
+        int h = Gdx.graphics.getHeight();
+        float margin = 12f;
+        BitmapFont font = assets.fontSmall;
+        String label = "AUTHORING";
+        overlayLayout.setText(font, label);
+        float x = w - margin - overlayLayout.width;
+        float y = h - margin; // baseline near the top (draw is baseline-anchored)
+        overlayBatch.getProjectionMatrix().setToOrtho2D(0, 0, w, h);
+        overlayBatch.begin();
+        font.setColor(AUTHORING_BADGE_COLOR);
+        font.draw(overlayBatch, label, x, y);
+        overlayBatch.end();
+    }
+
     @Override
     public void dispose() {
+        if (overlayBatch != null) {
+            overlayBatch.dispose();
+            overlayBatch = null;
+        }
         // Match service owns the socket lifecycle, so closing it is the only
         // MatchWebSocketClient close. HTTP and guest file workers are separate.
         if (multiplayerMatchService != null) {

@@ -11,9 +11,18 @@
     "prerequisites" : [ {
       "type" : "STAT",
       "stat" : "cursedEnergyReserves",
-      "minimum" : 50
+      "minimum" : 65
     }, {
-      "type" : "MASTERY",
+      "type" : "STAT",
+      "stat" : "cursedEnergyEfficiency",
+      "minimum" : 55
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyOutput",
+      "minimum" : 65
+    }, {
+      "type" : "STAT",
+      "stat" : "jujutsuSkill",
       "minimum" : 60
     } ]
   }, {

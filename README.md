@@ -31,10 +31,29 @@ mvn clean verify
 ```
 
 ### Run graphics mode (macOS — ALWAYS include -XstartOnFirstThread)
+
+**Authoring mode (use this for development)** — edits save directly to the
+tracked source `data/` files (the ones bundled into releases), so your changes
+become the next release's defaults. **Run from the repo root** so authoring mode
+can find the source `data/` folder.
 ```bash
-mvn -Drevision=1.2.1 -pl core,graphics -am clean verify
-java -XstartOnFirstThread -jar graphics/target/graphics-1.2.1.jar
+mvn -Drevision=1.2.11 -pl core,graphics -am clean verify
+java -XstartOnFirstThread -Djjktbf.authoring=true -jar graphics/target/graphics-1.2.11.jar
 ```
+
+**Normal / player mode** — edits save to your per-user profile only (same
+behavior as a downloaded release):
+```bash
+mvn -Drevision=1.2.11 -pl core,graphics -am clean verify
+java -XstartOnFirstThread -jar graphics/target/graphics-1.2.11.jar
+```
+
+> **Authoring mode is how your balance changes ship.** Without
+> `-Djjktbf.authoring=true`, saves go to your per-user profile and are
+> overwritten the next time you download a newer release — your changes never
+> reach the source files and never ship. Authoring mode detects the repo's
+> source `data/` folder by walking up from your current working directory; if
+> run elsewhere it falls back to per-user mode with a console warning.
 
 > **macOS rule:** Every time you run the graphics JAR on macOS, the
 > `-XstartOnFirstThread` flag is required. GLFW (the windowing library) must
@@ -52,16 +71,16 @@ java -XstartOnFirstThread -jar graphics/target/graphics-1.2.1.jar
 The server runs with an embedded persistent H2 database by default:
 
 ```bash
-mvn -Drevision=1.2.1 -pl server -am package
-java -jar server/target/server-1.2.1.jar
+mvn -Drevision=1.2.11 -pl server -am package
+java -jar server/target/server-1.2.11.jar
 ```
 
 Build the desktop client and launch two instances with separate guest profiles:
 
 ```bash
-mvn -Drevision=1.2.1 -pl graphics -am package
-java -XstartOnFirstThread -Djjktbf.data.root="$PWD/.local/client-a" -jar graphics/target/graphics-1.2.1.jar
-java -XstartOnFirstThread -Djjktbf.data.root="$PWD/.local/client-b" -jar graphics/target/graphics-1.2.1.jar
+mvn -Drevision=1.2.11 -pl graphics -am package
+java -XstartOnFirstThread -Djjktbf.data.root="$PWD/.local/client-a" -jar graphics/target/graphics-1.2.11.jar
+java -XstartOnFirstThread -Djjktbf.data.root="$PWD/.local/client-b" -jar graphics/target/graphics-1.2.11.jar
 ```
 
 The `-XstartOnFirstThread` option is macOS-only. PostgreSQL/Docker setup, non-macOS commands, production configuration, and the complete two-client flow are documented in **[`MULTIPLAYER.md`](MULTIPLAYER.md)**. The design and protocol are documented in **[`MULTIPLAYER_ARCHITECTURE.md`](MULTIPLAYER_ARCHITECTURE.md)**.
