@@ -72,6 +72,16 @@ public final class AppPaths {
     /** Environment equivalent of {@link #DATA_ROOT_SYSTEM_PROPERTY}. */
     public static final String DATA_ROOT_ENVIRONMENT_VARIABLE = "JJKTBF_DATA_ROOT";
 
+    /**
+     * JVM property ({@code -Djjktbf.authoring=true}) that makes the running game
+     * edit the <em>source</em> game-data files (the ones bundled into releases)
+     * instead of the per-user copies. Intended for the developer's main build:
+     * changes saved in authoring mode become the shipped defaults once
+     * committed and released. Released builds never set this flag, so players
+     * keep the normal per-user behavior.
+     */
+    public static final String AUTHORING_SYSTEM_PROPERTY = "jjktbf.authoring";
+
     /** Filesystem-safe folder name used under the per-user data root. */
     private static final String APP_DIR_NAME = "JujutsuKaisenFighter";
 
@@ -211,9 +221,63 @@ public final class AppPaths {
     // -------------------------------------------------------------------------
 
     /**
-     * Map a caller-supplied relative data directory (e.g. {@code "data/characters"})
+     * Optional override pinning the repository root used by
+     * {@link #authoringDataDir()}. Useful when the game is launched from a
+     * working directory that is not the project root.
+     */
+    public static final String AUTHORING_ROOT_SYSTEM_PROPERTY = "jjktbf.authoring.root";
+
+    /**
+     * {@code true} when authoring mode is active
+     * ({@code -Djjktbf.authoring=true}). In this mode the game reads and writes
+     * the <em>source</em> game-data files &mdash; the ones bundled into releases
+     * &mdash; instead of the per-user copies, so edits saved from the developer's
+     * main build become the shipped defaults once committed and released.
+     * Released builds never set this flag, so players keep the per-user behavior.
+     */
+    public static boolean isAuthoringMode() {
+        return Boolean.getBoolean(AUTHORING_SYSTEM_PROPERTY);
+    }
+
+    /**
+     * Locate the source {@code data} directory (the tracked catalog files that
+     * get bundled into releases) for use in authoring mode. Detection starts
+     * from the current working directory (or the path pinned by
+     * {@code -Djjktbf.authoring.root}) and walks up looking for a directory
+     * whose {@code data/} folder contains the bundled move and character
+     * catalogs.
+     *
+     * @return the source {@code data} directory, or {@code null} if it could
+     *         not be located (callers fall back to the per-user directory)
+     */
+    public static Path authoringDataDir() {
+        String configured = System.getProperty(AUTHORING_ROOT_SYSTEM_PROPERTY);
+        Path start = (configured != null && !configured.isBlank())
+            ? Paths.get(configured.trim()).toAbsolutePath().normalize()
+            : Paths.get(".").toAbsolutePath().normalize();
+        Path candidate = start;
+        for (int i = 0; i < 16 && candidate != null; i++) {
+            Path data = candidate.resolve("data");
+            if (isSourceDataDir(data)) return data;
+            candidate = candidate.getParent();
+        }
+        return null;
+    }
+
+    private static boolean isSourceDataDir(Path data) {
+        return Files.isDirectory(data)
+            && Files.isRegularFile(data.resolve("moves/all_moves.json"))
+            && Files.isRegularFile(data.resolve("characters/all_characters.json"));
+    }
+
+    /**
+     * Resolve the repository-relative data directory (e.g. {@code data/characters})
      * onto the per-user data directory, returning the absolute path as a
      * {@link java.io.File} for the existing repository code.
+     *
+     * <p>In authoring mode the location is redirected to the tracked source
+     * {@code data/} directory (see {@link #authoringDataDir()}) so the
+     * repositories edit the files that ship in releases.
      *
      * <p>Callers keep passing the same relative strings they always did; this
      * method transparently relocates them to a stable, writable location.
@@ -231,13 +295,29 @@ public final class AppPaths {
             sub = rel.substring("data".length());
             while (sub.startsWith("/")) sub = sub.substring(1);
         }
-        Path resolved = sub.isEmpty() ? dataDir() : dataDir().resolve(sub);
+        Path target;
+        if (isAuthoringMode()) {
+            Path source = authoringDataDir();
+            if (source != null) {
+                target = sub.isEmpty() ? source : source.resolve(sub);
+            } else {
+                // Source dir not found: fall back to the per-user dir with a
+                // warning rather than failing, so the game stays playable.
+                System.err.println("Warning: authoring mode requested but the source data/ directory "
+                    + "could not be located from " + Paths.get(".").toAbsolutePath()
+                    + "; using the per-user data directory. Pin it with -D"
+                    + AUTHORING_ROOT_SYSTEM_PROPERTY + "=/path/to/repo.");
+                target = sub.isEmpty() ? dataDir() : dataDir().resolve(sub);
+            }
+        } else {
+            target = sub.isEmpty() ? dataDir() : dataDir().resolve(sub);
+        }
         try {
-            Files.createDirectories(resolved);
+            Files.createDirectories(target);
         } catch (IOException ignored) {
             // Repository load()/save() will surface a clearer error on failure.
         }
-        return resolved.toFile();
+        return target.toFile();
     }
 
     // -------------------------------------------------------------------------
@@ -248,8 +328,13 @@ public final class AppPaths {
      * Seed missing data files on first launch. When the bundled game version
      * changes, replace every editable game-data catalog with the new release.
      * The recorded version is updated only after all catalogs have been copied.
+     *
+     * <p>In authoring mode this is a no-op: the repositories edit the source
+     * catalog files directly, and overwriting them with the (possibly stale)
+     * bundled copies would discard uncommitted edits and create a feedback loop.
      */
     public static void seedDataIfAbsent() {
+        if (isAuthoringMode()) return;
         ClassLoader cl = loader();
         try {
             String bundledVersion = bundledGameVersion(cl);

@@ -174,7 +174,10 @@ abstract class MultiplayerScreenBase implements Screen {
         titleLabel.setAlignment(Align.left);
         header.add(titleLabel).growX().left();
         if (subtitle != null && !subtitle.isBlank()) {
-            Label subtitleLabel = new Label(subtitle, assets.editorSkin, "small");
+            // small-white base: the header sits on dark-blue chrome, and Label
+            // actor colour multiplies the style fontColour, so a TEXT_DARK "small"
+            // label recoloured periwinkle renders as dark navy.
+            Label subtitleLabel = new Label(subtitle, assets.editorSkin, "small-white");
             subtitleLabel.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
             header.add(subtitleLabel).right().padLeft(12f);
         }

@@ -84,7 +84,8 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
         identityBar.setBackground(assets.editorSkin.getDrawable("battle-palette"));
         identityBar.pad(10f, 14f, 10f, 14f);
         guestLabel = new Label("GUEST: CONNECTING", assets.editorSkin, "white");
-        statusLabel = wrappedLabel("", "small");
+        // On dark-blue battle-palette: small-white so status tints stay legible.
+        statusLabel = wrappedLabel("", "small-white");
         identityBar.add(guestLabel).left().padRight(18f);
         identityBar.add(statusLabel).growX().left();
         root.add(identityBar).growX().padTop(12f).row();

@@ -45,7 +45,9 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
         identityLabel = new Label("GUEST: NOT CONNECTED", assets.editorSkin, "white");
         panel.add(identityLabel).growX().left().padBottom(6f).row();
 
-        statusLabel = wrappedLabel("", "small");
+        // On dark-blue battle-palette: use small-white so status tints stay
+        // legible (TEXT_DARK base × tint multiplies down to near-black).
+        statusLabel = wrappedLabel("", "small-white");
         panel.add(statusLabel).growX().left().padBottom(14f).row();
 
         Label fighterTitle = new Label("FIGHTER", assets.editorSkin, "white");
@@ -62,7 +64,7 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
         });
         panel.add(fighterSelect).growX().height(44f).padBottom(5f).row();
 
-        rosterStatusLabel = wrappedLabel("", "small");
+        rosterStatusLabel = wrappedLabel("", "small-white");
         panel.add(rosterStatusLabel).growX().left().padBottom(14f).row();
 
         hostButton = button("HOST CHALLENGE", "primary", game::showHostChallenge);

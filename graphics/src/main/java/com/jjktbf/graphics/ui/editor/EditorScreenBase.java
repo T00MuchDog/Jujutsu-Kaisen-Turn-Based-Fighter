@@ -236,7 +236,10 @@ public abstract class EditorScreenBase<D> implements Screen {
         Table left = new Table(skin);
         left.setBackground(skin.getDrawable("battle-palette"));
         left.pad(10f);
-        Label libraryLabel = new Label("RECORDS", skin, "small");
+        // Left column sits on the dark-blue battle-palette: use the small-white
+        // style so the periwinkle tint multiplies up correctly (a TEXT_DARK base
+        // would render dark navy against the palette).
+        Label libraryLabel = new Label("RECORDS", skin, "small-white");
         libraryLabel.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
         left.add(libraryLabel).left().growX().padBottom(6f).row();
         searchField = new HoverTextField("", skin);
@@ -583,7 +586,10 @@ public abstract class EditorScreenBase<D> implements Screen {
 
     private Actor emptyDetail() {
         Table t = new Table(skin);
-        Label l = new Label("No record selected.\nClick NEW, or select a record from the list.", skin, "small");
+        // Detail pane sits on the dark-blue battle-palette: small-white base so
+        // the periwinkle tint reads correctly (TEXT_DARK base multiplies to navy).
+        Label l = new Label("No record selected.\nClick NEW, or select a record from the list.",
+            skin, "small-white");
         l.setAlignment(Align.center);
         // Light periwinkle: readable over the navy palette background.
         l.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
