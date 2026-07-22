@@ -712,9 +712,15 @@ public class SkillTreeCanvas extends WidgetGroup {
 
         private void refreshState() {
             boolean active = character != null && TechniqueSkillTree.isActive(node, character);
-            // The same yellow-outline treatment used on hover remains while the
-            // character has the node toggled on.
-            setBackground(skin.getDrawable(active || hovered ? "textfield-over" : "white-panel"));
+            boolean locked = character != null && !active
+                && !TechniqueSkillTree.isUnlocked(technique, node, character);
+            // Active nodes keep the yellow hover-outline treatment; locked nodes
+            // (prerequisites unmet) render with the same dark grey panel used for
+            // unavailable moves in the assignment panels, instead of the white of
+            // available nodes, and don't pick up the hover outline.
+            String backgroundName = locked ? "battle-card-disabled"
+                : (active || hovered ? "textfield-over" : "white-panel");
+            setBackground(skin.getDrawable(backgroundName));
             if (character == null) {
                 name.setColor(skin.get("text-dark", Color.class));
                 description.setColor(skin.get("text-dark", Color.class));
@@ -723,12 +729,12 @@ public class SkillTreeCanvas extends WidgetGroup {
             if (active) {
                 name.setColor(skin.get("text-ok", Color.class));
                 description.setColor(skin.get("text-dark", Color.class));
-            } else if (TechniqueSkillTree.isUnlocked(technique, node, character)) {
-                name.setColor(skin.get("text-dark", Color.class));
-                description.setColor(skin.get("text-dark", Color.class));
-            } else {
+            } else if (locked) {
                 name.setColor(skin.get("text-dim", Color.class));
                 description.setColor(skin.get("text-dim", Color.class));
+            } else {
+                name.setColor(skin.get("text-dark", Color.class));
+                description.setColor(skin.get("text-dark", Color.class));
             }
         }
     }
