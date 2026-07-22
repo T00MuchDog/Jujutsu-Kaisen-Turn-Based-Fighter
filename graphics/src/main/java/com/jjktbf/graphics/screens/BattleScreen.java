@@ -22,13 +22,11 @@ import com.jjktbf.graphics.ui.battle.PlanningPanel;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.coded.CodedAbilityState;
 import com.jjktbf.model.character.coded.MiraclesAbility;
-import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.combat.CombatEvent;
-import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveTag;
@@ -48,7 +46,9 @@ import com.jjktbf.multiplayer.protocol.SocketMessage;
 import com.jjktbf.view.BattleView;
 
 import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -90,20 +90,28 @@ public class BattleScreen implements Screen, BattleView {
      */
     private static final float LOG_LINE_SPACING = 1.7f;
     /**
-     * Per-tick hold during resolution, in milliseconds. Ticks in "slow mode" —
-     * the tick before a move fires, the firing tick itself, and the tick after
-     * — use the longer slow hold so the action has room to breathe; everything
+     * Per-tick hold during resolution, in milliseconds. A tick that fires a
+     * move uses the longer {@link #SLOW_TICK_DURATION_MS} hold so the action
+     * has room to breathe alongside the move-unleash animation; everything
      * else uses the short baseline so the sweep stays brisk. Whether a given
      * tick fired is taken reactively from MOVE_FIRED events
-     * (see {@link #lastTickFired}); whether the *next* tick will fire is taken
-     * from the precomputed {@link #firingTicks} set.
+     * (see {@link #lastTickFired}).
      */
     private static final int   TICK_DURATION_MS        = 200;
-    private static final int   SLOW_TICK_DURATION_MS   = 1000;
-    /** Brief beat between consecutive log messages within a single tick. */
-    private static final int   EVENT_DELAY_MS          = TICK_DURATION_MS / 2;
-    /** Move-unleash animation length — sized to fill a firing tick's slow hold. */
-    private static final float MOVE_EFFECT_DURATION_SECONDS = SLOW_TICK_DURATION_MS / 1000f;
+    private static final int   SLOW_TICK_DURATION_MS   = 3000;
+    /**
+     * Move-unleash animation length. Fixed at 3 seconds and decoupled from the
+     * firing-tick hold so it can outlast a tick; sized to dominate the slow
+     * hold so a firing tick reads as a deliberate beat.
+     */
+    private static final float MOVE_EFFECT_DURATION_SECONDS = 3f;
+    /** Chars revealed per second when typing a log line out letter-by-letter. */
+    private static final float LOG_TYPE_RATE_CPS       = 30f;
+    /**
+     * Beat held after a log line finishes typing before it commits and the
+     * battle advances, so each sentence gets a moment to land.
+     */
+    private static final float LOG_TYPE_TAIL_SECONDS   = 0.2f;
 
     private final JJKGame     game;
     private final AssetLoader assets;
@@ -124,6 +132,23 @@ public class BattleScreen implements Screen, BattleView {
 
     // ── Event log ─────────────────────────────────────────────────────────────
     private final List<String> logLines = new ArrayList<>();
+    /**
+     * Progressive "typewriter" log reveal. Messages are queued rather than
+     * appended; {@link #updateTyping(float)} reveals them one character at a
+     * time on the render thread, then commits each to {@link #logLines} after
+     * a short tail. {@link #committedLogSeq} is bumped on each commit and read
+     * by the battle thread to gate advancement. {@link #displayMessage} bypasses
+     * the gate while the execution UI is still hidden (before the first planning
+     * phase), since there is nothing on screen for the player to read along
+     * with — those lines still type out and commit, they just don't block.
+     */
+    private final Deque<String> pendingTypingQueue = new ArrayDeque<>();
+    private String typingLine;
+    private int typingChars;
+    private float typingCharTimer;
+    private float typingTailTimer;
+    /** Bumped on the render thread each time a typing line commits; read by the battle thread. */
+    private volatile int committedLogSeq = 0;
 
     // ── Move unleash animation (render-thread state) ──────────────────────────
     private Texture unleashedMoveIcon;
@@ -146,20 +171,10 @@ public class BattleScreen implements Screen, BattleView {
      */
     private boolean lastTickFired = false;
     /**
-     * Tick number whose hold is currently being paid — i.e. the tick whose
-     * pacing we are deciding. Tracked so the pacing logic can ask "is this tick
-     * itself a firing tick / adjacent to one?". The hold for tick N is applied
-     * at the start of the {@code displayResolutionTick(N+1)} call (and in
-     * {@link #displayRoundEnd} for the final tick), so this is N, not N+1.
-     */
-    private int heldTick = 0;
-    /**
      * Absolute ticks at which some (non-stunned) segment fires this round,
-     * precomputed from both combatants' timelines. Drives the "slow mode"
-     * lookahead: a tick goes slow not only when it (or the previous tick)
-     * fired, but also when the <em>next</em>> tick will fire — the wind-up
-     * before a move unleashes. Rebuilt per round on the first tick of the
-     * sweep. Touched only on the battle thread.
+     * precomputed from both combatants' timelines. Used only by the multiplayer
+     * playback path to mark firing ticks for the slow hold; LOCAL uses the
+     * reactive {@link #lastTickFired} flag instead.
      */
     private Set<Integer> firingTicks = new HashSet<>();
     private boolean nextRoundHovered = false;
@@ -178,6 +193,18 @@ public class BattleScreen implements Screen, BattleView {
     // ── Shared render state (written by controller thread, read by render) ────
     private volatile BattleCombatant renderPlayer;
     private volatile BattleCombatant renderEnemy;
+    /**
+     * LOCAL deferred HP. Seeded from the model at round boundaries and mutated
+     * only on damage/heal/max-HP events (paired with the matching log line), so
+     * the HP bar and HP text change when the "X took Y damage" line plays — not
+     * when the move unleashes or the tick fires. Mirrors the multiplayer
+     * {@code onlinePlayerHp}/{@code onlineEnemyHp} pattern. CE is left out: it
+     * drains at the move's start tick, before the fire tick, so it stays live.
+     */
+    private int localPlayerHp;
+    private int localPlayerMaxHp;
+    private int localEnemyHp;
+    private int localEnemyMaxHp;
     private volatile String          phaseLabel = "";
     private volatile boolean         battleOver  = false;
     private volatile String          battleResult = "";
@@ -281,6 +308,15 @@ public class BattleScreen implements Screen, BattleView {
         Gdx.input.setInputProcessor(null);
         planningPanel = null;
         logLines.clear();
+        pendingTypingQueue.clear();
+        typingLine = null;
+        typingChars = 0;
+        typingCharTimer = 0f;
+        typingTailTimer = 0f;
+        localPlayerHp = 0;
+        localPlayerMaxHp = 0;
+        localEnemyHp = 0;
+        localEnemyMaxHp = 0;
         inputConfirmed = false;
         awaitingNextRound = false;
         nextRoundConfirmed = false;
@@ -308,7 +344,6 @@ public class BattleScreen implements Screen, BattleView {
         onlinePlayerMiracles = null;
         miraclesMeter.clear();
         onlineMoves = Map.of();
-        logLines.clear();
 
         if (mode == BattleMode.MULTIPLAYER) {
             startMultiplayer();
@@ -322,6 +357,7 @@ public class BattleScreen implements Screen, BattleView {
     public void render(float delta) {
         frameDelta = delta;
         updateMoveUnleashAnimation(delta);
+        updateTyping(delta);
         if (mode == BattleMode.MULTIPLAYER) updateMultiplayerPlayback(delta);
         clearScreen();
         // Escape aborts from any phase, including planning (where the
@@ -498,6 +534,12 @@ public class BattleScreen implements Screen, BattleView {
         BitmapFont logFont = assets.fontLog;
         // Wrap the retained messages to the panel width (fixed font; no scaling).
         List<String> lines = wrapAll(logFont, logBounds.width - 28f);
+        // Append the in-progress typing line (newest) — wrapped from the
+        // revealed substring so multi-line messages reveal row by row.
+        if (typingLine != null) {
+            int shown = Math.min(typingChars, typingLine.length());
+            lines.addAll(wrapText(logFont, typingLine.substring(0, shown), logBounds.width - 28f));
+        }
 
         // Usable area sits below the "BATTLE LOG" title.
         float topY    = logBounds.y + logBounds.height - 34f;
@@ -613,6 +655,78 @@ public class BattleScreen implements Screen, BattleView {
         while (logLines.size() > LOG_MAX_STORED) logLines.remove(0);
     }
 
+    /**
+     * Queue a message for progressive letter-by-letter reveal. The battle
+     * thread pairs this with {@link #waitForLogLine()} so a tick does not
+     * advance until its log finishes typing.
+     */
+    private void queueLogLine(String message) {
+        if (message == null || message.isBlank()) return;
+        pendingTypingQueue.add(message);
+    }
+
+    /**
+     * Advance the typewriter reveal on the render thread: pop queued messages
+     * one at a time, reveal a character at {@link #LOG_TYPE_RATE_CPS}, then
+     * hold for {@link #LOG_TYPE_TAIL_SECONDS} before committing the finished
+     * line to {@link #logLines} and bumping {@link #committedLogSeq}.
+     */
+    private void updateTyping(float delta) {
+        if (delta <= 0f) return;
+        if (typingLine == null) {
+            typingLine = pendingTypingQueue.poll();
+            if (typingLine == null) return;
+            typingChars = 0;
+            typingCharTimer = 0f;
+            typingTailTimer = 0f;
+        }
+        int total = typingLine.length();
+        if (typingChars < total) {
+            typingCharTimer += delta;
+            float perChar = 1f / LOG_TYPE_RATE_CPS;
+            while (typingCharTimer >= perChar && typingChars < total) {
+                typingCharTimer -= perChar;
+                typingChars++;
+            }
+            if (typingChars < total) return;
+        }
+        // Fully revealed — hold the tail, then commit.
+        typingTailTimer += delta;
+        if (typingTailTimer >= LOG_TYPE_TAIL_SECONDS) {
+            addLogLine(typingLine);
+            committedLogSeq++;
+            typingLine = null;
+            typingChars = 0;
+            typingCharTimer = 0f;
+            typingTailTimer = 0f;
+        }
+    }
+
+    /**
+     * Whether any log line is still mid-reveal or queued. Used by the
+     * multiplayer playback accumulator to stall tick advancement until the log
+     * catches up.
+     */
+    private boolean typingInProgress() {
+        return typingLine != null || !pendingTypingQueue.isEmpty();
+    }
+
+    /**
+     * Block the battle thread until the line queued immediately before this
+     * call finishes typing and commits. Each LOCAL call queues exactly one
+     * line then waits for the next {@link #committedLogSeq} bump, so multiple
+     * lines in a tick type out in order. Returns promptly on abort.
+     */
+    private void waitForLogLine() {
+        // Wait until the typewriter is fully idle — no line mid-reveal and the
+        // queue drained — rather than just the next commit. A "next commit"
+        // gate would mis-fire if earlier lines (e.g. the BATTLE START banner,
+        // which doesn't block) were still queued ahead of this one.
+        while (typingInProgress() && !abortRequested && isCurrentLocalBattleThread()) {
+            sleepMs(16);
+        }
+    }
+
     private static List<String> wrapText(BitmapFont font, String text, float width) {
         List<String> lines = new ArrayList<>();
         StringBuilder line = new StringBuilder();
@@ -652,6 +766,7 @@ public class BattleScreen implements Screen, BattleView {
         postLocal(() -> {
             renderPlayer = state.getPlayerCombatant();
             renderEnemy  = state.getEnemyCombatant();
+            syncLocalHpFromModel();
             phaseLabel   = "ROUND " + state.getRoundNumber() + "  —  PLANNING";
             initPanels();
             updatePanels();
@@ -678,6 +793,7 @@ public class BattleScreen implements Screen, BattleView {
         postLocal(() -> {
             renderPlayer = combatant;
             renderEnemy  = opponent;
+            syncLocalHpFromModel();
             phaseLabel   = "PLAN YOUR ROUND";
             executionUiActive = true;
             planningPanel = new com.jjktbf.graphics.ui.battle.PlanningPanel(
@@ -745,12 +861,21 @@ public class BattleScreen implements Screen, BattleView {
                 postLocal(() -> playMoveUnleashAnimation(unleashedMove));
             }
             if (!e.getMessage().isBlank()) {
+                final CombatEvent ev = e;
                 final String msg = e.getMessage();
                 postLocal(() -> {
-                    addLogLine(msg);
+                    // Apply this event's HP delta before drawing, so the bar
+                    // and HP text change as this (the damage) line begins
+                    // typing — not when the move unleashed earlier.
+                    applyLocalHpEvent(ev);
+                    queueLogLine(msg);
                     updatePanels();
                 });
-                abortableSleepMs(EVENT_DELAY_MS);
+                // Round-start ability events fire before the first planning
+                // phase flips executionUiActive; gating there would stall the
+                // battle thread behind a blank screen. The lines still type
+                // out, they just don't block (see displayMessage).
+                if (executionUiActive) waitForLogLine();
             }
         }
     }
@@ -758,24 +883,15 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayResolutionTick(int tick, BattleState state) {
         if (abortRequested || !isCurrentLocalBattleThread()) return;
-        // Rebuild the round's firing-tick set when a new sweep starts, so the
-        // lookahead ("tick before firing") pacing reflects this round's plan.
-        if (!resolvingTicks) {
-            firingTicks = collectFiringTicks(state);
-            heldTick = 0;
-        }
-        // Hold the previous tick before advancing. A tick runs in slow mode when
-        // it sits next to a move firing: the tick before (wind-up), the firing
-        // tick itself, or the tick after (follow-through). lastTickFired covers
-        // the firing tick reactively from actual MOVE_FIRED events — so a
-        // segment stunned mid-sweep doesn't trip a false slow-mo — while the
-        // precomputed firingTicks set supplies the wind-up/after lookahead.
+        // Hold the previous tick before advancing. Only a tick that actually
+        // fired a move (tracked reactively via lastTickFired) gets the long
+        // slow hold; everything else uses the brisk baseline. The reactive
+        // flag means a segment stunned mid-sweep won't trip a false slow-mo.
         if (resolvingTicks) {
-            abortableSleepMs(isSlowTick(heldTick, lastTickFired, firingTicks)
+            abortableSleepMs(isSlowTick(lastTickFired)
                 ? SLOW_TICK_DURATION_MS : TICK_DURATION_MS);
         }
         lastTickFired = false;
-        heldTick = tick;
         currentExecutionTick = tick;
         resolvingTicks = true;
         postLocal(() -> phaseLabel = "ROUND " + state.getRoundNumber() + "  —  RESOLVING");
@@ -788,45 +904,25 @@ public class BattleScreen implements Screen, BattleView {
         // The final tick's tail hold runs here: no further displayResolutionTick
         // call follows to apply it. Without this the last hit of a round would
         // jump straight to the "round complete" banner and skip its slow-mo.
-        abortableSleepMs(isSlowTick(heldTick, lastTickFired, firingTicks)
+        abortableSleepMs(isSlowTick(lastTickFired)
             ? SLOW_TICK_DURATION_MS : TICK_DURATION_MS);
         lastTickFired = false;
         postLocal(() -> {
+            // Re-seed from the model so end-of-round maintenance (poison, max-HP
+            // changes, etc.) converges the deferred bars back to the true HP.
+            syncLocalHpFromModel();
             phaseLabel = "ROUND " + Math.max(1, state.getRoundNumber() - 1) + " COMPLETE";
             updatePanels();
         });
     }
 
     /**
-     * Absolute ticks at which some non-stunned segment fires across both
-     * combatants' timelines this round. Used for slow-mode lookahead.
+     * Whether the tick being held should run in slow mode — i.e. it fired a
+     * move. LOCAL uses the reactive flag (exact even under stunning);
+     * multiplayer passes {@code firingTicks.contains(currentExecutionTick)}.
      */
-    private static Set<Integer> collectFiringTicks(BattleState state) {
-        Set<Integer> ticks = new HashSet<>();
-        addFiringTicks(state.getPlayerCombatant(), ticks);
-        addFiringTicks(state.getEnemyCombatant(), ticks);
-        return ticks;
-    }
-
-    private static void addFiringTicks(BattleCombatant combatant, Set<Integer> into) {
-        if (combatant == null) return;
-        Timeline tl = combatant.getTimeline();
-        if (tl == null) return;
-        for (ActionSegment s : tl.getSegments()) {
-            if (!s.isStunned()) into.add(s.getFireTick());
-        }
-    }
-
-    /**
-     * Whether the tick being held should run in slow mode. True when the tick
-     * itself fired (reactive flag — exact even under stunning), or when either
-     * neighbour is a precomputed firing tick (wind-up before, follow-through
-     * after).
-     */
-    private static boolean isSlowTick(int heldTick, boolean lastTickFired, Set<Integer> firingTicks) {
-        if (lastTickFired) return true;
-        if (heldTick <= 0 || firingTicks == null) return false;
-        return firingTicks.contains(heldTick - 1) || firingTicks.contains(heldTick + 1);
+    private static boolean isSlowTick(boolean fired) {
+        return fired;
     }
 
     @Override
@@ -865,8 +961,14 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayMessage(String message) {
         if (abortRequested || !isCurrentLocalBattleThread()) return;
-        postLocal(() -> addLogLine(message));
-        abortableSleepMs(100);
+        postLocal(() -> queueLogLine(message));
+        // The only displayMessage call is the opening "BATTLE START" banner,
+        // which runs before the first planning phase flips executionUiActive.
+        // Blocking there would stall the battle thread behind a blank screen
+        // (the execution HUD isn't drawn yet), so skip the gate until the UI
+        // the player reads the log against is actually up. The line still
+        // types out and commits; it just doesn't block here.
+        if (executionUiActive) waitForLogLine();
     }
 
     /** Polled by the controller thread to unwind the loop on an Escape abort. */
@@ -1144,14 +1246,13 @@ public class BattleScreen implements Screen, BattleView {
 
     private void updateMultiplayerPlayback(float delta) {
         if (!resolvingTicks || playbackComplete || multiplayerState == null) return;
+        // Don't advance (or accumulate) while a log line is still typing, so
+        // a tick that just queued messages can't outpace the typewriter.
+        if (typingInProgress()) return;
         playbackTickElapsedMs += Math.max(0f, delta) * 1000f;
 
         while (resolvingTicks) {
-            int duration = isSlowTick(
-                currentExecutionTick,
-                firingTicks.contains(currentExecutionTick),
-                firingTicks
-            )
+            int duration = isSlowTick(firingTicks.contains(currentExecutionTick))
                 ? SLOW_TICK_DURATION_MS : TICK_DURATION_MS;
             if (playbackTickElapsedMs < duration) return;
             playbackTickElapsedMs -= duration;
@@ -1162,6 +1263,9 @@ public class BattleScreen implements Screen, BattleView {
             }
             currentExecutionTick++;
             processPlaybackEventsThrough(currentExecutionTick);
+            // If advancing the tick just queued log lines, hold further
+            // advancement until they type out.
+            if (typingInProgress()) return;
         }
     }
 
@@ -1248,7 +1352,7 @@ public class BattleScreen implements Screen, BattleView {
         }
         if (event.message() != null && !event.message().isBlank()
             && (event.eventId() == null || loggedOnlineEventIds.add(event.eventId()))) {
-            addLogLine(event.message());
+            queueLogLine(event.message());
         }
     }
 
@@ -1256,7 +1360,7 @@ public class BattleScreen implements Screen, BattleView {
         for (BattleEventState event : events) {
             if (event.message() != null && !event.message().isBlank()
                 && (event.eventId() == null || loggedOnlineEventIds.add(event.eventId()))) {
-                addLogLine(event.message());
+                queueLogLine(event.message());
             }
         }
     }
@@ -1617,6 +1721,56 @@ public class BattleScreen implements Screen, BattleView {
         updatePanels();
     }
 
+    /**
+     * Seed the LOCAL deferred HP ints from the live model. Called at round
+     * boundaries so the bars start each round accurate and end-of-round
+     * maintenance (poison, max-HP changes) converges them back to the model.
+     */
+    private void syncLocalHpFromModel() {
+        if (renderPlayer != null) {
+            localPlayerHp    = renderPlayer.getCurrentHp();
+            localPlayerMaxHp = renderPlayer.getMaxHp();
+        }
+        if (renderEnemy != null) {
+            localEnemyHp    = renderEnemy.getCurrentHp();
+            localEnemyMaxHp = renderEnemy.getMaxHp();
+        }
+    }
+
+    /**
+     * Apply an event's HP delta to the LOCAL deferred ints. Called in the same
+     * posted runnable as the event's log line, so the bar/HP-text change lands
+     * when that line plays. Only damage/heal/max-HP events touch HP; everything
+     * else (notably MOVE_FIRED) leaves it alone — which is the whole point.
+     * Target identity is by reference against the live render combatants.
+     */
+    private void applyLocalHpEvent(CombatEvent e) {
+        int amount = e.getIntValue();
+        boolean playerTarget = e.getTarget() == renderPlayer;
+        boolean enemyTarget  = e.getTarget() == renderEnemy;
+        switch (e.getType()) {
+            case DAMAGE_DEALT:
+                if (playerTarget)       localPlayerHp = Math.max(0, localPlayerHp - amount);
+                else if (enemyTarget)   localEnemyHp  = Math.max(0, localEnemyHp  - amount);
+                break;
+            case HP_RESTORED:
+                if (playerTarget)       localPlayerHp = Math.min(localPlayerMaxHp, localPlayerHp + amount);
+                else if (enemyTarget)   localEnemyHp  = Math.min(localEnemyMaxHp, localEnemyHp  + amount);
+                break;
+            case MAX_HP_CHANGED:
+                if (playerTarget) {
+                    localPlayerMaxHp = Math.max(1, amount);
+                    localPlayerHp    = Math.min(localPlayerHp, localPlayerMaxHp);
+                } else if (enemyTarget) {
+                    localEnemyMaxHp = Math.max(1, amount);
+                    localEnemyHp    = Math.min(localEnemyHp, localEnemyMaxHp);
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
     private void updatePanels() {
         if (mode == BattleMode.MULTIPLAYER) {
             if (playerPanel != null && onlinePlayer != null) {
@@ -1630,10 +1784,19 @@ public class BattleScreen implements Screen, BattleView {
             }
             return;
         }
-        if (playerPanel != null && renderPlayer != null) playerPanel.update(renderPlayer);
+        // LOCAL: HP comes from the deferred ints (so the bar follows the damage
+        // log line); CE/max-CE stay live from the model since CE drains at the
+        // move's start tick, before the fire tick.
+        if (playerPanel != null && renderPlayer != null) {
+            playerPanel.update(localPlayerHp, localPlayerMaxHp,
+                renderPlayer.getCurrentCe(), renderPlayer.getMaxCursedEnergy());
+        }
         miraclesMeter.setState(renderPlayer == null
             ? null : findMiraclesState(renderPlayer.getCodedAbilities().states()));
-        if (enemyPanel != null && renderEnemy != null) enemyPanel.update(renderEnemy);
+        if (enemyPanel != null && renderEnemy != null) {
+            enemyPanel.update(localEnemyHp, localEnemyMaxHp,
+                renderEnemy.getCurrentCe(), renderEnemy.getMaxCursedEnergy());
+        }
     }
 
     private static CodedAbilityState findMiraclesState(List<CodedAbilityState> states) {

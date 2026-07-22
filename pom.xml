@@ -39,7 +39,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>5.10.0</junit.version>
         <jackson.version>2.15.2</jackson.version>
-        <libgdx.version>1.12.1</libgdx.version>
+        <libgdx.version>1.13.5</libgdx.version>
         <javalin.version>5.6.3</javalin.version>
         <hikaricp.version>5.1.0</hikaricp.version>
         <flyway.version>9.22.3</flyway.version>
