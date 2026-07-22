@@ -32,39 +32,19 @@ mvn clean verify
 
 ### Run graphics mode (macOS — ALWAYS include -XstartOnFirstThread)
 
-**Authoring mode (use this for development)** — edits save directly to the
-tracked source `data/` files (the ones bundled into releases), so your changes
-become the next release's defaults. **Run from the repo root** so authoring mode
-can find the source `data/` folder.
+**From IntelliJ / source — always authoring mode.** This is the development
+command. Edits save directly to the tracked source `data/` files (the ones
+bundled into releases), so your changes become the next release's defaults.
 ```bash
-mvn -Drevision=1.2.11 -pl core,graphics -am clean verify
-java -XstartOnFirstThread -Djjktbf.authoring=true -jar graphics/target/graphics-1.2.11.jar
+mvn -Drevision=1.2.12 -pl core,graphics -am clean verify
+java -XstartOnFirstThread -Djjktbf.authoring=true -jar graphics/target/graphics-1.2.12.jar
 ```
 
-**Normal / player mode** — edits save to your per-user profile only (same
-behavior as a downloaded release):
-```bash
-mvn -Drevision=1.2.11 -pl core,graphics -am clean verify
-java -XstartOnFirstThread -jar graphics/target/graphics-1.2.11.jar
-```
-
-> **Authoring mode is how your balance changes ship.** Without
-> `-Djjktbf.authoring=true`, saves go to your per-user profile and are
-> overwritten the next time you download a newer release — your changes never
-> reach the source files and never ship. Authoring mode detects the repo's
-> source `data/` folder by walking up from your current working directory; if
-> run elsewhere it falls back to per-user mode with a console warning.
 
 > **macOS rule:** Every time you run the graphics JAR on macOS, the
 > `-XstartOnFirstThread` flag is required. GLFW (the windowing library) must
 > run on the main thread on Mac. This is permanent and non-negotiable.
 > (The packaged `.app`/`.dmg` sets this automatically — see Packaging below.)
-
-> **Rebuild rule:** Always repackage before running. Editing a `.java` file does
-> not update the JAR automatically.
-
-> The graphical editors are launched from the main menu inside the graphics
-> front-end — there is no separate editor command anymore.
 
 ### Run multiplayer locally
 

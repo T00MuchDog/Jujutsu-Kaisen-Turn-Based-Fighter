@@ -53,7 +53,7 @@
   "id" : "000003",
   "name" : "Haruta Shigemo",
   "description" : "An opportunistic curse user who relies on a hand-shaped cursed tool and attacks distracted opponents. Haruta is quick enough to pressure a weaker target, but lacks the durability and skill to stand against a true grade 1 sorcerer.",
-  "spriteAsset" : "assets/sprites/characters/yuji_frontsprite.png",
+  "spriteAsset" : "assets/sprites/characters/haruta_frontsprite.png",
   "innateTechniqueName" : "Miracles",
   "vitality" : 55,
   "strength" : 45,

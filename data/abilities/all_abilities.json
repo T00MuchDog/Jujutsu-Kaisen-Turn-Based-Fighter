@@ -20,9 +20,10 @@
   "category" : "PASSIVE",
   "sourceType" : "TECHNIQUE",
   "sourceValue" : "Miracles",
+  "effects" : [ ],
   "codedAbilityKey" : "MIRACLES",
   "codedFeature" : "RESERVOIR",
-  "effects" : [ ],
+  "triggerThreshold" : 0,
   "masteryThreshold" : 0
 }, {
   "id" : "000002",
@@ -32,9 +33,10 @@
   "category" : "PASSIVE",
   "sourceType" : "TECHNIQUE",
   "sourceValue" : "Miracles",
+  "effects" : [ ],
   "codedAbilityKey" : "MIRACLES",
   "codedFeature" : "FATEFUL_REPRIEVE",
-  "effects" : [ ],
+  "triggerThreshold" : 0,
   "masteryThreshold" : 0
 }, {
   "id" : "000003",
@@ -44,8 +46,9 @@
   "category" : "PASSIVE",
   "sourceType" : "TECHNIQUE",
   "sourceValue" : "Miracles",
+  "effects" : [ ],
   "codedAbilityKey" : "MIRACLES",
   "codedFeature" : "FORTUNE_RECLAIMED",
-  "effects" : [ ],
+  "triggerThreshold" : 0,
   "masteryThreshold" : 0
 } ]

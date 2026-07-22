@@ -9,16 +9,16 @@ import com.jjktbf.AppPaths;
  *
  * Configures the LibGDX LWJGL3 window and launches JJKGame.
  *
- * To run (player mode):
- *   mvn -Drevision=1.2.11 -pl core,graphics -am clean verify
- *   java -XstartOnFirstThread -jar graphics/target/graphics-1.2.11.jar   (macOS)
- *   java -jar graphics/target/graphics-1.2.11.jar                        (Windows/Linux)
+ * To run from source (always authoring mode — run from the repo root):
+ *   mvn -Drevision=1.2.12 -pl core,graphics -am clean verify
+ *   java -XstartOnFirstThread -Djjktbf.authoring=true -jar graphics/target/graphics-1.2.12.jar   (macOS)
+ *   java -Djjktbf.authoring=true -jar graphics/target/graphics-1.2.12.jar                        (Windows/Linux)
  *
- * To author balance changes that ship in releases, add the authoring flag
- * and run from the repo root so the source data/ folder is found:
- *   java -XstartOnFirstThread -Djjktbf.authoring=true -jar graphics/target/graphics-1.2.11.jar
- *
- * Or directly from your IDE by running this class's main() method.
+ * The authoring flag makes editors save to the tracked source data/ files so
+ * changes ship in the next release; a yellow AUTHORING badge in the top-right
+ * corner confirms it is active. There is intentionally no separate player-mode
+ * command from source — to play, run the downloaded release app, whose data
+ * lives in the per-user folder separate from the repository.
  */
 public class GraphicsMain {
 
