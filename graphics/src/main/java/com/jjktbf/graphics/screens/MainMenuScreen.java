@@ -27,7 +27,8 @@ import java.util.List;
 /**
  * Main menu screen, using the same framed command palette as battle planning.
  *
- * Options are clickable; number keys remain available as shortcuts.
+ * Options are clickable and can be selected with the arrow keys; number keys
+ * remain available as shortcuts.
  *
  * Mouse cursor is visible here (Scene2D Stage handles hit-testing).
  */
@@ -39,6 +40,7 @@ public class MainMenuScreen implements Screen {
     private final Table       root;
     private final List<MenuButton> menuButtons = new ArrayList<>();
     private final List<Cell<MenuButton>> menuButtonCells = new ArrayList<>();
+    private int selectedButtonIndex;
     /** Guards against double-dispose of native stage resources. */
     private boolean disposed;
     private Table commands;
@@ -93,10 +95,13 @@ public class MainMenuScreen implements Screen {
         commandsCell = root.add(commands).width(540).top().expandY();
         root.row();
 
-        // Keyboard shortcuts
+        // Keyboard navigation and shortcuts.
         stage.addListener(new InputListener() {
             @Override public boolean keyDown(InputEvent event, int keycode) {
-                if (keycode == Input.Keys.NUM_1) game.showCharacterSelect();
+                if (keycode == Input.Keys.UP) moveSelection(-1);
+                else if (keycode == Input.Keys.DOWN) moveSelection(1);
+                else if (keycode == Input.Keys.ENTER) menuButtons.get(selectedButtonIndex).activate();
+                else if (keycode == Input.Keys.NUM_1) game.showCharacterSelect();
                 else if (keycode == Input.Keys.NUM_2) game.showMoveEditor();
                 else if (keycode == Input.Keys.NUM_3) game.showCharacterEditor();
                 else if (keycode == Input.Keys.NUM_4) game.showAbilityEditor();
@@ -111,10 +116,22 @@ public class MainMenuScreen implements Screen {
 
     }
 
+    private void moveSelection(int direction) {
+        menuButtons.get(selectedButtonIndex).setKeyboardSelected(false);
+        selectedButtonIndex = (selectedButtonIndex + direction + menuButtons.size()) % menuButtons.size();
+        menuButtons.get(selectedButtonIndex).setKeyboardSelected(true);
+    }
+
+    private void selectButton(int index) {
+        menuButtons.get(selectedButtonIndex).setKeyboardSelected(false);
+        selectedButtonIndex = index;
+        menuButtons.get(selectedButtonIndex).setKeyboardSelected(true);
+    }
+
     private MenuButton makeButton(String label, Runnable onClick) {
-        MenuButton b = new MenuButton(label, assets.editorSkin);
+        MenuButton b = new MenuButton(label, assets.editorSkin, onClick);
         b.addListener(new ClickListener() {
-            @Override public void clicked(InputEvent e, float x, float y) { onClick.run(); }
+            @Override public void clicked(InputEvent e, float x, float y) { b.activate(); }
         });
         return b;
     }
@@ -143,6 +160,7 @@ public class MainMenuScreen implements Screen {
     @Override
     public void show() {
         stage.unfocusAll();
+        selectButton(0);
         Gdx.input.setInputProcessor(stage);
     }
 
@@ -173,13 +191,25 @@ public class MainMenuScreen implements Screen {
     /** Uses the actual pointer position because this screen's stage is reused. */
     private static final class MenuButton extends TextButton {
         private final Vector2 pointer = new Vector2();
+        private final Runnable action;
+        private boolean keyboardSelected;
 
-        private MenuButton(String text, com.badlogic.gdx.scenes.scene2d.ui.Skin skin) {
+        private MenuButton(String text, com.badlogic.gdx.scenes.scene2d.ui.Skin skin, Runnable action) {
             super(text, skin, "primary");
+            this.action = action;
+        }
+
+        private void activate() {
+            action.run();
+        }
+
+        private void setKeyboardSelected(boolean keyboardSelected) {
+            this.keyboardSelected = keyboardSelected;
         }
 
         @Override
         public boolean isOver() {
+            if (keyboardSelected) return true;
             Stage stage = getStage();
             if (stage == null) return false;
             stage.screenToStageCoordinates(pointer.set(Gdx.input.getX(), Gdx.input.getY()));
