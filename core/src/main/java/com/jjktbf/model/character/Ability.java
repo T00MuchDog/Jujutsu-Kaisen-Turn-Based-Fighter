@@ -1,5 +1,7 @@
 package com.jjktbf.model.character;
 
+import com.jjktbf.model.move.StatusEffect;
+
 import java.util.List;
 
 /**
@@ -48,6 +50,15 @@ public class Ability {
                 .map(AbilityEffectData::copy)
                 .toList()
             : List.of();
+        for (AbilityEffectData effect : effects) {
+            AbilityEffectType type;
+            try { type = AbilityEffectType.fromName(effect.type); }
+            catch (IllegalArgumentException ignored) { continue; }
+            if (!type.uses(AbilityEffectParameter.DURATION)) continue;
+            StatusEffect.validateDuration(
+                effect.durationRounds == null ? -1 : effect.durationRounds,
+                effect.durationTicks == null ? 0 : effect.durationTicks);
+        }
         this.codedAbilityKey  = data.codedAbilityKey;
         this.codedFeature     = data.codedFeature;
         this.activationCondition = data.activationCondition == null

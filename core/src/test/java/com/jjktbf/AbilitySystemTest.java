@@ -219,18 +219,18 @@ class AbilitySystemTest {
     @Test
     void automaticStatusesApplyAtFightStartAndOnHit() {
         AbilityEffectData fightStart = AbilityEffectType.AUTO_STATUS_APPLY.createDefault();
-        fightStart.stringValue = StatusEffectType.FOCUS.name();
+        fightStart.stringValue = StatusEffectType.ACCURACY_INCREASE.name();
         fightStart.target = AbilityEffectTarget.SELF.name();
         fightStart.timing = AbilityEffectTiming.FIGHT_START.name();
         fightStart.durationRounds = -1;
-        fightStart.magnitude = 0.15;
+        fightStart.magnitude = 15.0;
 
         AbilityEffectData onHit = AbilityEffectType.AUTO_STATUS_APPLY.createDefault();
-        onHit.stringValue = StatusEffectType.CE_OUTPUT_UP.name();
+        onHit.stringValue = StatusEffectType.CURSED_ENERGY_OUTPUT_DECREASE.name();
         onHit.target = AbilityEffectTarget.ENEMY.name();
         onHit.timing = AbilityEffectTiming.ON_HIT.name();
         onHit.durationRounds = 1;
-        onHit.magnitude = -10.0;
+        onHit.magnitude = 10.0;
 
         AbilityData passiveData = ability("PASSIVE", "Status Passive", "STATUS");
         passiveData.effects = List.of(fightStart, onHit);
@@ -257,7 +257,8 @@ class AbilitySystemTest {
         defender.setTimeline(new Timeline(10));
 
         BattleState state = new BattleState(attacker, defender);
-        assertEquals(0.15, attacker.getStatusBaseAccuracyBonus(), 0.0001);
+        assertEquals(attacker.getEffectiveCombatStats().getAccuracy() + 15,
+            attacker.getAccuracy());
 
         state.transitionTo(BattleState.Phase.RESOLUTION);
         List<CombatEvent> events = new CombatResolver(new FixedRandom()).resolveRound(state);
@@ -265,7 +266,7 @@ class AbilitySystemTest {
         assertEquals(70, defender.getEffectiveStats().getCursedEnergyOutput());
         assertTrue(events.stream().anyMatch(event ->
             event.getType() == CombatEvent.Type.STATUS_APPLIED
-                && event.getMessage().contains("CE_OUTPUT_UP")));
+                && event.getMessage().contains("Decrease Cursed Energy Output")));
     }
 
     @Test
@@ -491,16 +492,100 @@ class AbilitySystemTest {
     }
 
     @Test
-    void statusTriggeredAbilitiesCannotRecursivelyActivateThemselves() {
-        AbilityConditionData poisoned = AbilityConditionType.STATUS_APPLIED.createDefault();
-        poisoned.statusType = StatusEffectType.POISON.name();
-        AbilityEffectData applyPoison = AbilityEffectType.APPLY_STATUS.createDefault();
-        applyPoison.stringValue = StatusEffectType.POISON.name();
-        applyPoison.target = "SELF";
+    void runtimeAbilityEffectsCanExpireByTimelineTicks() {
+        BattleCombatant owner = combatant("OWNER", List.of(), List.of());
+        AbilityEffectData strength = AbilityEffectType.TEMP_STAT_ADD.createDefault();
+        strength.stat = com.jjktbf.model.character.StatKey.STRENGTH.fieldName;
+        strength.intValue = 10;
+        strength.durationRounds = 0;
+        strength.durationTicks = 2;
 
-        AbilityData data = ability("PASSIVE", "Poison loop", "POISON_LOOP");
-        data.activationCondition = poisoned;
-        data.effects = List.of(applyPoison);
+        owner.addRuntimeAbilityEffect(strength);
+        assertEquals(90, owner.getEffectiveStats().getStrength());
+
+        owner.tickTimelineEffects();
+        assertEquals(90, owner.getEffectiveStats().getStrength());
+
+        owner.tickTimelineEffects();
+        assertEquals(80, owner.getEffectiveStats().getStrength());
+    }
+
+    @Test
+    void removingTheLastTickEffectShortensTheResolutionSweep() {
+        AbilityConditionData firstTick =
+            AbilityConditionType.TIMELINE_POINT_REACHED.createDefault();
+        firstTick.tick = 1;
+        AbilityEffectData remove = AbilityEffectType.REMOVE_STATUS.createDefault();
+        remove.stringValue = StatusEffectType.STRENGTH_INCREASE.name();
+        remove.target = AbilityEffectTarget.SELF.name();
+        AbilityData data = ability("PASSIVE", "Remove tick effect", "REMOVE_TICK_EFFECT");
+        data.activationCondition = firstTick;
+        data.effects = List.of(remove);
+        BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
+        BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
+        owner.addStatusEffect(new com.jjktbf.model.move.StatusEffect(
+            StatusEffectType.STRENGTH_INCREASE, 0, 10, 10.0));
+        BattleState state = new BattleState(owner, enemy);
+        state.transitionTo(BattleState.Phase.RESOLUTION);
+        CombatResolver resolver = new CombatResolver(new FixedRandom());
+
+        resolver.beginResolution(state);
+        assertTrue(resolver.hasMoreTicks());
+        resolver.resolveTick(state);
+
+        assertFalse(owner.hasEffect(StatusEffectType.STRENGTH_INCREASE));
+        assertFalse(resolver.hasMoreTicks());
+    }
+
+    @Test
+    void resolutionPhaseKillStopsTickDurationSweep() {
+        AbilityConditionData resolution = AbilityConditionType.PHASE_REACHED.createDefault();
+        resolution.phase = BattleState.Phase.RESOLUTION.name();
+        AbilityEffectData kill = AbilityEffectType.INSTANT_KILL.createDefault();
+        kill.target = AbilityEffectTarget.ENEMY.name();
+        AbilityData data = ability("PASSIVE", "Resolution kill", "RESOLUTION_KILL");
+        data.activationCondition = resolution;
+        data.effects = List.of(kill);
+        BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
+        BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
+        owner.addStatusEffect(new com.jjktbf.model.move.StatusEffect(
+            StatusEffectType.STRENGTH_INCREASE, 0, 10, 10.0));
+        BattleState state = new BattleState(owner, enemy);
+        state.transitionTo(BattleState.Phase.RESOLUTION);
+        CombatResolver resolver = new CombatResolver(new FixedRandom());
+
+        List<CombatEvent> events = resolver.beginResolution(state);
+
+        assertTrue(state.isBattleOver());
+        assertFalse(resolver.hasMoreTicks());
+        assertEquals(1, events.stream()
+            .filter(event -> event.getType() == CombatEvent.Type.BATTLE_OVER)
+            .count());
+    }
+
+    @Test
+    void malformedAbilityDurationFailsAtDomainConstruction() {
+        AbilityEffectData effect = AbilityEffectType.TEMP_STAT_ADD.createDefault();
+        effect.durationRounds = 0;
+        effect.durationTicks = 0;
+        AbilityData data = ability("PASSIVE", "Invalid duration", "INVALID_DURATION");
+        data.effects = List.of(effect);
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+            IllegalArgumentException.class, () -> new Ability(data));
+    }
+
+    @Test
+    void statusTriggeredAbilitiesCannotRecursivelyActivateThemselves() {
+        AbilityConditionData statusApplied = AbilityConditionType.STATUS_APPLIED.createDefault();
+        statusApplied.statusType = StatusEffectType.STRENGTH_DECREASE.name();
+        AbilityEffectData applyStatus = AbilityEffectType.APPLY_STATUS.createDefault();
+        applyStatus.stringValue = StatusEffectType.STRENGTH_DECREASE.name();
+        applyStatus.target = "SELF";
+
+        AbilityData data = ability("PASSIVE", "Status loop", "STATUS_LOOP");
+        data.activationCondition = statusApplied;
+        data.effects = List.of(applyStatus);
         BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
         BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
         BattleState state = new BattleState(owner, enemy);
@@ -509,12 +594,103 @@ class AbilitySystemTest {
             new SeededRandomSource(new FixedRandom())).process(
                 state,
                 AbilityTrigger.status(AbilityTrigger.Type.STATUS_APPLIED,
-                    owner, StatusEffectType.POISON, 1));
+                    owner, StatusEffectType.STRENGTH_DECREASE, 1));
 
         assertEquals(1, events.stream()
             .filter(event -> event.getType() == CombatEvent.Type.ABILITY_ACTIVATED)
             .count());
         assertEquals(1, owner.getActiveEffects().size());
+    }
+
+    @Test
+    void removedNegativeStatusPredicateDoesNotBecomeUnconditional() {
+        AbilityConditionData missingStatus =
+            AbilityConditionType.DOES_NOT_HAVE_STATUS.createDefault();
+        missingStatus.statusType = "POISON";
+        AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
+        heal.intValue = 10;
+        AbilityData data = ability("PASSIVE", "Removed status predicate", "REMOVED_STATUS");
+        data.activationCondition = missingStatus;
+        data.effects = List.of(heal);
+        BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
+        BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
+        owner.applyDamage(20);
+        int before = owner.getCurrentHp();
+
+        new PassiveAbilityEngine(new SeededRandomSource(new FixedRandom())).process(
+            new BattleState(owner, enemy),
+            AbilityTrigger.simple(AbilityTrigger.Type.ROUND_START));
+
+        assertEquals(before, owner.getCurrentHp());
+    }
+
+    @Test
+    void legacyStatusReferencesMatchEitherMigratedDirection() {
+        AbilityConditionData hasFocus = AbilityConditionType.HAS_STATUS.createDefault();
+        hasFocus.statusType = "FOCUS";
+        AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
+        heal.intValue = 10;
+        AbilityData predicateData = ability("PASSIVE", "Legacy focus predicate", "LEGACY_HAS_FOCUS");
+        predicateData.activationCondition = hasFocus;
+        predicateData.effects = List.of(heal);
+        BattleCombatant predicateOwner = combatant(
+            "PREDICATE_OWNER", List.of(), List.of(new Ability(predicateData)));
+        BattleCombatant predicateEnemy = combatant("PREDICATE_ENEMY", List.of(), List.of());
+        predicateOwner.applyDamage(20);
+        predicateOwner.addStatusEffect(new com.jjktbf.model.move.StatusEffect(
+            StatusEffectType.ACCURACY_DECREASE, 1, 10.0));
+        int predicateHp = predicateOwner.getCurrentHp();
+
+        new PassiveAbilityEngine(new SeededRandomSource(new FixedRandom())).process(
+            new BattleState(predicateOwner, predicateEnemy),
+            AbilityTrigger.simple(AbilityTrigger.Type.ROUND_START));
+
+        assertEquals(predicateHp + 10, predicateOwner.getCurrentHp());
+
+        AbilityConditionData focusApplied = AbilityConditionType.STATUS_APPLIED.createDefault();
+        focusApplied.statusType = "FOCUS";
+        AbilityData eventData = ability("PASSIVE", "Legacy focus event", "LEGACY_FOCUS_EVENT");
+        eventData.activationCondition = focusApplied;
+        eventData.effects = List.of(heal.copy());
+        BattleCombatant eventOwner = combatant(
+            "EVENT_OWNER", List.of(), List.of(new Ability(eventData)));
+        BattleCombatant eventEnemy = combatant("EVENT_ENEMY", List.of(), List.of());
+        eventOwner.applyDamage(20);
+        int eventHp = eventOwner.getCurrentHp();
+
+        new PassiveAbilityEngine(new SeededRandomSource(new FixedRandom())).process(
+            new BattleState(eventOwner, eventEnemy),
+            AbilityTrigger.status(AbilityTrigger.Type.STATUS_APPLIED,
+                eventOwner, StatusEffectType.ACCURACY_DECREASE, 1));
+
+        assertEquals(eventHp + 10, eventOwner.getCurrentHp());
+    }
+
+    @Test
+    void legacyRemoveStatusReferenceClearsBothMigratedDirections() {
+        AbilityEffectData removeFocus = AbilityEffectType.REMOVE_STATUS.createDefault();
+        removeFocus.stringValue = "FOCUS";
+        removeFocus.target = AbilityEffectTarget.SELF.name();
+        AbilityData data = ability("PASSIVE", "Remove legacy focus", "REMOVE_LEGACY_FOCUS");
+        data.activationCondition = AbilityConditionData.always();
+        data.effects = List.of(removeFocus);
+        BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
+        BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
+        owner.addStatusEffect(new com.jjktbf.model.move.StatusEffect(
+            StatusEffectType.ACCURACY_INCREASE, 1, 10.0));
+        owner.addStatusEffect(new com.jjktbf.model.move.StatusEffect(
+            StatusEffectType.ACCURACY_DECREASE, 1, 5.0));
+
+        List<CombatEvent> events = new PassiveAbilityEngine(
+            new SeededRandomSource(new FixedRandom())).process(
+                new BattleState(owner, enemy),
+                AbilityTrigger.simple(AbilityTrigger.Type.ROUND_START));
+
+        assertFalse(owner.hasEffect(StatusEffectType.ACCURACY_INCREASE));
+        assertFalse(owner.hasEffect(StatusEffectType.ACCURACY_DECREASE));
+        assertEquals(1, events.stream()
+            .filter(event -> event.getType() == CombatEvent.Type.STATUS_EXPIRED)
+            .count());
     }
 
     @Test
@@ -569,16 +745,16 @@ class AbilitySystemTest {
     @Test
     void automaticStatusApplicationsCanActivateStatusPredicates() {
         AbilityEffectData automatic = AbilityEffectType.AUTO_STATUS_APPLY.createDefault();
-        automatic.stringValue = StatusEffectType.FOCUS.name();
+        automatic.stringValue = StatusEffectType.ACCURACY_INCREASE.name();
         automatic.target = "SELF";
         automatic.timing = "FIGHT_START";
         automatic.durationRounds = -1;
-        automatic.magnitude = 0.1;
+        automatic.magnitude = 10.0;
         AbilityData source = ability("PASSIVE", "Automatic focus", "AUTO_FOCUS");
         source.effects = List.of(automatic);
 
         AbilityConditionData receivesFocus = AbilityConditionType.STATUS_APPLIED.createDefault();
-        receivesFocus.statusType = StatusEffectType.FOCUS.name();
+        receivesFocus.statusType = StatusEffectType.ACCURACY_INCREASE.name();
         AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
         heal.intValue = 10;
         AbilityData reaction = ability("PASSIVE", "Focus reaction", "FOCUS_REACTION");
@@ -595,6 +771,43 @@ class AbilitySystemTest {
         new CombatResolver(new FixedRandom()).processRoundStart(state);
 
         assertEquals(before + 10, owner.getCurrentHp());
+    }
+
+    @Test
+    void deferredPoolClampEmitsAPlaybackReconciliationEvent() {
+        AbilityEffectData automatic = AbilityEffectType.AUTO_STATUS_APPLY.createDefault();
+        automatic.stringValue = StatusEffectType.MAX_HP_DECREASE.name();
+        automatic.target = AbilityEffectTarget.SELF.name();
+        automatic.timing = AbilityEffectTiming.ROUND_START.name();
+        automatic.durationRounds = 1;
+        automatic.magnitude = 50.0;
+        AbilityData source = ability("PASSIVE", "Automatic max HP decrease", "AUTO_MAX_HP_DOWN");
+        source.effects = List.of(automatic);
+
+        AbilityConditionData removed = AbilityConditionType.STATUS_REMOVED.createDefault();
+        removed.statusType = StatusEffectType.MAX_HP_DECREASE.name();
+        AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
+        heal.intValue = 200;
+        AbilityData reaction = ability("PASSIVE", "Heal on max HP expiry", "HEAL_ON_MAX_EXPIRY");
+        reaction.activationCondition = removed;
+        reaction.effects = List.of(heal);
+
+        BattleCombatant owner = combatant(
+            "OWNER", List.of(), List.of(new Ability(source), new Ability(reaction)));
+        BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
+        BattleState state = new BattleState(owner, enemy);
+        CombatResolver resolver = new CombatResolver(new FixedRandom());
+        resolver.processRoundStart(state);
+        owner.applyDamage(100);
+        state.transitionTo(BattleState.Phase.ROUND_END);
+
+        List<CombatEvent> events = resolver.processRoundEnd(state);
+
+        assertEquals(owner.getMaxHp(), owner.getCurrentHp());
+        int restoredIndex = eventIndex(events, CombatEvent.Type.HP_RESTORED);
+        int maximumIndex = eventIndex(events, CombatEvent.Type.MAX_HP_CHANGED);
+        assertTrue(restoredIndex >= 0 && maximumIndex > restoredIndex);
+        assertEquals(owner.getMaxHp(), events.get(maximumIndex).getIntValue());
     }
 
     @Test
@@ -651,24 +864,16 @@ class AbilitySystemTest {
     }
 
     @Test
-    void barrierConsumesOneStackAndPlanningStatusesReachNextRound() {
+    void planningStatStatusesReachNextRound() {
         BattleCombatant target = combatant("TARGET", List.of(), List.of());
         target.addStatusEffect(new com.jjktbf.model.move.StatusEffect(
-            StatusEffectType.BARRIER, -1, 1.0));
-        target.addStatusEffect(new com.jjktbf.model.move.StatusEffect(
-            StatusEffectType.BARRIER, -1, 1.0));
-        assertEquals(0, target.receiveDamage(20));
-        assertEquals(1, target.getActiveEffects().stream()
-            .filter(effect -> effect.getType() == StatusEffectType.BARRIER).count());
-
-        target.addStatusEffect(new com.jjktbf.model.move.StatusEffect(
-            StatusEffectType.CE_SUPPRESSION, 1, 1.0), BattleState.Phase.RESOLUTION);
+            StatusEffectType.MAX_AP_DECREASE, 1, 10.0), BattleState.Phase.RESOLUTION);
         BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
         BattleState state = new BattleState(target, enemy);
         CombatResolver resolver = new CombatResolver(new FixedRandom());
         state.transitionTo(BattleState.Phase.ROUND_END);
         resolver.processRoundEnd(state);
-        assertTrue(target.hasEffect(StatusEffectType.CE_SUPPRESSION));
+        assertTrue(target.hasEffect(StatusEffectType.MAX_AP_DECREASE));
     }
 
     @Test
@@ -676,7 +881,7 @@ class AbilitySystemTest {
         AbilityConditionData roundEnd = AbilityConditionType.PHASE_REACHED.createDefault();
         roundEnd.phase = BattleState.Phase.ROUND_END.name();
         AbilityConditionData focused = AbilityConditionType.HAS_STATUS.createDefault();
-        focused.statusType = StatusEffectType.FOCUS.name();
+        focused.statusType = StatusEffectType.ACCURACY_INCREASE.name();
         AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
         heal.intValue = 10;
         AbilityData data = ability("PASSIVE", "Round end focus", "ROUND_END_FOCUS");
@@ -687,7 +892,7 @@ class AbilitySystemTest {
         BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
         owner.applyDamage(20);
         owner.addStatusEffect(new com.jjktbf.model.move.StatusEffect(
-            StatusEffectType.FOCUS, 1, 0.1));
+            StatusEffectType.ACCURACY_INCREASE, 1, 10.0));
         int before = owner.getCurrentHp();
         BattleState state = new BattleState(owner, enemy);
         state.transitionTo(BattleState.Phase.ROUND_END);
@@ -695,33 +900,33 @@ class AbilitySystemTest {
         new CombatResolver(new FixedRandom()).processRoundEnd(state);
 
         assertEquals(before + 10, owner.getCurrentHp());
-        assertFalse(owner.hasEffect(StatusEffectType.FOCUS));
+        assertFalse(owner.hasEffect(StatusEffectType.ACCURACY_INCREASE));
     }
 
     @Test
     void statusGrantedByExpiryStartsWithItsConfiguredDuration() {
         AbilityConditionData focusRemoved = AbilityConditionType.STATUS_REMOVED.createDefault();
-        focusRemoved.statusType = StatusEffectType.FOCUS.name();
-        AbilityEffectData applyBind = AbilityEffectType.APPLY_STATUS.createDefault();
-        applyBind.target = "SELF";
-        applyBind.stringValue = StatusEffectType.BIND.name();
-        applyBind.durationRounds = 1;
+        focusRemoved.statusType = StatusEffectType.ACCURACY_INCREASE.name();
+        AbilityEffectData applyEvasionDecrease = AbilityEffectType.APPLY_STATUS.createDefault();
+        applyEvasionDecrease.target = "SELF";
+        applyEvasionDecrease.stringValue = StatusEffectType.EVASION_DECREASE.name();
+        applyEvasionDecrease.durationRounds = 1;
         AbilityData data = ability("PASSIVE", "Expiry reaction", "EXPIRY_REACTION");
         data.activationCondition = focusRemoved;
-        data.effects = List.of(applyBind);
+        data.effects = List.of(applyEvasionDecrease);
         BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
         BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
         owner.addStatusEffect(new com.jjktbf.model.move.StatusEffect(
-            StatusEffectType.FOCUS, 1, 0.1));
+            StatusEffectType.ACCURACY_INCREASE, 1, 10.0));
         BattleState state = new BattleState(owner, enemy);
         state.transitionTo(BattleState.Phase.ROUND_END);
 
         new CombatResolver(new FixedRandom()).processRoundEnd(state);
 
-        com.jjktbf.model.move.StatusEffect bind = owner.getActiveEffects().stream()
-            .filter(effect -> effect.getType() == StatusEffectType.BIND)
+        com.jjktbf.model.move.StatusEffect evasionDecrease = owner.getActiveEffects().stream()
+            .filter(effect -> effect.getType() == StatusEffectType.EVASION_DECREASE)
             .findFirst().orElseThrow();
-        assertEquals(1, bind.getDurationRounds());
+        assertEquals(1, evasionDecrease.getDurationRounds());
     }
 
     private static AbilityData ability(String category, String name, String id) {

@@ -90,7 +90,8 @@ public enum AbilityConditionType {
         condition.moveId = null;
         condition.moveTag = uses(MOVE_TAG) ? MoveTag.ATTACK.name() : null;
         condition.stat = uses(STAT) ? StatKey.VITALITY.fieldName : null;
-        condition.statusType = uses(STATUS_TYPE) ? StatusEffectType.POISON.name() : null;
+        condition.statusType = uses(STATUS_TYPE)
+            ? StatusEffectType.STRENGTH_INCREASE.name() : null;
         condition.tick = uses(TICK) ? 1 : null;
         condition.round = uses(ROUND) ? 1 : null;
         condition.phase = uses(PHASE) ? BattleState.Phase.PLANNING.name() : null;
@@ -159,7 +160,7 @@ public enum AbilityConditionType {
             catch (Exception ex) { return path + " needs a valid character stat."; }
         }
         if (type.uses(STATUS_TYPE)) {
-            try { StatusEffectType.valueOf(condition.statusType); }
+            try { StatusEffectType.fromName(condition.statusType); }
             catch (Exception ex) { return path + " needs a valid status."; }
         }
         if (type.uses(TICK) && (condition.tick == null || condition.tick < 1)) {

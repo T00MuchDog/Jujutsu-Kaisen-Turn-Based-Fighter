@@ -244,8 +244,24 @@ public class ConditionTreeEditor extends Table {
             addRow(fields, "Character stat", box);
         }
         if (type.uses(AbilityConditionParameter.STATUS_TYPE)) {
-            SelectBox<String> box = prettyEnumBox(StatusEffectType.values(), condition.statusType,
-                value -> condition.statusType = enumName(value));
+            List<StatusEffectType> statuses = List.of(StatusEffectType.values());
+            SelectBox<String> box = new SelectBox<>(skin);
+            List<String> labels = new ArrayList<>(statuses.stream()
+                .map(StatusEffectType::displayName).toList());
+            String storedStatus = condition.statusType;
+            String selectedStatus = StatusEffectType.referenceDisplayName(storedStatus);
+            if (!labels.contains(selectedStatus)) labels.add(0, selectedStatus);
+            box.setItems(labels.toArray(new String[0]));
+            box.setSelected(selectedStatus);
+            box.addListener(change(() -> {
+                if (selectedStatus.equals(box.getSelected())) {
+                    condition.statusType = storedStatus;
+                    return;
+                }
+                condition.statusType = statuses.stream()
+                    .filter(status -> status.displayName().equals(box.getSelected()))
+                    .findFirst().orElse(StatusEffectType.STRENGTH_INCREASE).name();
+            }));
             addRow(fields, "Status", box);
         }
         if (type.uses(AbilityConditionParameter.TICK)) {

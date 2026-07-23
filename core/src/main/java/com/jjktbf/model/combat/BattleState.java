@@ -48,7 +48,11 @@ public class BattleState {
     public record AutomaticStatusApplication(
         BattleCombatant source,
         BattleCombatant target,
-        StatusEffectType status
+        StatusEffectType status,
+        int previousMaxHp,
+        int previousMaxCe,
+        int resultingMaxHp,
+        int resultingMaxCe
     ) { }
 
     public BattleState(BattleCombatant playerCombatant, BattleCombatant enemyCombatant) {
@@ -113,10 +117,21 @@ public class BattleState {
         BattleCombatant target,
         AbilityEffectData effect
     ) {
+        int previousMaxHp = target.getMaxHp();
+        int previousMaxCe = target.getMaxCursedEnergy();
         if (!target.addAutomaticStatusEffect(effect)) return;
         try {
+            int resultingMaxHp = target.getMaxHp();
+            int resultingMaxCe = target.getMaxCursedEnergy();
+            if (target.isPoolClampDeferred()) {
+                previousMaxHp = resultingMaxHp;
+                previousMaxCe = resultingMaxCe;
+            }
             pendingAutomaticStatuses.add(new AutomaticStatusApplication(
-                source, target, StatusEffectType.valueOf(effect.stringValue)));
+                source, target, StatusEffectType.fromName(
+                    effect.stringValue, effect.magnitude != null ? effect.magnitude : 0.0),
+                previousMaxHp, previousMaxCe,
+                resultingMaxHp, resultingMaxCe));
         } catch (IllegalArgumentException ignored) { }
     }
 

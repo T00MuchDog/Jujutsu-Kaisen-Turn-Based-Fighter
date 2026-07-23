@@ -68,6 +68,10 @@ public class CombatResolver {
     /** Charge passive per-round CE costs before either side plans the round. */
     public List<CombatEvent> processRoundStart(BattleState state) {
         List<CombatEvent> events = new ArrayList<>();
+        // BattleState applies queued automatic statuses before this method. Emit
+        // those mutations before any BATTLE_START ability can change the same values.
+        appendAutomaticStatusEvents(state, events);
+        if (finishBattleIfNeeded(state, events, 0)) return events;
         boolean battleStart = state.getPlayerCombatant().beginPassiveFightStart()
             | state.getEnemyCombatant().beginPassiveFightStart();
         if (battleStart) {
@@ -78,13 +82,9 @@ public class CombatResolver {
         boolean roundStart = state.getPlayerCombatant().beginPassiveRoundStart(state.getRoundNumber())
             | state.getEnemyCombatant().beginPassiveRoundStart(state.getRoundNumber());
         if (roundStart) {
-            appendAutomaticStatusEvents(state, events);
-            if (finishBattleIfNeeded(state, events, 0)) return events;
             events.addAll(passiveAbilities.process(state, AbilityTrigger.simple(AbilityTrigger.Type.ROUND_START)));
             if (finishBattleIfNeeded(state, events, 0)) return events;
             events.addAll(passiveAbilities.process(state, AbilityTrigger.phase(BattleState.Phase.PLANNING)));
-            if (finishBattleIfNeeded(state, events, 0)) return events;
-            applyPoisonDamage(state, events);
             if (finishBattleIfNeeded(state, events, 0)) return events;
         }
         drainRoundAbilityCost(state, state.getPlayerCombatant(), state.getRoundNumber(), events);
@@ -124,6 +124,8 @@ public class CombatResolver {
     private static final class ResolutionCursor {
         int tick;
         int maxTick;
+        int actionMaxTick;
+        int gridLimit;
         boolean roundCostsProcessed;
         /**
          * Block segments currently inside their defensive AP window, keyed by
@@ -171,11 +173,20 @@ public class CombatResolver {
         ResolutionCursor c = cursor.get();
         c.tick = 0;
         c.maxTick = maxTick;
+        c.actionMaxTick = maxTick;
+        c.gridLimit = Math.max(
+            playerTimeline == null ? 0 : playerTimeline.getGridLength(),
+            enemyTimeline == null ? 0 : enemyTimeline.getGridLength());
+        if (c.gridLimit == 0) c.gridLimit = BattlePlan.GRID_LENGTH;
         c.roundCostsProcessed = true;
         c.activeBlocks.clear();
 
         events.addAll(passiveAbilities.process(state, AbilityTrigger.phase(BattleState.Phase.RESOLUTION)));
-        finishBattleIfNeeded(state, events, 0);
+        if (finishBattleIfNeeded(state, events, 0)) {
+            c.roundCostsProcessed = false;
+            return events;
+        }
+        updateResolutionEndForTimelineEffects(player, enemy);
         return events;
     }
 
@@ -230,7 +241,83 @@ public class CombatResolver {
         detectExpiredBlocks(player, tick, events);
         detectExpiredBlocks(enemy,  tick, events);
 
+        processTimelineEffectExpiry(state, tick, events);
+        if (!state.isBattleOver()) updateResolutionEndForTimelineEffects(player, enemy);
+
         return events;
+    }
+
+    private void updateResolutionEndForTimelineEffects(
+        BattleCombatant player,
+        BattleCombatant enemy
+    ) {
+        ResolutionCursor c = cursor.get();
+        int remainingTicks = Math.max(
+            player.getRemainingTimelineEffectTicks(),
+            enemy.getRemainingTimelineEffectTicks());
+        long timerEnd = remainingTicks <= 0
+            ? 0L : Math.min((long) c.gridLimit, (long) c.tick + remainingTicks);
+        c.maxTick = Math.max(c.actionMaxTick, (int) timerEnd);
+    }
+
+    private void processTimelineEffectExpiry(
+        BattleState state,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        BattleCombatant[] combatants = {
+            state.getPlayerCombatant(), state.getEnemyCombatant()
+        };
+        Map<BattleCombatant, List<StatusEffect>> expiredByCombatant = new LinkedHashMap<>();
+        Map<BattleCombatant, Integer> previousMaxHp = new IdentityHashMap<>();
+        Map<BattleCombatant, Integer> previousMaxCe = new IdentityHashMap<>();
+        Set<BattleCombatant> hpClamped = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<BattleCombatant> ceClamped = Collections.newSetFromMap(new IdentityHashMap<>());
+
+        for (BattleCombatant combatant : combatants) {
+            previousMaxHp.put(combatant, combatant.getMaxHp());
+            previousMaxCe.put(combatant, combatant.getMaxCursedEnergy());
+            combatant.beginPoolClampDeferral();
+        }
+        try {
+            for (BattleCombatant combatant : combatants) {
+                combatant.tickTimelineEffects();
+                expiredByCombatant.put(combatant, combatant.drainExpiredStatusEffects());
+            }
+            // Expiry reactions happen after this tick's boundary; effects they
+            // create begin counting on the next AP tick.
+            expiryEvents:
+            for (Map.Entry<BattleCombatant, List<StatusEffect>> entry
+                : expiredByCombatant.entrySet()) {
+                BattleCombatant combatant = entry.getKey();
+                for (StatusEffect expired : entry.getValue()) {
+                    events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
+                        .source(combatant).target(combatant).tick(tick)
+                        .message(StatusEffectMessages.expiryMessage(
+                            combatant.getCharacter().getName(), expired.getType()))
+                        .build());
+                    events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
+                        AbilityTrigger.Type.STATUS_REMOVED, combatant, expired.getType(), tick)));
+                    if (finishBattleIfNeeded(state, events, tick)) break expiryEvents;
+                }
+            }
+        } finally {
+            for (BattleCombatant combatant : combatants) {
+                int hpBeforeClamp = combatant.getCurrentHp();
+                int ceBeforeClamp = combatant.getCurrentCe();
+                combatant.endPoolClampDeferral();
+                if (combatant.getCurrentHp() != hpBeforeClamp) hpClamped.add(combatant);
+                if (combatant.getCurrentCe() != ceBeforeClamp) ceClamped.add(combatant);
+            }
+        }
+
+        for (BattleCombatant combatant : combatants) {
+            appendResourceMaximumEvents(
+                null, combatant,
+                hpClamped.contains(combatant) ? -1 : previousMaxHp.get(combatant),
+                ceClamped.contains(combatant) ? -1 : previousMaxCe.get(combatant),
+                tick, events);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -479,7 +566,6 @@ public class CombatResolver {
                 && defender.getTimeline().activeBlockAt(tick, move) != null;
 
             int appliedDamage = defender.receiveDamage(result.getFinalDamage());
-            appendConsumedStatusEvents(state, defender, tick, events);
             events.addAll(defender.getCodedAbilities().drainPendingEvents(tick));
 
             if (wasBlocked) {
@@ -750,13 +836,17 @@ public class CombatResolver {
         List<CombatEvent> events
     ) {
         for (StatusEffect effect : move.getOnHitEffects()) {
+            int previousMaxHp = defender.getMaxHp();
+            int previousMaxCe = defender.getMaxCursedEnergy();
             defender.addStatusEffect(effect, state.getCurrentPhase());
             events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                 .source(attacker).target(defender).move(move)
                 .tick(tick)
                 .message(defender.getCharacter().getName()
-                         + " is afflicted with " + effect.getType() + "!")
+                         + " receives " + effect.getType().displayName() + "!")
                 .build());
+            appendResourceMaximumEvents(
+                attacker, defender, previousMaxHp, previousMaxCe, tick, events);
             events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
                 AbilityTrigger.Type.STATUS_APPLIED, defender, effect.getType(), tick)));
         }
@@ -770,13 +860,17 @@ public class CombatResolver {
         List<CombatEvent> events
     ) {
         for (StatusEffect effect : move.getSelfEffects()) {
+            int previousMaxHp = combatant.getMaxHp();
+            int previousMaxCe = combatant.getMaxCursedEnergy();
             combatant.addStatusEffect(effect, state.getCurrentPhase());
             events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                 .source(combatant).move(move)
                 .tick(tick)
                 .message(combatant.getCharacter().getName()
-                         + " applies " + effect.getType() + " to themselves!")
+                         + " gains " + effect.getType().displayName() + "!")
                 .build());
+            appendResourceMaximumEvents(
+                combatant, combatant, previousMaxHp, previousMaxCe, tick, events);
             events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
                 AbilityTrigger.Type.STATUS_APPLIED, combatant, effect.getType(), tick)));
         }
@@ -796,18 +890,26 @@ public class CombatResolver {
                 ? List.of(attacker, defender)
                 : List.of(AbilityEffectTarget.ENEMY.name().equals(effect.target) ? defender : attacker);
             for (BattleCombatant target : targets) {
+                int previousMaxHp = target.getMaxHp();
+                int previousMaxCe = target.getMaxCursedEnergy();
                 if (!target.addAutomaticStatusEffect(effect, state.getCurrentPhase())) continue;
                 events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                     .source(attacker).target(target).move(move)
                     .tick(tick)
                     .message(target.getCharacter().getName()
-                        + " receives " + effect.stringValue + " from an ability!")
+                        + " receives " + StatusEffectType.fromName(
+                            effect.stringValue, effect.magnitude != null ? effect.magnitude : 0.0)
+                            .displayName()
+                        + " from an ability!")
                     .build());
+                appendResourceMaximumEvents(
+                    attacker, target, previousMaxHp, previousMaxCe, tick, events);
                 try {
                     events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
                         AbilityTrigger.Type.STATUS_APPLIED,
                         target,
-                        StatusEffectType.valueOf(effect.stringValue),
+                        StatusEffectType.fromName(
+                            effect.stringValue, effect.magnitude != null ? effect.magnitude : 0.0),
                         tick)));
                 } catch (IllegalArgumentException ignored) { }
             }
@@ -852,52 +954,84 @@ public class CombatResolver {
         List<CombatEvent> events = new ArrayList<>();
         int round = state.getRoundNumber();
         Map<BattleCombatant, List<StatusEffect>> expiredByCombatant = new LinkedHashMap<>();
+        BattleCombatant[] combatants = {
+            state.getPlayerCombatant(), state.getEnemyCombatant()
+        };
+        Map<BattleCombatant, Integer> previousMaxHp = new LinkedHashMap<>();
+        Map<BattleCombatant, Integer> previousMaxCe = new LinkedHashMap<>();
+        Set<BattleCombatant> hpClamped = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<BattleCombatant> ceClamped = Collections.newSetFromMap(new IdentityHashMap<>());
 
         events.addAll(passiveAbilities.process(
             state, AbilityTrigger.phase(BattleState.Phase.ROUND_END)));
         if (finishBattleIfNeeded(state, events, 0)) return events;
 
-        for (BattleCombatant combatant : new BattleCombatant[]{ state.getPlayerCombatant(), state.getEnemyCombatant() }) {
-            int previousMaxHp = combatant.getMaxHp();
-            int previousMaxCe = combatant.getMaxCursedEnergy();
-            combatant.tickRuntimeAbilityEffects(round);
-            appendResourceMaximumEvents(combatant, previousMaxHp, previousMaxCe, events);
-            combatant.tickStatusEffects();
-            expiredByCombatant.put(combatant, combatant.drainExpiredStatusEffects());
-            flushRemainingBlocks(combatant, events);
-
-            boolean wasBfs = combatant.isInBlackFlashState();
-            combatant.tickBfsExpiry(round);
-            if (wasBfs && !combatant.isInBlackFlashState()) {
-                events.add(CombatEvent.of(CombatEvent.Type.BFS_EXPIRED)
-                    .source(combatant)
-                    .message(combatant.getCharacter().getName() + "'s Black Flash State has ended.")
-                    .build());
-            }
-        }
-        state.markRoundEndMaintenanceComplete();
-
-        // Dispatch expiry predicates only after both sides have ticked, so an
-        // effect granted to the second combatant cannot immediately lose a round.
-        for (Map.Entry<BattleCombatant, List<StatusEffect>> entry : expiredByCombatant.entrySet()) {
-            BattleCombatant combatant = entry.getKey();
-            // Log every stat-boost / status effect that expired during this
-            // round-end tick. Each gets its own flavour line so a fading power
-            // surge reads differently from a guard dropping (which is handled at
-            // the tick the block's AP window ends, not here).
-            for (StatusEffect expired : entry.getValue()) {
-                events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
-                    .source(combatant)
-                    .message(StatusEffectMessages.expiryMessage(
-                        combatant.getCharacter().getName(), expired.getType()))
-                    .build());
-                events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
-                    AbilityTrigger.Type.STATUS_REMOVED, combatant, expired.getType(), 0)));
-                if (finishBattleIfNeeded(state, events, 0)) return events;
-            }
+        for (BattleCombatant combatant : combatants) {
+            previousMaxHp.put(combatant, combatant.getMaxHp());
+            previousMaxCe.put(combatant, combatant.getMaxCursedEnergy());
+            combatant.beginPoolClampDeferral();
         }
 
-        state.endRound();
+        boolean battleEnded = false;
+        try {
+            for (BattleCombatant combatant : combatants) {
+                combatant.tickRoundEffects(round);
+                expiredByCombatant.put(combatant, combatant.drainExpiredStatusEffects());
+                flushRemainingBlocks(combatant, events);
+
+                boolean wasBfs = combatant.isInBlackFlashState();
+                combatant.tickBfsExpiry(round);
+                if (wasBfs && !combatant.isInBlackFlashState()) {
+                    events.add(CombatEvent.of(CombatEvent.Type.BFS_EXPIRED)
+                        .source(combatant)
+                        .message(combatant.getCharacter().getName()
+                            + "'s Black Flash State has ended.")
+                        .build());
+                }
+            }
+            state.markRoundEndMaintenanceComplete();
+
+            // Dispatch expiry predicates only after both sides have ticked, so an
+            // effect granted to the second combatant cannot immediately lose a round.
+            expiryEvents:
+            for (Map.Entry<BattleCombatant, List<StatusEffect>> entry
+                : expiredByCombatant.entrySet()) {
+                BattleCombatant combatant = entry.getKey();
+                for (StatusEffect expired : entry.getValue()) {
+                    events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
+                        .source(combatant)
+                        .message(StatusEffectMessages.expiryMessage(
+                            combatant.getCharacter().getName(), expired.getType()))
+                        .build());
+                    events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
+                        AbilityTrigger.Type.STATUS_REMOVED, combatant, expired.getType(), 0)));
+                    if (finishBattleIfNeeded(state, events, 0)) {
+                        battleEnded = true;
+                        break expiryEvents;
+                    }
+                }
+            }
+
+            if (!battleEnded) state.endRound();
+        } finally {
+            for (BattleCombatant combatant : combatants) {
+                int hpBeforeClamp = combatant.getCurrentHp();
+                int ceBeforeClamp = combatant.getCurrentCe();
+                combatant.endPoolClampDeferral();
+                if (combatant.getCurrentHp() != hpBeforeClamp) hpClamped.add(combatant);
+                if (combatant.getCurrentCe() != ceBeforeClamp) ceClamped.add(combatant);
+            }
+        }
+
+        for (BattleCombatant combatant : combatants) {
+            appendResourceMaximumEvents(
+                null, combatant,
+                hpClamped.contains(combatant) ? -1 : previousMaxHp.get(combatant),
+                ceClamped.contains(combatant) ? -1 : previousMaxCe.get(combatant),
+                0, events);
+        }
+        if (battleEnded) return events;
+
         events.add(CombatEvent.of(CombatEvent.Type.ROUND_END)
             .message("--- Round " + round + " complete. Starting Round " + state.getRoundNumber() + " ---")
             .build());
@@ -928,8 +1062,12 @@ public class CombatResolver {
                 .source(application.source())
                 .target(application.target())
                 .message(application.target().getCharacter().getName()
-                    + " receives " + application.status() + " from an ability!")
+                    + " receives " + application.status().displayName() + " from an ability!")
                 .build());
+            appendResourceMaximumEvents(
+                application.source(), application.target(),
+                application.previousMaxHp(), application.previousMaxCe(),
+                application.resultingMaxHp(), application.resultingMaxCe(), 0, events);
             events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
                 AbilityTrigger.Type.STATUS_APPLIED,
                 application.target(),
@@ -939,67 +1077,40 @@ public class CombatResolver {
         }
     }
 
-    private void applyPoisonDamage(BattleState state, List<CombatEvent> events) {
-        Map<BattleCombatant, Integer> poisonByCombatant = new LinkedHashMap<>();
-        for (BattleCombatant combatant : new BattleCombatant[]{
-            state.getPlayerCombatant(), state.getEnemyCombatant() }) {
-            int poison = Math.max(0, (int) Math.round(
-                combatant.getStatusMagnitude(StatusEffectType.POISON)));
-            if (poison > 0) poisonByCombatant.put(combatant, poison);
-        }
-        for (Map.Entry<BattleCombatant, Integer> entry : poisonByCombatant.entrySet()) {
-            BattleCombatant target = entry.getKey();
-            int damage = target.receiveDamage(entry.getValue());
-            appendConsumedStatusEvents(state, target, 0, events);
-            events.addAll(target.getCodedAbilities().drainPendingEvents(0));
-            events.add(CombatEvent.of(damage == 0
-                    ? CombatEvent.Type.DAMAGE_IGNORED : CombatEvent.Type.DAMAGE_DEALT)
-                .target(target).intValue(damage)
-                .message(damage == 0
-                    ? target.getCharacter().getName() + " ignores poison damage!"
-                    : target.getCharacter().getName() + " takes " + damage + " poison damage!")
-                .build());
-            if (damage > 0) {
-                events.addAll(passiveAbilities.process(state, AbilityTrigger.amount(
-                    AbilityTrigger.Type.DAMAGE, null, target, damage, 0)));
-            }
-        }
-    }
-
-    private void appendConsumedStatusEvents(
-        BattleState state,
-        BattleCombatant target,
-        int tick,
-        List<CombatEvent> events
-    ) {
-        for (StatusEffect consumed : target.drainConsumedStatusEffects()) {
-            events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
-                .target(target).tick(tick)
-                .message(StatusEffectMessages.expiryMessage(
-                    target.getCharacter().getName(), consumed.getType()))
-                .build());
-            events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
-                AbilityTrigger.Type.STATUS_REMOVED, target, consumed.getType(), tick)));
-        }
-    }
-
     private static void appendResourceMaximumEvents(
+        BattleCombatant source,
         BattleCombatant combatant,
         int previousMaxHp,
         int previousMaxCe,
+        int tick,
         List<CombatEvent> events
     ) {
-        if (combatant.getMaxHp() != previousMaxHp) {
+        appendResourceMaximumEvents(
+            source, combatant, previousMaxHp, previousMaxCe,
+            combatant.getMaxHp(), combatant.getMaxCursedEnergy(), tick, events);
+    }
+
+    private static void appendResourceMaximumEvents(
+        BattleCombatant source,
+        BattleCombatant combatant,
+        int previousMaxHp,
+        int previousMaxCe,
+        int resultingMaxHp,
+        int resultingMaxCe,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        if (resultingMaxHp != previousMaxHp) {
             events.add(CombatEvent.of(CombatEvent.Type.MAX_HP_CHANGED)
-                .target(combatant).intValue(combatant.getMaxHp())
+                .source(source).target(combatant).intValue(resultingMaxHp).tick(tick)
                 .message(combatant.getCharacter().getName() + "'s max HP is now "
-                    + combatant.getMaxHp() + ".").build());
+                    + resultingMaxHp + ".").build());
         }
-        if (combatant.getMaxCursedEnergy() != previousMaxCe) {
+        if (resultingMaxCe != previousMaxCe) {
             events.add(CombatEvent.of(CombatEvent.Type.MAX_CE_CHANGED)
-                .target(combatant).intValue(combatant.getMaxCursedEnergy())
+                .source(source).target(combatant).intValue(resultingMaxCe).tick(tick)
                 .message(combatant.getCharacter().getName() + "'s max CE is now "
-                    + combatant.getMaxCursedEnergy() + ".").build());
+                    + resultingMaxCe + ".").build());
         }
     }
 }

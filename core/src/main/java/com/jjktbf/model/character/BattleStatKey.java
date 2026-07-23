@@ -7,6 +7,7 @@ public enum BattleStatKey {
     MAX_AP("Max AP"),
     ACCURACY("Accuracy"),
     EVASION("Evasion"),
+    POWER("Power"),
     DEFENSE("Defense"),
     DAMAGE_DEALT("Damage dealt"),
     DAMAGE_TAKEN("Damage taken"),

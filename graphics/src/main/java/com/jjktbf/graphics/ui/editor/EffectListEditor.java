@@ -20,6 +20,7 @@ import com.jjktbf.model.character.BattleStatKey;
 import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveTag;
+import com.jjktbf.model.move.StatusEffectType;
 import com.jjktbf.model.technique.InnateTechniqueData;
 
 import java.util.ArrayList;
@@ -193,6 +194,8 @@ public class EffectListEditor extends Table {
         fields.defaults().pad(4).left().growX();
         TextField durationField = type.uses(AbilityEffectParameter.DURATION)
             ? integerField(effect.durationRounds) : null;
+        TextField durationTicksField = type.uses(AbilityEffectParameter.DURATION)
+            ? nonNegativeIntegerField(effect.durationTicks) : null;
 
         if (type.uses(AbilityEffectParameter.STAT)) {
             SelectBox<String> statBox = new SelectBox<>(skin);
@@ -286,15 +289,18 @@ public class EffectListEditor extends Table {
 
         if (type.uses(AbilityEffectParameter.STATUS_TYPE)) {
             SelectBox<String> statusBox = new SelectBox<>(skin);
-            String[] statuses = AbilityEffectType.supportedAutoStatuses().stream()
-                .map(status -> pretty(status.name()))
-                .toArray(String[]::new);
-            statusBox.setItems(statuses);
-            statusBox.setSelected(pretty(effect.stringValue));
-            effect.stringValue = enumName(statusBox.getSelected());
+            List<String> statuses = new ArrayList<>(AbilityEffectType.supportedAutoStatuses().stream()
+                .map(StatusEffectType::displayName)
+                .toList());
+            String storedStatus = effect.stringValue;
+            String selectedStatus = statusLabel(storedStatus);
+            if (!statuses.contains(selectedStatus)) statuses.add(0, selectedStatus);
+            statusBox.setItems(statuses.toArray(new String[0]));
+            statusBox.setSelected(selectedStatus);
             statusBox.addListener(new ChangeListener() {
                 @Override public void changed(ChangeEvent event, Actor actor) {
-                    effect.stringValue = enumName(statusBox.getSelected());
+                    effect.stringValue = selectedStatus.equals(statusBox.getSelected())
+                        ? storedStatus : statusFromLabel(statusBox.getSelected()).name();
                 }
             });
             addRow(fields, "Status", statusBox);
@@ -329,7 +335,9 @@ public class EffectListEditor extends Table {
                     effect.timing = timingBox.getSelected();
                     if (AbilityEffectTiming.ROUND_START.name().equals(effect.timing)) {
                         effect.durationRounds = 1;
+                        effect.durationTicks = 0;
                         if (durationField != null) durationField.setText("1");
+                        if (durationTicksField != null) durationTicksField.setText("0");
                     }
                 }
             });
@@ -342,17 +350,23 @@ public class EffectListEditor extends Table {
                     effect.durationRounds = parseInteger(durationField.getText());
                 }
             });
-            addRow(fields, "Duration (-1 = permanent)", durationField);
+            durationTicksField.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    effect.durationTicks = parseInteger(durationTicksField.getText());
+                }
+            });
+            addRow(fields, "Duration rounds (-1 = permanent)", durationField);
+            addRow(fields, "Duration ticks", durationTicksField);
         }
 
         if (type.uses(AbilityEffectParameter.MAGNITUDE)) {
-            TextField magnitude = decimalField(effect.magnitude);
+            TextField magnitude = nonNegativeDecimalField(effect.magnitude);
             magnitude.addListener(new ChangeListener() {
                 @Override public void changed(ChangeEvent event, Actor actor) {
                     effect.magnitude = parseDouble(magnitude.getText());
                 }
             });
-            addRow(fields, "Magnitude", magnitude);
+            addRow(fields, "Amount (flat points)", magnitude);
         }
 
         if (type.uses(AbilityEffectParameter.USES)) {
@@ -385,10 +399,23 @@ public class EffectListEditor extends Table {
         return field;
     }
 
+    private TextField nonNegativeIntegerField(Integer value) {
+        TextField field = new HoverTextField(value == null ? "" : String.valueOf(value), skin);
+        field.setTextFieldFilter((textField, character) -> Character.isDigit(character));
+        return field;
+    }
+
     private TextField decimalField(Double value) {
         TextField field = new HoverTextField(value == null ? "" : formatNumber(value), skin);
         field.setTextFieldFilter((textField, character) ->
             Character.isDigit(character) || character == '-' || character == '.');
+        return field;
+    }
+
+    private TextField nonNegativeDecimalField(Double value) {
+        TextField field = new HoverTextField(value == null ? "" : formatNumber(value), skin);
+        field.setTextFieldFilter((textField, character) ->
+            Character.isDigit(character) || character == '.');
         return field;
     }
 
@@ -419,9 +446,14 @@ public class EffectListEditor extends Table {
             summary.append(" | ").append(effect.stringValue);
         }
         if (type.uses(AbilityEffectParameter.STATUS_TYPE) && effect.stringValue != null) {
-            summary.append(" | ").append(pretty(effect.stringValue));
-            summary.append(" -> ").append(effect.target);
-            summary.append(" @ ").append(effect.timing);
+            summary.append(" | ").append(statusLabel(effect.stringValue));
+            if (effect.target != null) summary.append(" -> ").append(effect.target);
+            if (effect.timing != null) summary.append(" @ ").append(effect.timing);
+            if (effect.magnitude != null) {
+                summary.append(" | ").append(formatNumber(
+                    StatusEffectType.normalizeStoredMagnitude(
+                        effect.stringValue, effect.magnitude))).append(" points");
+            }
         }
         if (type.uses(AbilityEffectParameter.BATTLE_STAT) && effect.stringValue != null) {
             summary.append(" | ").append(battleStatLabel(effect.stringValue));
@@ -430,12 +462,21 @@ public class EffectListEditor extends Table {
             summary.append(" -> ").append(effect.target);
         }
         if (type.uses(AbilityEffectParameter.DURATION)) {
-            summary.append(" | ").append(effect.durationRounds == null ? "?" : effect.durationRounds).append(" rounds");
+            summary.append(" | ").append(durationLabel(effect));
         }
         if (type.uses(AbilityEffectParameter.USES)) {
             summary.append(" | ").append(effect.uses).append(" uses");
         }
         return summary.toString();
+    }
+
+    private static String durationLabel(AbilityEffectData effect) {
+        int rounds = effect.durationRounds != null ? effect.durationRounds : 0;
+        int ticks = effect.durationTicks != null ? effect.durationTicks : 0;
+        if (rounds == -1) return "permanent";
+        if (rounds == 0) return ticks + " ticks";
+        if (ticks == 0) return rounds + " rounds";
+        return rounds + " rounds + " + ticks + " ticks";
     }
 
     private static AbilityEffectType safeType(String typeName) {
@@ -458,6 +499,17 @@ public class EffectListEditor extends Table {
             if (type.displayName().equals(label)) return type;
         }
         return AbilityEffectType.STAT_ADD;
+    }
+
+    private static String statusLabel(String statusName) {
+        return StatusEffectType.referenceDisplayName(statusName);
+    }
+
+    private static StatusEffectType statusFromLabel(String label) {
+        for (StatusEffectType status : StatusEffectType.values()) {
+            if (status.displayName().equals(label)) return status;
+        }
+        return StatusEffectType.STRENGTH_INCREASE;
     }
 
     private static String[] statLabels() {

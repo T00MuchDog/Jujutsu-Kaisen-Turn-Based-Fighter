@@ -85,8 +85,7 @@ public final class DamageCalculator {
             double hitChance = CombatStats.computeHitChance(
                 attackerAccuracy,
                 defender.getEvasion(),
-                Math.min(1.0, Math.max(0.0,
-                    move.getBaseAccuracy() + attacker.getStatusBaseAccuracyBonus()))
+                move.getBaseAccuracy()
             );
             hit = rng.nextDouble() < hitChance;
         }
@@ -103,7 +102,9 @@ public final class DamageCalculator {
             ? defTimeline.activeBlockAt(currentTick, move) : null;
 
         // --- 3. Power ---
-        int power   = PowerCalculator.compute(move.getCategory(), acs);
+        double power = Math.max(0.0, attacker.modifyBattleStat(
+            com.jjktbf.model.character.BattleStatKey.POWER,
+            PowerCalculator.compute(move.getCategory(), acs)));
 
         // --- 4. Apply defensive block before Defense ---
         double attackValue = move.getBasePower() * (double) power;
@@ -126,10 +127,6 @@ public final class DamageCalculator {
                 * attacker.getAbilityFlags().damageMultiplierFor(move)
         );
         rawDamage = Math.max(1, rawDamage);
-        rawDamage = Math.max(0, (int) Math.round(rawDamage * Math.max(0.0,
-            1.0 + attacker.getStatusMagnitude(com.jjktbf.model.move.StatusEffectType.POWER_UP))));
-        rawDamage = Math.max(0, (int) Math.round(rawDamage * Math.max(0.0,
-            1.0 + defender.getStatusMagnitude(com.jjktbf.model.move.StatusEffectType.MARKED))));
         rawDamage = Math.max(0, (int) Math.round(
             attacker.modifyBattleStat(com.jjktbf.model.character.BattleStatKey.DAMAGE_DEALT, rawDamage)));
 

@@ -154,10 +154,8 @@ public final class PassiveAbilityEngine {
                 combatant -> statValue(combatant, condition.stat) >= value(condition.amount));
             case STAT_AT_OR_BELOW -> anyActor(condition, owner, enemy,
                 combatant -> statValue(combatant, condition.stat) <= value(condition.amount));
-            case HAS_STATUS -> anyActor(condition, owner, enemy,
-                combatant -> combatant.hasEffect(status(condition.statusType)));
-            case DOES_NOT_HAVE_STATUS -> anyActor(condition, owner, enemy,
-                combatant -> !combatant.hasEffect(status(condition.statusType)));
+            case HAS_STATUS -> statusPredicate(condition, owner, enemy, false);
+            case DOES_NOT_HAVE_STATUS -> statusPredicate(condition, owner, enemy, true);
             case STATUS_APPLIED, STATUS_REMOVED -> history.stream().anyMatch(candidate ->
                 eventLeafMatches(type, condition, owner, enemy, state, candidate));
             case ALL, ANY -> false;
@@ -225,17 +223,6 @@ public final class PassiveAbilityEngine {
                     };
                     int damage = type == AbilityEffectType.INSTANT_KILL
                         ? target.receiveInstantKill() : target.receiveDamage(requested);
-                    for (StatusEffect consumed : target.drainConsumedStatusEffects()) {
-                        events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
-                            .target(target).tick(tick)
-                            .message(consumed.getType() + " was consumed on "
-                                + target.getCharacter().getName() + ".").build());
-                        followUps.add(AbilityTrigger.status(
-                            AbilityTrigger.Type.STATUS_REMOVED,
-                            target,
-                            consumed.getType(),
-                            tick));
-                    }
                     events.addAll(target.getCodedAbilities().drainPendingEvents(tick));
                     events.add(CombatEvent.of(damage == 0
                             ? CombatEvent.Type.DAMAGE_IGNORED : CombatEvent.Type.DAMAGE_DEALT)
@@ -251,12 +238,17 @@ public final class PassiveAbilityEngine {
                 }
             }
             case APPLY_STATUS -> {
-                StatusEffectType status = status(effect.stringValue);
+                StatusEffectType status = status(effect.stringValue, effect.magnitude);
+                if (status == null) return;
                 for (BattleCombatant target : targets) {
+                    int previousMaxHp = target.getMaxHp();
+                    int previousMaxCe = target.getMaxCursedEnergy();
                     StatusEffect applied = new StatusEffect(
                         status,
                         effect.durationRounds == null ? 1 : effect.durationRounds,
-                        effect.magnitude == null ? 0.0 : effect.magnitude);
+                        effect.durationTicks == null ? 0 : effect.durationTicks,
+                        StatusEffectType.normalizeStoredMagnitude(
+                            effect.stringValue, effect.magnitude == null ? 0.0 : effect.magnitude));
                     if (extendStatusForCurrentPhase(state)) {
                         target.addStatusEffect(applied, state.getCurrentPhase());
                     } else {
@@ -264,28 +256,51 @@ public final class PassiveAbilityEngine {
                     }
                     events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                         .source(owner).target(target).tick(tick)
-                        .message(target.getCharacter().getName() + " receives " + status + "!").build());
+                        .message(target.getCharacter().getName() + " receives "
+                            + status.displayName() + "!").build());
+                    appendResourceMaximumEvents(
+                        owner, target, previousMaxHp, previousMaxCe, tick, events);
                     followUps.add(AbilityTrigger.status(AbilityTrigger.Type.STATUS_APPLIED, target, status, tick));
                 }
             }
             case REMOVE_STATUS -> {
-                StatusEffectType status = status(effect.stringValue);
+                Set<StatusEffectType> referenced =
+                    StatusEffectType.referencedTypes(effect.stringValue);
+                if (referenced.isEmpty()) return;
                 for (BattleCombatant target : targets) {
-                    if (target.removeStatusEffects(status) == 0) continue;
+                    int previousMaxHp = target.getMaxHp();
+                    int previousMaxCe = target.getMaxCursedEnergy();
+                    List<StatusEffectType> removed = target.getActiveEffects().stream()
+                        .map(StatusEffect::getType)
+                        .filter(referenced::contains)
+                        .distinct()
+                        .toList();
+                    if (removed.isEmpty()) continue;
+                    removed.forEach(target::removeStatusEffects);
                     events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
                         .source(owner).target(target).tick(tick)
-                        .message(status + " was removed from " + target.getCharacter().getName() + ".").build());
-                    followUps.add(AbilityTrigger.status(AbilityTrigger.Type.STATUS_REMOVED, target, status, tick));
+                        .message("Matching stat effects were removed from "
+                            + target.getCharacter().getName() + ".").build());
+                    appendResourceMaximumEvents(
+                        owner, target, previousMaxHp, previousMaxCe, tick, events);
+                    for (StatusEffectType status : removed) {
+                        followUps.add(AbilityTrigger.status(
+                            AbilityTrigger.Type.STATUS_REMOVED, target, status, tick));
+                    }
                 }
             }
             case CLEAR_STATUSES -> {
                 for (BattleCombatant target : targets) {
+                    int previousMaxHp = target.getMaxHp();
+                    int previousMaxCe = target.getMaxCursedEnergy();
                     List<StatusEffectType> removed = target.getActiveEffects().stream()
                         .map(StatusEffect::getType).distinct().toList();
                     target.clearStatusEffects();
                     for (StatusEffectType status : removed) {
                         followUps.add(AbilityTrigger.status(AbilityTrigger.Type.STATUS_REMOVED, target, status, tick));
                     }
+                    appendResourceMaximumEvents(
+                        owner, target, previousMaxHp, previousMaxCe, tick, events);
                 }
             }
             case TEMP_STAT_ADD, TEMP_STAT_MULTIPLY, TEMP_STAT_SET_VALUE,
@@ -304,15 +319,21 @@ public final class PassiveAbilityEngine {
                  MODIFY_DEFENSE, MODIFY_AP_BAR, LOCK_MOVE_TAG, COST_CE_PER_ROUND ->
                 addRuntimeEffect(state, owner, owner, effect, tick, events);
             case AUTO_STATUS_APPLY -> {
-                StatusEffectType status = status(effect.stringValue);
+                StatusEffectType status = status(effect.stringValue, effect.magnitude);
+                if (status == null) return;
                 for (BattleCombatant target : targets) {
+                    int previousMaxHp = target.getMaxHp();
+                    int previousMaxCe = target.getMaxCursedEnergy();
                     boolean applied = extendStatusForCurrentPhase(state)
                         ? target.addAutomaticStatusEffect(effect, state.getCurrentPhase())
                         : target.addAutomaticStatusEffect(effect);
                     if (!applied) continue;
                     events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                         .source(owner).target(target).tick(tick)
-                        .message(target.getCharacter().getName() + " receives " + status + "!").build());
+                        .message(target.getCharacter().getName() + " receives "
+                            + status.displayName() + "!").build());
+                    appendResourceMaximumEvents(
+                        owner, target, previousMaxHp, previousMaxCe, tick, events);
                     followUps.add(AbilityTrigger.status(
                         AbilityTrigger.Type.STATUS_APPLIED, target, status, tick));
                 }
@@ -399,10 +420,12 @@ public final class PassiveAbilityEngine {
                 && trigger.amount() >= value(condition.amount);
             case STATUS_APPLIED -> trigger.type() == AbilityTrigger.Type.STATUS_APPLIED
                 && eventActorMatches(condition, owner, enemy, trigger.actor())
-                && trigger.status() == status(condition.statusType);
+                && StatusEffectType.referencedTypes(condition.statusType)
+                    .contains(trigger.status());
             case STATUS_REMOVED -> trigger.type() == AbilityTrigger.Type.STATUS_REMOVED
                 && eventActorMatches(condition, owner, enemy, trigger.actor())
-                && trigger.status() == status(condition.statusType);
+                && StatusEffectType.referencedTypes(condition.statusType)
+                    .contains(trigger.status());
             default -> false;
         };
     }
@@ -422,6 +445,20 @@ public final class PassiveAbilityEngine {
         };
     }
 
+    private static boolean statusPredicate(
+        AbilityConditionData condition,
+        BattleCombatant owner,
+        BattleCombatant enemy,
+        boolean negated
+    ) {
+        Set<StatusEffectType> statuses = StatusEffectType.referencedTypes(condition.statusType);
+        if (statuses.isEmpty()) return false;
+        return anyActor(condition, owner, enemy,
+            combatant -> combatant.getActiveEffects().stream()
+                .map(StatusEffect::getType)
+                .anyMatch(statuses::contains) != negated);
+    }
+
     private static boolean extendStatusForCurrentPhase(BattleState state) {
         return state.getCurrentPhase() != BattleState.Phase.ROUND_END
             || !state.isRoundEndMaintenanceComplete();
@@ -438,6 +475,19 @@ public final class PassiveAbilityEngine {
         int previousMaxHp = target.getMaxHp();
         int previousMaxCe = target.getMaxCursedEnergy();
         target.addRuntimeAbilityEffect(effect, state.getRoundNumber(), state.getCurrentPhase());
+        appendResourceMaximumEvents(
+            source, target, previousMaxHp, previousMaxCe, tick, events);
+    }
+
+    private static void appendResourceMaximumEvents(
+        BattleCombatant source,
+        BattleCombatant target,
+        int previousMaxHp,
+        int previousMaxCe,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        if (target.isPoolClampDeferred()) return;
         if (target.getMaxHp() != previousMaxHp) {
             events.add(CombatEvent.of(CombatEvent.Type.MAX_HP_CHANGED)
                 .source(source).target(target).intValue(target.getMaxHp()).tick(tick)
@@ -490,9 +540,9 @@ public final class PassiveAbilityEngine {
         catch (Exception ex) { return AbilityEffectType.STAT_BONUS_POINTS; }
     }
 
-    private static StatusEffectType status(String value) {
-        try { return StatusEffectType.valueOf(value); }
-        catch (Exception ex) { return StatusEffectType.POISON; }
+    private static StatusEffectType status(String value, Double magnitude) {
+        try { return StatusEffectType.fromName(value, magnitude != null ? magnitude : 0.0); }
+        catch (Exception ex) { return null; }
     }
 
     private static int statValue(BattleCombatant combatant, String stat) {

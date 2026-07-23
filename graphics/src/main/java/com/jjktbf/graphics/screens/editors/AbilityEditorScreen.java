@@ -21,6 +21,7 @@ import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityConditionData;
 import com.jjktbf.model.character.AbilityConditionType;
 import com.jjktbf.model.character.AbilityEffectData;
+import com.jjktbf.model.character.AbilityEffectParameter;
 import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.AbilityRepository;
 import com.jjktbf.model.character.AbilityResolver;
@@ -29,6 +30,7 @@ import com.jjktbf.model.character.CharacterRepository;
 import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveRepository;
+import com.jjktbf.model.move.StatusEffectType;
 import com.jjktbf.model.technique.InnateTechniqueData;
 import com.jjktbf.model.technique.TechniqueRepository;
 
@@ -84,6 +86,12 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
 
     @Override
     protected AbilityData draftFromRecord(AbilityData stored) {
+        AbilityData draft = copyAbility(stored);
+        normalizeLegacyStatusAmounts(draft);
+        return draft;
+    }
+
+    private static AbilityData copyAbility(AbilityData stored) {
         AbilityData draft = new AbilityData();
         draft.id = stored.id;
         draft.name = stored.name;
@@ -138,25 +146,72 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
 
     @Override
     protected ValidationResult validateAndSave(AbilityData ability) {
-        String validationError = validationError(ability);
+        AbilityData toSave = copyAbility(ability);
+        normalizeLegacyStatusAmounts(toSave);
+        String validationError = validationError(toSave);
         if (validationError != null) return ValidationResult.error(validationError);
 
-        String previousName = repo.findById(ability.id).map(record -> record.name).orElse(null);
-        normalizeForSave(ability);
-        rewriteNameBasedDependents(ability, previousName);
+        boolean adding = isNewDraft(ability);
+        AbilityData previous = adding ? null : repo.findById(toSave.id).orElse(null);
+        String previousName = previous == null ? null : previous.name;
+        normalizeForSave(toSave);
+        Map<AbilityData, String> previousSources = new java.util.IdentityHashMap<>();
+        repo.getAll().forEach(record -> previousSources.put(record, record.sourceValue));
+        boolean repositoryMutated = false;
         try {
-            if (isNewDraft(ability)) {
-                ability.id = null;
-                repo.add(ability);
+            if (adding) {
+                toSave.id = null;
+                repo.add(toSave);
             } else {
-                repo.update(ability);
+                repo.update(toSave);
             }
+            repositoryMutated = true;
+            rewriteNameBasedDependents(toSave, previousName);
             repo.save();
-            TechniqueTreeRepositorySync.synchronize();
         } catch (Exception ex) {
+            previousSources.forEach((record, source) -> record.sourceValue = source);
+            if (repositoryMutated) {
+                try {
+                    if (adding) repo.delete(toSave.id);
+                    else if (previous != null) repo.update(previous);
+                } catch (RuntimeException ignored) {
+                    // Preserve the persistence error as the useful result.
+                }
+            }
             return ValidationResult.error("Save failed: " + ex.getMessage());
         }
-        return ValidationResult.ok("Saved \"" + ability.name + "\".");
+        ability.id = toSave.id;
+        try {
+            TechniqueTreeRepositorySync.synchronize();
+        } catch (Exception ex) {
+            return ValidationResult.ok("Saved \"" + toSave.name
+                + "\", but technique tree sync failed: " + ex.getMessage());
+        }
+        return ValidationResult.ok("Saved \"" + toSave.name + "\".");
+    }
+
+    static void normalizeLegacyStatusAmounts(AbilityData ability) {
+        if (ability == null || ability.effects == null) return;
+        for (AbilityEffectData effect : ability.effects) {
+            if (effect == null || effect.type == null || effect.stringValue == null) continue;
+            AbilityEffectType type;
+            try { type = AbilityEffectType.fromName(effect.type); }
+            catch (IllegalArgumentException ignored) { continue; }
+            if (!type.uses(AbilityEffectParameter.STATUS_TYPE)
+                || !type.uses(AbilityEffectParameter.MAGNITUDE)) {
+                continue;
+            }
+            double storedAmount = effect.magnitude != null ? effect.magnitude : 0.0;
+            String storedType = effect.stringValue;
+            try {
+                effect.stringValue = StatusEffectType.fromName(
+                    storedType, storedAmount).name();
+                effect.magnitude = StatusEffectType.normalizeStoredMagnitude(
+                    storedType, storedAmount);
+            } catch (IllegalArgumentException ignored) {
+                // Normal validation reports removed or unknown status names.
+            }
+        }
     }
 
     private String validationError(AbilityData ability) {

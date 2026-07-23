@@ -237,7 +237,8 @@ class ProtocolJsonTest {
             true,
             2,
             4,
-            List.of(new StatusEffectState("FOCUS", "Focus", 1, 0.15)),
+            List.of(new StatusEffectState(
+                "ACCURACY_INCREASE", "Increase Accuracy", 1, 5, 10.0)),
             List.of(new CodedAbilityState("MIRACLES", "Miracles", 4, 6)),
             List.of(divergentFist, basicBlock),
             playerOnePlan
@@ -255,7 +256,8 @@ class ProtocolJsonTest {
             false,
             0,
             null,
-            List.of(new StatusEffectState("DEFENSE_UP", "Defense Up", -1, 12.0)),
+            List.of(new StatusEffectState(
+                "DEFENSE_INCREASE", "Increase Defense", -1, 0, 12.0)),
             List.of(),
             List.of(basicBlock),
             new PlanState(3, 84, 0, 350, 0, null, null)

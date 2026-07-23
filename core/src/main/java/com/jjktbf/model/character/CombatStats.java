@@ -63,8 +63,8 @@ package com.jjktbf.model.character;
  *    Defense is computed during damage calculation, after PERCENTAGE_BLOCK and FLAT_BLOCK
  *    have already been applied to the incoming damage. It is NOT a raw base stat but
  *    is derived from Durability, CE Reserves, the current CE pool, and CE Output at the
- *    moment of resolution. Utility moves that raise Durability (e.g. via STATUS_EFFECT
- *    DEFENSE_UP) will indirectly increase Defense.
+ *    moment of resolution. Utility moves that temporarily raise Durability will
+ *    indirectly increase Defense.
  *
  *    CE reinforcement (the CE contribution to Defense) is CAPPED by CE Output, not by
  *    pool size. While the pool can supply at least the cap, Defense holds at a plateau —
@@ -212,7 +212,7 @@ public class CombatStats {
      * early is free; only once the pool drops below that cap does Defense degrade. This is
      * lore accurate — output, not pool size, limits reinforcement, so even bottomless-CE
      * fighters have finite Defense. Stat enhancements that raise Durability raise Defense;
-     * CE_OUTPUT_UP buffs raise the reinforcement cap (pass effective stats to benefit).
+     * Cursed Energy Output increases raise the reinforcement cap.
      *
      * @param cs           the character's (effective) stats
      * @param currentCe    the character's remaining CE pool units at this moment

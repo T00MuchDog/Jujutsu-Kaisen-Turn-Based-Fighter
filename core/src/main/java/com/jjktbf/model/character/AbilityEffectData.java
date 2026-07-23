@@ -43,7 +43,7 @@ public class AbilityEffectData {
     // ── Status effect automation ──────────────────────────────────────────────
     /**
      * Generic string value:
-     *   AUTO_STATUS_APPLY → a supported StatusEffectType name (e.g. "FOCUS")
+     *   AUTO_STATUS_APPLY → a supported StatusEffectType name (e.g. "ACCURACY_INCREASE")
      *   UNLOCK_TECHNIQUE  → technique name (e.g. "Limitless")
      */
     public String stringValue;
@@ -60,6 +60,9 @@ public class AbilityEffectData {
 
     /** Duration for AUTO_STATUS_APPLY. -1 means permanent. */
     public Integer durationRounds;
+
+    /** AP ticks after the configured rounds have elapsed. */
+    public Integer durationTicks;
 
     /** Magnitude for AUTO_STATUS_APPLY. */
     public Double magnitude;
@@ -86,6 +89,7 @@ public class AbilityEffectData {
         this.target = source.target;
         this.timing = source.timing;
         this.durationRounds = source.durationRounds;
+        this.durationTicks = source.durationTicks;
         this.magnitude = source.magnitude;
         this.uses = source.uses;
     }
@@ -157,7 +161,8 @@ public class AbilityEffectData {
             + (stringValue != null ? " str=" + stringValue : "")
             + (target      != null ? " tgt=" + target : "")
             + (timing      != null ? " time=" + timing : "")
-            + (durationRounds != null ? " dur=" + durationRounds : "")
+            + (durationRounds != null ? " rounds=" + durationRounds : "")
+            + (durationTicks != null ? " ticks=" + durationTicks : "")
             + (magnitude   != null ? " mag=" + magnitude : "")
             + (uses        != null ? " uses=" + uses : "")
             + " }";

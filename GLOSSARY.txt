@@ -144,7 +144,7 @@ These are the numbers actually used in combat calculations.
     - Defense IS a combat stat (computed, not stored as a base stat).
     - "Defense stat" is acceptable terminology — it refers to this computed value.
     - Utility moves that raise Durability (via stat enhancements) indirectly raise Defense.
-    - CE_OUTPUT_UP status buffs raise the reinforcement cap (pass effective stats).
+    - CURSED_ENERGY_OUTPUT_INCREASE raises the reinforcement cap.
     - Do NOT confuse with DEFENSIVE (a MoveTag for blocking moves).
     - Do NOT confuse blockDamageReduction (block %) with Defense.
     - Pipeline: incoming damage → DEFENSIVE move reduction → Defense → final damage.
@@ -633,26 +633,27 @@ Utility and Defensive moves have no slot limit.
   15. STATUS EFFECTS  (StatusEffectType.java)
 ================================================================================
 
-  Applied to combatants via move on-hit effects or ability AUTO_STATUS_APPLY.
-  Each effect has a duration in rounds and a magnitude.
+  Applied to combatants via move on-hit/self effects or ability status effects.
+  Each effect has round and AP-tick duration fields plus a non-negative flat
+  amount. Use rounds > 0 with ticks = 0 for round-only, rounds = 0 with ticks > 0
+  for tick-only, or set both above 0 to keep the effect for the full rounds and
+  then through that many ticks of the following round. Rounds = -1 and ticks = 0
+  means permanent. Direction is explicit in the type name: *_INCREASE adds the
+  amount and *_DECREASE subtracts it.
 
-  Debilitating (applied to opponent):
-    POISON            — deals damage at the start of each round tick for a duration
-    BIND              — reduces the target's Evasion for a duration
-    CURSED_SEAL       — reduces CE Efficiency (moves cost more CE)
-    CE_SUPPRESSION    — prevents use of CE-tagged moves for a duration
+  Every base stat supports both directions:
+    VITALITY, STRENGTH, DURABILITY, SPEED, COMBAT_ABILITY,
+    CURSED_ENERGY_RESERVES, CURSED_ENERGY_EFFICIENCY,
+    CURSED_ENERGY_OUTPUT, JUJUTSU_SKILL, CURSED_TECHNIQUE_MASTERY.
 
-  Enhancing (self-applied):
-    POWER_UP          — boosts the user's Power for a duration
-    DEFENSE_UP        — boosts the user's Defense for a duration
-    FOCUS             — boosts the user's Accuracy for a duration
-    SPEED_UP          — boosts Speed (affects next round's AP bar)
-    CE_OUTPUT_UP      — raises Cursed Energy Output by a flat amount for a duration
+  Every runtime-derived stat supports both directions:
+    MAX_HP, MAX_CURSED_ENERGY, MAX_AP, ACCURACY, EVASION, POWER, DEFENSE.
 
-  Special:
-    MARKED            — marks the target; certain follow-up moves deal bonus damage
-    AP_DRAIN          — reduces the target's max AP bar for the next round
-    BARRIER           — negates the next damaging hit received
+  Examples:
+    STRENGTH_INCREASE       — temporarily adds to Strength
+    EVASION_DECREASE        — temporarily subtracts from Evasion
+    POWER_INCREASE          — temporarily adds to the move-specific Power value
+    MAX_AP_DECREASE         — temporarily reduces the next planning AP budget
 
 ================================================================================
   16. COMBAT EVENTS  (CombatEvent.java)

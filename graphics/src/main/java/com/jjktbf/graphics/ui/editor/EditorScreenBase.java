@@ -23,7 +23,6 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Align;
-import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
@@ -119,8 +118,8 @@ public abstract class EditorScreenBase<D> implements Screen {
     /** True while we are rebuilding the detail form (suppresses dirty marking). */
     protected boolean suppressDirty = false;
 
-    /** Cache of id → display name so the master list and selection stay in sync. */
-    private final ObjectMap<String, String> idToName = new ObjectMap<>();
+    /** Record IDs in the current filtered/sorted master-list order. */
+    private final List<String> visibleRecordIds = new ArrayList<>();
 
     // =========================================================================
     // Construction
@@ -307,15 +306,15 @@ public abstract class EditorScreenBase<D> implements Screen {
     }
 
     private void wireInput() {
-        // Master list selection. Resolve the picked label back to a record
-        // (NOT by index — the list is filtered + alphabetised during search, so
-        // its index order does not match records).
+        // Resolve the visible index through its parallel ID list because search
+        // filtering/sorting and duplicate labels make raw record indices unsafe.
         masterList.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
-                String picked = masterList.getSelected();
-                if (picked == null) return;
+                int pickedIndex = masterList.getSelectedIndex();
+                if (pickedIndex < 0 || pickedIndex >= visibleRecordIds.size()) return;
+                String pickedId = visibleRecordIds.get(pickedIndex);
                 for (int i = 0; i < records.size(); i++) {
-                    if (listLabel(records.get(i)).equals(picked)) {
+                    if (Objects.equals(idOf(records.get(i)), pickedId)) {
                         selectRecord(i);
                         break;
                     }
@@ -455,28 +454,32 @@ public abstract class EditorScreenBase<D> implements Screen {
      */
     protected void refreshMasterList() {
         String q = searchField.getText().trim().toLowerCase();
-        idToName.clear();
-        List<String> items = new ArrayList<>();
+        List<D> visibleRecords = new ArrayList<>();
         for (D r : records) {
             String label = listLabel(r);
-            idToName.put(idOf(r), label);
             if (q.isEmpty() || label.toLowerCase().contains(q)) {
-                items.add(label);
+                visibleRecords.add(r);
             }
         }
         // Searching re-orders matches alphabetically for quick scanning;
         // no-query view keeps id order (which == records order).
         if (!q.isEmpty()) {
-            items.sort(String.CASE_INSENSITIVE_ORDER);
+            visibleRecords.sort((a, b) ->
+                String.CASE_INSENSITIVE_ORDER.compare(listLabel(a), listLabel(b)));
         }
-        masterList.setItems(items.toArray(new String[0]));
+        visibleRecordIds.clear();
+        visibleRecords.forEach(record -> visibleRecordIds.add(idOf(record)));
+        masterList.setItems(visibleRecords.stream()
+            .map(this::listLabel).toArray(String[]::new));
     }
 
     /** Move the master-list selection by delta, scrolling as needed. */
     private void nudgeSelection(int delta) {
-        if (records.isEmpty()) return;
-        int idx = selectedIndex < 0 ? (delta > 0 ? 0 : records.size() - 1)
-                                    : Math.floorMod(selectedIndex + delta, records.size());
+        int itemCount = masterList.getItems().size;
+        if (itemCount == 0) return;
+        int current = masterList.getSelectedIndex();
+        int idx = current < 0 ? (delta > 0 ? 0 : itemCount - 1)
+                              : Math.floorMod(current + delta, itemCount);
         masterList.setSelectedIndex(idx);
     }
 
@@ -621,15 +624,21 @@ public abstract class EditorScreenBase<D> implements Screen {
                 refreshMasterList();
                 // Reselect the saved record (by name match for new records).
                 String savedLabel = listLabel(draft);
+                int savedIndex = -1;
                 for (int i = 0; i < records.size(); i++) {
                     if (Objects.equals(idOf(records.get(i)), idOf(draft))
                         || Objects.equals(listLabel(records.get(i)), savedLabel)) {
                         selectedIndex = i;
-                        masterList.setSelectedIndex(i);
+                        savedIndex = i;
+                        int visibleIndex = visibleRecordIds.indexOf(idOf(records.get(i)));
+                        if (visibleIndex >= 0) masterList.setSelectedIndex(visibleIndex);
+                        else masterList.getSelection().clear();
                         break;
                     }
                 }
-                draft = draft == null ? null : draftFromRecord(draft);
+                draft = savedIndex >= 0
+                    ? draftFromRecord(records.get(savedIndex))
+                    : draftFromRecord(draft);
                 suppressDirty = true;
                 rebuildDetail();
                 suppressDirty = false;

@@ -7,6 +7,7 @@ import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
@@ -41,14 +42,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Graphical CRUD editor for {@link MoveData}. Master-detail layout, mouse +
  * keyboard driven, pixel-art themed.
  *
- * Form sections: identity, tags (→ derived category read-only), cost (AP/CE),
- * power/accuracy, interrupt, defense (+ conditional block fields), technique
- * requirement, stat prerequisites, on-hit / self status effects, free-move flag.
+ * Form sections: identity, tags, cost (AP/CE), tag-controlled Attack / Defense /
+ * Utility details, technique requirement, stat prerequisites, and free-move flag.
  *
  * Save validates by calling {@link MoveData#toMove()} (the same path the engine
  * uses), so any rule the runtime enforces is enforced here too.
@@ -58,6 +59,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     private final MoveRepository repo;
 
     // Handles to dynamically-shown/hidden widgets, refreshed in rebuildDetail.
+    private Container<Actor> categorySectionsContainer;
     private Container<Actor> blockFieldsContainer;
     private Container<Actor> ceMinMaxContainer;
     private Container<Actor> powerFieldsContainer;
@@ -119,6 +121,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         d.basePower             = s.basePower;
         d.baseAccuracy          = s.baseAccuracy;
         d.neverMiss             = s.neverMiss;
+        d.stun                  = s.stun;
+        d.guardBreak            = s.guardBreak;
+        d.heavy                 = s.heavy;
         d.apCost                = s.apCost;
         d.unleashPoint          = s.unleashPoint;
         d.baseCeCost            = s.baseCeCost;
@@ -137,10 +142,12 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         // throws UnsupportedOperationException on add (the editor crash bug).
         d.onHitEffects          = s.onHitEffects != null
                                   ? s.onHitEffects.stream().map(MoveEditorScreen::copyEffect)
+                                      .filter(java.util.Objects::nonNull)
                                       .collect(java.util.stream.Collectors.toCollection(ArrayList::new))
                                   : new ArrayList<>();
         d.selfEffects           = s.selfEffects != null
                                   ? s.selfEffects.stream().map(MoveEditorScreen::copyEffect)
+                                      .filter(java.util.Objects::nonNull)
                                       .collect(java.util.stream.Collectors.toCollection(ArrayList::new))
                                   : new ArrayList<>();
         d.codedAbilityKey       = s.codedAbilityKey;
@@ -153,10 +160,18 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     }
 
     private static MoveData.StatusEffectData copyEffect(MoveData.StatusEffectData e) {
+        if (e == null) return null;
+        StatusEffectType type;
+        try {
+            type = StatusEffectType.fromName(e.type, e.magnitude);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
         MoveData.StatusEffectData c = new MoveData.StatusEffectData();
-        c.type            = e.type;
+        c.type            = type.name();
         c.durationRounds  = e.durationRounds;
-        c.magnitude       = e.magnitude;
+        c.durationTicks   = e.durationTicks;
+        c.magnitude       = StatusEffectType.normalizeStoredMagnitude(e.type, e.magnitude);
         return c;
     }
 
@@ -193,40 +208,94 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         if (d.tags == null || d.tags.isEmpty()) {
             return ValidationResult.error("At least one tag is required.");
         }
-        // A legal move must declare its purpose: at least one of ATTACK,
-        // UTILITY, or DEFENSIVE must be selected.
-        boolean hasPurpose = d.tags.contains(MoveTag.ATTACK.name())
-                          || d.tags.contains(MoveTag.UTILITY.name())
-                          || d.tags.contains(MoveTag.DEFENSIVE.name());
-        if (!hasPurpose) {
-            return ValidationResult.error("Select at least one of Attack, Utility, or Defensive.");
-        }
+        String tagError = categoryTagValidationError(d);
+        if (tagError != null) return ValidationResult.error(tagError);
+        // Inactive section details stay on the live draft while editing. Work on
+        // a copy so a failed save cannot erase details hidden by a temporary
+        // tag toggle.
+        MoveData toSave = normalizedCopyForSave(d);
+        boolean adding = isNewDraft(d);
         // New drafts need a non-blank id for the engine builder to validate.
-        if (isNewDraft(d) && (d.id == null || d.id.isBlank())) {
-            d.id = repo.nextId();
+        if (adding && (toSave.id == null || toSave.id.isBlank())) {
+            toSave.id = repo.nextId();
         }
         // Validate via the engine's own builder — catches unleashPoint/AP,
         // bad enums, derived-category errors, etc.
         try {
-            d.toMove();
+            toSave.toMove();
         } catch (Exception e) {
             return ValidationResult.error("Invalid move: " + e.getMessage());
         }
+
+        MoveData previous = adding ? null : repo.findById(toSave.id).orElse(null);
+        boolean repositoryMutated = false;
         try {
-            if (isNewDraft(d)) {
+            if (adding) {
                 // Clear so the repo assigns the canonical next id (robust to
                 // other edits since the draft was created).
-                d.id = null;
-                repo.add(d);
+                toSave.id = null;
+                repo.add(toSave);
             } else {
-                repo.update(d);
+                repo.update(toSave);
             }
+            repositoryMutated = true;
             repo.save();
-            TechniqueTreeRepositorySync.synchronize();
         } catch (Exception e) {
+            // add/update mutates the repository before save writes to disk. Put
+            // its in-memory state back so a later save cannot persist a failed
+            // normalized copy or a phantom new record.
+            if (repositoryMutated) {
+                try {
+                    if (adding) repo.delete(toSave.id);
+                    else if (previous != null) repo.update(previous);
+                } catch (RuntimeException ignored) {
+                    // Keep the original persistence error as the useful result.
+                }
+            }
             return ValidationResult.error("Save failed: " + e.getMessage());
         }
+
+        // Persistence succeeded. The hidden details can now be discarded from
+        // the editor draft as well.
+        d.id = toSave.id;
+        discardInactiveCategoryDetails(d);
+        try {
+            TechniqueTreeRepositorySync.synchronize();
+        } catch (Exception e) {
+            return ValidationResult.ok("Saved \"" + d.name
+                + "\", but technique tree sync failed: " + e.getMessage());
+        }
         return ValidationResult.ok("Saved \"" + d.name + "\".");
+    }
+
+    static String categoryTagValidationError(MoveData move) {
+        long purposeCount = List.of(
+            MoveTag.ATTACK, MoveTag.UTILITY, MoveTag.DEFENSIVE).stream()
+            .filter(tag -> move.tags.contains(tag.name()))
+            .count();
+        if (purposeCount != 1) {
+            return "Select exactly one of Attack, Utility, or Defensive.";
+        }
+        if (move.tags.contains(MoveTag.ATTACK.name())) {
+            boolean hasDamageNature = List.of(
+                MoveTag.PHYSICAL,
+                MoveTag.CURSED_ENERGY,
+                MoveTag.INNATE_TECHNIQUE,
+                MoveTag.NON_INNATE_TECHNIQUE).stream()
+                .anyMatch(tag -> move.tags.contains(tag.name()));
+            if (!hasDamageNature) {
+                return "An Attack needs a Physical, Cursed Energy, or Technique tag.";
+            }
+        }
+        if (move.tags.contains(MoveTag.DEFENSIVE.name())) {
+            DefenseType defense;
+            try { defense = DefenseType.valueOf(move.defenseType); }
+            catch (Exception ignored) { defense = DefenseType.NONE; }
+            if (defense == DefenseType.NONE) {
+                return "A Defensive move needs a percentage or flat block type.";
+            }
+        }
+        return null;
     }
 
     @Override
@@ -334,6 +403,14 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
     @Override
     protected Actor buildDetailForm(MoveData d) {
+        // A TagPicker can emit a coupling change while this form is being built.
+        // Drop references to the previous form so that event cannot refresh
+        // detached actors.
+        categorySectionsContainer = null;
+        blockFieldsContainer = null;
+        ceMinMaxContainer = null;
+        powerFieldsContainer = null;
+
         Table form = formRoot();
 
         // ── Identity ───────────────────────────────────────────────────────────
@@ -360,7 +437,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             d.guardBreak = tags.contains(MoveTag.GUARD_BREAK);
             d.heavy = tags.contains(MoveTag.HEAVY);
             ensureTechniqueStatPrerequisites(d, tags);
-            refreshConditionalSections(d);
+            refreshCategorySections(d);
         }, skin);
         // Sync the draft's tags with the picker's coupling-enforced initial set
         // (e.g. a technique tag implies CURSED_ENERGY). suppressDirty is on
@@ -382,7 +459,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         hasCeCostCb.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
                 d.hasCeCost = hasCeCostCb.isChecked();
-                refreshConditionalSections(d);
+                refreshConditionalFields(d);
             }
         });
         cost.add(hasCeCostCb).left().row();
@@ -392,36 +469,11 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         ceMinMaxContainer.setActor(buildCeMinMax(d));
         cost.add(ceMinMaxContainer).growX().row();
 
-        // ── Power / accuracy ───────────────────────────────────────────────────
-        Table power = formSection(form, "POWER / ACCURACY");
-        powerFieldsContainer = new Container<>();
-        powerFieldsContainer.setActor(buildPowerFields(d));
-        power.add(powerFieldsContainer).growX().row();
-
-        CheckBox neverMissCb = new CheckBox(" Never-miss (ignore accuracy roll)", skin);
-        neverMissCb.setChecked(d.neverMiss);
-        neverMissCb.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
-                d.neverMiss = neverMissCb.isChecked();
-                refreshConditionalSections(d);
-            }
-        });
-        power.add(neverMissCb).left().row();
-
-        // ── Interrupt ──────────────────────────────────────────────────────────
-        Table interrupt = formSection(form, "INTERRUPT");
-        interrupt.add(labelledRow("Type", new EnumSelectBox<>(InterruptType.class, d.interruptType, false,
-                s -> { d.interruptType = s; }, skin))).growX().row();
-
-        // ── Defense ────────────────────────────────────────────────────────────
-        Table defense = formSection(form, "DEFENSE");
-        defense.add(labelledRow("Type", new EnumSelectBox<>(DefenseType.class, d.defenseType, false,
-                s -> { d.defenseType = s; refreshConditionalSections(d); }, skin))).growX().row();
-
-        // Conditional block fields
-        blockFieldsContainer = new Container<>();
-        blockFieldsContainer.setActor(buildBlockFields(d));
-        defense.add(blockFieldsContainer).growX().row();
+        // Purpose tags control which detail cards are active. Replacing this
+        // actor hides a card without touching its draft values.
+        categorySectionsContainer = new Container<>();
+        categorySectionsContainer.setActor(buildCategorySections(d));
+        form.add(categorySectionsContainer).growX().row();
 
         // ── Technique requirement ──────────────────────────────────────────────
         Table technique = formSection(form, "TECHNIQUE REQUIREMENT");
@@ -446,13 +498,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         Table prereqs = formSection(form, "STAT PREREQUISITES");
         prereqs.add(buildPrerequisitesEditor(d)).growX().row();
 
-        // ── Status effects ──────────────────────────────────────────────────────
-        Table onHit = formSection(form, "ON-HIT EFFECTS");
-        onHit.add(buildEffectsEditor("onHit", d)).growX().row();
-
-        Table selfFx = formSection(form, "SELF EFFECTS");
-        selfFx.add(buildEffectsEditor("self", d)).growX().row();
-
         // ── Free-move ───────────────────────────────────────────────────────────
         Table misc = formSection(form, "MISC");
         CheckBox freeCb = new CheckBox(" Free move (does not consume a slot)", skin);
@@ -471,6 +516,57 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     // =========================================================================
     // Conditional sub-sections
     // =========================================================================
+
+    private Actor buildCategorySections(MoveData d) {
+        Table sections = formRoot();
+        sections.pad(0f);
+        powerFieldsContainer = null;
+        blockFieldsContainer = null;
+
+        if (hasTag(d, MoveTag.ATTACK)) {
+            Table attack = formSection(sections, "ATTACK");
+
+            attack.add(new Label("POWER / ACCURACY", skin, "small")).left().row();
+            powerFieldsContainer = new Container<>();
+            powerFieldsContainer.setActor(buildPowerFields(d));
+            attack.add(powerFieldsContainer).growX().row();
+
+            CheckBox neverMissCb = new CheckBox(" Never-miss (ignore accuracy roll)", skin);
+            neverMissCb.setChecked(d.neverMiss);
+            neverMissCb.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    d.neverMiss = neverMissCb.isChecked();
+                    refreshConditionalFields(d);
+                }
+            });
+            attack.add(neverMissCb).left().row();
+
+            attack.add(labelledRow("Interrupt Type", new EnumSelectBox<>(
+                InterruptType.class, d.interruptType, false,
+                s -> { d.interruptType = s; markDirty(); }, skin))).growX().row();
+            attack.add(new Label("ON-HIT EFFECTS", skin, "small")).padTop(8f).left().row();
+            attack.add(buildEffectsEditor("onHit", d)).growX().row();
+        }
+
+        if (hasTag(d, MoveTag.DEFENSIVE)) {
+            Table defense = formSection(sections, "DEFENSE");
+            defense.add(labelledRow("Type", new EnumSelectBox<>(
+                DefenseType.class, d.defenseType, false,
+                s -> { d.defenseType = s; refreshConditionalFields(d); }, skin))).growX().row();
+
+            blockFieldsContainer = new Container<>();
+            blockFieldsContainer.setActor(buildBlockFields(d));
+            defense.add(blockFieldsContainer).growX().row();
+        }
+
+        if (hasTag(d, MoveTag.UTILITY)) {
+            Table utility = formSection(sections, "UTILITY");
+            utility.add(new Label("SELF EFFECTS", skin, "small")).left().row();
+            utility.add(buildEffectsEditor("self", d)).growX().row();
+        }
+
+        return sections;
+    }
 
     private Actor buildPowerFields(MoveData d) {
         Table t = new Table(skin);
@@ -690,13 +786,16 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 final int idx = i;
                 MoveData.StatusEffectData eff = list.get(idx);
                 Label lbl = new Label(
-                    eff.type + " | dur=" + eff.durationRounds + " | mag=" + eff.magnitude,
+                    StatusEffectType.referenceDisplayName(eff.type)
+                        + " | rounds=" + eff.durationRounds
+                        + " | ticks=" + eff.durationTicks
+                        + " | amount=" + eff.magnitude,
                     skin, "small");
                 t.add(lbl).left().growX();
                 TextButton editBtn = new TextButton("Edit", skin);
                 editBtn.addListener(new ChangeListener() {
                     @Override public void changed(ChangeEvent event, Actor actor) {
-                        showEffectEditor(eff);
+                        showEffectEditor(eff, updated -> list.set(idx, updated));
                     }
                 });
                 TextButton rmBtn = new TextButton("X", skin);
@@ -717,12 +816,11 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         addBtn.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
                 MoveData.StatusEffectData eff = new MoveData.StatusEffectData();
-                eff.type = StatusEffectType.POISON.name();
+                eff.type = StatusEffectType.STRENGTH_INCREASE.name();
                 eff.durationRounds = 1;
-                eff.magnitude = 1.0;
-                list.add(eff);
-                markDirty();
-                showEffectEditor(eff);
+                eff.durationTicks = 0;
+                eff.magnitude = 10.0;
+                showEffectEditor(eff, list::add);
             }
         });
         t.add(addBtn).colspan(5).padTop(4).row();
@@ -730,12 +828,17 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     }
 
     /** Modal editor for a single StatusEffectData row. */
-    private void showEffectEditor(MoveData.StatusEffectData eff) {
+    private void showEffectEditor(
+        MoveData.StatusEffectData source,
+        Consumer<MoveData.StatusEffectData> commit
+    ) {
+        MoveData.StatusEffectData eff = copyEffect(source);
         com.badlogic.gdx.scenes.scene2d.ui.Dialog dlg =
             new com.badlogic.gdx.scenes.scene2d.ui.Dialog("Edit Effect", skin) {
                 @Override
                 protected void result(Object object) {
                     if (Boolean.TRUE.equals(object)) {
+                        commit.accept(eff);
                         markDirty();
                         rebuildDetail();
                     }
@@ -746,33 +849,62 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         content.defaults().pad(4).left();
 
         content.add(new Label("Type", skin)).padRight(8);
-        EnumSelectBox<StatusEffectType> typeBox =
-            new EnumSelectBox<>(StatusEffectType.class, eff.type, false, s -> eff.type = s, skin);
+        List<StatusEffectType> statusTypes = List.of(StatusEffectType.values());
+        SelectBox<String> typeBox = new SelectBox<>(skin);
+        List<String> statusLabels = new ArrayList<>(statusTypes.stream()
+            .map(StatusEffectType::displayName).toList());
+        String storedStatus = eff.type;
+        String selectedStatus = StatusEffectType.referenceDisplayName(storedStatus);
+        if (!statusLabels.contains(selectedStatus)) statusLabels.add(0, selectedStatus);
+        typeBox.setItems(statusLabels.toArray(new String[0]));
+        typeBox.setSelected(selectedStatus);
+        typeBox.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                if (selectedStatus.equals(typeBox.getSelected())) {
+                    eff.type = storedStatus;
+                    return;
+                }
+                eff.type = statusTypes.stream()
+                    .filter(status -> status.displayName().equals(typeBox.getSelected()))
+                    .findFirst().orElse(StatusEffectType.STRENGTH_INCREASE).name();
+            }
+        });
         content.add(typeBox).growX().row();
 
         // Duration
-        TextField durField = new HoverTextField(String.valueOf(eff.durationRounds), skin);
-        durField.setTextFieldFilter((tf, c) -> Character.isDigit(c) || c == '-');
-        durField.addListener(new ChangeListener() {
+        TextField roundsField = new HoverTextField(String.valueOf(eff.durationRounds), skin);
+        roundsField.setTextFieldFilter((tf, c) -> Character.isDigit(c) || c == '-');
+        roundsField.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent e, Actor a) {
-                try { eff.durationRounds = Integer.parseInt(durField.getText()); }
+                try { eff.durationRounds = Integer.parseInt(roundsField.getText()); }
                 catch (NumberFormatException ignored) {}
             }
         });
-        content.add(new Label("Duration (rounds, −1 = permanent)", skin)).padRight(8);
-        content.add(durField).growX().row();
+        content.add(new Label("Duration rounds (-1 = permanent)", skin)).padRight(8);
+        content.add(roundsField).growX().row();
+
+        TextField ticksField = new HoverTextField(String.valueOf(eff.durationTicks), skin);
+        ticksField.setTextFieldFilter((tf, c) -> Character.isDigit(c));
+        ticksField.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent e, Actor a) {
+                try { eff.durationTicks = Integer.parseInt(ticksField.getText()); }
+                catch (NumberFormatException ignored) {}
+            }
+        });
+        content.add(new Label("Duration ticks", skin)).padRight(8);
+        content.add(ticksField).growX().row();
 
         // Magnitude
         TextField magField = new HoverTextField(String.valueOf(eff.magnitude), skin);
         magField.setTextFieldFilter((tf, c) ->
-            Character.isDigit(c) || c == '-' || c == '.');
+            Character.isDigit(c) || c == '.');
         magField.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent e, Actor a) {
                 try { eff.magnitude = Double.parseDouble(magField.getText()); }
                 catch (NumberFormatException ignored) {}
             }
         });
-        content.add(new Label("Magnitude", skin)).padRight(8);
+        content.add(new Label("Amount (flat points)", skin)).padRight(8);
         content.add(magField).growX().row();
 
         dlg.getContentTable().add(content).grow().row();
@@ -785,12 +917,50 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     // Conditional refresh
     // =========================================================================
 
-    /** Re-render only the containers whose visibility depends on other fields. */
-    private void refreshConditionalSections(MoveData d) {
+    /** Show or hide complete purpose cards after a tag change. */
+    private void refreshCategorySections(MoveData d) {
+        markDirty();
+        if (categorySectionsContainer != null) {
+            categorySectionsContainer.setActor(buildCategorySections(d));
+        }
+    }
+
+    /** Re-render fields whose contents depend on another value in their card. */
+    private void refreshConditionalFields(MoveData d) {
         markDirty();
         if (blockFieldsContainer != null) blockFieldsContainer.setActor(buildBlockFields(d));
         if (ceMinMaxContainer  != null) ceMinMaxContainer.setActor(buildCeMinMax(d));
         if (powerFieldsContainer != null) powerFieldsContainer.setActor(buildPowerFields(d));
+    }
+
+    private static boolean hasTag(MoveData d, MoveTag tag) {
+        return d.tags != null && d.tags.contains(tag.name());
+    }
+
+    static MoveData normalizedCopyForSave(MoveData draft) {
+        MoveData copy = deepCopy(draft);
+        discardInactiveCategoryDetails(copy);
+        return copy;
+    }
+
+    private static void discardInactiveCategoryDetails(MoveData d) {
+        if (!hasTag(d, MoveTag.ATTACK)) {
+            d.basePower = 0;
+            d.baseAccuracy = 1.0;
+            d.neverMiss = false;
+            d.interruptType = InterruptType.NONE.name();
+            d.onHitEffects = new ArrayList<>();
+        }
+        if (!hasTag(d, MoveTag.DEFENSIVE)) {
+            d.defenseType = DefenseType.NONE.name();
+            d.blockDuration = 0;
+            d.blockAffectedTags = null;
+            d.blockDamageReduction = 100;
+            d.blockFlatReduction = 0;
+        }
+        if (!hasTag(d, MoveTag.UTILITY)) {
+            d.selfEffects = new ArrayList<>();
+        }
     }
 
     // =========================================================================
@@ -818,4 +988,5 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         }
         return sb.toString();
     }
+
 }

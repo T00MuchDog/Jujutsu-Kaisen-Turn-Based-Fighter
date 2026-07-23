@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Regression test for the stat-boost expiry battle-log line.
  *
- * <p>When a utility self-effect (POWER_UP, FOCUS, CE_OUTPUT_UP, …) deactivates at
+ * <p>When a utility stat effect deactivates at
  * the end of its duration, the combat engine must emit a
  * {@link CombatEvent.Type#STATUS_EXPIRED} event whose message reads like a fading
  * surge — distinct from a defensive block "dropping its guard" (covered by
@@ -36,8 +36,8 @@ import static org.junit.jupiter.api.Assertions.*;
 public class StatusExpiryLogTest {
 
     /**
-     * A FOCUS self-effect with durationRounds 1 applies on unleash, then expires
-     * at the first round-end, emitting a per-effect "focus wavers" line.
+     * An Accuracy increase with durationRounds 1 applies on unleash, then expires
+     * at the first round-end.
      */
     @Test
     void statBoostExpiryIsLoggedAtRoundEnd() {
@@ -47,7 +47,8 @@ public class StatusExpiryLogTest {
             .neverMiss(true)
             .apCost(10)
             .unleashPoint(1)
-            .selfEffects(List.of(new StatusEffect(StatusEffectType.FOCUS, 1, 0.1)))
+            .selfEffects(List.of(new StatusEffect(
+                StatusEffectType.ACCURACY_INCREASE, 1, 10.0)))
             .build();
 
         CharacterStats stats = new CharacterStats.Builder().speed(100).build();
@@ -70,20 +71,20 @@ public class StatusExpiryLogTest {
         events.addAll(resolver.processRoundEnd(state));
 
         // The focus was applied on unleash.
-        assertTrue(user.hasEffect(StatusEffectType.FOCUS)
+        assertTrue(user.hasEffect(StatusEffectType.ACCURACY_INCREASE)
                 || events.stream().anyMatch(e -> e.getMessage() != null
-                    && e.getMessage().contains("applies FOCUS")),
-            "FOCUS should be applied on unleash.");
+                    && e.getMessage().contains("Increase Accuracy")),
+            "The Accuracy increase should be applied on unleash.");
 
         // It has expired by round-end.
-        assertFalse(user.hasEffect(StatusEffectType.FOCUS),
-            "FOCUS (durationRounds 1) should be gone after round-end.");
+        assertFalse(user.hasEffect(StatusEffectType.ACCURACY_INCREASE),
+            "The effect should be gone after round-end.");
 
         // And the round-end emits a STATUS_EXPIRED event with the focus wording.
         boolean focusExpired = events.stream()
             .anyMatch(e -> e.getType() == CombatEvent.Type.STATUS_EXPIRED
                         && e.getMessage() != null
-                        && e.getMessage().contains("focus wavers"));
+                        && e.getMessage().contains("increase accuracy effect expires"));
         assertTrue(focusExpired,
             "A fading stat boost should log a STATUS_EXPIRED event with its per-effect wording.");
     }

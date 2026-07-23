@@ -5,6 +5,7 @@ public record StatusEffectState(
     String type,
     String displayName,
     int remainingRounds,
+    int remainingTicks,
     double magnitude
 ) {
 }

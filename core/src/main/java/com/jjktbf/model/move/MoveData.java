@@ -122,6 +122,7 @@ public class MoveData {
         /** StatusEffectType enum name */
         public String type;
         public int    durationRounds = 1;
+        public int    durationTicks  = 0;
         public double magnitude      = 1.0;
     }
 
@@ -262,10 +263,20 @@ public class MoveData {
 
     private static List<StatusEffect> toStatusEffects(List<StatusEffectData> dtos) {
         if (dtos == null) return List.of();
-        return dtos.stream()
-            .filter(d -> d.type != null && !d.type.isBlank())
-            .map(d -> new StatusEffect(StatusEffectType.valueOf(d.type.toUpperCase()), d.durationRounds, d.magnitude))
-            .toList();
+        java.util.ArrayList<StatusEffect> effects = new java.util.ArrayList<>();
+        for (StatusEffectData d : dtos) {
+            if (d == null || d.type == null || d.type.isBlank()) continue;
+            StatusEffectType type;
+            try {
+                type = StatusEffectType.fromName(d.type, d.magnitude);
+            } catch (IllegalArgumentException ignored) {
+                // Removed one-off and unknown statuses do not invalidate the move.
+                continue;
+            }
+            effects.add(new StatusEffect(type, d.durationRounds, d.durationTicks,
+                StatusEffectType.normalizeStoredMagnitude(d.type, d.magnitude)));
+        }
+        return effects;
     }
 
     // -------------------------------------------------------------------------
@@ -332,6 +343,7 @@ public class MoveData {
                 StatusEffectData sd = new StatusEffectData();
                 sd.type           = e.getType().name();
                 sd.durationRounds = e.getDurationRounds();
+                sd.durationTicks  = e.getDurationTicks();
                 sd.magnitude      = e.getMagnitude();
                 return sd;
             }).toList();
@@ -341,6 +353,7 @@ public class MoveData {
                 StatusEffectData sd = new StatusEffectData();
                 sd.type           = e.getType().name();
                 sd.durationRounds = e.getDurationRounds();
+                sd.durationTicks  = e.getDurationTicks();
                 sd.magnitude      = e.getMagnitude();
                 return sd;
             }).toList();

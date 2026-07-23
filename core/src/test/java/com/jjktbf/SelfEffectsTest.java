@@ -20,7 +20,7 @@ import java.util.Random;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the self-effects feature on DAMAGING moves.
+ * Tests for move self-effects on damaging moves.
  *
  * Previously the combat engine only applied {@code selfEffects} for defensive
  * and utility moves; a self-buff set on a damaging attack was silently
@@ -32,8 +32,8 @@ import static org.junit.jupiter.api.Assertions.*;
 public class SelfEffectsTest {
 
     /**
-     * Headline case: a damaging PHYSICAL attack carrying a POWER_UP self-effect.
-     * On unleash the attacker should gain POWER_UP — verified both via the
+     * Headline case: a damaging PHYSICAL attack carrying a Strength increase.
+     * On unleash the attacker should gain the effect, verified both via the
      * combatant's active-effect list and the STATUS_APPLIED combat event.
      */
     @Test
@@ -45,7 +45,8 @@ public class SelfEffectsTest {
             .neverMiss(true)
             .apCost(10)
             .unleashPoint(1)
-            .selfEffects(List.of(new StatusEffect(StatusEffectType.POWER_UP, 3, 1.0)))
+            .selfEffects(List.of(new StatusEffect(
+                StatusEffectType.STRENGTH_INCREASE, 3, 10.0)))
             .build();
 
         Move defenderMove = new Move.Builder("DEFENDER_MOVE")
@@ -77,21 +78,21 @@ public class SelfEffectsTest {
 
         List<CombatEvent> events = new CombatResolver(new FixedRandom(0.0)).resolveRound(state);
 
-        // The attacker gained the POWER_UP self-effect.
-        assertTrue(attacker.hasEffect(StatusEffectType.POWER_UP),
-            "Attacker should have POWER_UP after unleashing a self-buffing damaging move.");
+        assertTrue(attacker.hasEffect(StatusEffectType.STRENGTH_INCREASE),
+            "Attacker should have a Strength increase after unleashing the move.");
+        assertEquals(90, attacker.getEffectiveStats().getStrength());
 
         // A STATUS_APPLIED event for the self-buff was emitted, sourced on the attacker.
         CombatEvent selfBuffEvent = events.stream()
             .filter(e -> e.getType() == CombatEvent.Type.STATUS_APPLIED)
             .filter(e -> "Attacker".equals(e.getSource().getCharacter().getName()))
-            .filter(e -> e.getMessage() != null && e.getMessage().contains("POWER_UP"))
+            .filter(e -> e.getMessage() != null && e.getMessage().contains("Increase Strength"))
             .findFirst().orElse(null);
         assertNotNull(selfBuffEvent,
-            "A STATUS_APPLIED event for the attacker's POWER_UP should be emitted.");
+            "A STATUS_APPLIED event for the attacker's Strength increase should be emitted.");
 
         // The self-buff should NOT have leaked onto the defender.
-        assertFalse(defender.hasEffect(StatusEffectType.POWER_UP),
+        assertFalse(defender.hasEffect(StatusEffectType.STRENGTH_INCREASE),
             "Defender should NOT receive the attacker's self-effect.");
     }
 
@@ -110,7 +111,8 @@ public class SelfEffectsTest {
             .baseAccuracy(1.0)
             .apCost(10)
             .unleashPoint(1)
-            .selfEffects(List.of(new StatusEffect(StatusEffectType.POWER_UP, 3, 1.0)))
+            .selfEffects(List.of(new StatusEffect(
+                StatusEffectType.STRENGTH_INCREASE, 3, 10.0)))
             .build();
 
         CharacterStats attackerStats = new CharacterStats.Builder().speed(120).build();
@@ -131,7 +133,7 @@ public class SelfEffectsTest {
         // FixedRandom.nextDouble() == 1.0 is >= any hitChance < 1.0, so the attack misses.
         new CombatResolver(new FixedRandom(1.0)).resolveRound(state);
 
-        assertTrue(attacker.hasEffect(StatusEffectType.POWER_UP),
+        assertTrue(attacker.hasEffect(StatusEffectType.STRENGTH_INCREASE),
             "Self-effect should apply on unleash even when the attack misses.");
     }
 

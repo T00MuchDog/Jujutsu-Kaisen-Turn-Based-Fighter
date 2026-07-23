@@ -8,7 +8,6 @@ import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
-import com.jjktbf.model.move.StatusEffectType;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -81,7 +80,6 @@ public class GreedyAIStrategy implements AIStrategy {
         for (Move move : knownMoves) {
             if (stuck.contains(move)) continue;
             if (abilityFlags.lockedMoveTags.stream().anyMatch(move::hasTag)) continue;
-            if (ai.hasEffect(StatusEffectType.CE_SUPPRESSION) && move.hasTag("CURSED_ENERGY")) continue;
             int ceCost = ai.computeMoveCeCost(move);
             if (plan.fitsBudgets(move, ceCost)) affordable.add(move);
         }

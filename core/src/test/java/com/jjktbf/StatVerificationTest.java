@@ -104,12 +104,13 @@ public class StatVerificationTest {
     }
 
     @Test
-    void ceOutputUpTemporarilyRaisesCursedEnergyOutput() {
+    void statusTemporarilyRaisesCursedEnergyOutput() {
         CharacterStats stats = new CharacterStats.Builder().cursedEnergyOutput(80).build();
         Character character = new SorcererCharacter("CE_OUT", "Output Test", stats, null, List.of());
         BattleCombatant combatant = new BattleCombatant(character);
 
-        combatant.addStatusEffect(new StatusEffect(StatusEffectType.CE_OUTPUT_UP, 1, 15));
+        combatant.addStatusEffect(new StatusEffect(
+            StatusEffectType.CURSED_ENERGY_OUTPUT_INCREASE, 1, 15));
 
         assertEquals(95, combatant.getEffectiveStats().getCursedEnergyOutput());
         combatant.tickStatusEffects();
@@ -117,16 +118,17 @@ public class StatVerificationTest {
     }
 
     @Test
-    void focusTemporarilyRaisesBaseAccuracy() {
+    void statusTemporarilyRaisesDerivedAccuracy() {
         Character character = new SorcererCharacter(
             "FOCUS", "Focus Test", new CharacterStats.Builder().build(), null, List.of());
         BattleCombatant combatant = new BattleCombatant(character);
 
-        combatant.addStatusEffect(new StatusEffect(StatusEffectType.FOCUS, 1, 0.1));
+        combatant.addStatusEffect(new StatusEffect(
+            StatusEffectType.ACCURACY_INCREASE, 1, 10));
 
-        assertEquals(0.1, combatant.getStatusBaseAccuracyBonus(), 0.0001);
+        assertEquals(90, combatant.getAccuracy());
         combatant.tickStatusEffects();
-        assertEquals(0.0, combatant.getStatusBaseAccuracyBonus(), 0.0001);
+        assertEquals(80, combatant.getAccuracy());
     }
 
     @Test
@@ -149,7 +151,8 @@ public class StatVerificationTest {
             .filter(move -> "Cursed Energy Surge".equals(move.name))
             .findFirst()
             .orElseThrow();
-        assertEquals(StatusEffectType.CE_OUTPUT_UP.name(), surge.selfEffects.get(0).type);
+        assertEquals(StatusEffectType.CURSED_ENERGY_OUTPUT_INCREASE.name(),
+            surge.selfEffects.get(0).type);
         assertEquals(15.0, surge.selfEffects.get(0).magnitude);
     }
 

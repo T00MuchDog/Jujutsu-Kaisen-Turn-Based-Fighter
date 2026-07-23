@@ -1312,10 +1312,12 @@ public class BattleScreen implements Screen, BattleView {
                 onlineEnemyHp = Math.max(0, onlineEnemyHp - value);
             }
         } else if (value != null && event.type() == BattleEventType.HP_RESTORED) {
+            // The server reports the already-capped amount. A following max-HP
+            // event may establish the cap used during deferred round-end work.
             if (event.targetSide() == multiplayerSetup.playerSide()) {
-                onlinePlayerHp = Math.min(onlinePlayerMaxHp, onlinePlayerHp + value);
+                onlinePlayerHp += value;
             } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
-                onlineEnemyHp = Math.min(onlineEnemyMaxHp, onlineEnemyHp + value);
+                onlineEnemyHp += value;
             }
         } else if (value != null && event.type() == BattleEventType.MAX_HP_CHANGED) {
             if (event.targetSide() == multiplayerSetup.playerSide()) {
@@ -1334,9 +1336,11 @@ public class BattleScreen implements Screen, BattleView {
                 onlineEnemyCe = Math.min(onlineEnemyCe, onlineEnemyMaxCe);
             }
         } else if (value != null && event.type() == BattleEventType.CE_DRAINED) {
-            changePlaybackCe(event.targetSide() != null ? event.targetSide() : event.sourceSide(), -value);
+            drainPlaybackCe(
+                event.targetSide() != null ? event.targetSide() : event.sourceSide(), value);
         } else if (value != null && event.type() == BattleEventType.CE_RESTORED) {
-            changePlaybackCe(event.targetSide() != null ? event.targetSide() : event.sourceSide(), value);
+            restorePlaybackCe(
+                event.targetSide() != null ? event.targetSide() : event.sourceSide(), value);
         }
 
         CodedAbilityState codedAbilityState = event.codedAbilityState();
@@ -1365,13 +1369,20 @@ public class BattleScreen implements Screen, BattleView {
         }
     }
 
-    private void changePlaybackCe(PlayerSide side, int delta) {
+    private void drainPlaybackCe(PlayerSide side, int amount) {
         if (side == multiplayerSetup.playerSide()) {
-            onlinePlayerCe = Math.max(0,
-                Math.min(onlinePlayerMaxCe, onlinePlayerCe + delta));
+            onlinePlayerCe = Math.max(0, onlinePlayerCe - amount);
         } else if (side == opposite(multiplayerSetup.playerSide())) {
-            onlineEnemyCe = Math.max(0,
-                Math.min(onlineEnemyMaxCe, onlineEnemyCe + delta));
+            onlineEnemyCe = Math.max(0, onlineEnemyCe - amount);
+        }
+    }
+
+    private void restorePlaybackCe(PlayerSide side, int amount) {
+        // As with HP restoration, the event amount was capped authoritatively.
+        if (side == multiplayerSetup.playerSide()) {
+            onlinePlayerCe += amount;
+        } else if (side == opposite(multiplayerSetup.playerSide())) {
+            onlineEnemyCe += amount;
         }
     }
 
@@ -1754,8 +1765,8 @@ public class BattleScreen implements Screen, BattleView {
                 else if (enemyTarget)   localEnemyHp  = Math.max(0, localEnemyHp  - amount);
                 break;
             case HP_RESTORED:
-                if (playerTarget)       localPlayerHp = Math.min(localPlayerMaxHp, localPlayerHp + amount);
-                else if (enemyTarget)   localEnemyHp  = Math.min(localEnemyMaxHp, localEnemyHp  + amount);
+                if (playerTarget)       localPlayerHp += amount;
+                else if (enemyTarget)   localEnemyHp  += amount;
                 break;
             case MAX_HP_CHANGED:
                 if (playerTarget) {

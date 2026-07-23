@@ -12,7 +12,6 @@ import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffect;
-import com.jjktbf.model.move.StatusEffectType;
 import com.jjktbf.multiplayer.protocol.ActionCommand;
 import com.jjktbf.multiplayer.protocol.ActionSegmentState;
 import com.jjktbf.multiplayer.protocol.ActionSegmentStatus;
@@ -896,8 +895,9 @@ public final class HeadlessBattleSession {
     private StatusEffectState statusEffectState(StatusEffect effect) {
         return new StatusEffectState(
             effect.getType().name(),
-            displayEnumName(effect.getType().name()),
+            effect.getType().displayName(),
             effect.getDurationRounds(),
+            effect.getDurationTicks(),
             effect.getMagnitude()
         );
     }
@@ -1100,10 +1100,6 @@ public final class HeadlessBattleSession {
             .anyMatch(move::hasTag);
         if (abilityLocked) {
             return "Restricted by an active ability.";
-        }
-        if (participant.combatant.hasEffect(StatusEffectType.CE_SUPPRESSION)
-            && move.hasTag("CURSED_ENERGY")) {
-            return "Cursed-energy moves are suppressed.";
         }
         return null;
     }

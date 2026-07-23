@@ -23,9 +23,9 @@
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
   "isFreeMove" : true,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000001",
   "name" : "Basic Block",
@@ -52,9 +52,9 @@
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
   "isFreeMove" : true,
-  "anyBlock" : true,
   "percentageBlock" : true,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : true
 }, {
   "id" : "000002",
   "name" : "Jab",
@@ -85,9 +85,9 @@
     "speed" : 35
   },
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000003",
   "name" : "Elbow Strike",
@@ -118,9 +118,9 @@
     "combatAbility" : 30
   },
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000004",
   "name" : "Body Blow",
@@ -151,9 +151,9 @@
     "combatAbility" : 35
   },
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000005",
   "name" : "Sweeping Kick",
@@ -184,9 +184,9 @@
     "strength" : 25
   },
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000006",
   "name" : "Knee Strike",
@@ -218,9 +218,9 @@
     "durability" : 20
   },
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000007",
   "name" : "Overhand Punch",
@@ -251,9 +251,9 @@
     "combatAbility" : 45
   },
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000008",
   "name" : "Reinforced Jab",
@@ -288,9 +288,9 @@
     "cursedEnergyEfficiency" : 25
   },
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000009",
   "name" : "Reinforced Elbow",
@@ -324,9 +324,9 @@
     "cursedEnergyEfficiency" : 25
   },
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000010",
   "name" : "Reinforced Knee",
@@ -361,9 +361,9 @@
     "jujutsuSkill" : 20
   },
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000011",
   "name" : "Cursed Energy Burst",
@@ -395,9 +395,9 @@
     "cursedEnergyEfficiency" : 0
   },
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000012",
   "name" : "Cursed Energy Blast",
@@ -429,9 +429,9 @@
     "jujutsuSkill" : 40
   },
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000013",
   "name" : "Deflection",
@@ -464,9 +464,9 @@
     "speed" : 45
   },
   "isFreeMove" : false,
-  "anyBlock" : true,
   "percentageBlock" : true,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : true
 }, {
   "id" : "000014",
   "name" : "Reinforced Deflection",
@@ -502,9 +502,9 @@
     "jujutsuSkill" : 20
   },
   "isFreeMove" : false,
-  "anyBlock" : true,
   "percentageBlock" : true,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : true
 }, {
   "id" : "000015",
   "name" : "Cross Guard",
@@ -537,9 +537,9 @@
     "combatAbility" : 40
   },
   "isFreeMove" : false,
-  "anyBlock" : true,
   "percentageBlock" : true,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : true
 }, {
   "id" : "000016",
   "name" : "Reinforced Cross Guard",
@@ -575,9 +575,9 @@
     "jujutsuSkill" : 20
   },
   "isFreeMove" : false,
-  "anyBlock" : true,
   "percentageBlock" : true,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : true
 }, {
   "id" : "000017",
   "name" : "Braced Guard",
@@ -610,9 +610,9 @@
     "combatAbility" : 25
   },
   "isFreeMove" : false,
-  "anyBlock" : true,
   "percentageBlock" : true,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : true
 }, {
   "id" : "000018",
   "name" : "Reinforced Braced Guard",
@@ -647,9 +647,9 @@
     "jujutsuSkill" : 20
   },
   "isFreeMove" : false,
-  "anyBlock" : true,
   "percentageBlock" : true,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : true
 }, {
   "id" : "000019",
   "name" : "Reinforced Basic Block",
@@ -684,9 +684,9 @@
     "cursedEnergyOutput" : 20
   },
   "isFreeMove" : false,
-  "anyBlock" : true,
   "percentageBlock" : true,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : true
 }, {
   "id" : "000020",
   "name" : "Cursed Energy Focus",
@@ -694,7 +694,7 @@
   "tags" : [ "UTILITY", "CURSED_ENERGY" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
@@ -711,9 +711,10 @@
   "blockFlatReduction" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ {
-    "type" : "FOCUS",
-    "durationRounds" : 1,
-    "magnitude" : 0.1
+    "type" : "ACCURACY_INCREASE",
+    "durationRounds" : 2,
+    "durationTicks" : 0,
+    "magnitude" : 10.0
   } ],
   "prerequisites" : {
     "jujutsuSkill" : 45,
@@ -722,9 +723,9 @@
     "cursedEnergyReserves" : 20
   },
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000021",
   "name" : "Cursed Energy Surge",
@@ -749,8 +750,9 @@
   "blockFlatReduction" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ {
-    "type" : "CE_OUTPUT_UP",
+    "type" : "CURSED_ENERGY_OUTPUT_INCREASE",
     "durationRounds" : 1,
+    "durationTicks" : 0,
     "magnitude" : 15.0
   } ],
   "prerequisites" : {
@@ -760,9 +762,9 @@
     "jujutsuSkill" : 35
   },
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000022",
   "name" : "Miracle Creation",
@@ -797,9 +799,9 @@
   },
   "requiredTechniqueId" : "Miracles",
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000023",
   "name" : "Hand Sword Slash",
@@ -830,9 +832,9 @@
     "combatAbility" : 35
   },
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 }, {
   "id" : "000024",
   "name" : "Hand Sword Throw",
@@ -863,7 +865,7 @@
     "strength" : 30
   },
   "isFreeMove" : false,
-  "anyBlock" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "anyBlock" : false
 } ]

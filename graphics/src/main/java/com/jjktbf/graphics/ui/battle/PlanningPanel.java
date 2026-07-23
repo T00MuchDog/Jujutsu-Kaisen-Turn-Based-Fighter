@@ -14,7 +14,6 @@ import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.move.Move;
-import com.jjktbf.model.move.StatusEffectType;
 import com.jjktbf.multiplayer.protocol.PlanPlacement;
 
 import java.util.ArrayList;
@@ -81,9 +80,6 @@ public class PlanningPanel {
         miraclesMeter.setState(findMiraclesState(combatant.getCodedAbilities().states()));
         for (Move move : combatant.getCharacter().getKnownMoves()) {
             if (abilityFlags.lockedMoveTags.stream().noneMatch(move::hasTag)) knownMoves.add(move);
-        }
-        if (combatant.hasEffect(StatusEffectType.CE_SUPPRESSION)) {
-            knownMoves.removeIf(move -> move.hasTag("CURSED_ENERGY"));
         }
         resize(screenWidth, screenHeight);
     }

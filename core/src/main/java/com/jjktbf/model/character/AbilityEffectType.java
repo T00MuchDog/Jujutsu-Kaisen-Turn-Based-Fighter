@@ -1,6 +1,7 @@
 package com.jjktbf.model.character;
 
 import com.jjktbf.model.move.MoveTag;
+import com.jjktbf.model.move.StatusEffect;
 import com.jjktbf.model.move.StatusEffectType;
 
 import java.util.Collections;
@@ -170,23 +171,23 @@ public enum AbilityEffectType {
 
     TEMP_STAT_ADD(
         "Timed character stat change",
-        "Adds or subtracts from a character stat for a number of rounds.",
+        "Adds or subtracts from a character stat for the configured rounds and ticks.",
         STAT, TARGET, INTEGER, DURATION),
     TEMP_STAT_MULTIPLY(
         "Timed character stat multiplier",
-        "Multiplies a character stat for a number of rounds.",
+        "Multiplies a character stat for the configured rounds and ticks.",
         STAT, TARGET, DECIMAL, DURATION),
     TEMP_STAT_SET_VALUE(
         "Timed character stat set",
-        "Sets a character stat to an exact value for a number of rounds.",
+        "Sets a character stat to an exact value for the configured rounds and ticks.",
         STAT, TARGET, INTEGER, DURATION),
     BATTLE_STAT_ADD(
         "Timed battle stat change",
-        "Adds to a derived battle value for a number of rounds.",
+        "Adds to a derived battle value for the configured rounds and ticks.",
         BATTLE_STAT, TARGET, DECIMAL, DURATION),
     BATTLE_STAT_MULTIPLY(
         "Timed battle stat multiplier",
-        "Multiplies a derived battle value for a number of rounds.",
+        "Multiplies a derived battle value for the configured rounds and ticks.",
         BATTLE_STAT, TARGET, DECIMAL, DURATION),
 
     IGNORE_DAMAGE(
@@ -282,11 +283,13 @@ public enum AbilityEffectType {
         effect.target = null;
         effect.timing = null;
         effect.durationRounds = null;
+        effect.durationTicks = null;
         effect.magnitude = null;
         effect.uses = null;
 
         if (uses(STAT)) effect.stat = StatKey.VITALITY.fieldName;
         if (uses(TARGET)) effect.target = AbilityEffectTarget.SELF.name();
+        if (uses(DURATION)) effect.durationTicks = 0;
 
         switch (this) {
             case STAT_ADD -> effect.intValue = 10;
@@ -301,11 +304,11 @@ public enum AbilityEffectType {
             case BF_CHANCE_ADD -> effect.doubleValue = 0.05;
             case MODIFY_AP_BAR -> effect.intValue = 10;
             case AUTO_STATUS_APPLY -> {
-                effect.stringValue = StatusEffectType.FOCUS.name();
+                effect.stringValue = StatusEffectType.STRENGTH_INCREASE.name();
                 effect.target = AbilityEffectTarget.SELF.name();
                 effect.timing = AbilityEffectTiming.FIGHT_START.name();
                 effect.durationRounds = -1;
-                effect.magnitude = 0.10;
+                effect.magnitude = 10.0;
             }
             case LOCK_MOVE_TAG -> effect.moveTag = MoveTag.PHYSICAL.name();
             case COST_CE_PER_ROUND -> effect.intValue = 5;
@@ -313,13 +316,13 @@ public enum AbilityEffectType {
             case HEAL_HP_PERCENT, RESTORE_CE_PERCENT, DRAIN_CE_PERCENT,
                  DEAL_MAX_HP_DAMAGE -> effect.doubleValue = 0.10;
             case APPLY_STATUS -> {
-                effect.stringValue = StatusEffectType.POISON.name();
+                effect.stringValue = StatusEffectType.STRENGTH_DECREASE.name();
                 effect.target = AbilityEffectTarget.ENEMY.name();
                 effect.durationRounds = 1;
-                effect.magnitude = 1.0;
+                effect.magnitude = 10.0;
             }
             case REMOVE_STATUS -> {
-                effect.stringValue = StatusEffectType.POISON.name();
+                effect.stringValue = StatusEffectType.STRENGTH_DECREASE.name();
                 effect.target = AbilityEffectTarget.SELF.name();
             }
             case CLEAR_STATUSES, INSTANT_KILL -> effect.target = AbilityEffectTarget.ENEMY.name();
@@ -369,6 +372,17 @@ public enum AbilityEffectType {
     public void prepare(AbilityEffectData effect) {
         AbilityEffectData defaults = createDefault();
         effect.type = name();
+        if (uses(STATUS_TYPE) && uses(MAGNITUDE) && !isBlank(effect.stringValue)) {
+            String storedType = effect.stringValue;
+            try {
+                effect.stringValue = StatusEffectType.fromName(
+                    storedType, effect.magnitude != null ? effect.magnitude : 0.0).name();
+                if (effect.magnitude != null) {
+                    effect.magnitude = StatusEffectType.normalizeStoredMagnitude(
+                        storedType, effect.magnitude);
+                }
+            } catch (IllegalArgumentException ignored) { }
+        }
         clearUnusedFields(effect);
         if (uses(STAT) && isBlank(effect.stat)) effect.stat = defaults.stat;
         if (uses(INTEGER) && effect.intValue == null) effect.intValue = defaults.intValue;
@@ -383,6 +397,7 @@ public enum AbilityEffectType {
         if (uses(TARGET) && isBlank(effect.target)) effect.target = defaults.target;
         if (uses(TIMING) && isBlank(effect.timing)) effect.timing = defaults.timing;
         if (uses(DURATION) && effect.durationRounds == null) effect.durationRounds = defaults.durationRounds;
+        if (uses(DURATION) && effect.durationTicks == null) effect.durationTicks = defaults.durationTicks;
         if (uses(MAGNITUDE) && effect.magnitude == null) effect.magnitude = defaults.magnitude;
         if (uses(USES) && effect.uses == null) effect.uses = defaults.uses;
         if (uses(BATTLE_STAT) && isBlank(effect.stringValue)) effect.stringValue = defaults.stringValue;
@@ -398,7 +413,10 @@ public enum AbilityEffectType {
         if (!uses(TECHNIQUE) && !uses(STATUS_TYPE) && !uses(BATTLE_STAT)) effect.stringValue = null;
         if (!uses(TARGET)) effect.target = null;
         if (!uses(TIMING)) effect.timing = null;
-        if (!uses(DURATION)) effect.durationRounds = null;
+        if (!uses(DURATION)) {
+            effect.durationRounds = null;
+            effect.durationTicks = null;
+        }
         if (!uses(MAGNITUDE)) effect.magnitude = null;
         if (!uses(USES)) effect.uses = null;
         if (!uses(BATTLE_STAT) && !uses(TECHNIQUE) && !uses(STATUS_TYPE)) effect.stringValue = null;
@@ -433,7 +451,7 @@ public enum AbilityEffectType {
         if (uses(STATUS_TYPE)) {
             StatusEffectType status;
             try {
-                status = StatusEffectType.valueOf(effect.stringValue);
+                status = StatusEffectType.fromName(effect.stringValue);
             } catch (Exception ex) {
                 return "Choose a valid status.";
             }
@@ -453,16 +471,21 @@ public enum AbilityEffectType {
             }
         }
         if (uses(DURATION)) {
-            if (effect.durationRounds == null
-                || (effect.durationRounds != -1 && effect.durationRounds < 1)) {
-                return "Duration must be -1 (permanent) or at least 1 round.";
+            if (effect.durationRounds == null) return "Enter a round duration.";
+            int ticks = effect.durationTicks != null ? effect.durationTicks : 0;
+            try {
+                StatusEffect.validateDuration(effect.durationRounds, ticks);
+            } catch (IllegalArgumentException ignored) {
+                return "Use -1 rounds and 0 ticks for permanent, or enter at least one round or tick.";
             }
             if (AbilityEffectTiming.ROUND_START.name().equals(effect.timing)
-                && effect.durationRounds != 1) {
-                return "A ROUND_START status must last 1 round so it refreshes without stacking.";
+                && (effect.durationRounds != 1 || ticks != 0)) {
+                return "A ROUND_START status must last exactly 1 round and 0 ticks so it refreshes without stacking.";
             }
         }
-        if (uses(MAGNITUDE) && !isFinite(effect.magnitude)) return "Enter a valid status magnitude.";
+        if (uses(MAGNITUDE) && (!isFinite(effect.magnitude) || effect.magnitude < 0)) {
+            return "Enter a non-negative status amount.";
+        }
         if (uses(USES) && (effect.uses == null || (effect.uses != -1 && effect.uses < 1))) {
             return "Uses must be -1 (unlimited) or at least 1.";
         }
