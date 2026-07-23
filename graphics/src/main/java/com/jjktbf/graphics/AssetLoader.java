@@ -23,6 +23,10 @@ import java.util.Map;
  */
 public class AssetLoader {
 
+    /** Change this path to select a different battle execution backdrop. */
+    public static final String BATTLE_EXECUTION_BACKGROUND_PATH =
+        "assets/backgrounds/BattleSceneDay.png";
+
     // ── Fonts ─────────────────────────────────────────────────────────────────
 
     /** Small pixel font — used for body text, labels, move cards. */
@@ -44,6 +48,10 @@ public class AssetLoader {
 
     public Texture playerSprite;
     public Texture enemySprite;
+    /** Full-screen backdrop shown while a battle round is executing. */
+    public Texture battleExecutionBackground;
+    /** Ground plate drawn beneath both execution sprites. */
+    public Texture stoneBasePlate;
     private final Map<String, Texture> characterSprites = new HashMap<>();
 
     // ── UI panels ─────────────────────────────────────────────────────────────
@@ -74,6 +82,7 @@ public class AssetLoader {
     public void load() {
         loadFonts();
         loadSprites();
+        loadBackgrounds();
         loadUi();
         loadSkin();
     }
@@ -153,6 +162,15 @@ public class AssetLoader {
         enemySprite  = new Texture(Gdx.files.internal("assets/sprites/enemy_placeholder.png"));
     }
 
+    private void loadBackgrounds() {
+        battleExecutionBackground = new Texture(
+            Gdx.files.internal(BATTLE_EXECUTION_BACKGROUND_PATH));
+        battleExecutionBackground.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        stoneBasePlate = new Texture(
+            Gdx.files.internal("assets/ui/common/baseplate/stone_baseplate.png"));
+        stoneBasePlate.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+    }
+
     /** Load and cache a character sprite by its relative asset path. */
     public Texture characterSprite(String spriteAsset, Texture fallback) {
         if (spriteAsset == null || spriteAsset.isBlank()) return fallback;
@@ -202,6 +220,8 @@ public class AssetLoader {
 
         if (playerSprite != null) playerSprite.dispose();
         if (enemySprite  != null) enemySprite.dispose();
+        if (battleExecutionBackground != null) battleExecutionBackground.dispose();
+        if (stoneBasePlate != null) stoneBasePlate.dispose();
         characterSprites.values().forEach(Texture::dispose);
         characterSprites.clear();
 

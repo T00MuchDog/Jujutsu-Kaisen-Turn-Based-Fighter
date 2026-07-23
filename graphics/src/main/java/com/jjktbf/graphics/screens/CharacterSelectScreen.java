@@ -88,6 +88,11 @@ public class CharacterSelectScreen implements Screen {
     private String learnedMovesError;
     private float movesScrollOffset;
     private float movesScrollMax;
+    /**
+     * Set on entry so the first frame ignores input. Guards against a stale
+     * ENTER poll leaking across the event-driven transition from the main menu.
+     */
+    private boolean inputSuspended;
 
     public CharacterSelectScreen(JJKGame game, AssetLoader assets) {
         this.game = game;
@@ -105,6 +110,12 @@ public class CharacterSelectScreen implements Screen {
         // for the learned-moves panel. Taking ownership also prevents the previous
         // screen's Stage from handling keyboard input while this screen is visible.
         Gdx.input.setInputProcessor(inputAdapter);
+        // The main menu switches here in response to an event-driven ENTER. That
+        // event is consumed by Scene2D, but the underlying "just pressed" flag is
+        // only cleared at the next frame boundary — so this screen's first render()
+        // would otherwise see a phantom ENTER and auto-confirm the first row.
+        // Ignore input for one frame until the stale flag has drained.
+        inputSuspended = true;
         phase = Phase.PLAYER;
         cursorIndex = 0;
         playerChoice = null;
@@ -149,6 +160,14 @@ public class CharacterSelectScreen implements Screen {
     }
 
     private void handleInput() {
+        // Skip the first frame after entering: the main menu's event-driven
+        // ENTER is consumed by Scene2D, but its polled "just pressed" flag only
+        // clears at the next frame boundary, so this frame would otherwise see a
+        // phantom ENTER. By ignoring input once, the flag drains naturally.
+        if (inputSuspended) {
+            inputSuspended = false;
+            return;
+        }
         if (loadError != null) {
             if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) game.showMainMenu();
             return;

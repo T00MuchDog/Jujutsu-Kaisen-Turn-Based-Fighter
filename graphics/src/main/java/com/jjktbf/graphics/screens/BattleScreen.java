@@ -2,6 +2,7 @@ package com.jjktbf.graphics.screens;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
@@ -112,6 +113,13 @@ public class BattleScreen implements Screen, BattleView {
      * battle advances, so each sentence gets a moment to land.
      */
     private static final float LOG_TYPE_TAIL_SECONDS   = 0.2f;
+    /**
+     * Pixels the log scrolls per mouse-wheel notch, in {@link #LOG_LINE_SPACING}
+     * units (cap height). One notch ≈ one wrapped row, so a flick covers a few
+     * lines without overshooting.
+     */
+    private static final float LOG_SCROLL_STEP_ROWS    = 1f;
+    private static final float COMBATANT_HUD_SCALE     = 1.25f;
 
     private final JJKGame     game;
     private final AssetLoader assets;
@@ -126,7 +134,6 @@ public class BattleScreen implements Screen, BattleView {
     private final MiraclesMeter miraclesMeter = new MiraclesMeter();
     private Texture playerSprite;
     private Texture enemySprite;
-    private final Rectangle executionHeaderBounds = new Rectangle();
     private final Rectangle logBounds = new Rectangle();
     private final Rectangle nextRoundBounds = new Rectangle();
 
@@ -149,6 +156,35 @@ public class BattleScreen implements Screen, BattleView {
     private float typingTailTimer;
     /** Bumped on the render thread each time a typing line commits; read by the battle thread. */
     private volatile int committedLogSeq = 0;
+    /**
+     * Vertical scroll offset of the battle log, in pixels measured up from the
+     * newest (bottom) line. Zero rests at the bottom; positive scrolls toward
+     * older history. Only adjusted while awaiting the next round (dialogue idle);
+     * reset to zero whenever a new line commits so the log snaps back to newest
+     * as soon as dialogue resumes.
+     */
+    private float logScrollOffset = 0f;
+    /**
+     * Wheel listener installed as the input processor only while awaiting the
+     * next round, so the log scrolls on actual scroll-wheel events (LibGDX has
+     * no polled wheel API — it is delivered as a {@code scrolled} event). Mirrors
+     * the editors' hover-scroll approach, but scoped to this single window so it
+     * never competes with the planning panel's own input processor.
+     */
+    private final InputAdapter logScrollInput = new InputAdapter() {
+        @Override
+        public boolean scrolled(float amountX, float amountY) {
+            if (!awaitingNextRound || typingInProgress()) return false;
+            float x = Gdx.input.getX();
+            float y = Gdx.graphics.getHeight() - Gdx.input.getY();
+            if (!logBounds.contains(x, y)) return false;
+            // amountY < 0 = wheel up (toward older history); invert so up scrolls back.
+            adjustLogScroll(-amountY * LOG_SCROLL_STEP_ROWS);
+            return true;
+        }
+    };
+    /** Tracks whether {@link #logScrollInput} currently owns Gdx.input, to avoid re-setting it every frame. */
+    private boolean logScrollInputAttached = false;
 
     // ── Move unleash animation (render-thread state) ──────────────────────────
     private Texture unleashedMoveIcon;
@@ -205,7 +241,6 @@ public class BattleScreen implements Screen, BattleView {
     private int localPlayerMaxHp;
     private int localEnemyHp;
     private int localEnemyMaxHp;
-    private volatile String          phaseLabel = "";
     private volatile boolean         battleOver  = false;
     private volatile String          battleResult = "";
     private volatile String          battleResultReason = "";
@@ -306,6 +341,7 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void show() {
         Gdx.input.setInputProcessor(null);
+        logScrollInputAttached = false;
         planningPanel = null;
         logLines.clear();
         pendingTypingQueue.clear();
@@ -313,6 +349,7 @@ public class BattleScreen implements Screen, BattleView {
         typingChars = 0;
         typingCharTimer = 0f;
         typingTailTimer = 0f;
+        logScrollOffset = 0f;
         localPlayerHp = 0;
         localPlayerMaxHp = 0;
         localEnemyHp = 0;
@@ -434,9 +471,20 @@ public class BattleScreen implements Screen, BattleView {
         if (planningPanel != null) return;
 
         if (awaitingNextRound) {
+            // Install the wheel listener for the duration of this window so the
+            // log scrolls on actual scroll-wheel events (LibGDX delivers the
+            // wheel only as a `scrolled` event, not via a polled API). The
+            // listener only handles the wheel, so the NEXT ROUND click below
+            // still works through justTouched() polling.
+            if (!logScrollInputAttached) {
+                Gdx.input.setInputProcessor(logScrollInput);
+                logScrollInputAttached = true;
+            }
+
             float x = Gdx.input.getX();
             float y = Gdx.graphics.getHeight() - Gdx.input.getY();
             nextRoundHovered = nextRoundBounds.contains(x, y);
+
             if (Gdx.input.justTouched() && nextRoundHovered) {
                 if (mode == BattleMode.MULTIPLAYER) {
                     submitReadyNextRound();
@@ -445,6 +493,13 @@ public class BattleScreen implements Screen, BattleView {
                 }
             }
             return;
+        }
+
+        // Left the await-next-round window — release the wheel listener so it
+        // doesn't swallow input meant for the planning panel or next screen.
+        if (logScrollInputAttached) {
+            Gdx.input.setInputProcessor(null);
+            logScrollInputAttached = false;
         }
     }
 
@@ -477,11 +532,11 @@ public class BattleScreen implements Screen, BattleView {
         float sh = Gdx.graphics.getHeight();
 
         batch.begin();
-        drawExecutionChrome(sw, sh);
+        drawExecutionBackground(sw, sh);
         if (enemyPanel != null && hasEnemyRenderState())
-            enemyPanel.draw(batch, assets.fontLog, assets.fontLarge, enemyCharacterName(), frameDelta);
+            enemyPanel.draw(batch, assets.fontMedium, assets.fontSmall, enemyCharacterName(), frameDelta);
         if (playerPanel != null && hasPlayerRenderState()) {
-            playerPanel.draw(batch, assets.fontLog, assets.fontLarge, playerCharacterName(), frameDelta);
+            playerPanel.draw(batch, assets.fontMedium, assets.fontSmall, playerCharacterName(), frameDelta);
             miraclesMeter.draw(batch, assets.battleUi);
         }
         drawLog(sw, sh);
@@ -491,70 +546,115 @@ public class BattleScreen implements Screen, BattleView {
 
     }
 
-    private void drawExecutionChrome(float sw, float sh) {
-        if (executionHeaderBounds.width <= 0f) layoutExecutionUi(sw, sh);
-        assets.battleUi.header.draw(batch, executionHeaderBounds.x, executionHeaderBounds.y,
-            executionHeaderBounds.width, executionHeaderBounds.height);
-        assets.fontMedium.setColor(Color.WHITE);
-        assets.fontMedium.draw(batch, phaseLabel, executionHeaderBounds.x + 18f,
-            executionHeaderBounds.y + executionHeaderBounds.height - 18f);
+    /** Draw the selected backdrop without distorting it at different viewport sizes. */
+    private void drawExecutionBackground(float screenWidth, float screenHeight) {
+        Texture background = assets.battleExecutionBackground;
+        if (background == null) return;
 
-        assets.fontSmall.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
-        assets.fontSmall.draw(batch, "BATTLE EXECUTION", executionHeaderBounds.x + 20f,
-            executionHeaderBounds.y + 14f);
-
-        if (resolvingTicks) drawExecutionTick(sw, sh);
-    }
-
-    private void drawExecutionTick(float sw, float sh) {
-        BitmapFont timerFont = assets.fontLarge;
-        float originalScaleX = timerFont.getData().scaleX;
-        float originalScaleY = timerFont.getData().scaleY;
-        float screenScale = Math.max(0.95f, Math.min(1.5f,
-            Math.min(sw / 1024f, sh / 600f)));
-        timerFont.getData().setScale(originalScaleX * screenScale, originalScaleY * screenScale);
-
-        String text = "TICK " + currentExecutionTick;
-        GlyphLayout layout = new GlyphLayout(timerFont, text);
-        timerFont.setColor(Color.BLACK);
-        timerFont.draw(batch, text, (sw - layout.width) / 2f, executionHeaderBounds.y - 10f * screenScale);
-        timerFont.getData().setScale(originalScaleX, originalScaleY);
+        float scale = Math.max(
+            screenWidth / background.getWidth(),
+            screenHeight / background.getHeight()
+        );
+        float width = background.getWidth() * scale;
+        float height = background.getHeight() * scale;
+        batch.setColor(Color.WHITE);
+        batch.draw(background, (screenWidth - width) / 2f, (screenHeight - height) / 2f, width, height);
     }
 
     /**
      * Render the battle log: newest entry at the bottom, older entries stacked
-     * above it, and any that no longer fit simply drop off the top. No auto-
-     * resizing — long lines wrap to a new line, and the font stays fixed.
+     * above it. While awaiting the next round (dialogue idle), the player can
+     * scroll up through history with the mouse wheel; at all other times the
+     * log is pinned to the newest line. Long lines wrap to a new row, and the
+     * font stays fixed.
      */
     private void drawLog(float sw, float sh) {
-        assets.battleUi.palette.draw(batch, logBounds.x, logBounds.y, logBounds.width, logBounds.height);
-        assets.fontSmall.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
+        assets.battleUi.dialogue.draw(batch, logBounds.x, logBounds.y, logBounds.width, logBounds.height);
+        assets.fontSmall.setColor(new Color(0.980f, 0.870f, 0.540f, 1f));
         assets.fontSmall.draw(batch, "BATTLE LOG", logBounds.x + 14f, logBounds.y + logBounds.height - 14f);
 
         BitmapFont logFont = assets.fontLog;
+        float buttonSpace = awaitingNextRound ? nextRoundBounds.width + 24f : 0f;
+        float textWidth = logBounds.width - 28f - buttonSpace;
         // Wrap the retained messages to the panel width (fixed font; no scaling).
-        List<String> lines = wrapAll(logFont, logBounds.width - 28f);
+        List<String> lines = wrapAll(logFont, textWidth);
         // Append the in-progress typing line (newest) — wrapped from the
         // revealed substring so multi-line messages reveal row by row.
         if (typingLine != null) {
             int shown = Math.min(typingChars, typingLine.length());
-            lines.addAll(wrapText(logFont, typingLine.substring(0, shown), logBounds.width - 28f));
+            lines.addAll(wrapText(logFont, typingLine.substring(0, shown), textWidth));
         }
 
-        // Usable area sits below the "BATTLE LOG" title.
-        float topY    = logBounds.y + logBounds.height - 34f;
-        float bottomY = logBounds.y + 22f;
         float lineStep = logFont.getCapHeight() * LOG_LINE_SPACING;
+        // Drawable band inside the panel (below the title, above the baseplate).
+        float bottomY = logBounds.y + 25f;
+        float topY = logBounds.y + logBounds.height - 34f + lineStep;
+        float visibleHeight = topY - bottomY;
+        float contentHeight = lines.size() * lineStep;
+        // Keep the offset within the now-current content range: it can grow
+        // stale if lines were trimmed or the panel resized since the last wheel.
+        logScrollOffset = clampLogScroll(logScrollOffset, contentHeight, visibleHeight);
 
-        // Bottom-anchor: walk newest → oldest; stop as soon as a line would clip
-        // the top, so overflowed entries disappear off the top of the box.
+        // Scissor to the panel interior so scrolled history never paints over
+        // the title (drawn above) or spills past the panel edge. The batch uses
+        // an ortho2D projection where world units map 1:1 to screen pixels
+        // (see resize()), so the clip rectangle in world coords maps to pixels.
+        // The title is drawn before this push, and the NEXT ROUND button is
+        // drawn after this method returns, so neither is affected.
+        Rectangle clip = new Rectangle(logBounds.x + 6f, logBounds.y + 6f,
+            logBounds.width - 12f, logBounds.height - 12f);
+        Rectangle scissors = new Rectangle();
+        com.badlogic.gdx.graphics.OrthographicCamera clipCamera = new com.badlogic.gdx.graphics.OrthographicCamera();
+        clipCamera.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        com.badlogic.gdx.scenes.scene2d.utils.ScissorStack.calculateScissors(
+            clipCamera, batch.getProjectionMatrix(), clip, scissors);
+        boolean pushed = scissors.width > 0 && scissors.height > 0
+            && com.badlogic.gdx.scenes.scene2d.utils.ScissorStack.pushScissors(scissors);
+
+        // Bottom-anchor: walk newest → oldest, shifted down by the scroll
+        // offset so older lines enter from the top. Lines scrolled below the
+        // panel are drawn but clipped away; stop once a line's baseline clears
+        // the top of the drawable band (older lines are all higher still).
         logFont.setColor(Color.WHITE);
-        float y = bottomY;
-        for (int i = lines.size() - 1; i >= 0; i--) {
-            if (y > topY) break;
-            logFont.draw(batch, lines.get(i), logBounds.x + 14f, y);
-            y += lineStep;
+        float y = bottomY - logScrollOffset;
+        try {
+            for (int i = lines.size() - 1; i >= 0; i--) {
+                if (y > topY) break;
+                logFont.draw(batch, lines.get(i), logBounds.x + 14f, y);
+                y += lineStep;
+            }
+            if (pushed) batch.flush();
+        } finally {
+            if (pushed) com.badlogic.gdx.scenes.scene2d.utils.ScissorStack.popScissors();
         }
+    }
+
+    /**
+     * Clamp a candidate scroll offset to the valid range for the current log
+     * content. {@code maxScroll} is how far history exceeds the visible band; a
+     * log that fits entirely has no scroll room (offset pinned to zero).
+     */
+    private static float clampLogScroll(float offset, float contentHeight, float visibleHeight) {
+        float maxScroll = Math.max(0f, contentHeight - visibleHeight);
+        if (maxScroll <= 0f) return 0f;
+        return Math.max(0f, Math.min(offset, maxScroll));
+    }
+
+    /**
+     * Apply a wheel delta (in rows; positive = scroll up toward older history)
+     * to the log scroll offset, clamped to the current content. Only meaningful
+     * while awaiting the next round — the renderer ignores the offset otherwise.
+     */
+    private void adjustLogScroll(float rows) {
+        if (rows == 0f) return;
+        BitmapFont logFont = assets.fontLog;
+        float lineStep = logFont.getCapHeight() * LOG_LINE_SPACING;
+        float bottomY = logBounds.y + 25f;
+        float topY = logBounds.y + logBounds.height - 34f + lineStep;
+        float visibleHeight = topY - bottomY;
+        float contentHeight = (logLines.size()
+            + (typingLine != null ? 1 : 0)) * lineStep; // approx; renderer wraps precisely
+        logScrollOffset = clampLogScroll(logScrollOffset + rows * lineStep, contentHeight, visibleHeight);
     }
 
     /** Wrap every retained message to {@code width} and return the flat list of lines (oldest first). */
@@ -578,8 +678,10 @@ public class BattleScreen implements Screen, BattleView {
         assets.fontMedium.setColor(Color.WHITE);
         String label = mode == BattleMode.MULTIPLAYER && localReadyForNextRound()
             ? "WAITING..." : "NEXT ROUND";
-        assets.fontMedium.draw(batch, label, nextRoundBounds.x + 16f,
-            nextRoundBounds.y + nextRoundBounds.height - 15f);
+        GlyphLayout layout = new GlyphLayout(assets.fontMedium, label);
+        assets.fontMedium.draw(batch, label,
+            nextRoundBounds.x + (nextRoundBounds.width - layout.width) / 2f,
+            nextRoundBounds.y + (nextRoundBounds.height + layout.height) / 2f);
     }
 
     private void updateMoveUnleashAnimation(float delta) {
@@ -653,6 +755,9 @@ public class BattleScreen implements Screen, BattleView {
     private void addLogLine(String message) {
         logLines.add(message);
         while (logLines.size() > LOG_MAX_STORED) logLines.remove(0);
+        // New dialogue pins the view to the newest line; scrolling is only
+        // useful while reviewing settled history between rounds.
+        logScrollOffset = 0f;
     }
 
     /**
@@ -767,7 +872,6 @@ public class BattleScreen implements Screen, BattleView {
             renderPlayer = state.getPlayerCombatant();
             renderEnemy  = state.getEnemyCombatant();
             syncLocalHpFromModel();
-            phaseLabel   = "ROUND " + state.getRoundNumber() + "  —  PLANNING";
             initPanels();
             updatePanels();
         });
@@ -794,7 +898,6 @@ public class BattleScreen implements Screen, BattleView {
             renderPlayer = combatant;
             renderEnemy  = opponent;
             syncLocalHpFromModel();
-            phaseLabel   = "PLAN YOUR ROUND";
             executionUiActive = true;
             planningPanel = new com.jjktbf.graphics.ui.battle.PlanningPanel(
                 combatant, assets.battleUi, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
@@ -851,7 +954,6 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayCombatEvents(List<CombatEvent> events, BattleState state) {
         if (abortRequested || !isCurrentLocalBattleThread()) return;
-        postLocal(() -> phaseLabel = "ROUND " + state.getRoundNumber() + "  —  RESOLVING");
 
         for (CombatEvent e : events) {
             if (abortRequested || !isCurrentLocalBattleThread()) return;
@@ -894,7 +996,6 @@ public class BattleScreen implements Screen, BattleView {
         lastTickFired = false;
         currentExecutionTick = tick;
         resolvingTicks = true;
-        postLocal(() -> phaseLabel = "ROUND " + state.getRoundNumber() + "  —  RESOLVING");
     }
 
     @Override
@@ -911,7 +1012,6 @@ public class BattleScreen implements Screen, BattleView {
             // Re-seed from the model so end-of-round maintenance (poison, max-HP
             // changes, etc.) converges the deferred bars back to the true HP.
             syncLocalHpFromModel();
-            phaseLabel = "ROUND " + Math.max(1, state.getRoundNumber() - 1) + " COMPLETE";
             updatePanels();
         });
     }
@@ -953,7 +1053,6 @@ public class BattleScreen implements Screen, BattleView {
             } else {
                 battleResult = winner.getCharacter().getName() + " WINS!";
             }
-            phaseLabel = "BATTLE OVER";
             battleOver = true;
         });
     }
@@ -985,7 +1084,6 @@ public class BattleScreen implements Screen, BattleView {
         if (multiplayerSetup == null || multiplayerMatchService == null) return;
 
         executionUiActive = true;
-        phaseLabel = "CONNECTING TO MATCH";
         multiplayerConnectionState = MultiplayerSession.ConnectionState.DISCONNECTED;
         long run = ++multiplayerRun;
 
@@ -1051,15 +1149,11 @@ public class BattleScreen implements Screen, BattleView {
             onlineEnemyMaxHp = opponent.character().maxHp();
             onlineEnemyCe = opponent.character().currentCe();
             onlineEnemyMaxCe = opponent.character().maxCe();
-            phaseLabel = state.status() == MatchStatus.WAITING
-                ? "WAITING FOR OPPONENT"
-                : "ROUND " + state.roundNumber() + "  —  PLANNING";
             updatePanels();
             logOnlineEvents(state.recentEvents());
 
             if (local.planSubmitted()) {
                 if (planningPanel != null) planningPanel.lock();
-                phaseLabel = "ROUND " + state.roundNumber() + "  —  PLAN LOCKED";
             } else {
                 if (planningPanel != null && onlinePlanningRound == state.roundNumber()
                     && !onlineCommandPending) {
@@ -1116,7 +1210,6 @@ public class BattleScreen implements Screen, BattleView {
         planningPanel.setOnConfirm(this::submitOnlinePlan);
         Gdx.input.setInputProcessor(planningPanel.inputProcessor());
         onlinePlanningRound = roundNumber;
-        phaseLabel = "PLAN YOUR ROUND";
     }
 
     private void initOnlineMoves(CharacterState character) {
@@ -1187,7 +1280,6 @@ public class BattleScreen implements Screen, BattleView {
             return;
         }
         onlineCommandPending = true;
-        phaseLabel = "ROUND " + multiplayerState.roundNumber() + "  —  LOCKING PLAN";
         addLogLine("Plan locked. Waiting for the opponent.");
     }
 
@@ -1211,7 +1303,6 @@ public class BattleScreen implements Screen, BattleView {
         resolvingTicks = true;
         awaitingNextRound = false;
         battleOver = false;
-        phaseLabel = "ROUND " + playbackRound + "  —  RESOLVING";
 
         playbackEvents = state.recentEvents().stream()
             .filter(event -> event.roundNumber() == playbackRound)
@@ -1423,7 +1514,6 @@ public class BattleScreen implements Screen, BattleView {
             showMultiplayerResult(multiplayerState);
             return;
         }
-        phaseLabel = "ROUND " + playbackRound + " COMPLETE";
         awaitingNextRound = true;
         nextRoundHovered = false;
     }
@@ -1441,7 +1531,6 @@ public class BattleScreen implements Screen, BattleView {
             return;
         }
         onlineCommandPending = true;
-        phaseLabel = "ROUND " + playbackRound + " COMPLETE  —  WAITING";
     }
 
     private boolean localReadyForNextRound() {
@@ -1450,7 +1539,6 @@ public class BattleScreen implements Screen, BattleView {
 
     private void showMultiplayerResult(MatchState state) {
         awaitingNextRound = false;
-        phaseLabel = "BATTLE OVER";
         if (state.winnerSide() == null) {
             battleResult = "DRAW!";
         } else if (state.winnerSide() == multiplayerSetup.playerSide()) {
@@ -1667,68 +1755,97 @@ public class BattleScreen implements Screen, BattleView {
         layoutExecutionUi(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
     }
 
-    /** Scale applied to both combatant panels (sprites + bars). */
-    private static final float COMBATANT_SCALE = 1.105f;
-
     /** Recreates all execution widgets from the live viewport after a resize. */
     private void layoutExecutionUi(float width, float height) {
-        float margin = Math.min(42f, Math.max(26f, width * 0.035f));
-        float headerHeight = 54f;
-        executionHeaderBounds.set(margin, height - margin - headerHeight, width - margin * 2f, headerHeight);
+        float margin = Math.min(32f, Math.max(16f, Math.min(width, height) * 0.035f));
 
-        float portraitScale = Math.max(0f, Math.min(1f, (height - 600f) / 480f));
-        float baseSpriteWidth = 90f + 160f * portraitScale;
-        float baseSpriteHeight = baseSpriteWidth * 1.5f;
-        // Sprites and bars grow by COMBATANT_SCALE.
-        float spriteWidth = baseSpriteWidth * COMBATANT_SCALE;
-        float spriteHeight = baseSpriteHeight * COMBATANT_SCALE;
+        float logHeight = Math.min(145f, Math.max(100f, height * 0.22f));
+        float logTop = margin + logHeight;
+        logBounds.set(margin, 3f, width - margin * 2f, logTop - 3f);
 
-        float sideInset = margin + 54f + 36f * portraitScale;
-        float s = COMBATANT_SCALE;
+        float fieldBottom = logBounds.y + logBounds.height + 12f;
+        float fieldTop = height - margin;
+        float fieldHeight = Math.max(1f, fieldTop - fieldBottom);
 
-        // Player (bottom-left of screen): pin the bar block's bottom-left corner
-        // so the panel grows upward and to the right. The bars hang below the
-        // sprite; pinning their lowest-leftmost point keeps them grounded while
-        // the sprite rises. At s=1 these reduce to the original positions.
-        float playerX = sideInset + 17f * (s - 1f);
-        float playerY = margin + 66f + 58f * portraitScale + 84f * (s - 1f);
-        playerPanel = new CombatantPanel(playerSprite, assets.battleUi,
-            playerX, playerY, spriteWidth, spriteHeight, s);
-        float miracleSize = MiraclesMeter.sizeForViewport(height);
+        float hudWidth = Math.min(430f, Math.max(150f, width * 0.40f));
+        hudWidth = Math.min(hudWidth, Math.max(1f, (width - margin * 2f - 12f) / 2f));
+        hudWidth *= COMBATANT_HUD_SCALE;
+        float hudHeight = Math.min(108f, Math.max(82f, fieldHeight * 0.29f)) * COMBATANT_HUD_SCALE;
+        float playerHudY = fieldBottom + fieldHeight * 0.08f;
+        float availableCenterGap = width - margin * 2f - hudWidth * 2f;
+        float hudShift = Math.min(Math.min(70f, width * 0.035f),
+            Math.max(0f, (availableCenterGap - 12f) / 2f));
+
+        float enemyPlateSize = Math.min(fieldHeight * 0.84f, width * 0.38f);
+        float playerPlateSize = Math.min(fieldHeight * 1.08f, width * 0.46f);
+        float enemyCenterX = width - margin - width * 0.22f;
+        float playerCenterX = margin + width * 0.22f;
+
+        float enemySpriteSize = Math.min(fieldHeight * 0.50f, width * 0.20f);
+        float playerSpriteSize = Math.min(fieldHeight * 0.58f, width * 0.23f);
+        // Drop both complete fighter groups by the player's former gap to the log.
+        float fighterDrop = 12f + fieldHeight * 0.12f;
+        float enemySpriteY = fieldTop - enemySpriteSize - fighterDrop;
+        float playerSpriteY = fieldBottom + fieldHeight * 0.12f - fighterDrop;
+        // Then lower each plate again relative to its sprite, matching the authored footing.
+        float plateDrop = fieldHeight * 0.045f;
+        // The visible stone ellipse occupies about 28% of its square texture.
+        // Seven percent of the texture is therefore roughly one quarter of the visible height.
+        float enemyPlateCenterY = enemySpriteY + enemySpriteSize * 0.13f
+            - plateDrop + enemyPlateSize * 0.07f;
+        float playerPlateCenterY = playerSpriteY + playerSpriteSize * 0.13f - plateDrop;
+
+        float enemyHudY = enemySpriteY + enemySpriteSize - hudHeight;
+
+        Rectangle enemyPlate = new Rectangle(
+            enemyCenterX - enemyPlateSize / 2f,
+            enemyPlateCenterY - enemyPlateSize * 0.516f,
+            enemyPlateSize,
+            enemyPlateSize
+        );
+        Rectangle enemySpriteBounds = new Rectangle(
+            enemyCenterX - enemySpriteSize / 2f,
+            enemySpriteY,
+            enemySpriteSize,
+            enemySpriteSize
+        );
+        Rectangle enemyHud = new Rectangle(margin + hudShift, enemyHudY, hudWidth, hudHeight);
+        enemyPanel = new CombatantPanel(enemySprite, assets.stoneBasePlate, assets.battleUi,
+            enemyPlate, enemySpriteBounds, enemyHud, COMBATANT_HUD_SCALE);
+
+        Rectangle playerPlate = new Rectangle(
+            playerCenterX - playerPlateSize / 2f,
+            playerPlateCenterY - playerPlateSize * 0.516f,
+            playerPlateSize,
+            playerPlateSize
+        );
+        Rectangle playerSpriteBounds = new Rectangle(
+            playerCenterX - playerSpriteSize / 2f,
+            playerSpriteY,
+            playerSpriteSize,
+            playerSpriteSize
+        );
+        Rectangle playerHud = new Rectangle(
+            width - margin - hudWidth - hudShift, playerHudY, hudWidth, hudHeight);
+        playerPanel = new CombatantPanel(playerSprite, assets.stoneBasePlate, assets.battleUi,
+            playerPlate, playerSpriteBounds, playerHud, COMBATANT_HUD_SCALE);
+
+        float miracleSize = Math.min(MiraclesMeter.sizeForViewport(height),
+            Math.min(hudHeight, width * 0.11f));
         miraclesMeter.setBounds(
-            playerX + spriteWidth + 24f * s,
-            playerY + (spriteHeight - miracleSize) / 2f,
+            Math.max(margin, playerHud.x - miracleSize - 14f),
+            playerHud.y + (playerHud.height - miracleSize) / 2f,
             miracleSize
         );
 
-        // Log box, sized and positioned below the header. Dimensions track the
-        // same height-driven portraitScale the sprites use, so the box shrinks
-        // and grows in lockstep with the combatant panels (no fixed floor that
-        // would leave it oversized on a small window). Capped to the viewport.
-        float logWidth  = Math.min(width * 0.63f, 260f + 420f * portraitScale);
-        float logHeight = 150f + 105f * portraitScale;
-        // Extend the log box a couple of pixels downward so the bottom line isn't clipped.
-        logBounds.set(margin, executionHeaderBounds.y - 14f - logHeight - 2f, logWidth, logHeight + 2f);
-
-        // Symmetric vertical gaps: match the gap between the header and the enemy
-        // name plate to the gap between the log box bottom and the player name plate.
-        // Name plate top = spriteTop + 42*scale (8*scale gap + 34*scale plate height).
-        float namePlateRise = 42f * s;
-        float playerTop = playerY + spriteHeight + namePlateRise;
-        float gap = logBounds.y - playerTop;
-
-        // Enemy (top-right of screen): pin the panel's top-right corner (name
-        // plate top + frame right) so it grows downward and to the left. The
-        // name plate top sits `gap` pixels below the header, mirroring the player.
-        float enemyX = width - sideInset + 10f - spriteWidth - 10f * s;
-        float enemyY = executionHeaderBounds.y - gap - spriteHeight - namePlateRise;
-        enemyPanel = new CombatantPanel(enemySprite, assets.battleUi,
-            enemyX, enemyY, spriteWidth, spriteHeight, s);
-
-        // Align the Next Round button's right edge with the enemy sprite's right edge.
-        float enemyRight = enemyX + spriteWidth;
-        float nextRoundWidth = 210f;
-        nextRoundBounds.set(enemyRight - nextRoundWidth, margin, nextRoundWidth, 52f);
+        float nextRoundWidth = Math.min(210f, Math.max(150f, width * 0.20f));
+        float nextRoundHeight = Math.min(54f, logBounds.height - 24f);
+        nextRoundBounds.set(
+            logBounds.x + logBounds.width - nextRoundWidth - 14f,
+            logBounds.y + 14f,
+            nextRoundWidth,
+            nextRoundHeight
+        );
         updatePanels();
     }
 

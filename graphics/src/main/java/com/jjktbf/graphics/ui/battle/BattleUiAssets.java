@@ -31,6 +31,7 @@ public final class BattleUiAssets {
 
     public final NinePatch header;
     public final NinePatch palette;
+    public final NinePatch dialogue;
     public final NinePatch card;
     public final NinePatch cardOver;
     public final NinePatch cardDisabled;
@@ -60,6 +61,9 @@ public final class BattleUiAssets {
         palette = frame(new Color(0.150f, 0.185f, 0.280f, 1f),
             new Color(0.045f, 0.060f, 0.110f, 1f), new Color(0.360f, 0.450f, 0.660f, 1f),
             new Color(0.025f, 0.035f, 0.070f, 1f));
+        dialogue = frame(new Color(0.105f, 0.260f, 0.355f, 1f),
+            new Color(0.035f, 0.055f, 0.090f, 1f), new Color(0.950f, 0.835f, 0.470f, 1f),
+            new Color(0.500f, 0.365f, 0.135f, 1f));
         card = frame(PAPER, new Color(0.105f, 0.135f, 0.205f, 1f),
             new Color(1f, 1f, 1f, 1f), new Color(0.700f, 0.680f, 0.590f, 1f));
         cardOver = frame(new Color(1f, 0.985f, 0.840f, 1f), new Color(0.965f, 0.670f, 0.120f, 1f),

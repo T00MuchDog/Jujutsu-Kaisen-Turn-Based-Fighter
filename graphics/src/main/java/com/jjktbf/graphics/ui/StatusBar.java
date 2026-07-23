@@ -10,10 +10,9 @@ import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 public class StatusBar {
 
     private static final Color DAMAGE_COLOR = new Color(0.920f, 0.220f, 0.180f, 1f);
+    private static final Color TRACK_COLOR = new Color(0.770f, 0.790f, 0.720f, 1f);
     /** Fraction of the remaining gap eased per second toward the live value. */
     private static final float EASE_RATE = 1.8f;
-    private static final float TEXT_INSET = 8f;
-    private static final float TEXT_GAP = 4f;
 
     private final String label;
     private final Color fillColor;
@@ -66,23 +65,30 @@ public class StatusBar {
     }
 
     public void draw(Batch batch, BitmapFont font, BattleUiAssets ui) {
-        ui.header.draw(batch, x, y, width, height);
+        float labelWidth = Math.max(38f, height * 1.55f);
+        float trackX = x + labelWidth;
+        float trackWidth = Math.max(1f, width - labelWidth);
 
-        float inset = 5f;
-        float inner = width - inset * 2f;
-        float fillHeight = height - inset * 2f;
+        batch.setColor(BattleUiAssets.INK);
+        batch.draw(ui.pixel, x, y, width, height);
+        batch.setColor(TRACK_COLOR);
+        batch.draw(ui.pixel, trackX + 3f, y + 3f, trackWidth - 6f, height - 6f);
+
+        float fillX = trackX + 3f;
+        float inner = trackWidth - 6f;
+        float fillHeight = height - 6f;
 
         // Live fill (green/blue) up to the current value.
         float fillWidth = Math.max(0f, inner * current / max);
         batch.setColor(fillColor);
-        batch.draw(ui.pixel, x + inset, y + inset, fillWidth, fillHeight);
+        batch.draw(ui.pixel, fillX, y + 3f, fillWidth, fillHeight);
 
         // Damage trail: the portion between current and the still-easing
         // displayed value flashes red, then shrinks away as it catches up.
         if (displayed > current) {
             float trailWidth = Math.max(0f, inner * (displayed - current) / max);
             batch.setColor(DAMAGE_COLOR);
-            batch.draw(ui.pixel, x + inset + fillWidth, y + inset, trailWidth, fillHeight);
+            batch.draw(ui.pixel, fillX + fillWidth, y + 3f, trailWidth, fillHeight);
         }
         batch.setColor(Color.WHITE);
 
@@ -92,11 +98,9 @@ public class StatusBar {
         labelLayout.setText(font, label);
         valueLayout.setText(font, value);
 
-        // Preserve a gap between the label and value on compact battle layouts.
-        float availableTextWidth = Math.max(1f, width - TEXT_INSET * 2f - TEXT_GAP);
-        float combinedTextWidth = labelLayout.width + valueLayout.width;
-        if (combinedTextWidth > availableTextWidth) {
-            float fittedScale = availableTextWidth / combinedTextWidth;
+        float availableValueWidth = Math.max(1f, trackWidth - 12f);
+        if (valueLayout.width > availableValueWidth) {
+            float fittedScale = availableValueWidth / valueLayout.width;
             font.getData().setScale(originalScaleX * fittedScale, originalScaleY * fittedScale);
             labelLayout.setText(font, label);
             valueLayout.setText(font, value);
@@ -104,8 +108,10 @@ public class StatusBar {
 
         font.setColor(Color.WHITE);
         float textY = y + (height + font.getCapHeight()) / 2f;
-        font.draw(batch, label, x + TEXT_INSET, textY);
-        font.draw(batch, value, x + width - TEXT_INSET - valueLayout.width, textY);
+        font.draw(batch, label, x + (labelWidth - labelLayout.width) / 2f, textY);
+        font.setColor(BattleUiAssets.INK);
+        font.draw(batch, value, x + width - 7f - valueLayout.width, textY);
         font.getData().setScale(originalScaleX, originalScaleY);
+        batch.setColor(Color.WHITE);
     }
 }

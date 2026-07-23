@@ -5,7 +5,6 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
@@ -34,13 +33,22 @@ import java.util.List;
  */
 public class MainMenuScreen implements Screen {
 
+    private enum NavigationMode {
+        NONE,
+        CURSOR,
+        KEYBOARD
+    }
+
     private final JJKGame     game;
     private final AssetLoader assets;
     private final Stage       stage;
     private final Table       root;
     private final List<MenuButton> menuButtons = new ArrayList<>();
     private final List<Cell<MenuButton>> menuButtonCells = new ArrayList<>();
-    private int selectedButtonIndex;
+    private int selectedButtonIndex = -1;
+    private int hoveredButtonIndex = -1;
+    private int lastHighlightedButtonIndex = -1;
+    private NavigationMode navigationMode = NavigationMode.NONE;
     /** Guards against double-dispose of native stage resources. */
     private boolean disposed;
     private Table commands;
@@ -95,12 +103,17 @@ public class MainMenuScreen implements Screen {
         commandsCell = root.add(commands).width(540).top().expandY();
         root.row();
 
-        // Keyboard navigation and shortcuts.
-        stage.addListener(new InputListener() {
+        // Capture movement before child widgets so a mouse move always leaves keyboard mode.
+        stage.addCaptureListener(new InputListener() {
+            @Override public boolean mouseMoved(InputEvent event, float x, float y) {
+                enterCursorMode(event.getStageX(), event.getStageY());
+                return false;
+            }
+
             @Override public boolean keyDown(InputEvent event, int keycode) {
                 if (keycode == Input.Keys.UP) moveSelection(-1);
                 else if (keycode == Input.Keys.DOWN) moveSelection(1);
-                else if (keycode == Input.Keys.ENTER) menuButtons.get(selectedButtonIndex).activate();
+                else if (keycode == Input.Keys.ENTER) activateSelection();
                 else if (keycode == Input.Keys.NUM_1) game.showCharacterSelect();
                 else if (keycode == Input.Keys.NUM_2) game.showMoveEditor();
                 else if (keycode == Input.Keys.NUM_3) game.showCharacterEditor();
@@ -117,15 +130,72 @@ public class MainMenuScreen implements Screen {
     }
 
     private void moveSelection(int direction) {
-        menuButtons.get(selectedButtonIndex).setKeyboardSelected(false);
-        selectedButtonIndex = (selectedButtonIndex + direction + menuButtons.size()) % menuButtons.size();
-        menuButtons.get(selectedButtonIndex).setKeyboardSelected(true);
+        enterKeyboardMode();
+        if (selectedButtonIndex < 0) {
+            selectKeyboardButton(direction > 0 ? 0 : menuButtons.size() - 1);
+            return;
+        }
+        selectKeyboardButton((selectedButtonIndex + direction + menuButtons.size()) % menuButtons.size());
     }
 
-    private void selectButton(int index) {
-        menuButtons.get(selectedButtonIndex).setKeyboardSelected(false);
+    private void enterKeyboardMode() {
+        if (navigationMode == NavigationMode.KEYBOARD) return;
+
+        selectedButtonIndex = hoveredButtonIndex >= 0
+            ? hoveredButtonIndex : lastHighlightedButtonIndex;
+        hoveredButtonIndex = -1;
+        navigationMode = NavigationMode.KEYBOARD;
+        if (selectedButtonIndex >= 0) lastHighlightedButtonIndex = selectedButtonIndex;
+        updateHighlights();
+    }
+
+    private void enterCursorMode(float stageX, float stageY) {
+        navigationMode = NavigationMode.CURSOR;
+        selectedButtonIndex = -1;
+        hoveredButtonIndex = findButtonAt(stageX, stageY);
+        if (hoveredButtonIndex >= 0) lastHighlightedButtonIndex = hoveredButtonIndex;
+        updateHighlights();
+    }
+
+    private void selectKeyboardButton(int index) {
         selectedButtonIndex = index;
-        menuButtons.get(selectedButtonIndex).setKeyboardSelected(true);
+        lastHighlightedButtonIndex = index;
+        updateHighlights();
+    }
+
+    private void activateSelection() {
+        if (navigationMode == NavigationMode.CURSOR) enterKeyboardMode();
+        if (navigationMode == NavigationMode.KEYBOARD && selectedButtonIndex >= 0) {
+            menuButtons.get(selectedButtonIndex).activate();
+        }
+    }
+
+    private int findButtonAt(float stageX, float stageY) {
+        Actor target = stage.hit(stageX, stageY, true);
+        for (int i = 0; i < menuButtons.size(); i++) {
+            MenuButton button = menuButtons.get(i);
+            if (target == button || (target != null && target.isDescendantOf(button))) return i;
+        }
+        return -1;
+    }
+
+    private void updateHighlights() {
+        int highlightedButtonIndex = switch (navigationMode) {
+            case CURSOR -> hoveredButtonIndex;
+            case KEYBOARD -> selectedButtonIndex;
+            case NONE -> -1;
+        };
+        for (int i = 0; i < menuButtons.size(); i++) {
+            menuButtons.get(i).setHighlighted(i == highlightedButtonIndex);
+        }
+    }
+
+    private void resetNavigation() {
+        navigationMode = NavigationMode.NONE;
+        selectedButtonIndex = -1;
+        hoveredButtonIndex = -1;
+        lastHighlightedButtonIndex = -1;
+        updateHighlights();
     }
 
     private MenuButton makeButton(String label, Runnable onClick) {
@@ -160,7 +230,7 @@ public class MainMenuScreen implements Screen {
     @Override
     public void show() {
         stage.unfocusAll();
-        selectButton(0);
+        resetNavigation();
         Gdx.input.setInputProcessor(stage);
     }
 
@@ -188,11 +258,10 @@ public class MainMenuScreen implements Screen {
         stage.dispose();
     }
 
-    /** Uses the actual pointer position because this screen's stage is reused. */
+    /** Draws a hover state only when selected by the active input mode. */
     private static final class MenuButton extends TextButton {
-        private final Vector2 pointer = new Vector2();
         private final Runnable action;
-        private boolean keyboardSelected;
+        private boolean highlighted;
 
         private MenuButton(String text, com.badlogic.gdx.scenes.scene2d.ui.Skin skin, Runnable action) {
             super(text, skin, "primary");
@@ -203,18 +272,13 @@ public class MainMenuScreen implements Screen {
             action.run();
         }
 
-        private void setKeyboardSelected(boolean keyboardSelected) {
-            this.keyboardSelected = keyboardSelected;
+        private void setHighlighted(boolean highlighted) {
+            this.highlighted = highlighted;
         }
 
         @Override
         public boolean isOver() {
-            if (keyboardSelected) return true;
-            Stage stage = getStage();
-            if (stage == null) return false;
-            stage.screenToStageCoordinates(pointer.set(Gdx.input.getX(), Gdx.input.getY()));
-            Actor target = stage.hit(pointer.x, pointer.y, true);
-            return target == this || (target != null && target.isDescendantOf(this));
+            return highlighted;
         }
     }
 }
