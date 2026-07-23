@@ -108,12 +108,12 @@ the full process; the short version:
 ```bash
 git commit -am "Release 1.3"
 
-mvn -Drevision=1.3 clean verify
+mvn -Drevision=1.3.0 clean verify
 
-git tag v1.3
+git tag v1.3.0
 
 git push origin HEAD
-git push origin v1.3
+git push origin v1.3.0
 ```
 
 Pushing the tag triggers GitHub Actions, which builds macOS (arm64 + x64) and
