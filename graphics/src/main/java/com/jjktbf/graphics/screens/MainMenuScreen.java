@@ -19,6 +19,7 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.ui.HoverScrollStage;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +47,7 @@ public class MainMenuScreen implements Screen {
     public MainMenuScreen(JJKGame game, AssetLoader assets) {
         this.game   = game;
         this.assets = assets;
-        this.stage  = new Stage(new ScreenViewport());
+        this.stage  = new HoverScrollStage(new ScreenViewport());
 
         this.root = new Table();
         root.setFillParent(true);

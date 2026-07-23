@@ -27,6 +27,7 @@ import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.ui.HoverScrollStage;
 import com.jjktbf.graphics.ui.pixel.HoverList;
 
 import java.io.IOException;
@@ -129,7 +130,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         this.game   = game;
         this.assets = assets;
         this.skin   = assets.editorSkin;
-        this.stage  = new Stage(new ScreenViewport());
+        this.stage  = new HoverScrollStage(new ScreenViewport());
 
         this.root = new Table();
         this.root.setFillParent(true);
@@ -251,7 +252,7 @@ public abstract class EditorScreenBase<D> implements Screen {
 
         masterList.getSelection().setRequired(false);
         masterList.getSelection().setMultiple(false);
-        masterScroll = new ScrollPane(masterList, skin);
+        masterScroll = new AxisLockedScrollPane(masterList, skin);
         masterScroll.setFadeScrollBars(false);
         masterScroll.setScrollingDisabled(true, false);
         left.add(masterScroll).grow();
@@ -266,7 +267,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         ScrollPane.ScrollPaneStyle detailScrollStyle =
             new ScrollPane.ScrollPaneStyle(skin.get(ScrollPane.ScrollPaneStyle.class));
         detailScrollStyle.background = null;
-        ScrollPane detailScroll = new ScrollPane(detailContainer, detailScrollStyle);
+        ScrollPane detailScroll = new AxisLockedScrollPane(detailContainer, detailScrollStyle);
         detailScroll.setFadeScrollBars(false);
         detailScroll.setScrollingDisabled(true, false);
         Table detail = new Table(skin);

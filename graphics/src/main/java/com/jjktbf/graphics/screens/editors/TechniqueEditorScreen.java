@@ -5,6 +5,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.ui.editor.AxisLockedScrollPane;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
 import com.jjktbf.graphics.ui.editor.SkillTreeCanvas;
 import com.jjktbf.graphics.ui.editor.ValidationResult;
@@ -180,7 +181,7 @@ public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData>
             message -> setStatus(message, false),
             null,
             skin);
-        ScrollPane scroll = new ScrollPane(canvas, skin);
+        ScrollPane scroll = new AxisLockedScrollPane(canvas, skin);
         scroll.setFadeScrollBars(false);
         scroll.setFlickScroll(false);
         scroll.setScrollingDisabled(false, true);

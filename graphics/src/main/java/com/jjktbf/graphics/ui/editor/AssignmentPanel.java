@@ -110,8 +110,8 @@ public class AssignmentPanel extends Table {
         assignedCol.grow();
         assignedCol.space(4f);
 
-        ScrollPane availableScroll = new ScrollPane(availableCol, skin);
-        ScrollPane assignedScroll  = new ScrollPane(assignedCol,  skin);
+        ScrollPane availableScroll = new AxisLockedScrollPane(availableCol, skin);
+        ScrollPane assignedScroll  = new AxisLockedScrollPane(assignedCol,  skin);
         availableScroll.setFadeScrollBars(false);
         assignedScroll.setFadeScrollBars(false);
         availableScroll.setScrollingDisabled(true, false);

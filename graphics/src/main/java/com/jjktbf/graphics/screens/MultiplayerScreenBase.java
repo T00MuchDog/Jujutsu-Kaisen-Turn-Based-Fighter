@@ -15,6 +15,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.jjktbf.graphics.AssetLoader;
+import com.jjktbf.graphics.ui.HoverScrollStage;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.multiplayer.ApiClientException;
 
@@ -42,7 +43,7 @@ abstract class MultiplayerScreenBase implements Screen {
     protected MultiplayerScreenBase(JJKGame game, AssetLoader assets) {
         this.game = game;
         this.assets = assets;
-        this.stage = new Stage(new ScreenViewport());
+        this.stage = new HoverScrollStage(new ScreenViewport());
         this.root = new Table();
         root.setFillParent(true);
         root.pad(22f);

@@ -13,6 +13,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.ui.editor.AxisLockedScrollPane;
 import com.jjktbf.graphics.ui.editor.AssignmentPanel;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
 import com.jjktbf.graphics.ui.editor.StatField;
@@ -403,7 +404,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 message -> setStatus(message, false),
                 node -> treeActivationError(character, node),
                 skin);
-            ScrollPane scroll = new ScrollPane(canvas, skin);
+            ScrollPane scroll = new AxisLockedScrollPane(canvas, skin);
             scroll.setFadeScrollBars(false);
             scroll.setFlickScroll(false);
             scroll.setScrollingDisabled(false, true);

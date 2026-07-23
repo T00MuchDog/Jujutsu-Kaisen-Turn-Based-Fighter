@@ -6,6 +6,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.ui.editor.AxisLockedScrollPane;
 import com.jjktbf.graphics.multiplayer.ChallengeService;
 import com.jjktbf.graphics.multiplayer.GuestAccountService;
 import com.jjktbf.multiplayer.protocol.ChallengeListResponse;
@@ -92,7 +93,7 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
 
         challengeRows = new Table(assets.editorSkin);
         challengeRows.top().left();
-        ScrollPane challengeScroll = new ScrollPane(challengeRows, assets.editorSkin);
+        ScrollPane challengeScroll = new AxisLockedScrollPane(challengeRows, assets.editorSkin);
         challengeScroll.setFadeScrollBars(false);
         challengeScroll.setScrollingDisabled(true, false);
         root.add(challengeScroll).grow().padTop(10f).row();

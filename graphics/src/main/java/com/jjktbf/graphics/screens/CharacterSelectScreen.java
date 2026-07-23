@@ -15,6 +15,7 @@ import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.ui.StatusBar;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
+import com.jjktbf.graphics.ui.editor.ScrollAxes;
 import com.jjktbf.graphics.ui.battle.MoveCardView;
 import com.jjktbf.model.character.AbilityRepository;
 import com.jjktbf.model.character.CharacterData;
@@ -70,7 +71,10 @@ public class CharacterSelectScreen implements Screen {
     private final InputAdapter inputAdapter = new InputAdapter() {
         @Override
         public boolean scrolled(float amountX, float amountY) {
-            return scrollLearnedMoves(amountY != 0f ? amountY : amountX);
+            // The moves list scrolls vertically; snap the gesture to its dominant axis
+            // so a horizontal trackpad swipe doesn't leak its vertical component in.
+            float[] dominant = ScrollAxes.dominant(amountX, amountY);
+            return scrollLearnedMoves(dominant[1]);
         }
     };
 

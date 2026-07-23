@@ -7,6 +7,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.ui.editor.AxisLockedScrollPane;
 import com.jjktbf.graphics.multiplayer.ChallengeService;
 import com.jjktbf.graphics.multiplayer.GuestAccountService;
 import com.jjktbf.graphics.multiplayer.MultiplayerMatchService;
@@ -70,7 +71,7 @@ public final class MultiplayerDisconnectedScreen extends MultiplayerScreenBase {
         card.add(reconnectButton).growX().height(46f).pad(4f).row();
         card.add(backButton).growX().height(46f).pad(4f).row();
 
-        ScrollPane scroll = new ScrollPane(card, assets.editorSkin);
+        ScrollPane scroll = new AxisLockedScrollPane(card, assets.editorSkin);
         scroll.setFadeScrollBars(false);
         scroll.setScrollingDisabled(true, false);
         root.add(scroll).grow().maxWidth(780f).padTop(16f).row();
