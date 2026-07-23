@@ -162,7 +162,7 @@ public class CharacterSelectScreen implements Screen {
             cursorIndex = (cursorIndex + 1) % characters.size();
             resetMoveScroll();
         }
-        if (Gdx.input.justTouched()) {
+        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
             selectRowAt(Gdx.input.getX(), Gdx.graphics.getHeight() - Gdx.input.getY());
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) confirmSelection();
@@ -180,9 +180,13 @@ public class CharacterSelectScreen implements Screen {
         if (!listBounds.contains(x, y)) return;
         float firstRowTop = listBounds.y + listBounds.height - 46f;
         int index = (int) ((firstRowTop - y) / ROW_HEIGHT);
-        if (index >= 0 && index < characters.size() && index != cursorIndex) {
-            cursorIndex = index;
-            resetMoveScroll();
+        if (index >= 0 && index < characters.size()) {
+            if (index == cursorIndex) {
+                confirmSelection();
+            } else {
+                cursorIndex = index;
+                resetMoveScroll();
+            }
         }
     }
 

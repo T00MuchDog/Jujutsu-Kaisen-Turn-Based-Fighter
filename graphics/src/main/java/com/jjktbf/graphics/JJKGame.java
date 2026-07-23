@@ -97,8 +97,8 @@ public class JJKGame extends Game {
     private String selectedMultiplayerCharacterId = DEFAULT_MULTIPLAYER_CHARACTER_ID;
 
     // ── Screen instances ───────────────────────────────────────────────────────
-    // The menu is rebuilt on return so inactive-stage pointer state cannot leak
-    // across editor transitions. Other screens retain their reusable state.
+    // The menu and editors are rebuilt on entry so inactive-stage pointer state
+    // cannot leak across transitions. Other screens retain their reusable state.
     private MainMenuScreen        mainMenuScreen;
     private CharacterSelectScreen characterSelectScreen;
     private BattleScreen          battleScreen;
@@ -269,18 +269,26 @@ public class JJKGame extends Game {
     }
 
     public void showMoveEditor() {
+        moveEditorScreen.dispose();
+        moveEditorScreen = new MoveEditorScreen(this, assets);
         setScreen(moveEditorScreen);
     }
 
     public void showCharacterEditor() {
+        characterEditorScreen.dispose();
+        characterEditorScreen = new CharacterEditorScreen(this, assets);
         setScreen(characterEditorScreen);
     }
 
     public void showAbilityEditor() {
+        abilityEditorScreen.dispose();
+        abilityEditorScreen = new AbilityEditorScreen(this, assets);
         setScreen(abilityEditorScreen);
     }
 
     public void showTechniqueEditor() {
+        techniqueEditorScreen.dispose();
+        techniqueEditorScreen = new TechniqueEditorScreen(this, assets);
         setScreen(techniqueEditorScreen);
     }
 
