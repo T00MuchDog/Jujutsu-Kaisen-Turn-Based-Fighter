@@ -47,16 +47,16 @@ import com.jjktbf.multiplayer.protocol.SocketMessage;
 import com.jjktbf.view.BattleView;
 
 import java.time.Duration;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Graphics implementation of BattleView.
@@ -140,16 +140,17 @@ public class BattleScreen implements Screen, BattleView {
     // ── Event log ─────────────────────────────────────────────────────────────
     private final List<String> logLines = new ArrayList<>();
     /**
-     * Progressive "typewriter" log reveal. Messages are queued rather than
-     * appended; {@link #updateTyping(float)} reveals them one character at a
-     * time on the render thread, then commits each to {@link #logLines} after
-     * a short tail. {@link #committedLogSeq} is bumped on each commit and read
-     * by the battle thread to gate advancement. {@link #displayMessage} bypasses
-     * the gate while the execution UI is still hidden (before the first planning
-     * phase), since there is nothing on screen for the player to read along
-     * with — those lines still type out and commit, they just don't block.
+     * Progressive "typewriter" log reveal. Messages are queued (concurrently —
+     * the battle thread enqueues, the render thread drains) and revealed one
+     * character at a time by {@link #updateTyping(float)}, then committed to
+     * {@link #logLines} after a short tail. {@link #committedLogSeq} is bumped
+     * on each commit and read by the battle thread to gate advancement.
+     * {@link #displayMessage} bypasses the gate while the execution UI is still
+     * hidden (before the first planning phase), since there is nothing on screen
+     * for the player to read along with — those lines still type out and commit,
+     * they just don't block.
      */
-    private final Deque<String> pendingTypingQueue = new ArrayDeque<>();
+    private final Queue<String> pendingTypingQueue = new ConcurrentLinkedQueue<>();
     private String typingLine;
     private int typingChars;
     private float typingCharTimer;
@@ -236,11 +237,13 @@ public class BattleScreen implements Screen, BattleView {
      * when the move unleashes or the tick fires. Mirrors the multiplayer
      * {@code onlinePlayerHp}/{@code onlineEnemyHp} pattern. CE is left out: it
      * drains at the move's start tick, before the fire tick, so it stays live.
+     * Volatile: written by the battle thread (applyLocalHpEvent) and read by the
+     * render thread (updatePanels).
      */
-    private int localPlayerHp;
-    private int localPlayerMaxHp;
-    private int localEnemyHp;
-    private int localEnemyMaxHp;
+    private volatile int localPlayerHp;
+    private volatile int localPlayerMaxHp;
+    private volatile int localEnemyHp;
+    private volatile int localEnemyMaxHp;
     private volatile boolean         battleOver  = false;
     private volatile String          battleResult = "";
     private volatile String          battleResultReason = "";
@@ -965,14 +968,16 @@ public class BattleScreen implements Screen, BattleView {
             if (!e.getMessage().isBlank()) {
                 final CombatEvent ev = e;
                 final String msg = e.getMessage();
-                postLocal(() -> {
-                    // Apply this event's HP delta before drawing, so the bar
-                    // and HP text change as this (the damage) line begins
-                    // typing — not when the move unleashed earlier.
-                    applyLocalHpEvent(ev);
-                    queueLogLine(msg);
-                    updatePanels();
-                });
+                // Apply this event's HP delta and enqueue its log line ON THE
+                // BATTLE THREAD, before posting the render work. Doing this
+                // inside the posted lambda left the queue empty at the moment
+                // waitForLogLine() checked it, so the gate returned instantly
+                // and every event's runnable piled up and ran back-to-back —
+                // making HP appear to drop at the unleash line. Enqueuing here
+                // guarantees the queue is non-empty when we wait.
+                applyLocalHpEvent(ev);
+                queueLogLine(msg);
+                postLocal(this::updatePanels);
                 // Round-start ability events fire before the first planning
                 // phase flips executionUiActive; gating there would stall the
                 // battle thread behind a blank screen. The lines still type
@@ -1060,7 +1065,9 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayMessage(String message) {
         if (abortRequested || !isCurrentLocalBattleThread()) return;
-        postLocal(() -> queueLogLine(message));
+        // Enqueue on the battle thread so the queue is non-empty when we gate
+        // (see displayCombatEvents for why enqueuing inside postLocal races).
+        queueLogLine(message);
         // The only displayMessage call is the opening "BATTLE START" banner,
         // which runs before the first planning phase flips executionUiActive.
         // Blocking there would stall the battle thread behind a blank screen
