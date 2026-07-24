@@ -148,6 +148,9 @@ public final class PixelSkin {
         Drawable selectionRow = patch("sel-row", new Color(SELECTION.r, SELECTION.g, SELECTION.b, 0.35f));
         Drawable sliderH      = patch("slider-bg-h",SLIDER_BG);
         Drawable sliderKnobH  = patch("slider-knob",SLIDER_KNOB);
+        // Keep the existing knob art, but make it a tall, narrow marker that
+        // extends above and below the track for an easier grab target.
+        sliderKnobH.setMinSize(8f, 30f);
         Drawable checkboxOn   = flat("chk-on",      11, PRIMARY, PRIMARY_BORDER);
         Drawable checkboxOff  = flat("chk-off",     11, PAPER, INK);
         // Light-grey "locked-on" checkbox — signals a tag that's selected by

@@ -1,5 +1,7 @@
 package com.jjktbf.model.move;
 
+import java.util.Set;
+
 /**
  * All possible tags a move can carry.
  *
@@ -80,6 +82,28 @@ public enum MoveTag {
     DEFENSIVE,
 
     /**
+     * Melee range modifier — marks an attack as a close-quarters strike. Only
+     * meaningful on {@link #ATTACK} moves: defensive and utility moves ignore it.
+     *
+     * A modifier tag like {@link #ATTACK} and {@link #STUN}: it does not affect
+     * the Power formula, is not part of any {@link MoveCategory}'s tag set, and
+     * does not change Black Flash eligibility. It is NOT backed by a dedicated
+     * flag on {@link Move} — it lives purely in the tag set.
+     */
+    MELEE,
+
+    /**
+     * Ranged range modifier — marks an attack as a distance strike (projectile,
+     * beam, thrown weapon, etc.). Only meaningful on {@link #ATTACK} moves.
+     *
+     * A modifier tag like {@link #ATTACK} and {@link #MELEE}: it does not affect
+     * the Power formula, is not part of any {@link MoveCategory}'s tag set, and
+     * does not change Black Flash eligibility. It is NOT backed by a dedicated
+     * flag on {@link Move} — it lives purely in the tag set.
+     */
+    RANGED,
+
+    /**
      * Stun modifier — on a successful hit, the defender's action segment(s) on the
      * current tick are stunned (removed from the timeline and prevented from firing).
      *
@@ -119,5 +143,16 @@ public enum MoveTag {
      * {@link com.jjktbf.model.move.Move} (see {@link Move#isHeavy()}), not derived
      * from the category.
      */
-    HEAVY
+    HEAVY;
+
+    // -------------------------------------------------------------------------
+    // Canonical groupings
+    // -------------------------------------------------------------------------
+
+    /** Damage-nature tags that select the Power formula / MoveCategory. */
+    public static final Set<MoveTag> TYPE_TAGS = Set.of(
+        PHYSICAL, CURSED_ENERGY, INNATE_TECHNIQUE, NON_INNATE_TECHNIQUE);
+
+    /** Range tags — only meaningful on ATTACK moves. */
+    public static final Set<MoveTag> RANGE_TAGS = Set.of(MELEE, RANGED);
 }

@@ -977,7 +977,10 @@ public class BattleScreen implements Screen, BattleView {
                 // guarantees the queue is non-empty when we wait.
                 applyLocalHpEvent(ev);
                 queueLogLine(msg);
-                postLocal(this::updatePanels);
+                postLocal(() -> {
+                    flashLocalDamageSprite(ev);
+                    updatePanels();
+                });
                 // Round-start ability events fire before the first planning
                 // phase flips executionUiActive; gating there would stall the
                 // battle thread behind a blank screen. The lines still type
@@ -1403,11 +1406,13 @@ public class BattleScreen implements Screen, BattleView {
 
     private void applyPlaybackEvent(BattleEventState event) {
         Integer value = event.value();
-        if (value != null && event.type() == BattleEventType.DAMAGE_DEALT) {
+        if (value != null && value > 0 && event.type() == BattleEventType.DAMAGE_DEALT) {
             if (event.targetSide() == multiplayerSetup.playerSide()) {
                 onlinePlayerHp = Math.max(0, onlinePlayerHp - value);
+                flashDamageSprite(true);
             } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
                 onlineEnemyHp = Math.max(0, onlineEnemyHp - value);
+                flashDamageSprite(false);
             }
         } else if (value != null && event.type() == BattleEventType.HP_RESTORED) {
             // The server reports the already-capped amount. A following max-HP
@@ -1904,6 +1909,21 @@ public class BattleScreen implements Screen, BattleView {
             default:
                 break;
         }
+    }
+
+    /** Called on the render thread alongside the matching local HP-bar update. */
+    private void flashLocalDamageSprite(CombatEvent event) {
+        if (event.getType() != CombatEvent.Type.DAMAGE_DEALT || event.getIntValue() <= 0) return;
+        if (event.getTarget() == renderPlayer) {
+            flashDamageSprite(true);
+        } else if (event.getTarget() == renderEnemy) {
+            flashDamageSprite(false);
+        }
+    }
+
+    private void flashDamageSprite(boolean playerTarget) {
+        CombatantPanel panel = playerTarget ? playerPanel : enemyPanel;
+        if (panel != null) panel.flashDamage();
     }
 
     private void updatePanels() {

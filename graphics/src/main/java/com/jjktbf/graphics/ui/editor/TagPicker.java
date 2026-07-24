@@ -3,38 +3,55 @@ package com.jjktbf.graphics.ui.editor;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.jjktbf.model.move.MoveTag;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
 /**
- * A grid of toggle checkboxes for {@link MoveTag}s.
+ * A grid of toggle checkboxes for {@link MoveTag}s, grouped into ordered sections.
  *
  * Tags are the canonical representation of a move's nature. Every toggle fires
  * {@code onChange} with the current tag set so the caller can refresh dependent
  * UI (e.g. show/hide the base-power field).
  *
- * Coupling rule enforced in the UI: whenever INNATE_TECHNIQUE or
- * NON_INNATE_TECHNIQUE is selected, CURSED_ENERGY is force-selected and LOCKED.
- * While locked the CE checkbox:
- *   1. shows a light-grey fill (visually distinct from a manual tick),
- *   2. becomes unclickable (its state can't be changed by the user), and
- *   3. loses hover-highlight (it's not interactive).
- * All three effects revert the instant neither technique tag is selected, and
- * CE then behaves exactly like any other tag (manual toggle + hover highlight).
+ * <p>Tags are rendered in four ordered sections, matching how the editor reasons
+ * about a move:
+ * <ol>
+ *   <li><b>CATEGORY</b> — Attack, Defensive, Utility</li>
+ *   <li><b>TYPE</b> — Physical, Cursed Energy, Innate Technique,
+ *       Non-Innate Technique</li>
+ *   <li><b>RANGE</b> — Melee, Ranged (attack subcategories only)</li>
+ *   <li><b>TAGS</b> — Stun, Guard Break, Heavy</li>
+ * </ol>
+ *
+ * <p>Two coupling rules are enforced in the UI:
+ * <ul>
+ *   <li>Whenever INNATE_TECHNIQUE or NON_INNATE_TECHNIQUE is selected,
+ *       CURSED_ENERGY is force-selected and LOCKED (grey fill, unclickable,
+ *       no hover highlight).</li>
+ *   <li>MELEE and RANGED are LOCKED OFF (greyed out + unclickable) unless
+ *       ATTACK is selected, because range is an attack subcategory.</li>
+ * </ul>
+ * Both revert the instant their gating condition no longer holds.
  */
 public class TagPicker extends Table {
 
     /** Tags that, if any is selected, force CURSED_ENERGY on and lock it. */
     private static final Set<MoveTag> TECHNIQUE_TAGS = Set.of(
         MoveTag.INNATE_TECHNIQUE, MoveTag.NON_INNATE_TECHNIQUE);
+
+    /** Ordered tag sections, rendered top-to-bottom with a sub-label each. */
+    private static final Map<String, List<MoveTag>> SECTIONS = sectionOrder();
 
     private final Set<MoveTag> selected = new LinkedHashSet<>();
     private final Consumer<Set<MoveTag>> onChange;
@@ -43,9 +60,11 @@ public class TagPicker extends Table {
     /** Per-tag checkbox, so the lock logic can toggle individual ones. */
     private final Map<MoveTag, CheckBox> checkboxes = new java.util.EnumMap<>(MoveTag.class);
 
-    /** Snapshot of the normal checkbox drawables, to restore after unlocking. */
-    private Drawable ceNormalOn;
-    private Drawable ceNormalOff;
+    /**
+     * Snapshot of each lockable tag's normal checkbox drawables, to restore
+     * after unlocking. Populated lazily for tags that get a cloned style.
+     */
+    private final Map<MoveTag, Drawable[]> normalDrawables = new LinkedHashMap<>();
 
     public TagPicker(Set<MoveTag> initial, Consumer<Set<MoveTag>> onChange, Skin skin) {
         super(skin);
@@ -57,39 +76,54 @@ public class TagPicker extends Table {
         defaults().pad(4);
 
         int perRow = 3;
-        int col = 0;
-        for (MoveTag tag : MoveTag.values()) {
-            CheckBox cb = new CheckBox(pretty(tag.name()), skin);
-            cb.setChecked(selected.contains(tag));
-            checkboxes.put(tag, cb);
-            cb.addListener(new ChangeListener() {
-                @Override public void changed(ChangeEvent event, Actor actor) {
-                    if (cb.isChecked()) selected.add(tag);
-                    else                selected.remove(tag);
-                    enforceCoupling();
-                    applyLocks();
-                    if (onChange != null) onChange.accept(new LinkedHashSet<>(selected));
-                }
-            });
-            add(cb).left();
-            if (++col >= perRow) { row(); col = 0; }
-        }
-        if (col != 0) row();
+        for (Map.Entry<String, List<MoveTag>> section : SECTIONS.entrySet()) {
+            // Section sub-label, matching the small-caps style used elsewhere.
+            Label heading = new Label(section.getKey(), skin, "small");
+            heading.setColor(skin.get("text-dim", Color.class));
+            add(heading).left().padTop(6f).row();
 
-        // The CE checkbox needs its OWN style instance so swapping drawables to
-        // show the locked state doesn't affect every other checkbox in the skin.
-        // Clone the default CheckBox style and attach it to CE only.
-        CheckBox ce = checkboxes.get(MoveTag.CURSED_ENERGY);
-        if (ce != null) {
-            CheckBox.CheckBoxStyle ceStyle = new CheckBox.CheckBoxStyle(ce.getStyle());
-            ce.setStyle(ceStyle);
-            ceNormalOn  = ceStyle.checkboxOn;
-            ceNormalOff = ceStyle.checkboxOff;
+            int col = 0;
+            for (MoveTag tag : section.getValue()) {
+                CheckBox cb = new CheckBox(pretty(tag.name()), skin);
+                cb.setChecked(selected.contains(tag));
+                checkboxes.put(tag, cb);
+                cb.addListener(new ChangeListener() {
+                    @Override public void changed(ChangeEvent event, Actor actor) {
+                        if (cb.isChecked()) selected.add(tag);
+                        else                selected.remove(tag);
+                        enforceCoupling();
+                        enforceRangeRule();
+                        applyLocks();
+                        if (onChange != null) onChange.accept(new LinkedHashSet<>(selected));
+                    }
+                });
+                add(cb).left();
+                if (++col >= perRow) { row(); col = 0; }
+            }
+            if (col != 0) row();
         }
 
-        // Apply the coupling rule to the initial selection, then the locks.
+        // Lockable checkboxes (CE, MELEE, RANGED) each need their OWN style
+        // instance so swapping drawables to show a locked state doesn't affect
+        // every other checkbox sharing the skin style. Clone the default style
+        // and attach it to each lockable tag only.
+        cloneStyleFor(MoveTag.CURSED_ENERGY);
+        cloneStyleFor(MoveTag.MELEE);
+        cloneStyleFor(MoveTag.RANGED);
+
+        // Apply the coupling rules to the initial selection, then the locks.
         enforceCoupling();
+        enforceRangeRule();
         applyLocks();
+    }
+
+    /** Clone the default CheckBox style onto one tag and snapshot its drawables. */
+    private void cloneStyleFor(MoveTag tag) {
+        CheckBox cb = checkboxes.get(tag);
+        if (cb == null) return;
+        CheckBox.CheckBoxStyle style = new CheckBox.CheckBoxStyle(cb.getStyle());
+        cb.setStyle(style);
+        normalDrawables.put(tag, new Drawable[] { style.checkboxOn, style.checkboxOff });
     }
 
     /**
@@ -104,25 +138,48 @@ public class TagPicker extends Table {
     }
 
     /**
-     * Toggle the locked state of the CURSED_ENERGY checkbox.
+     * Range tags are an attack subcategory, so they are meaningless on
+     * defensive/utility moves. Strip them whenever ATTACK is not selected.
+     */
+    private void enforceRangeRule() {
+        if (!selected.contains(MoveTag.ATTACK)) {
+            selected.remove(MoveTag.MELEE);
+            selected.remove(MoveTag.RANGED);
+        }
+    }
+
+    /**
+     * Toggle the locked state of the coupling-driven checkboxes.
      *
-     * Locked  : light-grey fill, disabled (unclickable), no hover highlight,
-     *           grey text, and force-checked so it can't drift from the
-     *           enforced state.
-     * Unlocked: normal drawables, enabled, navy text + yellow hover — behaves
-     *           like every other tag.
-     *
-     * Everything is driven through the cloned CheckBoxStyle's colour fields
-     * (fontColor / overFontColor / disabledFontColor). We deliberately do NOT
-     * touch the label actor's own colour, because that hard override would mask
-     * the hover highlight.
+     * <p>Two lock flavours, both driven through the cloned CheckBoxStyle's
+     * colour fields (fontColor / overFontColor / disabledFontColor). We
+     * deliberately do NOT touch the label actor's own colour, because that hard
+     * override would mask the hover highlight.
+     * <ul>
+     *   <li>CE: <b>locked ON</b> when a technique tag is selected — light-grey
+     *       fill, disabled (unclickable), no hover highlight, force-checked so
+     *       it can't drift from the enforced state.</li>
+     *   <li>Melee/Ranged: <b>locked OFF</b> unless ATTACK is selected — greyed
+     *       text, disabled (unclickable), force-unchecked. Range is an attack
+     *       subcategory, so it is unavailable for defensive/utility moves.</li>
+     * </ul>
+     * Unlocked tags behave like every other tag (normal drawables, enabled,
+     * navy text + yellow hover).
      */
     private void applyLocks() {
-        boolean locked = selected.stream().anyMatch(TECHNIQUE_TAGS::contains);
-        CheckBox ce = checkboxes.get(MoveTag.CURSED_ENERGY);
-        if (ce == null) return;
+        boolean attackSelected = selected.contains(MoveTag.ATTACK);
+        applyLockOn(MoveTag.CURSED_ENERGY,
+            selected.stream().anyMatch(TECHNIQUE_TAGS::contains));
+        applyLockOff(MoveTag.MELEE, !attackSelected);
+        applyLockOff(MoveTag.RANGED, !attackSelected);
+    }
 
-        CheckBox.CheckBoxStyle style = ce.getStyle();
+    /** Lock a checkbox ON (forced checked, unclickable, grey fill + text). */
+    private void applyLockOn(MoveTag tag, boolean locked) {
+        CheckBox cb = checkboxes.get(tag);
+        if (cb == null) return;
+        CheckBox.CheckBoxStyle style = cb.getStyle();
+        Drawable[] normal = normalDrawables.get(tag);
         Color normalColor = skin.get("text-dark", Color.class);
         Color hoverColor  = skin.get("text-hover", Color.class);
         Color lockedColor = skin.get("text-dim", Color.class);
@@ -138,27 +195,72 @@ public class TagPicker extends Table {
             style.checkboxOnDisabled   = lockedDrawable;
             style.checkboxOffDisabled  = lockedDrawable;
             style.fontColor        = lockedColor;
-            style.overFontColor    = lockedColor;   // no hover highlight when locked
+            style.overFontColor    = lockedColor;
             style.disabledFontColor= lockedColor;
-            ce.setDisabled(true);
-            ce.setChecked(true);
-        } else {
+            cb.setDisabled(true);
+            cb.setChecked(true);
+        } else if (normal != null) {
             // Restore normal behaviour: navy text, yellow hover.
-            style.checkboxOn           = ceNormalOn;
-            style.checkboxOff          = ceNormalOff;
-            style.checkboxOnOver       = ceNormalOn;
-            style.checkboxOver         = ceNormalOff;
-            style.checkboxOnDisabled   = ceNormalOn;
-            style.checkboxOffDisabled  = ceNormalOff;
+            style.checkboxOn           = normal[0];
+            style.checkboxOff          = normal[1];
+            style.checkboxOnOver       = normal[0];
+            style.checkboxOver         = normal[1];
+            style.checkboxOnDisabled   = normal[0];
+            style.checkboxOffDisabled  = normal[1];
             style.fontColor        = normalColor;
             style.overFontColor    = hoverColor;
             style.disabledFontColor= normalColor;
-            ce.setDisabled(false);
+            cb.setDisabled(false);
+        }
+    }
+
+    /** Lock a checkbox OFF (forced unchecked, unclickable, grey text). */
+    private void applyLockOff(MoveTag tag, boolean locked) {
+        CheckBox cb = checkboxes.get(tag);
+        if (cb == null) return;
+        CheckBox.CheckBoxStyle style = cb.getStyle();
+        Drawable[] normal = normalDrawables.get(tag);
+        Color normalColor = skin.get("text-dark", Color.class);
+        Color hoverColor  = skin.get("text-hover", Color.class);
+        Color lockedColor = skin.get("text-dim", Color.class);
+
+        if (locked) {
+            // Grey text + disable input; leave the (off) drawables alone so the
+            // empty checkbox just reads as a disabled control.
+            style.fontColor        = lockedColor;
+            style.overFontColor    = lockedColor;   // no hover highlight when locked
+            style.disabledFontColor= lockedColor;
+            cb.setDisabled(true);
+            cb.setChecked(false);
+        } else if (normal != null) {
+            // Restore normal behaviour: navy text, yellow hover.
+            style.checkboxOn           = normal[0];
+            style.checkboxOff          = normal[1];
+            style.checkboxOnOver       = normal[0];
+            style.checkboxOver         = normal[1];
+            style.checkboxOnDisabled   = normal[0];
+            style.checkboxOffDisabled  = normal[1];
+            style.fontColor        = normalColor;
+            style.overFontColor    = hoverColor;
+            style.disabledFontColor= normalColor;
+            cb.setDisabled(false);
         }
     }
 
     public Set<MoveTag> getSelected() {
         return new LinkedHashSet<>(selected);
+    }
+
+    /** The ordered tag sections rendered top-to-bottom. */
+    private static Map<String, List<MoveTag>> sectionOrder() {
+        Map<String, List<MoveTag>> sections = new LinkedHashMap<>();
+        sections.put("CATEGORY", List.of(MoveTag.ATTACK, MoveTag.DEFENSIVE, MoveTag.UTILITY));
+        sections.put("TYPE", List.of(
+            MoveTag.PHYSICAL, MoveTag.CURSED_ENERGY,
+            MoveTag.INNATE_TECHNIQUE, MoveTag.NON_INNATE_TECHNIQUE));
+        sections.put("RANGE", List.of(MoveTag.MELEE, MoveTag.RANGED));
+        sections.put("TAGS", List.of(MoveTag.STUN, MoveTag.GUARD_BREAK, MoveTag.HEAVY));
+        return sections;
     }
 
     private static String pretty(String enumName) {

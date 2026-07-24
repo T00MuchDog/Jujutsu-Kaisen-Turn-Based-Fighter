@@ -294,22 +294,63 @@ public class Move {
     }
 
     /**
+     * Whether this move carries the {@link MoveTag#MELEE} range subcategory.
+     *
+     * <p>Range (melee/ranged) is a first-class, queryable property of a move —
+     * an attack subcategory orthogonal to {@link MoveCategory}. Defensive moves
+     * like deflections, abilities, and other systems query this to react to the
+     * incoming attack's range, exactly like they query the damage category. It
+     * is derived from the raw tag set (never stored as a redundant flag), so the
+     * tag set remains the single source of truth.
+     */
+    public boolean isMelee() {
+        return tags.contains(MoveTag.MELEE);
+    }
+
+    /**
+     * Whether this move carries the {@link MoveTag#RANGED} range subcategory.
+     * See {@link #isMelee()} — RANGED is the complementary range subcategory.
+     */
+    public boolean isRanged() {
+        return tags.contains(MoveTag.RANGED);
+    }
+
+    /**
      * Block-tag coverage check.
      *
      * <p>A block with {@code blockAffectedTags} fires against this incoming move
-     * iff the block <b>covers every damage tag the attack actually uses</b> —
-     * i.e. this move's {@link MoveCategory#getTags() category tags} are a
-     * <em>subset</em> of {@code blockTags}.
+     * iff it covers every dimension the attack actually uses. There are two
+     * orthogonal dimensions:
      *
-     * <p>Why subset direction: a block declares the full set of damage types it
-     * can stop. An attack slips through if it uses even one tag the block does
-     * not cover.
+     * <ul>
+     *   <li><b>Damage dimension</b> — enforced iff the block declares at least
+     *       one damage-nature tag ({@link MoveTag#TYPE_TAGS}). The block must
+     *       <em>cover every damage tag the attack uses</em> — i.e. this move's
+     *       {@link MoveCategory#getTags() category tags} are a <em>subset</em>
+     *       of the block's declared damage tags. A block that declares only
+     *       range tags (or none at all) imposes <b>no</b> damage-type
+     *       restriction and stops attacks of any damage nature.</li>
+     *   <li><b>Range dimension</b> — enforced iff the block declares at least
+     *       one range tag ({@link MoveTag#RANGE_TAGS}). The incoming attack
+     *       must carry every range tag the block names — i.e. a {@code [MELEE]}
+     *       block requires {@link #isMelee()} on the attack. Range is queried
+     *       through the {@link #isMelee()} / {@link #isRanged()} accessors
+     *       because it is a first-class move subcategory, not a tag-poke.</li>
+     * </ul>
+     *
+     * <p>Damage subset direction (unchanged): a block declares the full set of
+     * damage types it can stop; an attack slips through if it uses even one tag
+     * the block does not cover.
      * <ul>
      *   <li>Block = {@code [PHYSICAL]} vs attack {@code PHYSICAL+CURSED_ENERGY}
      *       → not covered (CE slips through).</li>
      *   <li>Block = {@code [PHYSICAL, CURSED_ENERGY]} vs a pure {@code PHYSICAL}
      *       attack → covered (the block's coverage is a superset of the attack).</li>
      * </ul>
+     *
+     * <p>Range-only example: a {@code [MELEE]} deflection block stops any
+     * melee attack (physical, cursed energy, or technique) but lets a
+     * {@code RANGED} attack — or an untagged attack — straight through.
      *
      * @param blockTags  the block's affected-tags list (null/empty = covers all)
      * @return true if this attack is fully covered by the block's tag set
@@ -320,7 +361,26 @@ public class Move {
         java.util.Set<String> covered = new java.util.HashSet<>();
         for (String t : blockTags) covered.add(t.trim().toUpperCase());
 
-        // Only the move's category (damage-type) tags matter for coverage.
+        // Range dimension (only present on attacks; range is a first-class
+        // move subcategory, queried via isMelee()/isRanged() rather than read
+        // out of any MoveCategory). The block must name every range tag it
+        // cares about AND the attack must satisfy each via its accessor.
+        if (covered.contains(MoveTag.MELEE.name()) && !isMelee()) return false;
+        if (covered.contains(MoveTag.RANGED.name()) && !isRanged()) return false;
+
+        // Damage dimension — enforced only when the block actually declares a
+        // damage-nature tag. A range-only block (e.g. a [MELEE] deflection)
+        // declares no damage tag, so it skips this check entirely and stops
+        // attacks of any damage nature that satisfy the range dimension above.
+        boolean blockDeclaresDamageTag = false;
+        for (MoveTag typeTag : MoveTag.TYPE_TAGS) {
+            if (covered.contains(typeTag.name())) {
+                blockDeclaresDamageTag = true;
+                break;
+            }
+        }
+        if (!blockDeclaresDamageTag) return true;
+
         for (MoveTag attackTag : category.getTags()) {
             if (!covered.contains(attackTag.name())) return false;
         }

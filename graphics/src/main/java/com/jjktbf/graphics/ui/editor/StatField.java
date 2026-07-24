@@ -39,6 +39,7 @@ public class StatField extends Table {
     private final TextField valueField;
     private final Slider slider;
     private final IntConsumer onChange;
+    private final Runnable onEdited;
     private boolean suppress = false;
 
     /**
@@ -47,16 +48,18 @@ public class StatField extends Table {
      * @param min      minimum allowed value (left slider label)
      * @param max      maximum allowed value (right slider label)
      * @param onChange fires on every value change with the clamped int
+     * @param onEdited fires when the user changes the slider or types in the field
      * @param disabled when true the field+slider are read-only (e.g. CTM with no technique)
      */
     public StatField(String name, int initial, int min, int max,
-                     IntConsumer onChange, boolean disabled, Skin skin) {
+                     IntConsumer onChange, Runnable onEdited, boolean disabled, Skin skin) {
         super(skin);
         this.skin     = skin;
         this.name     = name;
         this.min      = min;
         this.max      = max;
         this.onChange = onChange;
+        this.onEdited = onEdited;
 
         // Fixed minimum label width keeps every slider's left edge aligned when
         // several StatFields stack vertically in the stats section.
@@ -95,9 +98,23 @@ public class StatField extends Table {
     }
 
     private void wire() {
+        slider.addListener(new InputListener() {
+            @Override public boolean touchDown(
+                InputEvent event, float x, float y, int pointer, int button
+            ) {
+                if (!slider.isDisabled()) {
+                    // Keep the enclosing detail ScrollPane from cancelling this
+                    // touch focus when the drag includes vertical movement.
+                    event.stop();
+                }
+                return false;
+            }
+        });
+
         slider.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
                 if (suppress) return;
+                onEdited.run();
                 int v = (int) slider.getValue();
                 valueField.setText(String.valueOf(v));
                 onChange.accept(v);
@@ -111,6 +128,11 @@ public class StatField extends Table {
                     commit();
                     return true;
                 }
+                return false;
+            }
+
+            @Override public boolean keyTyped(InputEvent event, char character) {
+                if (!suppress) onEdited.run();
                 return false;
             }
         });
@@ -161,6 +183,22 @@ public class StatField extends Table {
     public void setEditable(boolean editable) {
         slider.setDisabled(!editable);
         valueField.setDisabled(!editable);
+    }
+
+    /** Adjust the stat by whole slider ticks when it is editable. */
+    public boolean adjustBy(int ticks) {
+        if (slider.isDisabled()) return false;
+        slider.setValue((int) slider.getValue() + ticks);
+        return true;
+    }
+
+    /** Commit an in-progress numeric edit before applying another control. */
+    public void commitTextValue() {
+        commit();
+    }
+
+    public boolean isTextEditorFocused(Actor actor) {
+        return valueField == actor;
     }
 
     public int getMin() { return min; }

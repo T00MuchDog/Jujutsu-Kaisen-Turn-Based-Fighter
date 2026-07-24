@@ -1,6 +1,9 @@
 package com.jjktbf.graphics.screens.editors;
 
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
@@ -71,6 +74,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private static final int BASELINE = 80;
     private static final int POINT_BUDGET_WITH_TECHNIQUE    = 1000;
     private static final int POINT_BUDGET_WITHOUT_TECHNIQUE = 1080;
+    private static final float STAT_KEY_REPEAT_DELAY = 0.25f;
+    private static final float STAT_KEY_REPEAT_INTERVAL = 0.04f;
 
     private final CharacterRepository  charRepo;
     private final MoveRepository       moveRepo;
@@ -86,6 +91,9 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private CheckBox pointBuyToggle;
     private Label baseStatTotalLabel;
     private Label budgetLabel;
+    private int lastEditedStatIndex = -1;
+    private int heldStatKey = -1;
+    private float statKeyRepeatTimer;
 
     public CharacterEditorScreen(JJKGame game, AssetLoader assets) {
         super(game, assets);
@@ -93,6 +101,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         moveRepo    = new MoveRepository("data/moves");
         abilityRepo = new AbilityRepository("data/abilities");
         techniqueRepo = new TechniqueRepository("data/techniques");
+        wireStatKeyInput();
     }
 
     // =========================================================================
@@ -100,6 +109,38 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     // =========================================================================
 
     @Override protected String title() { return "CHARACTER EDITOR"; }
+
+    @Override
+    public void render(float delta) {
+        repeatHeldStatKey(delta);
+        super.render(delta);
+    }
+
+    private void wireStatKeyInput() {
+        stage.addCaptureListener(new InputListener() {
+            @Override public boolean keyDown(InputEvent event, int keycode) {
+                if (keycode != Input.Keys.LEFT && keycode != Input.Keys.RIGHT) return false;
+                if (keycode == heldStatKey) {
+                    event.cancel();
+                    return true;
+                }
+                int direction = keycode == Input.Keys.LEFT ? -1 : 1;
+                if (!adjustLastEditedStat(direction, true)) return false;
+                heldStatKey = keycode;
+                statKeyRepeatTimer = STAT_KEY_REPEAT_DELAY;
+                event.cancel();
+                return true;
+            }
+
+            @Override public boolean keyUp(InputEvent event, int keycode) {
+                if (keycode != heldStatKey) return false;
+                heldStatKey = -1;
+                statKeyRepeatTimer = 0f;
+                event.cancel();
+                return true;
+            }
+        });
+    }
 
     @Override protected CharacterData newDraft() {
         CharacterData cd = new CharacterData();
@@ -259,6 +300,9 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
     @Override
     protected Actor buildDetailForm(CharacterData cd) {
+        lastEditedStatIndex = -1;
+        heldStatKey = -1;
+        statKeyRepeatTimer = 0f;
         Table form = formRoot();
 
         // ── Identity ───────────────────────────────────────────────────────────
@@ -325,10 +369,12 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         boolean hasTechnique = cd.innateTechniqueName != null;
         for (int i = 0; i < STAT_ORDER.length; i++) {
             StatKey sk = STAT_ORDER[i];
+            int statIndex = i;
             int val = sk.get(cd);
             boolean locked = (sk == StatKey.CURSED_TECHNIQUE_MASTERY && !hasTechnique);
             int fieldMinimum = sk == StatKey.CURSED_TECHNIQUE_MASTERY ? 0 : STAT_MIN;
             StatField sf = new StatField(sk.label, val, fieldMinimum, STAT_MAX, v -> {
+                lastEditedStatIndex = statIndex;
                 sk.set(cd, v);
                 pruneLockedTechniqueSelections(cd);
                 refreshBaseStatTotalLabel(cd);
@@ -338,7 +384,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 rebuildMoveAssignment(cd);
                 rebuildSkillTree(cd);
                 markDirty();
-            }, locked, skin);
+            }, () -> lastEditedStatIndex = statIndex, locked, skin);
             statFields[i] = sf;
             stats.add(sf).growX().row();
         }
@@ -369,6 +415,29 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         rebuildSkillTree(cd);
 
         return form;
+    }
+
+    private boolean adjustLastEditedStat(int direction, boolean commitFocusedText) {
+        if (statFields == null || lastEditedStatIndex < 0
+            || lastEditedStatIndex >= statFields.length) return false;
+        StatField field = statFields[lastEditedStatIndex];
+        if (commitFocusedText && field.isTextEditorFocused(stage.getKeyboardFocus())) {
+            field.commitTextValue();
+        }
+        return field.adjustBy(direction);
+    }
+
+    private void repeatHeldStatKey(float delta) {
+        if (heldStatKey == -1) return;
+        statKeyRepeatTimer -= delta;
+        while (statKeyRepeatTimer <= 0f) {
+            int direction = heldStatKey == Input.Keys.LEFT ? -1 : 1;
+            if (!adjustLastEditedStat(direction, false)) {
+                heldStatKey = -1;
+                return;
+            }
+            statKeyRepeatTimer += STAT_KEY_REPEAT_INTERVAL;
+        }
     }
 
     // =========================================================================

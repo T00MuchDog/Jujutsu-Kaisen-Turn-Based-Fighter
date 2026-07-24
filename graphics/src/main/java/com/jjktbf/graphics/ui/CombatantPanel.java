@@ -12,6 +12,9 @@ import com.jjktbf.model.combat.BattleCombatant;
 /** Pokemon-style field sprite and separate resource card for one combatant. */
 public class CombatantPanel {
 
+    private static final float DAMAGE_FLASH_DURATION_SECONDS = 0.72f;
+    private static final float DAMAGE_FLASH_INTERVAL_SECONDS = 0.12f;
+
     private final GlyphLayout nameLayout = new GlyphLayout();
 
     private final Texture sprite;
@@ -24,6 +27,7 @@ public class CombatantPanel {
     private final Rectangle hudBounds;
     private final float hpBarTop;
     private final float hudScale;
+    private float damageFlashRemaining;
 
     /**
      * The plate and sprite occupy the battlefield while the HUD is positioned on
@@ -69,12 +73,23 @@ public class CombatantPanel {
         ceBar.setValues(currentCe, maxCe);
     }
 
+    /** Starts the rapid visible/invisible flicker used when this combatant takes damage. */
+    public void flashDamage() {
+        damageFlashRemaining = DAMAGE_FLASH_DURATION_SECONDS;
+    }
+
     public void draw(Batch batch, BitmapFont nameFont, BitmapFont barFont, String name, float delta) {
         batch.setColor(Color.WHITE);
         if (basePlate != null) {
             batch.draw(basePlate, plateBounds.x, plateBounds.y, plateBounds.width, plateBounds.height);
         }
-        batch.draw(sprite, spriteBounds.x, spriteBounds.y, spriteBounds.width, spriteBounds.height);
+        boolean spriteVisible = damageFlashRemaining <= 0f
+            || (int) ((DAMAGE_FLASH_DURATION_SECONDS - damageFlashRemaining)
+                / DAMAGE_FLASH_INTERVAL_SECONDS) % 2 != 0;
+        if (spriteVisible) {
+            batch.draw(sprite, spriteBounds.x, spriteBounds.y, spriteBounds.width, spriteBounds.height);
+        }
+        damageFlashRemaining = Math.max(0f, damageFlashRemaining - Math.max(0f, delta));
 
         // Offset dark frame creates the hard lower-right shadow used by the reference HUD.
         ui.palette.draw(batch, hudBounds.x + 7f * hudScale, hudBounds.y - 7f * hudScale,
