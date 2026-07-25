@@ -68,4 +68,23 @@
   "moveIds" : [ "000000", "000001", "000014", "000023" ],
   "abilityIds" : [ "000001", "000002", "000003" ],
   "availableAbilityIds" : [ "000001", "000003", "000002" ]
+}, {
+  "id" : "000004",
+  "name" : "Shigechi Urata",
+  "description" : "",
+  "spriteAsset" : "assets/sprites/characters/megumi_frontsprite.png",
+  "innateTechniqueName" : "Ratio",
+  "vitality" : 40,
+  "strength" : 50,
+  "durability" : 32,
+  "speed" : 38,
+  "cursedEnergyReserves" : 70,
+  "cursedEnergyEfficiency" : 50,
+  "cursedEnergyOutput" : 40,
+  "jujutsuSkill" : 40,
+  "combatAbility" : 65,
+  "cursedTechniqueMastery" : 50,
+  "moveIds" : [ "000026", "000025", "000000", "000001" ],
+  "abilityIds" : [ "000004" ],
+  "availableAbilityIds" : [ "000004" ]
 } ]

@@ -207,7 +207,8 @@ public class StatVerificationTest {
 
         assertTrue(movesById.get("000000").isFreeMove());
         assertTrue(movesById.get("000001").isFreeMove());
-        assertEquals(List.of("Ren Kurogane", "Mina Ishikawa", "Sora Aizawa", "Haruta Shigemo"),
+        assertEquals(List.of("Ren Kurogane", "Mina Ishikawa", "Sora Aizawa", "Haruta Shigemo",
+            "Shigechi Urata"),
             characters.stream().map(character -> character.name).toList());
 
         CharacterData haruta = characters.stream()
@@ -218,6 +219,15 @@ public class StatVerificationTest {
         assertEquals(15, haruta.cursedTechniqueMastery);
         assertEquals(List.of("000001", "000002", "000003"), haruta.abilityIds);
         assertEquals(List.of("000001", "000003", "000002"), haruta.availableAbilityIds);
+
+        CharacterData shigechi = characters.stream()
+            .filter(character -> "Shigechi Urata".equals(character.name))
+            .findFirst()
+            .orElseThrow();
+        assertEquals("Ratio", shigechi.innateTechniqueName);
+        assertEquals(List.of("000026", "000025", "000000", "000001"), shigechi.moveIds);
+        assertEquals(List.of("000004"), shigechi.abilityIds);
+        assertEquals(List.of("000004"), shigechi.availableAbilityIds);
 
         for (CharacterData character : characters) {
             List<Move> knownMoves = new ArrayList<>();
