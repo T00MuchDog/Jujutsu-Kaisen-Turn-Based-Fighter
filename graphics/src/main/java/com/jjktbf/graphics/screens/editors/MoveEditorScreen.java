@@ -30,7 +30,8 @@ import com.jjktbf.model.character.AbilityRepository;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.CharacterRepository;
 import com.jjktbf.model.character.StatKey;
-import com.jjktbf.model.character.coded.MiraclesAbility;
+import com.jjktbf.model.character.coded.CodedAbilityRegistry;
+import com.jjktbf.model.character.coded.RatioAbility;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.InterruptType;
 import com.jjktbf.model.move.MoveData;
@@ -167,6 +168,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         if (e.isCoded()) {
             c.codedAbilityKey = e.codedAbilityKey;
             c.codedAction     = e.codedAction;
+            c.codedTarget     = e.codedTarget;
+            c.codedStackCount = e.codedStackCount;
             return c;
         }
         StatusEffectType type;
@@ -821,6 +824,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 // confused with a normal status effect.
                 String rowLabel = eff.isCoded()
                     ? "CODED: " + eff.codedAbilityKey + "/" + eff.codedAction
+                        + (eff.codedTarget == null ? "" : " -> " + eff.codedTarget)
+                        + (eff.codedStackCount == null ? "" : " x" + eff.codedStackCount)
                     : statusLabel(eff.type, eff.magnitude)
                         + " | rounds=" + eff.durationRounds
                         + " | ticks=" + eff.durationTicks
@@ -895,11 +900,10 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
         // Allow-listed coded bindings come from the registry; future technique
         // moves extend it and appear here automatically. Each entry is {key, action, label}.
-        final List<String[]> codedOptions = new ArrayList<>();
-        codedOptions.add(new String[]{MiraclesAbility.KEY, MiraclesAbility.CREATE,
-            "Create Miracle"});
+        final List<CodedAbilityRegistry.EffectAction> codedOptions =
+            CodedAbilityRegistry.effectActions();
         final List<String> codedLabels = new ArrayList<>(codedOptions.stream()
-            .map(triple -> triple[2]).toList());
+            .map(CodedAbilityRegistry.EffectAction::label).toList());
 
         // --- The Type row: "Type" label  [toggle]  [dropdown] ---
         final SelectBox<String> typeBox = new DynamicSelectBox<>(skin);
@@ -914,13 +918,16 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 boolean nowCoded = !eff.isCoded();
                 if (nowCoded) {
                     if (eff.codedAbilityKey == null || eff.codedAbilityKey.isBlank()) {
-                        eff.codedAbilityKey = codedOptions.get(0)[0];
-                        eff.codedAction     = codedOptions.get(0)[1];
+                        eff.codedAbilityKey = codedOptions.get(0).key();
+                        eff.codedAction     = codedOptions.get(0).action();
                     }
+                    normalizeCodedSettings(eff);
                     eff.type = null; // a coded row carries no status type
                 } else {
                     eff.codedAbilityKey = null;
                     eff.codedAction = null;
+                    eff.codedTarget = null;
+                    eff.codedStackCount = null;
                     if (eff.type == null) eff.type = StatusEffectType.STRENGTH_INCREASE.name();
                 }
                 applyMode[0].run();
@@ -934,8 +941,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 if (eff.isCoded()) {
                     int idx = codedLabels.indexOf(sel);
                     if (idx >= 0) {
-                        eff.codedAbilityKey = codedOptions.get(idx)[0];
-                        eff.codedAction     = codedOptions.get(idx)[1];
+                        eff.codedAbilityKey = codedOptions.get(idx).key();
+                        eff.codedAction     = codedOptions.get(idx).action();
+                        normalizeCodedSettings(eff);
                     }
                     applyMode[0].run(); // refresh coded-action options below
                 } else {
@@ -991,14 +999,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         statusFields.add(new Label("Amount (+/- flat points)", skin)).padRight(8);
         statusFields.add(magField).growX().row();
 
-        // --- Coded-action customisation. Currently informational, but this is
-        // where per-coded-action options would go (extensible per future binding). ---
-        final Table codedFields = new Table(skin);
-        codedFields.defaults().pad(4).left();
-        codedFields.add(formHint(
-            "Coded action — dispatched to the matching compiled ability at runtime."))
-            .colspan(2).row();
-
         // Swappable containers: only one block shows at a time, depending on mode.
         final Container<Actor> customRow = new Container<>();
         content.add(customRow).growX().row();
@@ -1013,13 +1013,14 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                     typeBox.setItems(codedLabels.toArray(new String[0]));
                     int idx = -1;
                     for (int i = 0; i < codedOptions.size(); i++) {
-                        if (codedOptions.get(i)[0].equalsIgnoreCase(eff.codedAbilityKey)
-                            && codedOptions.get(i)[1].equalsIgnoreCase(eff.codedAction)) {
+                        if (codedOptions.get(i).key().equalsIgnoreCase(eff.codedAbilityKey)
+                            && codedOptions.get(i).action().equalsIgnoreCase(eff.codedAction)) {
                             idx = i; break;
                         }
                     }
                     typeBox.setSelected(idx >= 0 ? codedLabels.get(idx) : codedLabels.get(0));
-                    customRow.setActor(codedFields);
+                    normalizeCodedSettings(eff);
+                    customRow.setActor(buildCodedEffectFields(eff, applyMode[0]));
                 } else {
                     toggleBtn.setText("Coded");
                     typeBox.setItems(statusLabels.toArray(new String[0]));
@@ -1036,6 +1037,71 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         dlg.button("Done", true);
         dlg.button("Cancel", false);
         dlg.show(stage);
+    }
+
+    private Actor buildCodedEffectFields(
+        MoveData.StatusEffectData effect,
+        Runnable refresh
+    ) {
+        Table fields = new Table(skin);
+        fields.defaults().pad(4).left();
+        fields.add(formHint(
+            "Coded action - dispatched to the matching compiled ability at runtime."))
+            .colspan(2).row();
+
+        if (!RatioAbility.KEY.equalsIgnoreCase(effect.codedAbilityKey)) return fields;
+
+        SelectBox<String> targetBox = new DynamicSelectBox<>(skin);
+        String applyLabel = "Apply to this move";
+        String createLabel = "Create Ratio stacks";
+        targetBox.setItems(applyLabel, createLabel);
+        targetBox.setSelected(RatioAbility.CREATE_STACKS.equalsIgnoreCase(effect.codedTarget)
+            ? createLabel : applyLabel);
+        targetBox.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                effect.codedTarget = createLabel.equals(targetBox.getSelected())
+                    ? RatioAbility.CREATE_STACKS : RatioAbility.APPLY_TO_MOVE;
+                effect.codedStackCount = RatioAbility.CREATE_STACKS.equals(effect.codedTarget)
+                    ? effect.codedStackCount == null ? 1 : effect.codedStackCount
+                    : null;
+                refresh.run();
+            }
+        });
+        fields.add(new Label("Targeting", skin)).padRight(8);
+        fields.add(targetBox).growX().row();
+
+        if (RatioAbility.CREATE_STACKS.equalsIgnoreCase(effect.codedTarget)) {
+            TextField countField = new HoverTextField(
+                String.valueOf(effect.codedStackCount == null ? 1 : effect.codedStackCount), skin);
+            countField.setTextFieldFilter((tf, c) -> Character.isDigit(c));
+            countField.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    try { effect.codedStackCount = Integer.parseInt(countField.getText()); }
+                    catch (NumberFormatException ignored) { }
+                }
+            });
+            fields.add(new Label("Stacks to create (1-" + RatioAbility.MAX_STACKS + ")", skin))
+                .padRight(8);
+            fields.add(countField).growX().row();
+        }
+        return fields;
+    }
+
+    private static void normalizeCodedSettings(MoveData.StatusEffectData effect) {
+        if (RatioAbility.KEY.equalsIgnoreCase(effect.codedAbilityKey)) {
+            if (!RatioAbility.APPLY_TO_MOVE.equalsIgnoreCase(effect.codedTarget)
+                && !RatioAbility.CREATE_STACKS.equalsIgnoreCase(effect.codedTarget)) {
+                effect.codedTarget = RatioAbility.APPLY_TO_MOVE;
+            }
+            if (RatioAbility.CREATE_STACKS.equalsIgnoreCase(effect.codedTarget)) {
+                if (effect.codedStackCount == null) effect.codedStackCount = 1;
+            } else {
+                effect.codedStackCount = null;
+            }
+        } else {
+            effect.codedTarget = null;
+            effect.codedStackCount = null;
+        }
     }
 
     // =========================================================================

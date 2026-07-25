@@ -126,6 +126,12 @@ public class MoveData {
         /** Action interpreted by {@link #codedAbilityKey} when this effect fires. */
         public String codedAction;
 
+        /** Action-specific target/mode, such as APPLY_TO_MOVE or CREATE_STACKS. */
+        public String codedTarget;
+
+        /** Number of stacks to create when the coded target supports stacking. */
+        public Integer codedStackCount;
+
         @JsonIgnore
         public boolean isCoded() {
             return codedAbilityKey != null && !codedAbilityKey.isBlank();
@@ -272,7 +278,13 @@ public class MoveData {
             if (d == null) continue;
             // Coded action row — dispatched to a compiled runtime, not applied as a status.
             if (d.isCoded()) {
-                effects.add(StatusEffect.coded(d.codedAbilityKey, d.codedAction));
+                if (!com.jjktbf.model.character.coded.CodedAbilityRegistry.supportsEffect(
+                    d.codedAbilityKey, d.codedAction, d.codedTarget, d.codedStackCount)) {
+                    throw new IllegalArgumentException("Invalid coded effect "
+                        + d.codedAbilityKey + "/" + d.codedAction);
+                }
+                effects.add(StatusEffect.coded(
+                    d.codedAbilityKey, d.codedAction, d.codedTarget, d.codedStackCount));
                 continue;
             }
             if (d.type == null || d.type.isBlank()) continue;
@@ -365,6 +377,8 @@ public class MoveData {
         if (e.isCoded()) {
             sd.codedAbilityKey = e.getCodedAbilityKey();
             sd.codedAction     = e.getCodedAction();
+            sd.codedTarget     = e.getCodedTarget();
+            sd.codedStackCount = e.getCodedStackCount();
             return sd;
         }
         sd.type           = e.getType().name();

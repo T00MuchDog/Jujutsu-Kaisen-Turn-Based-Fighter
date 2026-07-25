@@ -4,6 +4,8 @@ import com.jjktbf.model.combat.AbilityTrigger;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
+import com.jjktbf.model.combat.RandomSource;
+import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.StatusEffect;
 
 import java.util.ArrayList;
@@ -50,6 +52,35 @@ public final class CodedAbilities {
             if (runtime.preventFatalDamage()) return true;
         }
         return false;
+    }
+
+    public CodedHitModifiers onAttackConnected(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move move,
+        int tick,
+        RandomSource rng
+    ) {
+        CodedHitModifiers modifiers = CodedHitModifiers.none();
+        for (CodedAbilityRuntime runtime : runtimes) {
+            modifiers = modifiers.combine(runtime.onAttackConnected(
+                attacker, defender, move, tick, rng));
+        }
+        return modifiers;
+    }
+
+    public List<CombatEvent> tickTimelineEffects(int tick) {
+        List<CombatEvent> events = new ArrayList<>();
+        for (CodedAbilityRuntime runtime : runtimes) {
+            events.addAll(runtime.tickTimelineEffects(tick));
+        }
+        return events;
+    }
+
+    public int getRemainingTimelineEffectTicks() {
+        return runtimes.stream()
+            .mapToInt(CodedAbilityRuntime::getRemainingTimelineEffectTicks)
+            .max().orElse(0);
     }
 
     public List<CombatEvent> drainPendingEvents(int tick) {

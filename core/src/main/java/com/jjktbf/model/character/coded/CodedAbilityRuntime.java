@@ -4,6 +4,7 @@ import com.jjktbf.model.combat.AbilityTrigger;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
+import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.StatusEffect;
 
@@ -36,7 +37,7 @@ public interface CodedAbilityRuntime {
      * @param state     current battle state
      * @param effect    the coded effect row that fired
      * @param attacker  the combatant who unleashed the move
-     * @param defender  the move's target (equals {@code attacker} for self-effects)
+     * @param defender  the move's target, including for coded self-effects
      * @param tick      the AP tick the effect fired on
      */
     default List<CombatEvent> onEffectFired(
@@ -47,6 +48,27 @@ public interface CodedAbilityRuntime {
         int tick
     ) {
         return List.of();
+    }
+
+    /** Supply modifiers after an attacking move connects but before block and defense. */
+    default CodedHitModifiers onAttackConnected(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move move,
+        int tick,
+        RandomSource rng
+    ) {
+        return CodedHitModifiers.none();
+    }
+
+    /** Advance effects measured by the universal AP-tick clock. */
+    default List<CombatEvent> tickTimelineEffects(int tick) {
+        return List.of();
+    }
+
+    /** Longest remaining universal-tick timer owned by this runtime. */
+    default int getRemainingTimelineEffectTicks() {
+        return 0;
     }
 
     boolean preventFatalDamage();

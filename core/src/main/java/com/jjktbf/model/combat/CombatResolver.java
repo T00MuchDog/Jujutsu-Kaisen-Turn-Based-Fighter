@@ -282,6 +282,7 @@ public class CombatResolver {
         try {
             for (BattleCombatant combatant : combatants) {
                 combatant.tickTimelineEffects();
+                events.addAll(combatant.getCodedAbilities().tickTimelineEffects(tick));
                 expiredByCombatant.put(combatant, combatant.drainExpiredStatusEffects());
             }
             // Expiry reactions happen after this tick's boundary; effects they
@@ -517,7 +518,7 @@ public class CombatResolver {
         // defensive, and utility alike). A move that buffs its user when cast
         // (e.g. a CE strike that raises Power) fires the buff here, regardless
         // of whether the attack later hits, misses, or is blocked.
-        applySelfEffects(state, attacker, move, tick, events);
+        applySelfEffects(state, attacker, defender, move, tick, events);
         if (finishBattleIfNeeded(state, events, tick)) return;
 
         // --- Defensive moves: apply buff or register full block ---
@@ -535,6 +536,7 @@ public class CombatResolver {
         DamageCalculator.DamageResult result = DamageCalculator.resolve(
             attacker, defender, move, tick, rng, state.getRoundNumber()
         );
+        events.addAll(result.getCodedEvents());
 
         if (result.isMiss()) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_MISSED)
@@ -559,7 +561,7 @@ public class CombatResolver {
         } else {
             // Hit — check whether a block softened it.
             // GUARD_BREAK moves ignore blocking defensive moves entirely.
-            boolean wasBlocked = !move.isGuardBreak()
+            boolean wasBlocked = !result.bypassedBlock()
                 && defender.getTimeline() != null
                 && defender.getTimeline().activeBlockAt(tick, move) != null;
 
@@ -861,6 +863,7 @@ public class CombatResolver {
     private void applySelfEffects(
         BattleState state,
         BattleCombatant combatant,
+        BattleCombatant defender,
         Move move,
         int tick,
         List<CombatEvent> events
@@ -872,7 +875,7 @@ public class CombatResolver {
             // behaviour is stored on an editable effect row.
             if (effect.isCoded()) {
                 events.addAll(combatant.getCodedAbilities().onEffectFired(
-                    state, effect, combatant, combatant, tick));
+                    state, effect, combatant, defender, tick));
                 continue;
             }
             int previousMaxHp = combatant.getMaxHp();

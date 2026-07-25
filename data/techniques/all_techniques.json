@@ -64,4 +64,64 @@
       "minimum" : 15
     } ]
   } ]
+}, {
+  "id" : "000001",
+  "name" : "Ratio",
+  "description" : "A cursed technique that divides a target into tenths and forces a weak point at the seven-to-three ratio.",
+  "skillTree" : [ {
+    "id" : "node-000000",
+    "contentType" : "MOVE",
+    "contentId" : "000025",
+    "x" : 397.00006,
+    "y" : 110.000015,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000002",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 30
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyOutput",
+      "minimum" : 30
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyEfficiency",
+      "minimum" : 30
+    }, {
+      "type" : "STAT",
+      "stat" : "jujutsuSkill",
+      "minimum" : 40
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyReserves",
+      "minimum" : 30
+    } ]
+  }, {
+    "id" : "node-000001",
+    "contentType" : "MOVE",
+    "contentId" : "000026",
+    "x" : 397.0,
+    "y" : 336.00003,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000002",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 40
+    }, {
+      "type" : "STAT",
+      "stat" : "combatAbility",
+      "minimum" : 50
+    } ]
+  }, {
+    "id" : "node-000002",
+    "contentType" : "ABILITY",
+    "contentId" : "000004",
+    "x" : 47.0,
+    "y" : 221.0,
+    "prerequisites" : [ ]
+  } ]
 } ]

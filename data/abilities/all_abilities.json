@@ -51,4 +51,17 @@
   "codedFeature" : "FORTUNE_RECLAIMED",
   "triggerThreshold" : 0,
   "masteryThreshold" : 0
+}, {
+  "id" : "000004",
+  "name" : "Ratio Reinforcement",
+  "flavourText" : "Even ordinary cursed-energy reinforcement can briefly reveal the seven-to-three weak point.",
+  "mechanicText" : "Whenever one of your REINFORCEMENT attacks connects, it has a 5% chance to apply RATIO to that hit. RATIO bypasses BLOCK and halves the target's DEFENSE for that hit.",
+  "category" : "PASSIVE",
+  "sourceType" : "TECHNIQUE",
+  "sourceValue" : "Ratio",
+  "effects" : [ ],
+  "codedAbilityKey" : "RATIO",
+  "codedFeature" : "REINFORCEMENT_RATIO",
+  "triggerThreshold" : 0,
+  "masteryThreshold" : 0
 } ]

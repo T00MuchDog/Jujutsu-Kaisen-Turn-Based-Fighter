@@ -37,6 +37,12 @@ public class StatusEffect {
     /** Action interpreted by {@link #codedAbilityKey} when this effect fires. Blank for status effects. */
     private final String codedAction;
 
+    /** Coded action's configurable target/mode. Blank when the action has no target setting. */
+    private final String codedTarget;
+
+    /** Number of Ratio stacks created by a configured coded action. */
+    private final Integer codedStackCount;
+
     public StatusEffect(StatusEffectType type, int durationRounds, double magnitude) {
         this(type, durationRounds, 0, magnitude);
     }
@@ -47,7 +53,7 @@ public class StatusEffect {
         int durationTicks,
         double magnitude
     ) {
-        this(type, durationRounds, durationTicks, magnitude, null, null);
+        this(type, durationRounds, durationTicks, magnitude, null, null, null, null);
     }
 
     /**
@@ -62,6 +68,20 @@ public class StatusEffect {
         double magnitude,
         String codedAbilityKey,
         String codedAction
+    ) {
+        this(type, durationRounds, durationTicks, magnitude,
+            codedAbilityKey, codedAction, null, null);
+    }
+
+    public StatusEffect(
+        StatusEffectType type,
+        int durationRounds,
+        int durationTicks,
+        double magnitude,
+        String codedAbilityKey,
+        String codedAction,
+        String codedTarget,
+        Integer codedStackCount
     ) {
         boolean coded = codedAbilityKey != null && !codedAbilityKey.isBlank();
         if (type == null && !coded) {
@@ -79,11 +99,24 @@ public class StatusEffect {
         this.magnitude       = magnitude;
         this.codedAbilityKey = codedAbilityKey;
         this.codedAction     = codedAction;
+        this.codedTarget     = codedTarget;
+        this.codedStackCount = codedStackCount;
     }
 
     /** Build a coded-action effect row bound to the given ability key/action. */
     public static StatusEffect coded(String codedAbilityKey, String codedAction) {
         return new StatusEffect(null, 0, 0, 0, codedAbilityKey, codedAction);
+    }
+
+    /** Build a coded-action effect row with editable action-specific settings. */
+    public static StatusEffect coded(
+        String codedAbilityKey,
+        String codedAction,
+        String codedTarget,
+        Integer codedStackCount
+    ) {
+        return new StatusEffect(null, 0, 0, 0,
+            codedAbilityKey, codedAction, codedTarget, codedStackCount);
     }
 
     public static void validateDuration(int rounds, int ticks) {
@@ -102,6 +135,8 @@ public class StatusEffect {
     public double getMagnitude()          { return magnitude; }
     public String getCodedAbilityKey()    { return codedAbilityKey; }
     public String getCodedAction()        { return codedAction; }
+    public String getCodedTarget()        { return codedTarget; }
+    public Integer getCodedStackCount()   { return codedStackCount; }
 
     /** True when this row carries a coded action (and is therefore not a status effect). */
     public boolean isCoded() {
@@ -111,7 +146,8 @@ public class StatusEffect {
     @Override
     public String toString() {
         if (isCoded()) {
-            return String.format("StatusEffect{CODED %s/%s}", codedAbilityKey, codedAction);
+            return String.format("StatusEffect{CODED %s/%s target=%s stacks=%s}",
+                codedAbilityKey, codedAction, codedTarget, codedStackCount);
         }
         return String.format("StatusEffect{%s rounds=%d ticks=%d mag=%.2f}",
             type, durationRounds, durationTicks, magnitude);

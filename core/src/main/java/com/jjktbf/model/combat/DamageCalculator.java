@@ -2,8 +2,10 @@ package com.jjktbf.model.combat;
 
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.CombatStats;
+import com.jjktbf.model.character.coded.CodedHitModifiers;
 import com.jjktbf.model.move.Move;
 
+import java.util.List;
 import java.util.Random;
 
 /**
@@ -94,11 +96,17 @@ public final class DamageCalculator {
             return DamageResult.miss(move);
         }
 
+        // Compiled techniques can react to a direct connection before block and
+        // defense are calculated. Misses never reach this hook.
+        CodedHitModifiers codedModifiers = attacker.getCodedAbilities().onAttackConnected(
+            attacker, defender, move, currentTick, rng);
+        boolean bypassBlock = move.isGuardBreak() || codedModifiers.bypassBlock();
+
         // --- 2. Check block ---
         // A GUARD_BREAK move ignores blocking defensive moves (PERCENTAGE_BLOCK /
         // FLAT_BLOCK). Dodges and parries are unaffected; only blocks are bypassed.
         Timeline defTimeline = defender.getTimeline();
-        ActionSegment activeBlockSegment = (!move.isGuardBreak() && defTimeline != null)
+        ActionSegment activeBlockSegment = (!bypassBlock && defTimeline != null)
             ? defTimeline.activeBlockAt(currentTick, move) : null;
 
         // --- 3. Power ---
@@ -111,13 +119,13 @@ public final class DamageCalculator {
         if (activeBlockSegment != null) {
             attackValue = activeBlockSegment.getMove().applyBlockTo(attackValue);
             if (attackValue == 0) {
-                return DamageResult.blocked(move); // full block
+                return DamageResult.blocked(move, codedModifiers.events()); // full block
             }
         }
 
         // --- 5. Defense ---
-        int defense = defender.computeCurrentDefense(currentTick);
-        if (defense < 1) defense = 1; // prevent division-by-zero or negative defense
+        double defense = Math.max(1.0,
+            defender.computeCurrentDefense(currentTick) * codedModifiers.defenseMultiplier());
 
         // --- 6. Damage formula ---
         // damage = ((basePower × power) after block / defense) × DAMAGE_SCALE × roll
@@ -144,7 +152,8 @@ public final class DamageCalculator {
             }
         }
 
-        return DamageResult.hit(move, finalDamage, rawDamage, blackFlash);
+        return DamageResult.hit(move, finalDamage, rawDamage, blackFlash,
+            bypassBlock, codedModifiers.events());
     }
 
     /**
@@ -181,19 +190,47 @@ public final class DamageCalculator {
         private final int     finalDamage;
         private final int     rawDamage;       // before BF multiplier
         private final boolean blackFlash;
+        private final boolean bypassedBlock;
+        private final List<CombatEvent> codedEvents;
 
-        private DamageResult(Outcome outcome, Move move, int finalDamage, int rawDamage, boolean blackFlash) {
+        private DamageResult(
+            Outcome outcome,
+            Move move,
+            int finalDamage,
+            int rawDamage,
+            boolean blackFlash,
+            boolean bypassedBlock,
+            List<CombatEvent> codedEvents
+        ) {
             this.outcome     = outcome;
             this.move        = move;
             this.finalDamage = finalDamage;
             this.rawDamage   = rawDamage;
             this.blackFlash  = blackFlash;
+            this.bypassedBlock = bypassedBlock;
+            this.codedEvents = codedEvents == null ? List.of() : List.copyOf(codedEvents);
         }
 
-        public static DamageResult miss(Move move)    { return new DamageResult(Outcome.MISS,    move, 0, 0, false); }
-        public static DamageResult blocked(Move move) { return new DamageResult(Outcome.BLOCKED, move, 0, 0, false); }
+        public static DamageResult miss(Move move) {
+            return new DamageResult(Outcome.MISS, move, 0, 0, false, false, List.of());
+        }
+        public static DamageResult blocked(Move move, List<CombatEvent> codedEvents) {
+            return new DamageResult(
+                Outcome.BLOCKED, move, 0, 0, false, false, codedEvents);
+        }
         public static DamageResult hit(Move move, int finalDmg, int rawDmg, boolean bf) {
-            return new DamageResult(Outcome.HIT, move, finalDmg, rawDmg, bf);
+            return hit(move, finalDmg, rawDmg, bf, move.isGuardBreak(), List.of());
+        }
+        public static DamageResult hit(
+            Move move,
+            int finalDmg,
+            int rawDmg,
+            boolean bf,
+            boolean bypassedBlock,
+            List<CombatEvent> codedEvents
+        ) {
+            return new DamageResult(Outcome.HIT, move, finalDmg, rawDmg, bf,
+                bypassedBlock, codedEvents);
         }
 
         public Outcome getOutcome()     { return outcome; }
@@ -201,6 +238,8 @@ public final class DamageCalculator {
         public int     getFinalDamage() { return finalDamage; }
         public int     getRawDamage()   { return rawDamage; }
         public boolean isBlackFlash()   { return blackFlash; }
+        public boolean bypassedBlock()  { return bypassedBlock; }
+        public List<CombatEvent> getCodedEvents() { return codedEvents; }
         public boolean isHit()          { return outcome == Outcome.HIT; }
         public boolean isMiss()         { return outcome == Outcome.MISS; }
         public boolean isBlocked()      { return outcome == Outcome.BLOCKED; }

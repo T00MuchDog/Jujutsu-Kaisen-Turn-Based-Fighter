@@ -144,7 +144,7 @@ public class StatVerificationTest {
         List<MoveData> moves = new ObjectMapper().readValue(
             movesPath.toFile(), new TypeReference<List<MoveData>>() {});
 
-        assertEquals(25, moves.size());
+        assertEquals(27, moves.size());
         moves.forEach(move -> assertDoesNotThrow(move::toMove, move.name));
 
         MoveData surge = moves.stream()

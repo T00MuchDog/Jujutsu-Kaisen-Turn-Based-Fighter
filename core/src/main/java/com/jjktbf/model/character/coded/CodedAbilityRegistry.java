@@ -2,6 +2,8 @@ package com.jjktbf.model.character.coded;
 
 import com.jjktbf.model.character.Ability;
 import com.jjktbf.model.combat.BattleCombatant;
+import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.StatusEffect;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -13,6 +15,8 @@ import java.util.Set;
 
 /** Allow-list of compiled ability implementations and their data-defined features. */
 public final class CodedAbilityRegistry {
+
+    public record EffectAction(String key, String action, String label) { }
 
     private CodedAbilityRegistry() {
     }
@@ -30,10 +34,35 @@ public final class CodedAbilityRegistry {
             featuresByKey.computeIfAbsent(key, ignored -> new LinkedHashSet<>()).add(feature);
         }
 
+        // A coded move effect must be usable independently of optional passive
+        // features on the same technique. The move row instantiates the runtime;
+        // learned coded abilities only add feature flags to it.
+        if (owner != null && owner.getCharacter() != null) {
+            for (Move move : owner.getCharacter().getKnownMoves()) {
+                if (move == null) continue;
+                List<StatusEffect> effects = new ArrayList<>(move.getOnHitEffects());
+                effects.addAll(move.getSelfEffects());
+                for (StatusEffect effect : effects) {
+                    if (effect == null || !effect.isCoded()
+                        || !supportsEffect(
+                            effect.getCodedAbilityKey(),
+                            effect.getCodedAction(),
+                            effect.getCodedTarget(),
+                            effect.getCodedStackCount())) {
+                        continue;
+                    }
+                    featuresByKey.computeIfAbsent(
+                        normalize(effect.getCodedAbilityKey()), ignored -> new LinkedHashSet<>());
+                }
+            }
+        }
+
         List<CodedAbilityRuntime> runtimes = new ArrayList<>();
         for (Map.Entry<String, Set<String>> entry : featuresByKey.entrySet()) {
             if (MiraclesAbility.KEY.equals(entry.getKey())) {
                 runtimes.add(new MiraclesAbility(owner, entry.getValue()));
+            } else if (RatioAbility.KEY.equals(entry.getKey())) {
+                runtimes.add(new RatioAbility(owner, entry.getValue()));
             }
         }
         return new CodedAbilities(runtimes);
@@ -43,8 +72,10 @@ public final class CodedAbilityRegistry {
         String normalizedKey = normalize(key);
         String normalizedFeature = normalize(feature);
         if (normalizedKey.isEmpty() && normalizedFeature.isEmpty()) return true;
-        return MiraclesAbility.KEY.equals(normalizedKey)
-            && MiraclesAbility.supportsFeature(normalizedFeature);
+        return (MiraclesAbility.KEY.equals(normalizedKey)
+            && MiraclesAbility.supportsFeature(normalizedFeature))
+            || (RatioAbility.KEY.equals(normalizedKey)
+            && RatioAbility.supportsFeature(normalizedFeature));
     }
 
     /**
@@ -60,8 +91,32 @@ public final class CodedAbilityRegistry {
         String normalizedKey = normalize(key);
         String normalizedAction = normalize(action);
         if (normalizedKey.isEmpty() && normalizedAction.isEmpty()) return true;
-        return MiraclesAbility.KEY.equals(normalizedKey)
-            && MiraclesAbility.CREATE.equals(normalizedAction);
+        return (MiraclesAbility.KEY.equals(normalizedKey)
+            && MiraclesAbility.CREATE.equals(normalizedAction))
+            || (RatioAbility.KEY.equals(normalizedKey)
+            && RatioAbility.RATIO_EFFECT.equals(normalizedAction));
+    }
+
+    public static boolean supportsEffect(
+        String key,
+        String action,
+        String target,
+        Integer stackCount
+    ) {
+        String normalizedKey = normalize(key);
+        String normalizedTarget = normalize(target);
+        if (!supportsEffectAction(normalizedKey, action)) return false;
+        if (RatioAbility.KEY.equals(normalizedKey)) {
+            return RatioAbility.supportsTarget(normalizedTarget, stackCount);
+        }
+        return normalizedTarget.isEmpty() && stackCount == null;
+    }
+
+    public static List<EffectAction> effectActions() {
+        return List.of(
+            new EffectAction(MiraclesAbility.KEY, MiraclesAbility.CREATE, "Create Miracle"),
+            new EffectAction(RatioAbility.KEY, RatioAbility.RATIO_EFFECT, "Ratio Effect")
+        );
     }
 
     static String normalize(String value) {

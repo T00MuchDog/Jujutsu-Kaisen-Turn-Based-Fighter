@@ -538,7 +538,8 @@ public class BattleCombatant {
             .filter(effect -> effect.remainingRounds == 0)
             .mapToInt(effect -> effect.remainingTicks)
             .max().orElse(0);
-        return Math.max(statusTicks, runtimeTicks);
+        int codedTicks = codedAbilities.getRemainingTimelineEffectTicks();
+        return Math.max(Math.max(statusTicks, runtimeTicks), codedTicks);
     }
 
     public boolean consumeGuaranteedHit() {

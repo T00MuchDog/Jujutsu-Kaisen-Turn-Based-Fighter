@@ -118,8 +118,11 @@ public final class ContentCatalog {
             // Coded bindings now live on effect rows (self or on-hit), not on the
             // move. Validate every coded effect row against the registry allow-list.
             for (MoveData.StatusEffectData effect : codedEffectRows(definition)) {
-                if (!CodedAbilityRegistry.supportsEffectAction(
-                    effect.codedAbilityKey, effect.codedAction)) {
+                if (!CodedAbilityRegistry.supportsEffect(
+                    effect.codedAbilityKey,
+                    effect.codedAction,
+                    effect.codedTarget,
+                    effect.codedStackCount)) {
                     throw invalid(MOVES_RESOURCE, "invalid coded action on move " + definition.id);
                 }
             }
