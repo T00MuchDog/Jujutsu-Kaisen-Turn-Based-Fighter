@@ -615,6 +615,7 @@ public final class AppPaths {
     ) {
         LinkedHashMap<String, Object> replacement = bundledDefinitionWithSavedId(saved, bundled);
         remapIdentifierList(replacement, "moveIds", moveIdMappings);
+        remapIdentifierList(replacement, "availableMoveIds", moveIdMappings);
         remapIdentifierList(replacement, "abilityIds", abilityIdMappings);
         remapIdentifierList(replacement, "availableAbilityIds", abilityIdMappings);
         if (saved.equals(replacement)) return false;

@@ -170,6 +170,8 @@ public final class ContentCatalog {
                 throw invalid(CHARACTERS_RESOURCE,
                     "character " + definition.id + " has no moveIds array");
             }
+            verifyReferences(definition.availableMoveIds, movesById.keySet(),
+                "available move", definition.id);
             verifyReferences(definition.abilityIds, abilityIds, "ability", definition.id);
             verifyReferences(definition.availableAbilityIds, abilityIds,
                 "available ability", definition.id);
@@ -193,10 +195,10 @@ public final class ContentCatalog {
                     SkillTreeNodeData node = technique == null ? null
                         : TechniqueSkillTree.nodeForContent(
                             technique, SkillTreeNodeData.MOVE, moveId);
-                    if (node != null && !TechniqueSkillTree.isUnlocked(
-                        technique, node, definition)) {
+                    if (node != null && (!TechniqueSkillTree.isActive(node, definition)
+                        || !TechniqueSkillTree.isUnlocked(technique, node, definition))) {
                         throw invalid(CHARACTERS_RESOURCE,
-                            "character " + definition.id
+                        "character " + definition.id
                                 + " does not meet technique-tree prerequisites for move " + moveId);
                     }
                 }

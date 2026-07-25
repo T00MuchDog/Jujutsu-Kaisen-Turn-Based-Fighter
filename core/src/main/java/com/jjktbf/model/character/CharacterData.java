@@ -61,6 +61,12 @@ public class CharacterData {
     public List<String> moveIds;
 
     /**
+     * Move IDs unlocked by technique-tree nodes and available to learn. They do
+     * not become known until also present in {@link #moveIds}.
+     */
+    public List<String> availableMoveIds;
+
+    /**
      * 6-digit ability IDs assigned from the character's available pool.
      * Resolved to Ability domain objects at load time via toCharacter().
      */
@@ -171,9 +177,10 @@ public class CharacterData {
             if (technique == null) continue;
             SkillTreeNodeData node = TechniqueSkillTree.nodeForContent(
                 technique, SkillTreeNodeData.MOVE, moveId);
-            if (node != null && !TechniqueSkillTree.isUnlocked(technique, node, this)) {
+            if (node != null && (!TechniqueSkillTree.isActive(node, this)
+                || !TechniqueSkillTree.isUnlocked(technique, node, this))) {
                 throw new IllegalArgumentException(
-                    "Technique-tree prerequisites are not met for move " + move.name);
+                    "Technique-tree move is not unlocked for " + move.name);
             }
         }
     }

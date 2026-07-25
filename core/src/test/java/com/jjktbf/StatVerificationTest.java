@@ -226,6 +226,7 @@ public class StatVerificationTest {
             .orElseThrow();
         assertEquals("Ratio", shigechi.innateTechniqueName);
         assertEquals(List.of("000026", "000025", "000000", "000001"), shigechi.moveIds);
+        assertEquals(List.of("000026", "000025"), shigechi.availableMoveIds);
         assertEquals(List.of("000004"), shigechi.abilityIds);
         assertEquals(List.of("000004"), shigechi.availableAbilityIds);
 
@@ -499,6 +500,7 @@ public class StatVerificationTest {
                     "innateTechniqueName": "Old Technique",
                     "cursedTechniqueMastery": 0,
                     "moveIds": [ "old-move" ],
+                    "availableMoveIds": [ "old-move" ],
                     "abilityIds": [ "old-ability" ],
                     "availableAbilityIds": [ "old-ability" ]
                   }
@@ -514,6 +516,7 @@ public class StatVerificationTest {
                     "innateTechniqueName": "Miracles",
                     "cursedTechniqueMastery": 15,
                     "moveIds": [ "base-move" ],
+                    "availableMoveIds": [ "base-move" ],
                     "abilityIds": [ "base-ability" ],
                     "availableAbilityIds": [ "base-ability" ]
                   }
@@ -535,6 +538,7 @@ public class StatVerificationTest {
             assertEquals("Miracles", migratedCharacter.get("innateTechniqueName"));
             assertEquals(15, migratedCharacter.get("cursedTechniqueMastery"));
             assertEquals(List.of("local-move"), migratedCharacter.get("moveIds"));
+            assertEquals(List.of("local-move"), migratedCharacter.get("availableMoveIds"));
             assertEquals(List.of("local-ability"), migratedCharacter.get("abilityIds"));
             assertEquals(List.of("local-ability"), migratedCharacter.get("availableAbilityIds"));
 
@@ -559,6 +563,7 @@ public class StatVerificationTest {
             assertFalse(migratedCharacter.containsKey("availableAbilityIds"));
             assertEquals(0, migratedCharacter.get("cursedTechniqueMastery"));
             assertEquals(List.of("local-move"), migratedCharacter.get("moveIds"));
+            assertFalse(migratedCharacter.containsKey("availableMoveIds"));
             assertEquals(List.of(), migratedCharacter.get("abilityIds"));
         } finally {
             Files.deleteIfExists(savedTechniques);

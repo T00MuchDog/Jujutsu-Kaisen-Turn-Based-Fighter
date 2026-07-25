@@ -20,6 +20,7 @@ import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.graphics.ui.editor.AxisLockedScrollPane;
 import com.jjktbf.graphics.ui.editor.AssignmentPanel;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
+import com.jjktbf.graphics.ui.editor.MoveAssignmentPanel;
 import com.jjktbf.graphics.ui.editor.StatField;
 import com.jjktbf.graphics.ui.editor.SkillTreeCanvas;
 import com.jjktbf.graphics.ui.editor.ValidationResult;
@@ -151,6 +152,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         cd.innateTechniqueName = null;
         cd.cursedTechniqueMastery = 0;
         cd.moveIds    = new ArrayList<>();
+        cd.availableMoveIds = new ArrayList<>();
         cd.abilityIds = new ArrayList<>();
         cd.availableAbilityIds = new ArrayList<>();
         return cd;
@@ -167,6 +169,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         for (StatKey sk : STAT_ORDER) sk.set(d, sk.get(stored));
         if (d.innateTechniqueName == null) d.cursedTechniqueMastery = 0;
         d.moveIds    = stored.moveIds    != null ? new ArrayList<>(stored.moveIds)    : new ArrayList<>();
+        d.availableMoveIds = stored.availableMoveIds != null
+            ? new ArrayList<>(stored.availableMoveIds) : new ArrayList<>(d.moveIds);
         d.abilityIds = stored.abilityIds != null ? new ArrayList<>(stored.abilityIds) : new ArrayList<>();
         d.availableAbilityIds = stored.availableAbilityIds != null
             ? new ArrayList<>(stored.availableAbilityIds) : null;
@@ -212,6 +216,17 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             if (missingMove != null) {
                 return ValidationResult.error(
                     "Remove missing move reference " + missingMove + " before saving.");
+            }
+        }
+        if (d.availableMoveIds != null) {
+            String missingAvailableMove = d.availableMoveIds.stream()
+                .filter(moveId -> moveId == null || moveRepo.findById(moveId).isEmpty())
+                .map(String::valueOf)
+                .findFirst().orElse(null);
+            if (missingAvailableMove != null) {
+                return ValidationResult.error(
+                    "Remove missing available move reference " + missingAvailableMove
+                        + " before saving.");
             }
         }
         if (d.abilityIds != null) {
@@ -400,6 +415,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         // ── Move assignment ────────────────────────────────────────────────────
         Table movesSection = formSection(form, "MOVE ASSIGNMENT");
         moveAssignmentContainer = new Container<>();
+        moveAssignmentContainer.fillX();
         movesSection.add(moveAssignmentContainer).growX().row();
         rebuildMoveAssignment(cd);
 
@@ -583,11 +599,17 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         return label == null || "[none]".equals(label) ? null : label;
     }
 
-    private boolean isCurrentTechniqueMove(CharacterData character, String moveId) {
+    private boolean isLockedTechniqueMove(CharacterData character, String moveId) {
         if (character == null || moveId == null) return false;
         MoveData move = moveRepo.findById(moveId).orElse(null);
-        return move != null && move.requiredTechniqueId != null
-            && resolvedAbilities(character).hasTechnique(move.requiredTechniqueId);
+        if (move == null || move.requiredTechniqueId == null
+            || !resolvedAbilities(character).hasTechnique(move.requiredTechniqueId)) {
+            return false;
+        }
+        InnateTechniqueData technique = techniqueForName(move.requiredTechniqueId);
+        SkillTreeNodeData node = TechniqueSkillTree.nodeForContent(
+            technique, SkillTreeNodeData.MOVE, moveId);
+        return node != null && !TechniqueSkillTree.isActive(node, character);
     }
 
     private String techniqueAbilityAvailabilityError(CharacterData character, AbilityData ability) {
@@ -734,16 +756,17 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         moveAssignmentContainer.setActor(buildMoveAssignmentPanel(cd));
     }
 
-    private AssignmentPanel buildMoveAssignmentPanel(CharacterData cd) {
-        return new AssignmentPanel(new AssignmentPanel.Controller() {
-            @Override public List<AssignmentPanel.Item> availableItems() {
+    private MoveAssignmentPanel buildMoveAssignmentPanel(CharacterData cd) {
+        return new MoveAssignmentPanel(new MoveAssignmentPanel.Controller() {
+            @Override public List<AssignmentPanel.Item> availableItems(MovePool pool) {
                 List<AssignmentPanel.Item> items = new ArrayList<>();
                 List<MoveData> allMoves = moveRepo.getAll();
                 List<String> assigned = cd.moveIds != null ? cd.moveIds : List.of();
                 AbilityResolver.Result abilityResult = resolvedAbilities(cd);
                 List<String> granted = abilityResult.grantedMoveIds();
                 for (MoveData md : allMoves) {
-                    if (isCurrentTechniqueMove(cd, md.id)) continue;
+                    if (md.derivedPool() != pool) continue;
+                    if (isLockedTechniqueMove(cd, md.id)) continue;
                     if (assigned.contains(md.id) || granted.contains(md.id)) continue;
                     String sub = md.tags != null ? String.join(", ", md.tags) : "";
                     String error = moveAssignmentError(cd, abilityResult, md, false);
@@ -754,18 +777,19 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 return items;
             }
 
-            @Override public List<AssignmentPanel.Item> assignedItems() {
+            @Override public List<AssignmentPanel.Item> learnedItems(MovePool pool) {
                 List<AssignmentPanel.Item> items = new ArrayList<>();
                 List<String> assigned = cd.moveIds != null ? cd.moveIds : List.of();
                 List<String> granted = resolvedAbilities(cd).grantedMoveIds();
                 for (String mid : assigned) {
-                    if (isCurrentTechniqueMove(cd, mid)) continue;
                     MoveData md = mid == null ? null : moveRepo.findById(mid).orElse(null);
                     if (md == null) {
+                        if (pool != MovePool.COMBAT_ARTS) continue;
                         items.add(new AssignmentPanel.Item(
                             mid, "Missing move " + String.valueOf(mid),
                             "Click to remove this broken reference"));
                     } else {
+                        if (md.derivedPool() != pool) continue;
                         String sub = md.tags != null ? String.join(", ", md.tags) : "";
                         if (granted.contains(mid)) {
                             sub += " | Granted by ability; remove the redundant assignment";
@@ -779,10 +803,9 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                     }
                 }
                 for (String moveId : resolvedAbilities(cd).grantedMoveIds()) {
-                    if (isCurrentTechniqueMove(cd, moveId)) continue;
                     if (assigned.contains(moveId)) continue;
                     MoveData md = moveRepo.findById(moveId).orElse(null);
-                    if (md != null) {
+                    if (md != null && md.derivedPool() == pool) {
                         items.add(new AssignmentPanel.Item(
                             md.id, md.name, "Granted by ability", true, "Granted by ability"));
                     }
@@ -790,43 +813,41 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 return items;
             }
 
-            @Override public boolean canAssign(String moveId) {
+            @Override public boolean canLearn(String moveId) {
                 MoveData md = moveRepo.findById(moveId).orElse(null);
                 if (md == null) return false;
+                if (isLockedTechniqueMove(cd, moveId)) return false;
                 AbilityResolver.Result abilityResult = resolvedAbilities(cd);
                 if (abilityResult.grantedMoveIds().contains(moveId)) return false;
                 return moveAssignmentError(cd, abilityResult, md, false) == null;
             }
 
-            @Override public void onAssign(String moveId) {
+            @Override public void onLearn(String moveId) {
                 if (cd.moveIds == null) cd.moveIds = new ArrayList<>();
                 if (!cd.moveIds.contains(moveId)) cd.moveIds.add(moveId);
                 markDirty();
                 refreshDerivedPreview(cd);
                 refreshBudgetLabel(cd);
                 rebuildAbilityAssignment(cd);
+                rebuildSkillTree(cd);
             }
 
-            @Override public void onUnassign(String moveId) {
+            @Override public void onForget(String moveId) {
                 if (cd.moveIds != null) cd.moveIds.remove(moveId);
                 markDirty();
                 refreshDerivedPreview(cd);
                 refreshBudgetLabel(cd);
                 rebuildAbilityAssignment(cd);
+                rebuildSkillTree(cd);
             }
 
-            @Override public String budgetSummary() {
-                try {
-                    CombatStats cs = cd.toCombatStats();
-                    Map<MovePool, Integer> usage =
-                        SlotBudgetEnforcer.countUsage(getAssignedMovePoolList(cd));
-                    int combatUsed  = usage.getOrDefault(MovePool.COMBAT_ARTS, 0);
-                    int jujutsuUsed = usage.getOrDefault(MovePool.JUJUTSU_ARTS, 0);
-                    return "Slots —  Combat Arts: " + combatUsed + '/' + cs.getCombatArtsSlots()
-                        + "  |  Jujutsu Arts: " + jujutsuUsed + '/' + cs.getJujutsuArtsSlots();
-                } catch (Exception e) {
-                    return "(slot computation error)";
-                }
+            @Override public int learnedCount(MovePool pool) {
+                return SlotBudgetEnforcer.countUsage(getAssignedMovePoolList(cd))
+                    .getOrDefault(pool, 0);
+            }
+
+            @Override public int learnedLimit(MovePool pool) {
+                return SlotBudgetEnforcer.slotBudgetFor(cd.toCombatStats(), pool);
             }
         }, skin);
     }

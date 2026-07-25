@@ -184,7 +184,10 @@ public final class TechniqueSkillTree {
         if (node == null || character == null || node.contentId == null) return false;
         List<String> ids;
         if (SkillTreeNodeData.MOVE.equalsIgnoreCase(node.contentType)) {
-            ids = character.moveIds;
+            // Old character saves used moveIds for this state. Preserve that
+            // behavior until the character is next edited and writes this list.
+            ids = character.availableMoveIds != null
+                ? character.availableMoveIds : character.moveIds;
         } else if (SkillTreeNodeData.ABILITY.equalsIgnoreCase(node.contentType)) {
             // Old character saves used abilityIds for this state. Preserve that
             // behavior until the character is next edited and writes this list.
@@ -199,8 +202,19 @@ public final class TechniqueSkillTree {
     public static void setActive(SkillTreeNodeData node, CharacterData character, boolean active) {
         if (node == null || character == null || node.contentId == null) return;
         if (SkillTreeNodeData.MOVE.equalsIgnoreCase(node.contentType)) {
-            if (character.moveIds == null) character.moveIds = new ArrayList<>();
-            updateSelection(character.moveIds, node.contentId, active);
+            if (character.availableMoveIds == null) {
+                character.availableMoveIds = new ArrayList<>();
+                if (character.moveIds != null) {
+                    character.availableMoveIds.addAll(character.moveIds);
+                }
+            }
+            updateSelection(character.availableMoveIds, node.contentId, active);
+            // Turning a node off also removes its learned copy, because a move
+            // cannot remain known after its technique-tree unlock is removed.
+            if (!active && character.moveIds != null) {
+                character.moveIds = new ArrayList<>(character.moveIds);
+                character.moveIds.removeIf(node.contentId::equals);
+            }
         } else if (SkillTreeNodeData.ABILITY.equalsIgnoreCase(node.contentType)) {
             if (character.availableAbilityIds == null) {
                 character.availableAbilityIds = new ArrayList<>();

@@ -80,12 +80,19 @@ class TechniqueSkillTreeTest {
         character.strength = 100;
         assertTrue(TechniqueSkillTree.isUnlocked(technique, moveNode, character));
         TechniqueSkillTree.setActive(moveNode, character, true);
+        assertTrue(character.availableMoveIds.contains("M1"));
+        assertFalse(character.moveIds.contains("M1"));
+        character.moveIds.add("M1");
+        character.moveIds.remove("M1");
+        assertTrue(TechniqueSkillTree.isActive(moveNode, character),
+            "Forgetting a learned move must preserve its tree unlock");
         assertTrue(TechniqueSkillTree.isUnlocked(technique, abilityNode, character));
         TechniqueSkillTree.setActive(abilityNode, character, true);
         assertTrue(character.availableAbilityIds.contains("A1"));
         assertFalse(character.abilityIds.contains("A1"));
 
         TechniqueSkillTree.setActive(moveNode, character, false);
+        assertFalse(character.availableMoveIds.contains("M1"));
         assertTrue(TechniqueSkillTree.pruneLockedSelections(technique, character));
         assertFalse(TechniqueSkillTree.isActive(abilityNode, character));
         assertFalse(character.availableAbilityIds.contains("A1"));
