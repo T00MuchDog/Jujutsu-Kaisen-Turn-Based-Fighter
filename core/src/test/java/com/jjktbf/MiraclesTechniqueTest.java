@@ -135,10 +135,16 @@ class MiraclesTechniqueTest {
         assertEquals(15, creationData.apCost);
         assertEquals(13, creationData.unleashPoint);
         assertEquals(60, creationData.baseCeCost);
-        assertEquals(MiraclesAbility.KEY, creationData.codedAbilityKey);
-        assertEquals(MiraclesAbility.CREATE, creationData.codedAction);
-        assertTrue(CodedAbilityRegistry.supportsMoveAction(
-            creationData.codedAbilityKey, creationData.codedAction));
+        // The move itself is plain, editable data — the hardcoded "create a miracle"
+        // lives on a coded self-effect row, not on the move.
+        MoveData.StatusEffectData creationEffect = creationData.selfEffects.stream()
+            .filter(MoveData.StatusEffectData::isCoded)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Miracle Creation should have a coded self-effect"));
+        assertEquals(MiraclesAbility.KEY, creationEffect.codedAbilityKey);
+        assertEquals(MiraclesAbility.CREATE, creationEffect.codedAction);
+        assertTrue(CodedAbilityRegistry.supportsEffectAction(
+            creationEffect.codedAbilityKey, creationEffect.codedAction));
 
         Move creation = creationData.toMove();
         List<Ability> abilities = miracleDefinitions.stream().map(Ability::new).toList();

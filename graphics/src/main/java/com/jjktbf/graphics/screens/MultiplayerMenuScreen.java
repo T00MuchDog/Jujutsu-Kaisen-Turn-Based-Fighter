@@ -11,6 +11,7 @@ import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.multiplayer.GuestAccountService;
 import com.jjktbf.graphics.multiplayer.GuestCredentials;
+import com.jjktbf.graphics.ui.DynamicSelectBox;
 
 import java.util.List;
 
@@ -52,7 +53,7 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
 
         Label fighterTitle = new Label("FIGHTER", assets.editorSkin, "white");
         panel.add(fighterTitle).growX().left().padBottom(5f).row();
-        fighterSelect = new SelectBox<>(assets.editorSkin);
+        fighterSelect = new DynamicSelectBox<>(assets.editorSkin);
         fighterSelect.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {

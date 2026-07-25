@@ -4,6 +4,8 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.jjktbf.graphics.ui.ContentSizedDialog;
+import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.model.character.*;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.move.MoveData;
@@ -137,7 +139,7 @@ public class ConditionTreeEditor extends Table {
         AbilityConditionType initial = safeType(working.type);
         if (initial.isGroup()) return;
 
-        SelectBox<String> typeBox = new SelectBox<>(skin);
+        SelectBox<String> typeBox = new DynamicSelectBox<>(skin);
         typeBox.setItems(Arrays.stream(AbilityConditionType.values())
             .filter(type -> !type.isGroup())
             .map(AbilityConditionType::displayName)
@@ -165,7 +167,7 @@ public class ConditionTreeEditor extends Table {
             }
         });
 
-        Dialog dialog = new Dialog("Edit Activation Condition", skin);
+        ContentSizedDialog dialog = new ContentSizedDialog("Edit Activation Condition", skin);
         Table content = dialog.getContentTable();
         content.defaults().pad(4).left().growX();
         content.add(new Label("Condition", skin));
@@ -220,7 +222,7 @@ public class ConditionTreeEditor extends Table {
             addRow(fields, type == AbilityConditionType.HEALED ? "Minimum (0 = any)" : "Value", field);
         }
         if (type.uses(AbilityConditionParameter.MOVE_ID)) {
-            SelectBox<String> box = new SelectBox<>(skin);
+            SelectBox<String> box = new DynamicSelectBox<>(skin);
             List<String> labels = new ArrayList<>();
             labels.add(SELECT_MOVE);
             labels.addAll(moves.stream().map(ConditionTreeEditor::moveLabel).toList());
@@ -237,7 +239,7 @@ public class ConditionTreeEditor extends Table {
             addRow(fields, "Move tag", box);
         }
         if (type.uses(AbilityConditionParameter.STAT)) {
-            SelectBox<String> box = new SelectBox<>(skin);
+            SelectBox<String> box = new DynamicSelectBox<>(skin);
             box.setItems(Arrays.stream(StatKey.values()).map(stat -> stat.label).toArray(String[]::new));
             box.setSelected(statLabel(condition.stat));
             box.addListener(change(() -> condition.stat = statFromLabel(box.getSelected()).fieldName));
@@ -245,7 +247,7 @@ public class ConditionTreeEditor extends Table {
         }
         if (type.uses(AbilityConditionParameter.STATUS_TYPE)) {
             List<StatusEffectType> statuses = List.of(StatusEffectType.values());
-            SelectBox<String> box = new SelectBox<>(skin);
+            SelectBox<String> box = new DynamicSelectBox<>(skin);
             List<String> labels = new ArrayList<>(statuses.stream()
                 .map(StatusEffectType::displayName).toList());
             String storedStatus = condition.statusType;
@@ -287,7 +289,7 @@ public class ConditionTreeEditor extends Table {
     }
 
     private <E extends Enum<E>> SelectBox<String> enumBox(E[] values, String selected, java.util.function.Consumer<String> onChange) {
-        SelectBox<String> box = new SelectBox<>(skin);
+        SelectBox<String> box = new DynamicSelectBox<>(skin);
         box.setItems(Arrays.stream(values).map(Enum::name).toArray(String[]::new));
         box.setSelected(selected);
         box.addListener(change(() -> onChange.accept(box.getSelected())));
@@ -295,7 +297,7 @@ public class ConditionTreeEditor extends Table {
     }
 
     private <E extends Enum<E>> SelectBox<String> prettyEnumBox(E[] values, String selected, java.util.function.Consumer<String> onChange) {
-        SelectBox<String> box = new SelectBox<>(skin);
+        SelectBox<String> box = new DynamicSelectBox<>(skin);
         box.setItems(Arrays.stream(values).map(value -> pretty(value.name())).toArray(String[]::new));
         box.setSelected(pretty(selected));
         box.addListener(change(() -> onChange.accept(box.getSelected())));

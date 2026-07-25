@@ -89,12 +89,6 @@ public class MoveData {
     /** List of self StatusEffect descriptors */
     public List<StatusEffectData> selfEffects;
 
-    /** Allow-listed compiled ability key for a move action outside normal status effects. */
-    public String codedAbilityKey;
-
-    /** Action interpreted by {@link #codedAbilityKey} when this move unleashes. */
-    public String codedAction;
-
     /** Prerequisite stats: {"strength": 80, "speed": 60, ...} */
     public Map<String, Integer> prerequisites;
 
@@ -106,11 +100,6 @@ public class MoveData {
     public String  requiredTechniqueId;
 
     public boolean isFreeMove = false;
-
-    @JsonIgnore
-    public boolean isCoded() {
-        return codedAbilityKey != null && !codedAbilityKey.isBlank();
-    }
 
     // -------------------------------------------------------------------------
     // Status effect sub-DTO
@@ -124,6 +113,23 @@ public class MoveData {
         public int    durationRounds = 1;
         public int    durationTicks  = 0;
         public double magnitude      = 1.0;
+
+        /**
+         * Coded-action binding. When {@code codedAbilityKey} is set (and {@code type}
+         * is blank), this row is a coded action dispatched to the matching
+         * {@link com.jjktbf.model.character.coded.CodedAbilityRuntime} rather than
+         * applied as a status. This is how a technique move's hardcoded effect is
+         * stored on an editable effect row (self or on-hit) instead of on the move.
+         */
+        public String codedAbilityKey;
+
+        /** Action interpreted by {@link #codedAbilityKey} when this effect fires. */
+        public String codedAction;
+
+        @JsonIgnore
+        public boolean isCoded() {
+            return codedAbilityKey != null && !codedAbilityKey.isBlank();
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -234,8 +240,6 @@ public class MoveData {
             .blockAffectedTags(blockAffectedTags)
             .blockDamageReduction(blockDamageReduction)
             .blockFlatReduction(blockFlatReduction)
-            .codedAbilityKey(codedAbilityKey)
-            .codedAction(codedAction)
             .requiredTechniqueId(requiredTechniqueId)
             .freeMove(isFreeMove);
 
@@ -265,7 +269,13 @@ public class MoveData {
         if (dtos == null) return List.of();
         java.util.ArrayList<StatusEffect> effects = new java.util.ArrayList<>();
         for (StatusEffectData d : dtos) {
-            if (d == null || d.type == null || d.type.isBlank()) continue;
+            if (d == null) continue;
+            // Coded action row — dispatched to a compiled runtime, not applied as a status.
+            if (d.isCoded()) {
+                effects.add(StatusEffect.coded(d.codedAbilityKey, d.codedAction));
+                continue;
+            }
+            if (d.type == null || d.type.isBlank()) continue;
             StatusEffectType type;
             try {
                 type = StatusEffectType.fromName(d.type, d.magnitude);
@@ -331,33 +341,36 @@ public class MoveData {
                                     ? new java.util.ArrayList<>(move.getBlockAffectedTags()) : null;
         d.blockDamageReduction  = move.getBlockDamageReduction();
         d.blockFlatReduction    = move.getBlockFlatReduction();
-        d.codedAbilityKey       = move.getCodedAbilityKey();
-        d.codedAction           = move.getCodedAction();
         d.requiredTechniqueId = move.getRequiredTechniqueId();
         d.isFreeMove          = move.isFreeMove();
         d.prerequisites       = move.getPrerequisites().isEmpty() ? null
                                     : new java.util.LinkedHashMap<>(move.getPrerequisites());
 
         if (!move.getOnHitEffects().isEmpty()) {
-            d.onHitEffects = move.getOnHitEffects().stream().map(e -> {
-                StatusEffectData sd = new StatusEffectData();
-                sd.type           = e.getType().name();
-                sd.durationRounds = e.getDurationRounds();
-                sd.durationTicks  = e.getDurationTicks();
-                sd.magnitude      = e.getMagnitude();
-                return sd;
-            }).toList();
+            d.onHitEffects = move.getOnHitEffects().stream().map(MoveData::toEffectData).toList();
         }
         if (!move.getSelfEffects().isEmpty()) {
-            d.selfEffects = move.getSelfEffects().stream().map(e -> {
-                StatusEffectData sd = new StatusEffectData();
-                sd.type           = e.getType().name();
-                sd.durationRounds = e.getDurationRounds();
-                sd.durationTicks  = e.getDurationTicks();
-                sd.magnitude      = e.getMagnitude();
-                return sd;
-            }).toList();
+            d.selfEffects = move.getSelfEffects().stream().map(MoveData::toEffectData).toList();
         }
         return d;
+    }
+
+    /**
+     * Serialize a single {@link StatusEffect} back to its DTO. A coded-action row
+     * is emitted with its coded fields and a null {@code type}; a status row is
+     * emitted with its {@code StatusEffectType} and the coded fields left blank.
+     */
+    private static StatusEffectData toEffectData(StatusEffect e) {
+        StatusEffectData sd = new StatusEffectData();
+        if (e.isCoded()) {
+            sd.codedAbilityKey = e.getCodedAbilityKey();
+            sd.codedAction     = e.getCodedAction();
+            return sd;
+        }
+        sd.type           = e.getType().name();
+        sd.durationRounds = e.getDurationRounds();
+        sd.durationTicks  = e.getDurationTicks();
+        sd.magnitude      = e.getMagnitude();
+        return sd;
     }
 }

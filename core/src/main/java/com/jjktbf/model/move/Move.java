@@ -153,14 +153,12 @@ public class Move {
      * Applied by the combat engine when the move fires, for every move type
      * (damaging, defensive, and utility) — independent of whether the attack
      * later hits, misses, or is blocked.
+     *
+     * <p>A self-effect row may also carry a coded action (see
+     * {@link StatusEffect#isCoded()}) — this is how a technique move's hardcoded
+     * effect is expressed as an editable effect row instead of state on the Move.
      */
     private final List<StatusEffect> selfEffects;
-
-    /** Compiled ability key for a move action that cannot be expressed as a status effect. */
-    private final String codedAbilityKey;
-
-    /** Compiled action executed by {@link #codedAbilityKey} when this move unleashes. */
-    private final String codedAction;
 
     /**
      * Stat prerequisites. Key = stat name matching CharacterStats getter convention,
@@ -210,8 +208,6 @@ public class Move {
         this.blockFlatReduction   = b.blockFlatReduction;
         this.onHitEffects        = Collections.unmodifiableList(b.onHitEffects);
         this.selfEffects         = Collections.unmodifiableList(b.selfEffects);
-        this.codedAbilityKey     = b.codedAbilityKey;
-        this.codedAction         = b.codedAction;
         this.prerequisites       = Collections.unmodifiableMap(b.prerequisites);
         this.requiredTechniqueId = b.requiredTechniqueId;
         this.isFreeMove          = b.isFreeMove;
@@ -254,8 +250,6 @@ public class Move {
     public int getBlockFlatReduction()            { return blockFlatReduction; }
     public List<StatusEffect> getOnHitEffects()   { return onHitEffects; }
     public List<StatusEffect> getSelfEffects()    { return selfEffects; }
-    public String getCodedAbilityKey()             { return codedAbilityKey; }
-    public String getCodedAction()                 { return codedAction; }
     public java.util.Map<String, Integer> getPrerequisites() { return prerequisites; }
     public String getRequiredTechniqueId()        { return requiredTechniqueId; }
     public boolean isFreeMove()                    { return isFreeMove; }
@@ -519,8 +513,6 @@ public class Move {
         private int blockFlatReduction         = 0;
         private List<StatusEffect> onHitEffects = List.of();
         private List<StatusEffect> selfEffects  = List.of();
-        private String codedAbilityKey          = null;
-        private String codedAction              = null;
         private java.util.Map<String, Integer> prerequisites = java.util.Map.of();
         private String requiredTechniqueId   = null;
         private boolean isFreeMove           = false;
@@ -552,8 +544,6 @@ public class Move {
         public Builder blockFlatReduction(int v)           { this.blockFlatReduction = v; return this; }
         public Builder onHitEffects(List<StatusEffect> v)  { this.onHitEffects = v; return this; }
         public Builder selfEffects(List<StatusEffect> v)   { this.selfEffects = v; return this; }
-        public Builder codedAbilityKey(String v)            { this.codedAbilityKey = v; return this; }
-        public Builder codedAction(String v)                { this.codedAction = v; return this; }
         public Builder prerequisites(java.util.Map<String, Integer> v) { this.prerequisites = v; return this; }
         public Builder requiredTechniqueId(String v)       { this.requiredTechniqueId = v; return this; }
         public Builder freeMove(boolean v)                 { this.isFreeMove = v; return this; }

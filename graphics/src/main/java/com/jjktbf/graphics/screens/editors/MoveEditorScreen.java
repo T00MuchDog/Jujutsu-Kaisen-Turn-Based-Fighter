@@ -16,6 +16,8 @@ import com.badlogic.gdx.scenes.scene2d.utils.FocusListener;
 import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.ui.ContentSizedDialog;
+import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
 import com.jjktbf.graphics.ui.editor.EnumSelectBox;
 import com.jjktbf.graphics.ui.editor.HoverTextField;
@@ -28,6 +30,7 @@ import com.jjktbf.model.character.AbilityRepository;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.CharacterRepository;
 import com.jjktbf.model.character.StatKey;
+import com.jjktbf.model.character.coded.MiraclesAbility;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.InterruptType;
 import com.jjktbf.model.move.MoveData;
@@ -150,8 +153,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                                       .filter(java.util.Objects::nonNull)
                                       .collect(java.util.stream.Collectors.toCollection(ArrayList::new))
                                   : new ArrayList<>();
-        d.codedAbilityKey       = s.codedAbilityKey;
-        d.codedAction           = s.codedAction;
         d.prerequisites         = s.prerequisites != null
                                   ? new LinkedHashMap<>(s.prerequisites) : null;
         d.requiredTechniqueId   = s.requiredTechniqueId;
@@ -161,18 +162,51 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
     private static MoveData.StatusEffectData copyEffect(MoveData.StatusEffectData e) {
         if (e == null) return null;
+        MoveData.StatusEffectData c = new MoveData.StatusEffectData();
+        // Coded rows carry an ability key/action instead of a status type — copy them whole.
+        if (e.isCoded()) {
+            c.codedAbilityKey = e.codedAbilityKey;
+            c.codedAction     = e.codedAction;
+            return c;
+        }
         StatusEffectType type;
         try {
             type = StatusEffectType.fromName(e.type, e.magnitude);
         } catch (IllegalArgumentException ignored) {
             return null;
         }
-        MoveData.StatusEffectData c = new MoveData.StatusEffectData();
-        c.type            = type.name();
+        // Store one canonical status type per stat; the magnitude sign selects the direction.
+        c.type            = canonicalStatusType(type).name();
         c.durationRounds  = e.durationRounds;
         c.durationTicks   = e.durationTicks;
-        c.magnitude       = StatusEffectType.normalizeStoredMagnitude(e.type, e.magnitude);
+        c.magnitude       = type.signedMagnitude(
+            StatusEffectType.normalizeStoredMagnitude(e.type, e.magnitude));
         return c;
+    }
+
+    private static StatusEffectType canonicalStatusType(StatusEffectType type) {
+        return type.signedMagnitude(1.0) < 0 ? type.opposite() : type;
+    }
+
+    private static List<StatusEffectType> editableStatusTypes() {
+        return List.of(StatusEffectType.values()).stream()
+            .filter(type -> type.signedMagnitude(1.0) > 0)
+            .toList();
+    }
+
+    private static String statusLabel(StatusEffectType type) {
+        StatusEffectType canonical = canonicalStatusType(type);
+        return canonical.baseStat() != null
+            ? canonical.baseStat().label
+            : canonical.battleStat().label;
+    }
+
+    private static String statusLabel(String typeName, double magnitude) {
+        try {
+            return statusLabel(StatusEffectType.fromName(typeName, magnitude));
+        } catch (IllegalArgumentException ignored) {
+            return StatusEffectType.referenceDisplayName(typeName);
+        }
     }
 
     @Override protected String idOf(MoveData r) { return r.id; }
@@ -199,9 +233,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
     @Override
     protected ValidationResult validateAndSave(MoveData d) {
-        if (d.isCoded()) {
-            return ValidationResult.error("Coded moves are defined in source and cannot be edited here.");
-        }
         if (d.name == null || d.name.trim().isEmpty()) {
             return ValidationResult.error("Name is required.");
         }
@@ -785,12 +816,16 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             for (int i = 0; i < list.size(); i++) {
                 final int idx = i;
                 MoveData.StatusEffectData eff = list.get(idx);
-                Label lbl = new Label(
-                    StatusEffectType.referenceDisplayName(eff.type)
+                // A coded row carries a hardcoded ability action (e.g. MIRACLES/CREATE)
+                // instead of a status; render it with a distinct label so it is not
+                // confused with a normal status effect.
+                String rowLabel = eff.isCoded()
+                    ? "CODED: " + eff.codedAbilityKey + "/" + eff.codedAction
+                    : statusLabel(eff.type, eff.magnitude)
                         + " | rounds=" + eff.durationRounds
                         + " | ticks=" + eff.durationTicks
-                        + " | amount=" + eff.magnitude,
-                    skin, "small");
+                        + " | amount=" + eff.magnitude;
+                Label lbl = new Label(rowLabel, skin, "small");
                 t.add(lbl).left().growX();
                 TextButton editBtn = new TextButton("Edit", skin);
                 editBtn.addListener(new ChangeListener() {
@@ -833,8 +868,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         Consumer<MoveData.StatusEffectData> commit
     ) {
         MoveData.StatusEffectData eff = copyEffect(source);
-        com.badlogic.gdx.scenes.scene2d.ui.Dialog dlg =
-            new com.badlogic.gdx.scenes.scene2d.ui.Dialog("Edit Effect", skin) {
+        ContentSizedDialog dlg = new ContentSizedDialog("Edit Effect", skin) {
                 @Override
                 protected void result(Object object) {
                     if (Boolean.TRUE.equals(object)) {
@@ -848,30 +882,82 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         Table content = new Table(skin);
         content.defaults().pad(4).left();
 
-        content.add(new Label("Type", skin)).padRight(8);
-        List<StatusEffectType> statusTypes = List.of(StatusEffectType.values());
-        SelectBox<String> typeBox = new SelectBox<>(skin);
-        List<String> statusLabels = new ArrayList<>(statusTypes.stream()
-            .map(StatusEffectType::displayName).toList());
-        String storedStatus = eff.type;
-        String selectedStatus = StatusEffectType.referenceDisplayName(storedStatus);
-        if (!statusLabels.contains(selectedStatus)) statusLabels.add(0, selectedStatus);
-        typeBox.setItems(statusLabels.toArray(new String[0]));
-        typeBox.setSelected(selectedStatus);
-        typeBox.addListener(new ChangeListener() {
+        // An effect row is EITHER a status effect (has a Type) OR a coded action
+        // (key/action dispatched to a compiled runtime). The choice is a toggle
+        // sitting directly to the right of the "Type" label, with the dropdown to
+        // the right of the toggle. Flipping the toggle swaps the SAME dropdown's
+        // contents (status types ↔ coded actions); the status customisation fields
+        // (rounds/ticks/amount) disappear in coded mode, and any coded-action-
+        // specific options appear below in their place.
+        final List<StatusEffectType> statusTypes = editableStatusTypes();
+        final List<String> statusLabels = new ArrayList<>(statusTypes.stream()
+            .map(MoveEditorScreen::statusLabel).toList());
+
+        // Allow-listed coded bindings come from the registry; future technique
+        // moves extend it and appear here automatically. Each entry is {key, action, label}.
+        final List<String[]> codedOptions = new ArrayList<>();
+        codedOptions.add(new String[]{MiraclesAbility.KEY, MiraclesAbility.CREATE,
+            "Create Miracle"});
+        final List<String> codedLabels = new ArrayList<>(codedOptions.stream()
+            .map(triple -> triple[2]).toList());
+
+        // --- The Type row: "Type" label  [toggle]  [dropdown] ---
+        final SelectBox<String> typeBox = new DynamicSelectBox<>(skin);
+        final TextButton toggleBtn = new TextButton("Coded", skin);
+        // Holders so the listeners below can reference the mode swap before it's assigned.
+        final Runnable[] applyMode = new Runnable[1];
+        // Guard against the listener firing while we programmatically swap items.
+        final boolean[] syncing = {false};
+
+        toggleBtn.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
-                if (selectedStatus.equals(typeBox.getSelected())) {
-                    eff.type = storedStatus;
-                    return;
+                boolean nowCoded = !eff.isCoded();
+                if (nowCoded) {
+                    if (eff.codedAbilityKey == null || eff.codedAbilityKey.isBlank()) {
+                        eff.codedAbilityKey = codedOptions.get(0)[0];
+                        eff.codedAction     = codedOptions.get(0)[1];
+                    }
+                    eff.type = null; // a coded row carries no status type
+                } else {
+                    eff.codedAbilityKey = null;
+                    eff.codedAction = null;
+                    if (eff.type == null) eff.type = StatusEffectType.STRENGTH_INCREASE.name();
                 }
-                eff.type = statusTypes.stream()
-                    .filter(status -> status.displayName().equals(typeBox.getSelected()))
-                    .findFirst().orElse(StatusEffectType.STRENGTH_INCREASE).name();
+                applyMode[0].run();
             }
         });
-        content.add(typeBox).growX().row();
 
-        // Duration
+        typeBox.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                if (syncing[0]) return;
+                String sel = typeBox.getSelected();
+                if (eff.isCoded()) {
+                    int idx = codedLabels.indexOf(sel);
+                    if (idx >= 0) {
+                        eff.codedAbilityKey = codedOptions.get(idx)[0];
+                        eff.codedAction     = codedOptions.get(idx)[1];
+                    }
+                    applyMode[0].run(); // refresh coded-action options below
+                } else {
+                    StatusEffectType matched = statusTypes.stream()
+                        .filter(status -> statusLabel(status).equals(sel))
+                        .findFirst().orElse(StatusEffectType.STRENGTH_INCREASE);
+                    eff.type = matched.name();
+                }
+            }
+        });
+
+        Table typeRow = new Table(skin);
+        typeRow.defaults().pad(4).left();
+        typeRow.add(new Label("Type", skin)).padRight(8);
+        typeRow.add(toggleBtn).padRight(8);
+        typeRow.add(typeBox).growX();
+        content.add(typeRow).growX().row();
+
+        // --- Status-effect customisation (rounds / ticks / amount). ---
+        final Table statusFields = new Table(skin);
+        statusFields.defaults().pad(4).left();
+
         TextField roundsField = new HoverTextField(String.valueOf(eff.durationRounds), skin);
         roundsField.setTextFieldFilter((tf, c) -> Character.isDigit(c) || c == '-');
         roundsField.addListener(new ChangeListener() {
@@ -880,8 +966,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 catch (NumberFormatException ignored) {}
             }
         });
-        content.add(new Label("Duration rounds (-1 = permanent)", skin)).padRight(8);
-        content.add(roundsField).growX().row();
+        statusFields.add(new Label("Duration rounds (-1 = permanent)", skin)).padRight(8);
+        statusFields.add(roundsField).growX().row();
 
         TextField ticksField = new HoverTextField(String.valueOf(eff.durationTicks), skin);
         ticksField.setTextFieldFilter((tf, c) -> Character.isDigit(c));
@@ -891,21 +977,60 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 catch (NumberFormatException ignored) {}
             }
         });
-        content.add(new Label("Duration ticks", skin)).padRight(8);
-        content.add(ticksField).growX().row();
+        statusFields.add(new Label("Duration ticks", skin)).padRight(8);
+        statusFields.add(ticksField).growX().row();
 
-        // Magnitude
         TextField magField = new HoverTextField(String.valueOf(eff.magnitude), skin);
-        magField.setTextFieldFilter((tf, c) ->
-            Character.isDigit(c) || c == '.');
+        magField.setTextFieldFilter((tf, c) -> Character.isDigit(c) || c == '-' || c == '.');
         magField.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent e, Actor a) {
                 try { eff.magnitude = Double.parseDouble(magField.getText()); }
                 catch (NumberFormatException ignored) {}
             }
         });
-        content.add(new Label("Amount (flat points)", skin)).padRight(8);
-        content.add(magField).growX().row();
+        statusFields.add(new Label("Amount (+/- flat points)", skin)).padRight(8);
+        statusFields.add(magField).growX().row();
+
+        // --- Coded-action customisation. Currently informational, but this is
+        // where per-coded-action options would go (extensible per future binding). ---
+        final Table codedFields = new Table(skin);
+        codedFields.defaults().pad(4).left();
+        codedFields.add(formHint(
+            "Coded action — dispatched to the matching compiled ability at runtime."))
+            .colspan(2).row();
+
+        // Swappable containers: only one block shows at a time, depending on mode.
+        final Container<Actor> customRow = new Container<>();
+        content.add(customRow).growX().row();
+
+        // --- applyMode: rebuild the dropdown items + toggle label for the current
+        // mode, and show the matching customisation block. ---
+        applyMode[0] = () -> {
+            syncing[0] = true;
+            try {
+                if (eff.isCoded()) {
+                    toggleBtn.setText("Status");
+                    typeBox.setItems(codedLabels.toArray(new String[0]));
+                    int idx = -1;
+                    for (int i = 0; i < codedOptions.size(); i++) {
+                        if (codedOptions.get(i)[0].equalsIgnoreCase(eff.codedAbilityKey)
+                            && codedOptions.get(i)[1].equalsIgnoreCase(eff.codedAction)) {
+                            idx = i; break;
+                        }
+                    }
+                    typeBox.setSelected(idx >= 0 ? codedLabels.get(idx) : codedLabels.get(0));
+                    customRow.setActor(codedFields);
+                } else {
+                    toggleBtn.setText("Coded");
+                    typeBox.setItems(statusLabels.toArray(new String[0]));
+                    typeBox.setSelected(statusLabel(eff.type, eff.magnitude));
+                    customRow.setActor(statusFields);
+                }
+            } finally {
+                syncing[0] = false;
+            }
+        };
+        applyMode[0].run();
 
         dlg.getContentTable().add(content).grow().row();
         dlg.button("Done", true);

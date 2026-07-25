@@ -11,6 +11,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
 import com.jjktbf.graphics.ui.editor.EffectListEditor;
 import com.jjktbf.graphics.ui.editor.ConditionTreeEditor;
@@ -755,7 +756,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         String selected,
         Consumer<String> onChange
     ) {
-        SelectBox<String> box = new SelectBox<>(skin);
+        SelectBox<String> box = new DynamicSelectBox<>(skin);
         box.setItems(labels.toArray(new String[0]));
         box.setSelected(selected);
         box.addListener(new ChangeListener() {

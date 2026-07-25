@@ -1,18 +1,53 @@
 package com.jjktbf.model.character.coded;
 
 import com.jjktbf.model.combat.AbilityTrigger;
+import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.StatusEffect;
 
 import java.util.List;
 
-/** Battle-time behavior for an ability whose mechanics cannot be composed in the editor. */
+/**
+ * Battle-time behavior for an ability whose mechanics cannot be composed in the editor.
+ *
+ * <p>Hardcoded move effects are expressed as <em>coded effect rows</em> (a self-effect
+ * or on-hit effect carrying a {@link StatusEffect#isCoded() coded action}), NOT as state
+ * baked onto the {@link Move}. This keeps the Move pure data and fully editable: the
+ * effect row is the unit that can be added, edited, or removed, and the runtime it
+ * dispatches to holds the actual hardcoded logic. This is the precedent for future
+ * technique moves that need compiled behaviour — implement it here, keyed off the
+ * effect's {@link StatusEffect#getCodedAbilityKey()} / {@link StatusEffect#getCodedAction()}.
+ */
 public interface CodedAbilityRuntime {
 
     List<CombatEvent> onTrigger(BattleState state, AbilityTrigger trigger);
 
-    List<CombatEvent> onMoveUnleashed(BattleState state, Move move, int tick);
+    /**
+     * React to a coded effect row firing during move resolution.
+     *
+     * <p>Called once per coded effect row on the move: a coded <em>self</em>-effect
+     * fires on unleash (hit/miss/block agnostic); a coded <em>on-hit</em> effect
+     * fires only on a successful hit. The runtime decides what to do by inspecting
+     * {@code effect.getCodedAbilityKey()} / {@code effect.getCodedAction()} and its
+     * own feature set. Default no-op so a runtime only overrides what it needs.
+     *
+     * @param state     current battle state
+     * @param effect    the coded effect row that fired
+     * @param attacker  the combatant who unleashed the move
+     * @param defender  the move's target (equals {@code attacker} for self-effects)
+     * @param tick      the AP tick the effect fired on
+     */
+    default List<CombatEvent> onEffectFired(
+        BattleState state,
+        StatusEffect effect,
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        int tick
+    ) {
+        return List.of();
+    }
 
     boolean preventFatalDamage();
 

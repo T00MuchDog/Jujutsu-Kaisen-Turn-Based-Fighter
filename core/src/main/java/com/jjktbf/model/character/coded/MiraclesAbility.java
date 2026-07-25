@@ -4,7 +4,7 @@ import com.jjktbf.model.combat.AbilityTrigger;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
-import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.StatusEffect;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,15 +42,24 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
     }
 
     @Override
-    public List<CombatEvent> onMoveUnleashed(BattleState state, Move move, int tick) {
+    public List<CombatEvent> onEffectFired(
+        BattleState state,
+        StatusEffect effect,
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        int tick
+    ) {
+        // Miracle Creation is expressed as a coded self-effect row (key=MIRACLES,
+        // action=CREATE). The move itself is plain data — this runtime owns the
+        // hardcoded "create a miracle" behaviour, gated on the Reservoir feature.
         if (!hasFeature(RESERVOIR)
-            || !KEY.equalsIgnoreCase(move.getCodedAbilityKey())
-            || !CREATE.equalsIgnoreCase(move.getCodedAction())
+            || !KEY.equalsIgnoreCase(effect.getCodedAbilityKey())
+            || !CREATE.equalsIgnoreCase(effect.getCodedAction())
             || !addMiracle()) {
             return List.of();
         }
         return List.of(CombatEvent.of(CombatEvent.Type.ABILITY_ACTIVATED)
-            .source(owner).target(owner).move(move).tick(tick)
+            .source(owner).target(owner).tick(tick)
             .codedAbilityState(state())
             .message(owner.getCharacter().getName() + " gains 1 Miracle through Miracle Creation ("
                 + remainingText(miracles) + ").")

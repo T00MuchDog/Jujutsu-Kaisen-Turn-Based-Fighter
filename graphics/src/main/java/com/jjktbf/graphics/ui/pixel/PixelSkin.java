@@ -132,6 +132,10 @@ public final class PixelSkin {
         Drawable palette      = battleFrame("battle-palette", PALETTE_FILL, PALETTE_BORDER, PALETTE_LIGHT, PALETTE_SHADOW);
         Drawable card         = battleFrame("battle-card", PAPER, new Color(0.105f, 0.135f, 0.205f, 1f),
             Color.WHITE, new Color(0.700f, 0.680f, 0.590f, 1f));
+        Drawable window       = battleFrame("battle-window", PAPER, new Color(0.105f, 0.135f, 0.205f, 1f),
+            Color.WHITE, new Color(0.700f, 0.680f, 0.590f, 1f));
+        // Window uses its background top padding as the title bar height.
+        window.setTopHeight(font.getLineHeight() + 10f);
         Drawable cardOver     = battleFrame("battle-card-over", CARD_HOVER, new Color(0.965f, 0.670f, 0.120f, 1f),
             new Color(1f, 1f, 0.780f, 1f), new Color(0.720f, 0.420f, 0.080f, 1f));
         Drawable cardDisabled = battleFrame("battle-card-disabled", new Color(0.660f, 0.670f, 0.700f, 1f),
@@ -171,6 +175,7 @@ public final class PixelSkin {
         skin.add("battle-header", header,       Drawable.class);
         skin.add("battle-palette", palette,     Drawable.class);
         skin.add("battle-card",   card,         Drawable.class);
+        skin.add("window",        window,       Drawable.class);
         skin.add("battle-card-over", cardOver,  Drawable.class);
         skin.add("battle-card-disabled", cardDisabled, Drawable.class);
         skin.add("battle-primary", primary,     Drawable.class);
@@ -203,7 +208,7 @@ public final class PixelSkin {
         registerScrollPaneStyles(skin);
         registerSelectBoxStyles(skin, textfield, textfieldOver, listSel);
         registerCheckBoxStyles(skin, checkboxOn, checkboxOff);
-        registerWindowStyles(skin, card);
+        registerWindowStyles(skin, window);
 
         // Attach disposal tracking onto the skin via a tiny subclass is not
         // possible because we return a bare Skin. Instead we store the textures

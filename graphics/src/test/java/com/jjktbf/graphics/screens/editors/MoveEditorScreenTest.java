@@ -111,6 +111,18 @@ class MoveEditorScreenTest {
     }
 
     @Test
+    void saveCopyRepresentsStatDecreasesWithANegativeMagnitude() {
+        MoveData draft = moveWithAllSectionDetails();
+        draft.selfEffects.clear();
+        draft.selfEffects.add(effect(StatusEffectType.STRENGTH_DECREASE.name(), 10.0));
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(draft);
+
+        assertEquals(StatusEffectType.STRENGTH_INCREASE.name(), saved.selfEffects.get(0).type);
+        assertEquals(-10.0, saved.selfEffects.get(0).magnitude);
+    }
+
+    @Test
     void categoryTagsMustDescribeOneExecutableMovePurpose() {
         MoveData attack = new MoveData();
         attack.tags = new ArrayList<>(List.of(MoveTag.ATTACK.name()));

@@ -115,9 +115,13 @@ public final class ContentCatalog {
             }
             requireIdentifier(definition.id, "move ID");
             requireText(definition.name, "move name for " + definition.id);
-            if (!CodedAbilityRegistry.supportsMoveAction(
-                definition.codedAbilityKey, definition.codedAction)) {
-                throw invalid(MOVES_RESOURCE, "invalid coded action on move " + definition.id);
+            // Coded bindings now live on effect rows (self or on-hit), not on the
+            // move. Validate every coded effect row against the registry allow-list.
+            for (MoveData.StatusEffectData effect : codedEffectRows(definition)) {
+                if (!CodedAbilityRegistry.supportsEffectAction(
+                    effect.codedAbilityKey, effect.codedAction)) {
+                    throw invalid(MOVES_RESOURCE, "invalid coded action on move " + definition.id);
+                }
             }
             try {
                 Move move = definition.toMove();
@@ -263,6 +267,18 @@ public final class ContentCatalog {
         if (values == null || values.isEmpty()) {
             throw invalid(resource, "must contain at least one definition");
         }
+    }
+
+    /** The coded effect rows (self + on-hit) carried by a move — validated against the ability registry. */
+    private static List<MoveData.StatusEffectData> codedEffectRows(MoveData move) {
+        List<MoveData.StatusEffectData> rows = new ArrayList<>();
+        for (List<MoveData.StatusEffectData> list : List.of(move.selfEffects, move.onHitEffects)) {
+            if (list == null) continue;
+            for (MoveData.StatusEffectData effect : list) {
+                if (effect != null && effect.isCoded()) rows.add(effect);
+            }
+        }
+        return rows;
     }
 
     private static void requireIdentifier(String value, String field) {

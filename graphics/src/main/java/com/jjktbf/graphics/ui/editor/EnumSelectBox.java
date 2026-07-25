@@ -1,9 +1,9 @@
 package com.jjktbf.graphics.ui.editor;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.jjktbf.graphics.ui.DynamicSelectBox;
 
 import java.util.function.Consumer;
 
@@ -14,7 +14,7 @@ import java.util.function.Consumer;
  * Selected value is exposed as the enum constant name (the string form stored
  * in the DTOs). This keeps callers free of generics dance.
  */
-public class EnumSelectBox<T extends Enum<T>> extends SelectBox<String> {
+public class EnumSelectBox<T extends Enum<T>> extends DynamicSelectBox<String> {
 
     private final Class<T> enumClass;
     private final boolean hasNull;

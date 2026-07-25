@@ -519,8 +519,6 @@ public class CombatResolver {
         // of whether the attack later hits, misses, or is blocked.
         applySelfEffects(state, attacker, move, tick, events);
         if (finishBattleIfNeeded(state, events, tick)) return;
-        events.addAll(attacker.getCodedAbilities().onMoveUnleashed(state, move, tick));
-        if (finishBattleIfNeeded(state, events, tick)) return;
 
         // --- Defensive moves: apply buff or register full block ---
         if (move.isDefensive()) {
@@ -836,6 +834,14 @@ public class CombatResolver {
         List<CombatEvent> events
     ) {
         for (StatusEffect effect : move.getOnHitEffects()) {
+            // A coded on-hit row is dispatched to the matching compiled runtime
+            // instead of being applied as a status — this is how a technique move's
+            // hardcoded on-hit behaviour is stored on an editable effect row.
+            if (effect.isCoded()) {
+                events.addAll(attacker.getCodedAbilities().onEffectFired(
+                    state, effect, attacker, defender, tick));
+                continue;
+            }
             int previousMaxHp = defender.getMaxHp();
             int previousMaxCe = defender.getMaxCursedEnergy();
             defender.addStatusEffect(effect, state.getCurrentPhase());
@@ -860,6 +866,15 @@ public class CombatResolver {
         List<CombatEvent> events
     ) {
         for (StatusEffect effect : move.getSelfEffects()) {
+            // A coded self row is dispatched to the matching compiled runtime
+            // (fires on unleash, hit/miss/block agnostic) instead of being applied
+            // as a status — this is how a technique move's hardcoded self/cast
+            // behaviour is stored on an editable effect row.
+            if (effect.isCoded()) {
+                events.addAll(combatant.getCodedAbilities().onEffectFired(
+                    state, effect, combatant, combatant, tick));
+                continue;
+            }
             int previousMaxHp = combatant.getMaxHp();
             int previousMaxCe = combatant.getMaxCursedEnergy();
             combatant.addStatusEffect(effect, state.getCurrentPhase());

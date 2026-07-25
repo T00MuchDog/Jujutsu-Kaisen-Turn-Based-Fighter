@@ -16,6 +16,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.graphics.ui.editor.AxisLockedScrollPane;
 import com.jjktbf.graphics.ui.editor.AssignmentPanel;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
@@ -571,7 +572,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (currentName != null && names.stream().noneMatch(currentName::equalsIgnoreCase)) {
             names.add(currentName);
         }
-        SelectBox<String> select = new SelectBox<>(skin);
+        SelectBox<String> select = new DynamicSelectBox<>(skin);
         select.setItems(names.toArray(new String[0]));
         select.setSelected(currentName == null ? none : names.stream()
             .filter(currentName::equalsIgnoreCase).findFirst().orElse(currentName));

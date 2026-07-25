@@ -3,7 +3,6 @@ package com.jjktbf.graphics.ui.editor;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
-import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
@@ -11,6 +10,8 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.jjktbf.graphics.ui.ContentSizedDialog;
+import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectParameter;
 import com.jjktbf.model.character.AbilityEffectTarget;
@@ -116,7 +117,7 @@ public class EffectListEditor extends Table {
         AbilityEffectType initialType = safeType(working.type);
         initialType.prepare(working);
 
-        SelectBox<String> typeBox = new SelectBox<>(skin);
+        SelectBox<String> typeBox = new DynamicSelectBox<>(skin);
         typeBox.setItems(effectTypeLabels());
         typeBox.setSelected(initialType.displayName());
 
@@ -142,7 +143,7 @@ public class EffectListEditor extends Table {
             }
         });
 
-        Dialog dialog = new Dialog(adding ? "Add Effect" : "Edit Effect", skin);
+        ContentSizedDialog dialog = new ContentSizedDialog(adding ? "Add Effect" : "Edit Effect", skin);
         Table content = dialog.getContentTable();
         content.defaults().pad(4).left().growX();
         content.add(new Label("Effect", skin)).padRight(8);
@@ -198,7 +199,7 @@ public class EffectListEditor extends Table {
             ? nonNegativeIntegerField(effect.durationTicks) : null;
 
         if (type.uses(AbilityEffectParameter.STAT)) {
-            SelectBox<String> statBox = new SelectBox<>(skin);
+            SelectBox<String> statBox = new DynamicSelectBox<>(skin);
             statBox.setItems(statLabels());
             statBox.setSelected(statLabel(effect.stat));
             effect.stat = statFromLabel(statBox.getSelected()).fieldName;
@@ -211,7 +212,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.BATTLE_STAT)) {
-            SelectBox<String> statBox = new SelectBox<>(skin);
+            SelectBox<String> statBox = new DynamicSelectBox<>(skin);
             statBox.setItems(java.util.Arrays.stream(BattleStatKey.values())
                 .map(stat -> stat.label).toArray(String[]::new));
             statBox.setSelected(battleStatLabel(effect.stringValue));
@@ -225,7 +226,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.MOVE_SCOPE)) {
-            SelectBox<String> scopeBox = new SelectBox<>(skin);
+            SelectBox<String> scopeBox = new DynamicSelectBox<>(skin);
             scopeBox.setItems(moveScopeLabels(type != AbilityEffectType.LOCK_MOVE_TAG));
             scopeBox.setSelected(moveScopeLabel(effect.moveTag));
             effect.moveTag = ALL_MOVES.equals(scopeBox.getSelected())
@@ -264,7 +265,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.MOVE_ID)) {
-            SelectBox<String> moveBox = new SelectBox<>(skin);
+            SelectBox<String> moveBox = new DynamicSelectBox<>(skin);
             moveBox.setItems(moveReferenceLabels(effect.moveId));
             moveBox.setSelected(moveReferenceLabel(effect.moveId));
             moveBox.addListener(new ChangeListener() {
@@ -276,7 +277,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.TECHNIQUE)) {
-            SelectBox<String> techniqueBox = new SelectBox<>(skin);
+            SelectBox<String> techniqueBox = new DynamicSelectBox<>(skin);
             techniqueBox.setItems(techniqueLabels(effect.stringValue));
             techniqueBox.setSelected(techniqueLabel(effect.stringValue));
             techniqueBox.addListener(new ChangeListener() {
@@ -288,7 +289,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.STATUS_TYPE)) {
-            SelectBox<String> statusBox = new SelectBox<>(skin);
+            SelectBox<String> statusBox = new DynamicSelectBox<>(skin);
             List<String> statuses = new ArrayList<>(AbilityEffectType.supportedAutoStatuses().stream()
                 .map(StatusEffectType::displayName)
                 .toList());
@@ -307,7 +308,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.TARGET)) {
-            SelectBox<String> targetBox = new SelectBox<>(skin);
+            SelectBox<String> targetBox = new DynamicSelectBox<>(skin);
             targetBox.setItems(
                 AbilityEffectTarget.SELF.name(),
                 AbilityEffectTarget.ENEMY.name(),
@@ -323,7 +324,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.TIMING)) {
-            SelectBox<String> timingBox = new SelectBox<>(skin);
+            SelectBox<String> timingBox = new DynamicSelectBox<>(skin);
             timingBox.setItems(
                 AbilityEffectTiming.FIGHT_START.name(),
                 AbilityEffectTiming.ROUND_START.name(),

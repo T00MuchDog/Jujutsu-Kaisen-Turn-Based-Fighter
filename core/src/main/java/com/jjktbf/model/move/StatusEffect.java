@@ -3,6 +3,20 @@ package com.jjktbf.model.move;
 /**
  * An instance of a status effect as it exists on a combatant mid-battle.
  * Immutable descriptor — the combat engine tracks duration countdown separately.
+ *
+ * <p>An effect row is exactly one of two flavours:
+ * <ul>
+ *   <li><b>Status effect</b> — carries a non-null {@link StatusEffectType} and is
+ *       applied to a combatant's stat sheet for a duration.</li>
+ *   <li><b>Coded action</b> — carries a {@code codedAbilityKey} + {@code codedAction}
+ *       pair (validated by {@link com.jjktbf.model.character.coded.CodedAbilityRegistry})
+ *       and is dispatched to the matching {@link com.jjktbf.model.character.coded.CodedAbilityRuntime}
+ *       instead of being applied as a status. This is how a technique move's
+ *       hardcoded effect is expressed as an editable, add/remove-able effect row
+ *       (self or on-hit) rather than as state baked onto the {@code Move}.</li>
+ * </ul>
+ * The two flavours are mutually exclusive: a coded action leaves {@code type} null,
+ * and a status effect leaves the coded fields blank.
  */
 public class StatusEffect {
 
@@ -17,6 +31,12 @@ public class StatusEffect {
     /** Magnitude of the effect (e.g. damage per tick, stat modifier amount). */
     private final double magnitude;
 
+    /** Coded-ability key for an effect that cannot be expressed as a status. Blank for status effects. */
+    private final String codedAbilityKey;
+
+    /** Action interpreted by {@link #codedAbilityKey} when this effect fires. Blank for status effects. */
+    private final String codedAction;
+
     public StatusEffect(StatusEffectType type, int durationRounds, double magnitude) {
         this(type, durationRounds, 0, magnitude);
     }
@@ -27,15 +47,43 @@ public class StatusEffect {
         int durationTicks,
         double magnitude
     ) {
-        if (type == null) throw new IllegalArgumentException("Status effect type is required");
-        validateDuration(durationRounds, durationTicks);
-        if (!Double.isFinite(magnitude) || magnitude < 0) {
-            throw new IllegalArgumentException("Status effect amount must be a non-negative number");
+        this(type, durationRounds, durationTicks, magnitude, null, null);
+    }
+
+    /**
+     * Construct a coded-action effect row. {@code type} may be null when a coded
+     * ability key is supplied; the combat engine dispatches the row to the matching
+     * coded runtime instead of applying it as a status.
+     */
+    public StatusEffect(
+        StatusEffectType type,
+        int durationRounds,
+        int durationTicks,
+        double magnitude,
+        String codedAbilityKey,
+        String codedAction
+    ) {
+        boolean coded = codedAbilityKey != null && !codedAbilityKey.isBlank();
+        if (type == null && !coded) {
+            throw new IllegalArgumentException("Status effect type is required for a non-coded effect");
+        }
+        if (!coded) {
+            validateDuration(durationRounds, durationTicks);
+            if (!Double.isFinite(magnitude) || magnitude < 0) {
+                throw new IllegalArgumentException("Status effect amount must be a non-negative number");
+            }
         }
         this.type            = type;
         this.durationRounds  = durationRounds;
         this.durationTicks   = durationTicks;
         this.magnitude       = magnitude;
+        this.codedAbilityKey = codedAbilityKey;
+        this.codedAction     = codedAction;
+    }
+
+    /** Build a coded-action effect row bound to the given ability key/action. */
+    public static StatusEffect coded(String codedAbilityKey, String codedAction) {
+        return new StatusEffect(null, 0, 0, 0, codedAbilityKey, codedAction);
     }
 
     public static void validateDuration(int rounds, int ticks) {
@@ -52,9 +100,19 @@ public class StatusEffect {
     public int getDurationRounds()        { return durationRounds; }
     public int getDurationTicks()         { return durationTicks; }
     public double getMagnitude()          { return magnitude; }
+    public String getCodedAbilityKey()    { return codedAbilityKey; }
+    public String getCodedAction()        { return codedAction; }
+
+    /** True when this row carries a coded action (and is therefore not a status effect). */
+    public boolean isCoded() {
+        return codedAbilityKey != null && !codedAbilityKey.isBlank();
+    }
 
     @Override
     public String toString() {
+        if (isCoded()) {
+            return String.format("StatusEffect{CODED %s/%s}", codedAbilityKey, codedAction);
+        }
         return String.format("StatusEffect{%s rounds=%d ticks=%d mag=%.2f}",
             type, durationRounds, durationTicks, magnitude);
     }

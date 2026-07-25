@@ -47,7 +47,16 @@ public final class CodedAbilityRegistry {
             && MiraclesAbility.supportsFeature(normalizedFeature);
     }
 
-    public static boolean supportsMoveAction(String key, String action) {
+    /**
+     * Validate a coded <em>effect</em> row's ability key/action binding.
+     *
+     * <p>This is the allow-list used by the move editor and content catalog to
+     * validate coded self-effect and on-hit-effect rows (e.g. Miracle Creation's
+     * {@code MIRACLES}/{@code CREATE} self-effect). It is the precedent for
+     * future technique moves whose hardcoded behaviour is expressed as an editable
+     * effect row rather than state baked onto the move.
+     */
+    public static boolean supportsEffectAction(String key, String action) {
         String normalizedKey = normalize(key);
         String normalizedAction = normalize(action);
         if (normalizedKey.isEmpty() && normalizedAction.isEmpty()) return true;

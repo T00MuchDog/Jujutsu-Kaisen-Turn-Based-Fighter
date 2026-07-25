@@ -1,9 +1,10 @@
 package com.jjktbf.model.character.coded;
 
 import com.jjktbf.model.combat.AbilityTrigger;
+import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
-import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.StatusEffect;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,10 +26,21 @@ public final class CodedAbilities {
         return events;
     }
 
-    public List<CombatEvent> onMoveUnleashed(BattleState state, Move move, int tick) {
+    /**
+     * Dispatch a coded effect row to every runtime (see
+     * {@link CodedAbilityRuntime#onEffectFired}). A runtime that does not own the
+     * row's coded key/action returns an empty list.
+     */
+    public List<CombatEvent> onEffectFired(
+        BattleState state,
+        StatusEffect effect,
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        int tick
+    ) {
         List<CombatEvent> events = new ArrayList<>();
         for (CodedAbilityRuntime runtime : runtimes) {
-            events.addAll(runtime.onMoveUnleashed(state, move, tick));
+            events.addAll(runtime.onEffectFired(state, effect, attacker, defender, tick));
         }
         return events;
     }

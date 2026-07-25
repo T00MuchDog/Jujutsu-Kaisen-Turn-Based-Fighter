@@ -10,7 +10,6 @@ import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
-import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
@@ -21,6 +20,8 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.scenes.scene2d.ui.WidgetGroup;
+import com.jjktbf.graphics.ui.ContentSizedDialog;
+import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.StatKey;
@@ -353,7 +354,7 @@ public class SkillTreeCanvas extends WidgetGroup {
 
     private void openPrerequisiteManager(SkillTreeNodeData node) {
         if (node.prerequisites == null) node.prerequisites = new ArrayList<>();
-        Dialog dialog = new Dialog("Prerequisites: " + contentName(node), skin);
+        ContentSizedDialog dialog = new ContentSizedDialog("Prerequisites: " + contentName(node), skin);
         Container<Actor> listContainer = new Container<>();
         listContainer.fill(true, false);
         Runnable[] refresh = new Runnable[1];
@@ -409,8 +410,9 @@ public class SkillTreeCanvas extends WidgetGroup {
         boolean adding = index < 0;
         SkillTreePrerequisiteData working = adding
             ? newPrerequisite() : node.prerequisites.get(index).copy();
-        Dialog dialog = new Dialog(adding ? "Add Prerequisite" : "Edit Prerequisite", skin);
-        SelectBox<String> type = new SelectBox<>(skin);
+        ContentSizedDialog dialog = new ContentSizedDialog(
+            adding ? "Add Prerequisite" : "Edit Prerequisite", skin);
+        SelectBox<String> type = new DynamicSelectBox<>(skin);
         type.setItems("Cursed Technique Mastery", "Stat", "Node");
         type.setSelected(typeLabel(working.type));
         Container<Actor> fields = new Container<>();
@@ -467,7 +469,7 @@ public class SkillTreeCanvas extends WidgetGroup {
         Table fields = new Table(skin);
         fields.defaults().pad(4f).left().growX();
         if (SkillTreePrerequisiteData.NODE.equalsIgnoreCase(requirement.type)) {
-            SelectBox<String> nodes = new SelectBox<>(skin);
+            SelectBox<String> nodes = new DynamicSelectBox<>(skin);
             List<String> labels = technique.skillTree == null ? List.of() : technique.skillTree.stream()
                 .filter(Objects::nonNull).map(this::nodeOptionLabel).toList();
             nodes.setItems(labels.toArray(new String[0]));
@@ -489,7 +491,7 @@ public class SkillTreeCanvas extends WidgetGroup {
         }
 
         if (SkillTreePrerequisiteData.STAT.equalsIgnoreCase(requirement.type)) {
-            SelectBox<String> stats = new SelectBox<>(skin);
+            SelectBox<String> stats = new DynamicSelectBox<>(skin);
             List<String> labels = java.util.Arrays.stream(StatKey.values())
                 .filter(stat -> stat != StatKey.CURSED_TECHNIQUE_MASTERY)
                 .map(stat -> stat.label).toList();
