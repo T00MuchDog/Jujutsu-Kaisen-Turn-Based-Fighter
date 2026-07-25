@@ -1,7 +1,9 @@
 package com.jjktbf.graphics;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Graphics;
 import com.jjktbf.AppPaths;
 
 /**
@@ -53,13 +55,66 @@ public class GraphicsMain {
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
 
         config.setTitle(AppPaths.APP_NAME);
-        config.setWindowedMode(1024, 600);
-        config.setResizable(true);
+        // Launch in fullscreen. The mechanism differs by OS because the
+        // *native* fullscreen experience differs:
+        //   - macOS: the "green traffic-light" fullscreen is a distinct native
+        //     API (NSWindow -toggleFullScreen:). GLFW's exclusive fullscreen
+        //     does NOT produce it — it just stretches a borderless window over
+        //     the desktop. So on macOS we start as a normal decorated window
+        //     and invoke the native toggle once the window exists. This is
+        //     exactly what pressing the green button does: the app gets its
+        //     own Space.
+        //   - Windows/Linux: there is no "separate Space" concept; the
+        //     standard fullscreen is exclusive fullscreen, which setFullscreen
+        //     Mode(...) already does correctly at creation time.
+        boolean mac = System.getProperty("os.name").toLowerCase().contains("mac");
+        if (!mac) {
+            config.setFullscreenMode(Lwjgl3ApplicationConfiguration.getDisplayMode());
+        } else {
+            // Start windowed; the green-button toggle needs a real window.
+            config.setWindowedMode(1024, 600);
+        }
         config.setForegroundFPS(60);
         config.useVsync(true);
 
+        JJKGame game = new JJKGame();
+        if (mac) {
+            // toggleFullScreen: must be called on the UI/render thread AFTER
+            // the GLFW window exists. Hooking the end of create() and posting
+            // a runnable defers the call to the next render frame, by which
+            // point the window + GL context are live.
+            game.setOnCreatedAction(() -> Gdx.app.postRunnable(
+                GraphicsMain::enterMacNativeFullscreen));
+        }
+
         // macOS: LibGDX requires the render loop to run on the main thread.
         // This is handled automatically by Lwjgl3Application on macOS.
-        new Lwjgl3Application(new JJKGame(), config);
+        new Lwjgl3Application(game, config);
+    }
+
+    /**
+     * Toggle the window into macOS native fullscreen — the green-button
+     * "separate Space" mode — by calling NSWindow -toggleFullScreen: via the
+     * Objective-C runtime. Wrapped so any failure (non-mac build, missing
+     * native binding, headless) is caught and logged rather than killing the
+     * app; the game still runs windowed in that case.
+     */
+    private static void enterMacNativeFullscreen() {
+        try {
+            long windowHandle = ((Lwjgl3Graphics) Gdx.graphics)
+                .getWindow().getWindowHandle();
+            long cocoaWindow = org.lwjgl.glfw.GLFWNativeCocoa
+                .glfwGetCocoaWindow(windowHandle);
+            long toggleSelector = org.lwjgl.system.macosx.ObjCRuntime
+                .sel_registerName("toggleFullScreen:");
+            long objcMsgSend = org.lwjgl.system.macosx.ObjCRuntime
+                .getLibrary().getFunctionAddress("objc_msgSend");
+            // objc_msgSend(cocoaWindow, "toggleFullScreen:", nil)
+            org.lwjgl.system.JNI.invokePPV(
+                cocoaWindow, toggleSelector, org.lwjgl.system.macosx.ObjCRuntime.nil,
+                objcMsgSend);
+        } catch (Throwable t) {
+            System.err.println("Warning: could not enter native fullscreen: " + t);
+        }
     }
 }

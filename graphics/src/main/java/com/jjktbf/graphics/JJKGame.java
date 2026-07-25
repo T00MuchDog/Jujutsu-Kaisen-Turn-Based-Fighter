@@ -53,6 +53,16 @@ public class JJKGame extends Game {
 
     public static final String DEFAULT_MULTIPLAYER_CHARACTER_ID = "000000";
 
+    // Optional one-shot action run at the very end of create(), once assets and
+    // screens are set up but before the first frame. Used by the desktop
+    // launcher to enter native fullscreen (macOS) after the window exists.
+    private Runnable onCreatedAction;
+
+    /** Set an action to run once at the end of create(). Nullable. */
+    public void setOnCreatedAction(Runnable action) {
+        this.onCreatedAction = action;
+    }
+
     public record MultiplayerFighter(String id, String name) {
         public MultiplayerFighter {
             if (id == null || id.isBlank()) {
@@ -168,6 +178,14 @@ public class JJKGame extends Game {
         );
 
         setScreen(mainMenuScreen);
+
+        // Run the launcher's one-shot startup action (e.g. entering native
+        // fullscreen on macOS) now that everything — including the GLFW
+        // window — is initialized.
+        if (onCreatedAction != null) {
+            onCreatedAction.run();
+            onCreatedAction = null;
+        }
     }
 
     /**

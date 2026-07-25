@@ -65,12 +65,22 @@ public class MoveCardView {
     public static Color typeColorFor(Move move) {
         if (move == null) return Color.GRAY;
         if (isDefensiveRole(move)) return typeColorFor(MoveCategory.DEFENSIVE);
+        // A utility innate technique is its own hybrid: a desaturated lavender that
+        // reads between UTILITY grey and the pure INNATE_TECHNIQUE purple.
+        if (isUtilityRole(move) && hasNatureTag(move, MoveTag.INNATE_TECHNIQUE)) {
+            return new Color(0.640f, 0.560f, 0.760f, 1f);
+        }
         if (isUtilityRole(move)) return typeColorFor(MoveCategory.UTILITY);
 
         boolean physical = hasNatureTag(move, MoveTag.PHYSICAL);
         boolean innate = hasNatureTag(move, MoveTag.INNATE_TECHNIQUE);
         boolean nonInnate = hasNatureTag(move, MoveTag.NON_INNATE_TECHNIQUE);
         boolean cursedEnergy = hasNatureTag(move, MoveTag.CURSED_ENERGY);
+
+        // Innate technique is the headline category: it gets its own colour regardless
+        // of any physical pairing, kept distinct from reinforcement's teal.
+        if (innate) return typeColorFor(MoveCategory.INNATE_TECHNIQUE);
+
         boolean hasTechnique = innate || nonInnate;
         int natureCount = (physical ? 1 : 0) + (innate ? 1 : 0) + (nonInnate ? 1 : 0)
             + (cursedEnergy && !hasTechnique ? 1 : 0);
@@ -91,11 +101,12 @@ public class MoveCardView {
         boolean nonInnate = hasNatureTag(move, MoveTag.NON_INNATE_TECHNIQUE);
         boolean cursedEnergy = hasNatureTag(move, MoveTag.CURSED_ENERGY);
 
+        // Innate technique takes precedence over physical for the category label,
+        // so e.g. PHYSICAL + INNATE reads simply as INNATE TECHNIQUE.
+        if (innate) return "INNATE TECHNIQUE";
         if (physical && innate && nonInnate) return "PHYSICAL + INNATE + NON-INNATE TECHNIQUE";
-        if (physical && innate) return "PHYSICAL + INNATE TECHNIQUE";
         if (physical && nonInnate) return "PHYSICAL + NON-INNATE TECHNIQUE";
         if (innate && nonInnate) return "INNATE + NON-INNATE TECHNIQUE";
-        if (innate) return "INNATE TECHNIQUE";
         if (nonInnate) return "NON-INNATE TECHNIQUE";
         if (physical && cursedEnergy) return "REINFORCEMENT";
         if (physical) return "PHYSICAL";
