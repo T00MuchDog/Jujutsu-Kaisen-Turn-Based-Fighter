@@ -753,9 +753,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                     if (assigned.contains(md.id) || forced.contains(md.id)) continue;
                     String sub = md.tags != null ? String.join(", ", md.tags) : "";
                     String error = moveAssignmentError(cd, abilityResult, md, false);
-                    if (error == null) {
-                        items.add(new AssignmentPanel.Item(md.id, md.name, sub));
-                    }
+                    AssignmentPanel.Item item = availableMoveItem(md, sub, pool, error);
+                    if (item != null) items.add(item);
                 }
                 return items;
             }
@@ -913,10 +912,25 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             int used = SlotBudgetEnforcer.countUsage(
                 getAssignedMovePoolList(character)).getOrDefault(pool, 0);
             boolean withinBudget = alreadyAssigned ? used <= budget : used < budget;
-            return withinBudget ? null : "No available " + pool + " slots";
+            return withinBudget ? null : noAvailableSlotsError(pool);
         } catch (Exception ex) {
             return "Move configuration is invalid: " + ex.getMessage();
         }
+    }
+
+    private static String noAvailableSlotsError(MovePool pool) {
+        return "No available " + pool + " slots";
+    }
+
+    static AssignmentPanel.Item availableMoveItem(
+        MoveData move,
+        String sublabel,
+        MovePool pool,
+        String error
+    ) {
+        if (error == null) return new AssignmentPanel.Item(move.id, move.name, sublabel);
+        return noAvailableSlotsError(pool).equals(error)
+            ? new AssignmentPanel.Item(move.id, move.name, sublabel, true, error) : null;
     }
 
     // =========================================================================
