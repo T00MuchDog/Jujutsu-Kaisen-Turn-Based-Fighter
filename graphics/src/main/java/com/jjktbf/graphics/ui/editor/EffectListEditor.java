@@ -137,7 +137,10 @@ public class EffectListEditor extends Table {
 
         Container<Actor> fieldsContainer = new Container<>();
         fieldsContainer.fill(true, false);
-        fieldsContainer.setActor(buildFields(working, initialType));
+        final Runnable[] rebuildFields = new Runnable[1];
+        rebuildFields[0] = () -> fieldsContainer.setActor(
+            buildFields(working, typeFromLabel(typeBox.getSelected()), rebuildFields[0]));
+        rebuildFields[0].run();
 
         typeBox.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
@@ -145,7 +148,7 @@ public class EffectListEditor extends Table {
                 selected.reset(working);
                 hint.setText(selected.description());
                 error.setText("");
-                fieldsContainer.setActor(buildFields(working, selected));
+                rebuildFields[0].run();
             }
         });
 
@@ -203,10 +206,16 @@ public class EffectListEditor extends Table {
         dialog.show(getStage());
     }
 
-    private Actor buildFields(AbilityEffectData effect, AbilityEffectType type) {
+    private Actor buildFields(
+        AbilityEffectData effect,
+        AbilityEffectType type,
+        Runnable refreshFields
+    ) {
         Table fields = new Table(skin);
         fields.defaults().pad(4).left().growX();
+        boolean tickOnlyStatus = isTickOnlyStatus(effect, type);
         TextField durationField = type.uses(AbilityEffectParameter.DURATION)
+            && !tickOnlyStatus
             ? integerField(effect.durationRounds) : null;
         TextField durationTicksField = type.uses(AbilityEffectParameter.DURATION)
             ? nonNegativeIntegerField(effect.durationTicks) : null;
@@ -327,6 +336,15 @@ public class EffectListEditor extends Table {
                 @Override public void changed(ChangeEvent event, Actor actor) {
                     effect.stringValue = selectedStatus.equals(statusBox.getSelected())
                         ? storedStatus : statusFromLabel(statusBox.getSelected()).name();
+                    StatusEffectType status = statusFromLabel(statusBox.getSelected());
+                    if (status.requiresTickDuration()) {
+                        effect.durationRounds = 0;
+                        if (effect.durationTicks == null || effect.durationTicks <= 0) {
+                            effect.durationTicks = 1;
+                        }
+                        effect.magnitude = 0.0;
+                    }
+                    refreshFields.run();
                 }
             });
             addRow(fields, "Status", statusBox);
@@ -359,7 +377,8 @@ public class EffectListEditor extends Table {
             timingBox.addListener(new ChangeListener() {
                 @Override public void changed(ChangeEvent event, Actor actor) {
                     effect.timing = timingBox.getSelected();
-                    if (AbilityEffectTiming.ROUND_START.name().equals(effect.timing)) {
+                    if (AbilityEffectTiming.ROUND_START.name().equals(effect.timing)
+                        && !isTickOnlyStatus(effect, type)) {
                         effect.durationRounds = 1;
                         effect.durationTicks = 0;
                         if (durationField != null) durationField.setText("1");
@@ -371,21 +390,35 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.DURATION)) {
-            durationField.addListener(new ChangeListener() {
-                @Override public void changed(ChangeEvent event, Actor actor) {
-                    effect.durationRounds = parseInteger(durationField.getText());
+            if (tickOnlyStatus) {
+                effect.durationRounds = 0;
+                if (effect.durationTicks == null || effect.durationTicks <= 0) {
+                    effect.durationTicks = 1;
+                    durationTicksField.setText("1");
                 }
-            });
-            durationTicksField.addListener(new ChangeListener() {
-                @Override public void changed(ChangeEvent event, Actor actor) {
-                    effect.durationTicks = parseInteger(durationTicksField.getText());
-                }
-            });
-            addRow(fields, "Duration rounds (-1 = permanent)", durationField);
-            addRow(fields, "Duration ticks", durationTicksField);
+                durationTicksField.addListener(new ChangeListener() {
+                    @Override public void changed(ChangeEvent event, Actor actor) {
+                        effect.durationTicks = parseInteger(durationTicksField.getText());
+                    }
+                });
+                addRow(fields, "Stagger duration (AP ticks)", durationTicksField);
+            } else {
+                durationField.addListener(new ChangeListener() {
+                    @Override public void changed(ChangeEvent event, Actor actor) {
+                        effect.durationRounds = parseInteger(durationField.getText());
+                    }
+                });
+                durationTicksField.addListener(new ChangeListener() {
+                    @Override public void changed(ChangeEvent event, Actor actor) {
+                        effect.durationTicks = parseInteger(durationTicksField.getText());
+                    }
+                });
+                addRow(fields, "Duration rounds (-1 = permanent)", durationField);
+                addRow(fields, "Duration ticks", durationTicksField);
+            }
         }
 
-        if (type.uses(AbilityEffectParameter.MAGNITUDE)) {
+        if (type.uses(AbilityEffectParameter.MAGNITUDE) && !tickOnlyStatus) {
             TextField magnitude = nonNegativeDecimalField(effect.magnitude);
             magnitude.addListener(new ChangeListener() {
                 @Override public void changed(ChangeEvent event, Actor actor) {
@@ -478,7 +511,7 @@ public class EffectListEditor extends Table {
             summary.append(" | ").append(statusLabel(effect.stringValue));
             if (effect.target != null) summary.append(" -> ").append(effect.target);
             if (effect.timing != null) summary.append(" @ ").append(effect.timing);
-            if (effect.magnitude != null) {
+            if (effect.magnitude != null && statusUsesMagnitude(effect)) {
                 summary.append(" | ").append(formatNumber(
                     StatusEffectType.normalizeStoredMagnitude(
                         effect.stringValue, effect.magnitude))).append(" points");
@@ -502,6 +535,7 @@ public class EffectListEditor extends Table {
     private static String durationLabel(AbilityEffectData effect) {
         int rounds = effect.durationRounds != null ? effect.durationRounds : 0;
         int ticks = effect.durationTicks != null ? effect.durationTicks : 0;
+        if (isTickOnlyStatus(effect, safeType(effect.type))) return ticks + " AP ticks";
         if (rounds == -1) return "permanent";
         if (rounds == 0) return ticks + " ticks";
         if (ticks == 0) return rounds + " rounds";
@@ -513,6 +547,23 @@ public class EffectListEditor extends Table {
             return AbilityEffectType.fromName(typeName);
         } catch (Exception ex) {
             return AbilityEffectType.STAT_ADD;
+        }
+    }
+
+    private static boolean isTickOnlyStatus(AbilityEffectData effect, AbilityEffectType type) {
+        if (!type.uses(AbilityEffectParameter.STATUS_TYPE)) return false;
+        try {
+            return StatusEffectType.fromName(effect.stringValue).requiresTickDuration();
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
+    private static boolean statusUsesMagnitude(AbilityEffectData effect) {
+        try {
+            return StatusEffectType.fromName(effect.stringValue).usesMagnitude();
+        } catch (IllegalArgumentException ignored) {
+            return true;
         }
     }
 

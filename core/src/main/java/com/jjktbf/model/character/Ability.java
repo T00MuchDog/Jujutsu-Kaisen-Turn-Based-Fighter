@@ -1,6 +1,7 @@
 package com.jjktbf.model.character;
 
 import com.jjktbf.model.move.StatusEffect;
+import com.jjktbf.model.move.StatusEffectType;
 
 import java.util.List;
 
@@ -55,9 +56,20 @@ public class Ability {
             try { type = AbilityEffectType.fromName(effect.type); }
             catch (IllegalArgumentException ignored) { continue; }
             if (!type.uses(AbilityEffectParameter.DURATION)) continue;
-            StatusEffect.validateDuration(
-                effect.durationRounds == null ? -1 : effect.durationRounds,
-                effect.durationTicks == null ? 0 : effect.durationTicks);
+            int rounds = effect.durationRounds == null ? -1 : effect.durationRounds;
+            int ticks = effect.durationTicks == null ? 0 : effect.durationTicks;
+            if (type.uses(AbilityEffectParameter.STATUS_TYPE)) {
+                StatusEffectType status;
+                try {
+                    status = StatusEffectType.fromName(effect.stringValue);
+                } catch (IllegalArgumentException ignored) {
+                    StatusEffect.validateDuration(rounds, ticks);
+                    continue;
+                }
+                StatusEffect.validateDuration(status, rounds, ticks);
+            } else {
+                StatusEffect.validateDuration(rounds, ticks);
+            }
         }
         this.codedAbilityKey  = data.codedAbilityKey;
         this.codedFeature     = data.codedFeature;

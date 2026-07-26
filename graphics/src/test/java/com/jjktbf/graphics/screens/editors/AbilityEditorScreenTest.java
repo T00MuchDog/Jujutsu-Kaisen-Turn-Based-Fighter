@@ -52,4 +52,19 @@ class AbilityEditorScreenTest {
         effect.durationTicks = 20;
         assertNull(AbilityEffectType.APPLY_STATUS.validationError(effect));
     }
+
+    @Test
+    void staggerAbilityStatusRequiresApTicksAndNoMagnitude() {
+        AbilityEffectData effect = AbilityEffectType.APPLY_STATUS.createDefault();
+        effect.stringValue = StatusEffectType.STAGGER.name();
+        effect.durationRounds = 0;
+        effect.durationTicks = 2;
+        effect.magnitude = 0.0;
+
+        assertNull(AbilityEffectType.APPLY_STATUS.validationError(effect));
+
+        effect.durationRounds = 1;
+        assertEquals("Stagger must use 0 rounds and at least 1 AP tick.",
+            AbilityEffectType.APPLY_STATUS.validationError(effect));
+    }
 }

@@ -218,6 +218,11 @@ public class CombatResolver {
         events.addAll(passiveAbilities.process(state, AbilityTrigger.tick(tick)));
         if (finishBattleIfNeeded(state, events, tick)) return events;
 
+        // STAGGER is a character status, not a move tag. It acts before any
+        // segment can begin or fire on this AP tick.
+        applyActiveStaggers(player, tick, events);
+        applyActiveStaggers(enemy, tick, events);
+
         // --- CE drain when a segment starts ---
         drainCeForStartingSegments(state, player, tick, events);
         if (finishBattleIfNeeded(state, events, tick)) return events;
@@ -232,9 +237,17 @@ public class CombatResolver {
 
         // --- Resolve each firing move ---
         for (FiringEntry entry : firing) {
+            // A stagger applied by an earlier same-tick move takes effect before
+            // the next queued move gets a chance to resolve.
+            applyActiveStaggers(player, tick, events);
+            applyActiveStaggers(enemy, tick, events);
             if (entry.segment.isStunned()) continue;
             if (finishBattleIfNeeded(state, events, tick)) return events;
             resolveMove(entry, player, enemy, state, tick, events);
+            // This also handles a stagger that lands while the target is charging
+            // and has no separate move firing later on the same tick.
+            applyActiveStaggers(player, tick, events);
+            applyActiveStaggers(enemy, tick, events);
             if (finishBattleIfNeeded(state, events, tick)) return events;
         }
 
@@ -502,6 +515,8 @@ public class CombatResolver {
         for (Move reactionMove : response.reactionMoves()) {
             resolveReactionMove(
                 reactionMove, entry.defender, entry.attacker, player, enemy, state, tick, events);
+            applyActiveStaggers(player, tick, events);
+            applyActiveStaggers(enemy, tick, events);
             if (entry.segment.isStunned() || finishBattleIfNeeded(state, events, tick)) return;
         }
 
@@ -748,14 +763,56 @@ public class CombatResolver {
         int               tick,
         List<CombatEvent> events
     ) {
+        if (stunActiveSegments(defender, tick, true)) {
+            events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
+                .target(defender)
+                .tick(tick)
+                .message(defender.getCharacter().getName()
+                         + " was stunned and could not move.")
+                .build());
+        }
+    }
+
+    /** Apply STAGGER's ongoing stun. HEAVY only resists the STUN move tag. */
+    private void resolveStaggerStatus(
+        BattleCombatant defender,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        if (stunActiveSegments(defender, tick, false)) {
+            events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
+                .target(defender)
+                .tick(tick)
+                .message(defender.getCharacter().getName()
+                    + " was staggered and could not move.")
+                .build());
+        }
+    }
+
+    private void applyActiveStaggers(
+        BattleCombatant combatant,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        if (combatant.hasEffect(StatusEffectType.STAGGER)) {
+            resolveStaggerStatus(combatant, tick, events);
+        }
+    }
+
+    /** Stun active, not-yet-fired segments and report whether any were changed. */
+    private static boolean stunActiveSegments(
+        BattleCombatant defender,
+        int tick,
+        boolean heavyResists
+    ) {
         Timeline defenderTimeline = defender.getTimeline();
-        if (defenderTimeline == null) return;
+        if (defenderTimeline == null) return false;
 
         boolean stunnedAny = false;
         for (ActionSegment segment : defenderTimeline.getSegments()) {
             if (segment.isStunned()) continue;
             if (segment.hasFired()) continue;        // can't un-fire an already-resolved move
-            if (segment.getMove().isHeavy()) continue; // HEAVY moves resist the stun tag
+            if (heavyResists && segment.getMove().isHeavy()) continue;
             boolean onCurrentTick =
                 (tick >= segment.getStartTick() && tick <= segment.getEndTick())
                 || segment.getFireTick() == tick;
@@ -764,15 +821,7 @@ public class CombatResolver {
                 stunnedAny = true;
             }
         }
-
-        if (stunnedAny) {
-            events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
-                .target(defender)
-                .tick(tick)
-                .message(defender.getCharacter().getName()
-                         + " was stunned and could not move.")
-                .build());
-        }
+        return stunnedAny;
     }
 
     // -------------------------------------------------------------------------

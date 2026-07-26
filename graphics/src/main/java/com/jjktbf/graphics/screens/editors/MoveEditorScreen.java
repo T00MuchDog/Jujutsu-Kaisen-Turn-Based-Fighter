@@ -179,27 +179,30 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         } catch (IllegalArgumentException ignored) {
             return null;
         }
-        // Store one canonical status type per stat; the magnitude sign selects the direction.
+        // Store one canonical type per stat; non-stat statuses keep their own type.
         c.type            = canonicalStatusType(type).name();
         c.durationRounds  = e.durationRounds;
         c.durationTicks   = e.durationTicks;
-        c.magnitude       = type.signedMagnitude(
-            StatusEffectType.normalizeStoredMagnitude(e.type, e.magnitude));
+        c.magnitude       = type.usesMagnitude()
+            ? type.signedMagnitude(StatusEffectType.normalizeStoredMagnitude(e.type, e.magnitude))
+            : 0.0;
         return c;
     }
 
     private static StatusEffectType canonicalStatusType(StatusEffectType type) {
-        return type.signedMagnitude(1.0) < 0 ? type.opposite() : type;
+        return type.isStatModifier() && type.signedMagnitude(1.0) < 0
+            ? type.opposite() : type;
     }
 
     private static List<StatusEffectType> editableStatusTypes() {
         return List.of(StatusEffectType.values()).stream()
-            .filter(type -> type.signedMagnitude(1.0) > 0)
+            .filter(type -> !type.isStatModifier() || type.signedMagnitude(1.0) > 0)
             .toList();
     }
 
     private static String statusLabel(StatusEffectType type) {
         StatusEffectType canonical = canonicalStatusType(type);
+        if (!canonical.isStatModifier()) return canonical.displayName();
         return canonical.baseStat() != null
             ? canonical.baseStat().label
             : canonical.battleStat().label;
@@ -210,6 +213,23 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             return statusLabel(StatusEffectType.fromName(typeName, magnitude));
         } catch (IllegalArgumentException ignored) {
             return StatusEffectType.referenceDisplayName(typeName);
+        }
+    }
+
+    private static String statusEffectSummary(MoveData.StatusEffectData effect) {
+        try {
+            StatusEffectType type = StatusEffectType.fromName(effect.type, effect.magnitude);
+            String summary = type.requiresTickDuration()
+                ? statusLabel(effect.type, effect.magnitude) + " | AP ticks=" + effect.durationTicks
+                : statusLabel(effect.type, effect.magnitude)
+                    + " | rounds=" + effect.durationRounds
+                    + " | ticks=" + effect.durationTicks;
+            return type.usesMagnitude() ? summary + " | amount=" + effect.magnitude : summary;
+        } catch (IllegalArgumentException ignored) {
+            return statusLabel(effect.type, effect.magnitude)
+                + " | rounds=" + effect.durationRounds
+                + " | ticks=" + effect.durationTicks
+                + " | amount=" + effect.magnitude;
         }
     }
 
@@ -893,10 +913,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                     ? "CODED: " + eff.codedAbilityKey + "/" + eff.codedAction
                         + (eff.codedTarget == null ? "" : " -> " + eff.codedTarget)
                         + (eff.codedStackCount == null ? "" : " x" + eff.codedStackCount)
-                    : statusLabel(eff.type, eff.magnitude)
-                        + " | rounds=" + eff.durationRounds
-                        + " | ticks=" + eff.durationTicks
-                        + " | amount=" + eff.magnitude;
+                    : statusEffectSummary(eff);
                 Label lbl = new Label(rowLabel, skin, "small");
                 t.add(lbl).left().growX();
                 TextButton editBtn = new TextButton("Edit", skin);
@@ -1018,6 +1035,12 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                         .filter(status -> statusLabel(status).equals(sel))
                         .findFirst().orElse(StatusEffectType.STRENGTH_INCREASE);
                     eff.type = matched.name();
+                    if (matched.requiresTickDuration()) {
+                        eff.durationRounds = 0;
+                        if (eff.durationTicks <= 0) eff.durationTicks = 1;
+                        eff.magnitude = 0.0;
+                    }
+                    applyMode[0].run();
                 }
             }
         });
@@ -1028,43 +1051,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         typeRow.add(toggleBtn).padRight(8);
         typeRow.add(typeBox).growX();
         content.add(typeRow).growX().row();
-
-        // --- Status-effect customisation (rounds / ticks / amount). ---
-        final Table statusFields = new Table(skin);
-        statusFields.defaults().pad(4).left();
-
-        TextField roundsField = new HoverTextField(String.valueOf(eff.durationRounds), skin);
-        roundsField.setTextFieldFilter((tf, c) -> Character.isDigit(c) || c == '-');
-        roundsField.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent e, Actor a) {
-                try { eff.durationRounds = Integer.parseInt(roundsField.getText()); }
-                catch (NumberFormatException ignored) {}
-            }
-        });
-        statusFields.add(new Label("Duration rounds (-1 = permanent)", skin)).padRight(8);
-        statusFields.add(roundsField).growX().row();
-
-        TextField ticksField = new HoverTextField(String.valueOf(eff.durationTicks), skin);
-        ticksField.setTextFieldFilter((tf, c) -> Character.isDigit(c));
-        ticksField.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent e, Actor a) {
-                try { eff.durationTicks = Integer.parseInt(ticksField.getText()); }
-                catch (NumberFormatException ignored) {}
-            }
-        });
-        statusFields.add(new Label("Duration ticks", skin)).padRight(8);
-        statusFields.add(ticksField).growX().row();
-
-        TextField magField = new HoverTextField(String.valueOf(eff.magnitude), skin);
-        magField.setTextFieldFilter((tf, c) -> Character.isDigit(c) || c == '-' || c == '.');
-        magField.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent e, Actor a) {
-                try { eff.magnitude = Double.parseDouble(magField.getText()); }
-                catch (NumberFormatException ignored) {}
-            }
-        });
-        statusFields.add(new Label("Amount (+/- flat points)", skin)).padRight(8);
-        statusFields.add(magField).growX().row();
 
         // Swappable containers: only one block shows at a time, depending on mode.
         final Container<Actor> customRow = new Container<>();
@@ -1092,7 +1078,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                     toggleBtn.setText("Coded");
                     typeBox.setItems(statusLabels.toArray(new String[0]));
                     typeBox.setSelected(statusLabel(eff.type, eff.magnitude));
-                    customRow.setActor(statusFields);
+                    customRow.setActor(buildStatusEffectFields(eff));
                 }
             } finally {
                 syncing[0] = false;
@@ -1104,6 +1090,68 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         dlg.button("Done", true);
         dlg.button("Cancel", false);
         dlg.show(stage);
+    }
+
+    private Actor buildStatusEffectFields(MoveData.StatusEffectData effect) {
+        Table fields = new Table(skin);
+        fields.defaults().pad(4).left();
+        StatusEffectType type;
+        try {
+            type = StatusEffectType.fromName(effect.type, effect.magnitude);
+        } catch (IllegalArgumentException ignored) {
+            type = StatusEffectType.STRENGTH_INCREASE;
+        }
+
+        if (type.requiresTickDuration()) {
+            effect.durationRounds = 0;
+            if (effect.durationTicks <= 0) effect.durationTicks = 1;
+            effect.magnitude = 0.0;
+            TextField ticksField = new HoverTextField(String.valueOf(effect.durationTicks), skin);
+            ticksField.setTextFieldFilter((tf, c) -> Character.isDigit(c));
+            ticksField.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    try { effect.durationTicks = Integer.parseInt(ticksField.getText()); }
+                    catch (NumberFormatException ignored) { }
+                }
+            });
+            fields.add(new Label("Stagger duration (AP ticks)", skin)).padRight(8);
+            fields.add(ticksField).growX().row();
+            return fields;
+        }
+
+        TextField roundsField = new HoverTextField(String.valueOf(effect.durationRounds), skin);
+        roundsField.setTextFieldFilter((tf, c) -> Character.isDigit(c) || c == '-');
+        roundsField.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                try { effect.durationRounds = Integer.parseInt(roundsField.getText()); }
+                catch (NumberFormatException ignored) { }
+            }
+        });
+        fields.add(new Label("Duration rounds (-1 = permanent)", skin)).padRight(8);
+        fields.add(roundsField).growX().row();
+
+        TextField ticksField = new HoverTextField(String.valueOf(effect.durationTicks), skin);
+        ticksField.setTextFieldFilter((tf, c) -> Character.isDigit(c));
+        ticksField.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                try { effect.durationTicks = Integer.parseInt(ticksField.getText()); }
+                catch (NumberFormatException ignored) { }
+            }
+        });
+        fields.add(new Label("Duration ticks", skin)).padRight(8);
+        fields.add(ticksField).growX().row();
+
+        TextField magnitudeField = new HoverTextField(String.valueOf(effect.magnitude), skin);
+        magnitudeField.setTextFieldFilter((tf, c) -> Character.isDigit(c) || c == '-' || c == '.');
+        magnitudeField.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                try { effect.magnitude = Double.parseDouble(magnitudeField.getText()); }
+                catch (NumberFormatException ignored) { }
+            }
+        });
+        fields.add(new Label("Amount (+/- flat points)", skin)).padRight(8);
+        fields.add(magnitudeField).growX().row();
+        return fields;
     }
 
     private Actor buildCodedEffectFields(

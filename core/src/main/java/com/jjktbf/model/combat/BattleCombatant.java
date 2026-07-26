@@ -560,6 +560,7 @@ public class BattleCombatant {
 
     public double modifyBattleStat(BattleStatKey key, double baseValue) {
         double additions = activeEffects.stream()
+            .filter(effect -> effect.getType().isStatModifier())
             .filter(effect -> effect.getType().battleStat() == key)
             .mapToDouble(effect -> effect.getType().signedMagnitude(effect.getMagnitude()))
             .sum();

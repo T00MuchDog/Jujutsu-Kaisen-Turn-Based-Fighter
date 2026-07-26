@@ -223,6 +223,7 @@ are the Move/MoveData field names.
 
   Effects
     onHitEffects          List<StatusEffect> applied to the target on a hit.
+                          STAGGER is configured here with an AP-tick duration.
     selfEffects           List<StatusEffect> applied to the user on unleash
                           (hit/miss/block agnostic). May carry a coded action.
 
@@ -302,8 +303,8 @@ tag names below.
                           segment(s) active on the current tick are stunned
                           (removed from the timeline and prevented from firing).
                           Segments that already fired are unaffected; HEAVY
-                          segments resist the stun. Defensive/utility moves do
-                          not apply the stun effect. Backed by Move.isStun().
+                           segments resist the stun. Defensive/utility moves do
+                           not apply the stun effect. Backed by Move.isStun().
     GUARD_BREAK           A successful hit ignores the defender's blocking
                           defensive moves (PERCENTAGE_BLOCK / FLAT_BLOCK) — the
                           block applies no reduction and cannot negate the hit.
@@ -311,7 +312,8 @@ tag names below.
                           Backed by Move.isGuardBreak().
     HEAVY                 An action segment carrying this move is IMMUNE to being
                           stunned by a STUN-tagged hit. HEAVY only resists the
-                          STUN tag (not CE-depletion or ability-driven stuns).
+                           STUN tag (not CE-depletion, ability-driven stuns, or
+                           the STAGGER status).
                           The "heavy beats stun" half of the stun ↔ heavy
                           interaction. Backed by Move.isHeavy().
 
@@ -783,10 +785,10 @@ Effect actions exposed to editors (CodedAbilityRegistry.effectActions):
   16. STATUS EFFECTS  (StatusEffectType.java)
 ================================================================================
 
-Temporary flat increases/decreases applied by moves (onHitEffects / selfEffects)
-or by ability effects (AUTO_STATUS_APPLY, APPLY_STATUS, TEMP_STAT_*). Each has
-round and tick duration fields plus a non-negative magnitude; direction is
-explicit in the type name (*_INCREASE adds, *_DECREASE subtracts).
+Temporary effects applied to characters by moves (onHitEffects / selfEffects)
+or ability effects (AUTO_STATUS_APPLY, APPLY_STATUS, TEMP_STAT_*). Stat effects
+have a non-negative magnitude and an explicit direction in the type name
+(*_INCREASE adds, *_DECREASE subtracts).
 
 Duration rules (StatusEffect.validateDuration):
   rounds > 0, ticks = 0      round-only
@@ -804,7 +806,14 @@ Every runtime battle stat has both directions (BattleStatKey-backed):
   MAX_HP, MAX_CURSED_ENERGY (MAX_CE), MAX_AP, ACCURACY, EVASION, POWER, DEFENSE
     → *_INCREASE / *_DECREASE
 
-Total: 17 stat pairs = 34 constants.
+Non-stat control status:
+  STAGGER
+    Must use rounds = 0 and ticks > 0; its magnitude is unused (stored as 0).
+    On the tick it is applied and on every remaining active AP tick, it stuns
+    the affected character's active, not-yet-fired action segments. This is a
+    character status, not the STUN move tag, so HEAVY does not resist it.
+
+Total: 17 stat pairs plus STAGGER = 35 constants.
 
 Legacy aliases (StatusEffectType.fromName resolves these; "signed" names can mean
 either direction depending on the stored magnitude's sign):
@@ -834,8 +843,8 @@ CodedAbilityState snapshot, and a human-readable message.
     MOVE_MISSED         hit roll failed
     MOVE_BLOCKED        block fully negated the damage (PERCENTAGE_BLOCK at 100%)
     MOVE_BLOCK_REDUCED  block reduced but did not fully negate damage
-    MOVE_STUNNED        a STUN tag, CE depletion, or ability cancellation removed
-                        this action segment
+    MOVE_STUNNED        a STUN tag, active STAGGER status, CE depletion, or
+                         ability cancellation removed this action segment
 
   Damage:
     DAMAGE_DEALT        HP was deducted from a combatant

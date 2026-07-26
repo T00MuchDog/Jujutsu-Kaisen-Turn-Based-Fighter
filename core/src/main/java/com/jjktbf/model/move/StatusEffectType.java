@@ -5,7 +5,7 @@ import com.jjktbf.model.character.StatKey;
 
 import java.util.Set;
 
-/** Temporary flat increases and decreases that can be applied by moves or abilities. */
+/** Temporary effects that can be applied by moves or abilities. */
 public enum StatusEffectType {
 
     // Base character stats
@@ -52,7 +52,13 @@ public enum StatusEffectType {
     POWER_INCREASE("Increase Power", BattleStatKey.POWER, 1),
     POWER_DECREASE("Decrease Power", BattleStatKey.POWER, -1),
     DEFENSE_INCREASE("Increase Defense", BattleStatKey.DEFENSE, 1),
-    DEFENSE_DECREASE("Decrease Defense", BattleStatKey.DEFENSE, -1);
+    DEFENSE_DECREASE("Decrease Defense", BattleStatKey.DEFENSE, -1),
+
+    /**
+     * A tick-only control status. While active, it stuns the affected combatant's
+     * currently active action segments without changing any stat.
+     */
+    STAGGER("Stagger", 0);
 
     private final String displayName;
     private final StatKey baseStat;
@@ -65,6 +71,10 @@ public enum StatusEffectType {
 
     StatusEffectType(String displayName, BattleStatKey battleStat, int direction) {
         this(displayName, null, battleStat, direction);
+    }
+
+    StatusEffectType(String displayName, int direction) {
+        this(displayName, null, null, direction);
     }
 
     StatusEffectType(
@@ -89,6 +99,21 @@ public enum StatusEffectType {
 
     public BattleStatKey battleStat() {
         return battleStat;
+    }
+
+    /** True when this status modifies a base or derived combat stat. */
+    public boolean isStatModifier() {
+        return baseStat != null || battleStat != null;
+    }
+
+    /** Whether this status uses the descriptor's magnitude field. */
+    public boolean usesMagnitude() {
+        return isStatModifier();
+    }
+
+    /** Whether this status must be configured exclusively in AP ticks. */
+    public boolean requiresTickDuration() {
+        return this == STAGGER;
     }
 
     public double signedMagnitude(double magnitude) {
@@ -116,10 +141,13 @@ public enum StatusEffectType {
     /** Resolve the direction encoded by old signed amounts into an explicit type. */
     public static StatusEffectType fromName(String name, double storedMagnitude) {
         StatusEffectType type = fromName(name);
-        return storedMagnitude < 0 ? type.opposite() : type;
+        return type.isStatModifier() && storedMagnitude < 0 ? type.opposite() : type;
     }
 
     public StatusEffectType opposite() {
+        if (!isStatModifier()) {
+            throw new IllegalStateException(name() + " has no opposite status");
+        }
         String suffix = name().endsWith("_INCREASE") ? "_INCREASE" : "_DECREASE";
         String oppositeSuffix = "_INCREASE".equals(suffix) ? "_DECREASE" : "_INCREASE";
         return valueOf(name().substring(0, name().length() - suffix.length()) + oppositeSuffix);
@@ -157,6 +185,11 @@ public enum StatusEffectType {
     /** Convert old fractional Power/Defense/Accuracy amounts into flat stat points. */
     public static double normalizeStoredMagnitude(String name, double magnitude) {
         if (name == null) return magnitude;
+        try {
+            if (!fromName(name).usesMagnitude()) return 0.0;
+        } catch (IllegalArgumentException ignored) {
+            // Preserve the existing tolerant behavior for unknown persisted names.
+        }
         double normalized = switch (name.trim().toUpperCase()) {
             case "FOCUS", "POWER_UP", "DEFENSE_UP" -> magnitude * 100.0;
             default -> magnitude;

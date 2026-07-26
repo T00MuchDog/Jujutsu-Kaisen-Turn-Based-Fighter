@@ -58,8 +58,9 @@ class StatusEffectStatModifierTest {
     }
 
     @Test
-    void everyStatusAppliesItsFlatAmountInTheDeclaredDirection() {
+    void everyStatStatusAppliesItsFlatAmountInTheDeclaredDirection() {
         for (StatusEffectType type : StatusEffectType.values()) {
+            if (!type.isStatModifier()) continue;
             BattleCombatant combatant = combatant();
             combatant.addStatusEffect(new StatusEffect(type, 1, 10.0));
             int direction = type.signedMagnitude(1.0) > 0 ? 1 : -1;

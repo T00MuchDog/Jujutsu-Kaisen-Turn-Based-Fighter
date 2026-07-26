@@ -279,7 +279,7 @@ public final class PassiveAbilityEngine {
                     removed.forEach(target::removeStatusEffects);
                     events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
                         .source(owner).target(target).tick(tick)
-                        .message("Matching stat effects were removed from "
+                        .message("Matching status effects were removed from "
                             + target.getCharacter().getName() + ".").build());
                     appendResourceMaximumEvents(
                         owner, target, previousMaxHp, previousMaxCe, tick, events);

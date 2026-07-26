@@ -389,8 +389,9 @@ public enum AbilityEffectType {
         if (uses(STATUS_TYPE) && uses(MAGNITUDE) && !isBlank(effect.stringValue)) {
             String storedType = effect.stringValue;
             try {
-                effect.stringValue = StatusEffectType.fromName(
-                    storedType, effect.magnitude != null ? effect.magnitude : 0.0).name();
+                StatusEffectType status = StatusEffectType.fromName(
+                    storedType, effect.magnitude != null ? effect.magnitude : 0.0);
+                effect.stringValue = status.name();
                 if (effect.magnitude != null) {
                     effect.magnitude = StatusEffectType.normalizeStoredMagnitude(
                         storedType, effect.magnitude);
@@ -413,6 +414,13 @@ public enum AbilityEffectType {
         if (uses(DURATION) && effect.durationRounds == null) effect.durationRounds = defaults.durationRounds;
         if (uses(DURATION) && effect.durationTicks == null) effect.durationTicks = defaults.durationTicks;
         if (uses(MAGNITUDE) && effect.magnitude == null) effect.magnitude = defaults.magnitude;
+        if (uses(STATUS_TYPE) && uses(MAGNITUDE)) {
+            try {
+                if (!StatusEffectType.fromName(effect.stringValue).usesMagnitude()) {
+                    effect.magnitude = 0.0;
+                }
+            } catch (IllegalArgumentException ignored) { }
+        }
         if (uses(USES) && effect.uses == null) effect.uses = defaults.uses;
         if (uses(BATTLE_STAT) && isBlank(effect.stringValue)) effect.stringValue = defaults.stringValue;
     }
@@ -464,8 +472,8 @@ public enum AbilityEffectType {
         if (uses(ABILITY_ID) && isBlank(effect.abilityId)) return "Choose an ability to grant.";
         if (uses(TECHNIQUE) && isBlank(effect.stringValue)) return "Choose a technique.";
 
+        StatusEffectType status = null;
         if (uses(STATUS_TYPE)) {
-            StatusEffectType status;
             try {
                 status = StatusEffectType.fromName(effect.stringValue);
             } catch (Exception ex) {
@@ -490,11 +498,14 @@ public enum AbilityEffectType {
             if (effect.durationRounds == null) return "Enter a round duration.";
             int ticks = effect.durationTicks != null ? effect.durationTicks : 0;
             try {
-                StatusEffect.validateDuration(effect.durationRounds, ticks);
+                StatusEffect.validateDuration(status, effect.durationRounds, ticks);
             } catch (IllegalArgumentException ignored) {
-                return "Use -1 rounds and 0 ticks for permanent, or enter at least one round or tick.";
+                return status != null && status.requiresTickDuration()
+                    ? "Stagger must use 0 rounds and at least 1 AP tick."
+                    : "Use -1 rounds and 0 ticks for permanent, or enter at least one round or tick.";
             }
             if (AbilityEffectTiming.ROUND_START.name().equals(effect.timing)
+                && (status == null || !status.requiresTickDuration())
                 && (effect.durationRounds != 1 || ticks != 0)) {
                 return "A ROUND_START status must last exactly 1 round and 0 ticks so it refreshes without stacking.";
             }
@@ -526,7 +537,7 @@ public enum AbilityEffectType {
             case BF_CHANCE_ADD -> effect.doubleValue == 0.0
                 || effect.doubleValue < -1.0 || effect.doubleValue > 1.0
                     ? "Chance change must be non-zero and between -100% and 100%." : null;
-            case AUTO_STATUS_APPLY -> effect.magnitude == 0.0
+            case AUTO_STATUS_APPLY -> status != null && status.usesMagnitude() && effect.magnitude == 0.0
                 ? "Enter a non-zero status magnitude." : null;
             case COST_CE_PER_ROUND -> effect.intValue <= 0
                 ? "Round-start CE cost must be greater than 0." : null;

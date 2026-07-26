@@ -7,7 +7,8 @@ package com.jjktbf.model.move;
  * <p>An effect row is exactly one of two flavours:
  * <ul>
  *   <li><b>Status effect</b> — carries a non-null {@link StatusEffectType} and is
- *       applied to a combatant's stat sheet for a duration.</li>
+ *       applied to a combatant for a duration. Most modify stats; some, such as
+ *       {@link StatusEffectType#STAGGER}, have gameplay behavior instead.</li>
  *   <li><b>Coded action</b> — carries a {@code codedAbilityKey} + {@code codedAction}
  *       pair (validated by {@link com.jjktbf.model.character.coded.CodedAbilityRegistry})
  *       and is dispatched to the matching {@link com.jjktbf.model.character.coded.CodedAbilityRuntime}
@@ -28,7 +29,7 @@ public class StatusEffect {
     /** AP ticks after the configured rounds have elapsed. */
     private final int durationTicks;
 
-    /** Magnitude of the effect (e.g. damage per tick, stat modifier amount). */
+    /** Magnitude of a stat-modifying effect. Non-stat statuses store zero. */
     private final double magnitude;
 
     /** Coded-ability key for an effect that cannot be expressed as a status. Blank for status effects. */
@@ -88,7 +89,7 @@ public class StatusEffect {
             throw new IllegalArgumentException("Status effect type is required for a non-coded effect");
         }
         if (!coded) {
-            validateDuration(durationRounds, durationTicks);
+            validateDuration(type, durationRounds, durationTicks);
             if (!Double.isFinite(magnitude) || magnitude < 0) {
                 throw new IllegalArgumentException("Status effect amount must be a non-negative number");
             }
@@ -96,7 +97,7 @@ public class StatusEffect {
         this.type            = type;
         this.durationRounds  = durationRounds;
         this.durationTicks   = durationTicks;
-        this.magnitude       = magnitude;
+        this.magnitude       = !coded && !type.usesMagnitude() ? 0.0 : magnitude;
         this.codedAbilityKey = codedAbilityKey;
         this.codedAction     = codedAction;
         this.codedTarget     = codedTarget;
@@ -129,6 +130,15 @@ public class StatusEffect {
         }
     }
 
+    /** Validate a duration, including any timing restrictions owned by a status type. */
+    public static void validateDuration(StatusEffectType type, int rounds, int ticks) {
+        validateDuration(rounds, ticks);
+        if (type != null && type.requiresTickDuration() && (rounds != 0 || ticks <= 0)) {
+            throw new IllegalArgumentException(type.displayName()
+                + " must last for at least one AP tick and cannot use round duration");
+        }
+    }
+
     public StatusEffectType getType()     { return type; }
     public int getDurationRounds()        { return durationRounds; }
     public int getDurationTicks()         { return durationTicks; }
@@ -149,7 +159,10 @@ public class StatusEffect {
             return String.format("StatusEffect{CODED %s/%s target=%s stacks=%s}",
                 codedAbilityKey, codedAction, codedTarget, codedStackCount);
         }
-        return String.format("StatusEffect{%s rounds=%d ticks=%d mag=%.2f}",
-            type, durationRounds, durationTicks, magnitude);
+        return type.usesMagnitude()
+            ? String.format("StatusEffect{%s rounds=%d ticks=%d mag=%.2f}",
+                type, durationRounds, durationTicks, magnitude)
+            : String.format("StatusEffect{%s rounds=%d ticks=%d}",
+                type, durationRounds, durationTicks);
     }
 }

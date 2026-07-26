@@ -119,6 +119,23 @@ class MoveEditorScreenTest {
     }
 
     @Test
+    void saveCopyPreservesTickOnlyStaggerWithoutAStatMagnitude() {
+        MoveData draft = moveWithAllSectionDetails();
+        draft.selfEffects.clear();
+        MoveData.StatusEffectData stagger = effect(StatusEffectType.STAGGER.name(), 25.0);
+        stagger.durationRounds = 0;
+        stagger.durationTicks = 3;
+        draft.selfEffects.add(stagger);
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(draft);
+
+        assertEquals(StatusEffectType.STAGGER.name(), saved.selfEffects.get(0).type);
+        assertEquals(0, saved.selfEffects.get(0).durationRounds);
+        assertEquals(3, saved.selfEffects.get(0).durationTicks);
+        assertEquals(0.0, saved.selfEffects.get(0).magnitude);
+    }
+
+    @Test
     void categoryTagsMustDescribeOneExecutableMovePurpose() {
         MoveData attack = new MoveData();
         attack.tags = new ArrayList<>(List.of(MoveTag.ATTACK.name()));
