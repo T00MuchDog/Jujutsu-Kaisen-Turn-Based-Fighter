@@ -21,9 +21,8 @@ import java.util.List;
  * wholly within the grid and not overlap any existing segment. Multiple
  * segments may coexist with empty gaps between them.
  *
- * <p>Resolution-support queries ({@link #segmentAt}, {@link #nextSegmentAfter},
- * {@link #firingAt}, {@link #activeBlockAt}) are preserved so the (deferred)
- * cross-timeline ticker can sweep both boards by tick.
+ * <p>Resolution-support queries ({@link #firingAt}, {@link #activeBlockAt})
+ * are preserved so the (deferred) cross-timeline ticker can sweep both boards by tick.
  */
 public class Timeline {
 
@@ -117,30 +116,6 @@ public class Timeline {
     // -------------------------------------------------------------------------
     // Queries (preserved for resolution)
     // -------------------------------------------------------------------------
-
-    /** The segment whose range contains the tick, or null (empty gap). */
-    public ActionSegment segmentAt(int tick) {
-        for (ActionSegment s : segments) {
-            if (tick >= s.getStartTick() && tick <= s.getEndTick()) return s;
-        }
-        return null;
-    }
-
-    /** The next segment strictly after the one containing the tick (for KNOCK_NEXT_SEGMENT). */
-    public ActionSegment nextSegmentAfter(int tick) {
-        ActionSegment current = segmentAt(tick);
-        List<ActionSegment> sorted = sortedByStart();
-        int startIdx = current == null ? -1 : sorted.indexOf(current);
-        for (int i = 0; i < sorted.size(); i++) {
-            ActionSegment s = sorted.get(i);
-            if (current == null) {
-                if (s.getStartTick() > tick) return s;
-            } else if (i > startIdx) {
-                return s;
-            }
-        }
-        return null;
-    }
 
     /** All non-stunned segments that fire at the given tick. */
     public List<ActionSegment> firingAt(int tick) {

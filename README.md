@@ -132,14 +132,13 @@ These were established deliberately and should be maintained throughout developm
 
 ### 1. Loose coupling — changes touch the minimum number of files
 
-The key test: if you add a new `DefenseType`, `InterruptType`, or `StatusEffectType`,
+The key test: if you add a new `DefenseType` or `StatusEffectType`,
 how many files need to change?
 
 The answer should be: **the enum itself + the one class that owns that behaviour**.
 
 Current mechanisms that enforce this:
 - `Move.applyBlockTo(int damage)` — block reduction logic lives on `Move`, not scattered across `DamageCalculator`, `Timeline`, and `CombatResolver`.
-- `Move.resolveInterruptOn(tick, timeline)` — interrupt dispatch lives on `Move`.
 - `Move.blockActivationMessage()`, `Move.blockDisplayInfo()` — display strings live on `Move`.
 - `MoveData.isPercentageBlock()`, `isFlatBlock()`, `isAnyBlock()` — string comparisons in the editor are compile-safe helper methods, not raw `"PERCENTAGE_BLOCK".equals(...)` literals.
 

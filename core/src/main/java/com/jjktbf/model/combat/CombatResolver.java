@@ -708,11 +708,6 @@ public class CombatResolver {
             applyAbilityOnHitEffects(state, attacker, defender, move, tick, events);
             if (finishBattleIfNeeded(state, events, tick)) return;
 
-            // Interrupt resolution
-            if (move.hasInterrupt()) {
-                resolveInterrupt(attacker, defender, move, tick, events);
-            }
-
             // Stun tag: stun the defender's action segment(s) on the current tick.
             // Segments that already fired this tick are unaffected (the loop passed
             // them); segments queued later this tick are skipped at the firing loop's
@@ -1007,33 +1002,6 @@ public class CombatResolver {
                         tick)));
                 } catch (IllegalArgumentException ignored) { }
             }
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // Interrupt resolution
-    // -------------------------------------------------------------------------
-
-    private void resolveInterrupt(
-        BattleCombatant   attacker,
-        BattleCombatant   defender,
-        Move              move,
-        int               tick,
-        List<CombatEvent> events
-    ) {
-        Timeline defenderTimeline = defender.getTimeline();
-        if (defenderTimeline == null) return;
-
-        ActionSegment targetSegment = move.resolveInterruptOn(tick, defenderTimeline);
-
-        if (targetSegment != null) {
-            events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
-                .source(attacker).target(defender).move(targetSegment.getMove())
-                .tick(tick)
-                .message(attacker.getCharacter().getName() + "'s " + move.getName()
-                          + " stuns " + defender.getCharacter().getName()
-                         + ", interrupting " + targetSegment.getMove().getName() + "!")
-                .build());
         }
     }
 

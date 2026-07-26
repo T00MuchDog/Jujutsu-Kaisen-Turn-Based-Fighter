@@ -1,7 +1,6 @@
 package com.jjktbf.graphics.screens.editors;
 
 import com.jjktbf.model.move.DefenseType;
-import com.jjktbf.model.move.InterruptType;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffectType;
@@ -25,7 +24,6 @@ class MoveEditorScreenTest {
         draft.tags.remove(MoveTag.ATTACK.name());
 
         assertEquals(75, draft.basePower);
-        assertEquals(InterruptType.KNOCK_NEXT_SEGMENT.name(), draft.interruptType);
         assertFalse(draft.onHitEffects.isEmpty());
 
         draft.tags.add(MoveTag.ATTACK.name());
@@ -34,7 +32,6 @@ class MoveEditorScreenTest {
         assertEquals(75, saved.basePower);
         assertEquals(0.8, saved.baseAccuracy);
         assertTrue(saved.neverMiss);
-        assertEquals(InterruptType.KNOCK_NEXT_SEGMENT.name(), saved.interruptType);
         assertEquals(1, saved.onHitEffects.size());
     }
 
@@ -48,7 +45,6 @@ class MoveEditorScreenTest {
         assertEquals(0, saved.basePower);
         assertEquals(1.0, saved.baseAccuracy);
         assertFalse(saved.neverMiss);
-        assertEquals(InterruptType.NONE.name(), saved.interruptType);
         assertTrue(saved.onHitEffects.isEmpty());
 
         assertEquals(DefenseType.FLAT_BLOCK.name(), saved.defenseType);
@@ -60,7 +56,6 @@ class MoveEditorScreenTest {
         // Preparing a save must not mutate the live draft. If persistence
         // fails, retagging still has the original values to restore.
         assertEquals(75, draft.basePower);
-        assertEquals(InterruptType.KNOCK_NEXT_SEGMENT.name(), draft.interruptType);
         assertEquals(1, draft.onHitEffects.size());
     }
 
@@ -187,7 +182,6 @@ class MoveEditorScreenTest {
         data.basePower = 75;
         data.baseAccuracy = 0.8;
         data.neverMiss = true;
-        data.interruptType = InterruptType.KNOCK_NEXT_SEGMENT.name();
         data.onHitEffects = new ArrayList<>(List.of(
             effect(StatusEffectType.STRENGTH_DECREASE)));
 

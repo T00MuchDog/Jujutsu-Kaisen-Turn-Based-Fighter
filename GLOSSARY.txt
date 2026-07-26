@@ -253,9 +253,9 @@ The canonical terms for describing a move's type are the tag names below.
     is not part of any MoveCategory, and does not change Black Flash eligibility. Backed
     by a dedicated flag on Move (Move.isHeavy()), not derived from the category.
     Effect: an action segment carrying this move is IMMUNE to being stunned by a
-    STUN-tagged hit (it is skipped by the stun effect and still fires). Interrupts are
-    unaffected — HEAVY only resists the STUN tag. This is the "heavy beats stun" half of
-    the rock-paper-scissors trio (stun > base > heavy > stun).
+    STUN-tagged hit (it is skipped by the stun effect and still fires). HEAVY only
+    resists the STUN tag. This is the "heavy beats stun" half of the rock-paper-scissors
+    trio (stun > base > heavy > stun).
 
 ================================================================================
   5. MOVE TYPES  (MoveCategory.java)
@@ -322,25 +322,7 @@ governs the move slot.
   is the block's percentage reduction property.
 
 ================================================================================
-  7. INTERRUPT TYPES  (InterruptType.java)
-================================================================================
-
-  NONE
-    No interrupt capability.
-
-  KNOCK_CURRENT_SEGMENT
-    On unleash, stuns (removes) the action segment the action counter is currently
-    occupying on the opponent's AP Timeline. CE for the stunned segment has already
-    been paid (CE is drained when a segment begins its startTick).
-
-  KNOCK_NEXT_SEGMENT
-    On unleash, stuns (removes) the next action segment in the opponent's queue —
-    the segment immediately after the current position on their timeline.
-    (The constant name retains "KNOCK" for the interrupt's targeting logic; the
-    resulting segment state is "stunned".)
-
-================================================================================
-  8. AP TIMELINE  (Timeline.java, ActionSegment.java, BattleState.java)
+  7. AP TIMELINE  (Timeline.java, ActionSegment.java, BattleState.java)
 ================================================================================
 
   AP BAR
@@ -365,8 +347,8 @@ governs the move slot.
 
   ACTION SEGMENT
     One move's occupancy on the AP timeline. Has a startTick, endTick,
-    fireTick, and an actualCeCost. Can be stunned (removed) by interrupts or by
-    a hit from a STUN-tagged move.
+    fireTick, and an actualCeCost. Can be stunned (removed) by a hit from a
+    STUN-tagged move, by CE depletion, or by an ability cancellation.
 
   START TICK
     The AP tick at which an action segment begins. CE is drained here.
@@ -385,14 +367,14 @@ governs the move slot.
     Highest priority in tie-breaking — fires before all same-tick moves.
 
   STUNNED
-    An action segment that has been removed from the timeline — either by an
-    interrupt (KNOCK_CURRENT_SEGMENT / KNOCK_NEXT_SEGMENT) or by a hit from a
-    STUN-tagged move. Its AP slot is still spent and any CE already drained remains
-    spent; the move simply does not fire or take effect. Log line: "<combatant>
-    was stunned and could not move."
+    An action segment that has been removed from the timeline — by a hit from a
+    STUN-tagged move, by CE depletion, or by an ability cancellation. Its AP slot
+    is still spent and any CE already drained remains spent; the move simply does
+    not fire or take effect. Log line: "<combatant> was stunned and could not
+    move."
 
 ================================================================================
-  9. COMBAT PHASES  (BattleState.java)
+  8. COMBAT PHASES  (BattleState.java)
 ================================================================================
 
   PLANNING
@@ -401,7 +383,7 @@ governs the move slot.
 
   RESOLUTION
     The action counter sweeps tick by tick through the AP timeline.
-    Moves fire, damage is resolved, interrupts are applied.
+    Moves fire, damage is resolved, stun effects are applied.
 
   ROUND END
     Status effects tick, Black Flash State expiry is checked, defense buffs
@@ -415,7 +397,7 @@ governs the move slot.
     One full cycle of PLANNING → RESOLUTION → ROUND END.
 
 ================================================================================
-  10. DAMAGE CALCULATION  (DamageCalculator.java)
+  9. DAMAGE CALCULATION  (DamageCalculator.java)
 ================================================================================
 
   Pipeline:
@@ -478,7 +460,7 @@ governs the move slot.
     This is what is subtracted from the defender's HP.
 
 ================================================================================
-  11. BLACK FLASH  (CombatStats.java, DamageCalculator.java)
+  10. BLACK FLASH  (CombatStats.java, DamageCalculator.java)
 ================================================================================
 
   BLACK FLASH (BF)
@@ -502,7 +484,7 @@ governs the move slot.
     CE is partially restored on each BF proc (5% of max CE pool).
 
 ================================================================================
-  12. CURSED ENERGY  (CharacterStats.java, CombatStats.java)
+  11. CURSED ENERGY  (CharacterStats.java, CombatStats.java)
 ================================================================================
 
   CURSED ENERGY (CE)
@@ -525,7 +507,7 @@ governs the move slot.
     Efficiency < 80: costs more.
 
 ================================================================================
-  13. ABILITIES  (AbilityEffectType.java, AbilityApplicator.java)
+  12. ABILITIES  (AbilityEffectType.java, AbilityApplicator.java)
 ================================================================================
 
   ABILITY
@@ -614,7 +596,7 @@ governs the move slot.
       COST_CE_PER_ROUND  — drain CE at round start (models sustained technique costs)
 
 ================================================================================
-  14. STATUS EFFECTS  (StatusEffectType.java)
+  13. STATUS EFFECTS  (StatusEffectType.java)
 ================================================================================
 
   Applied to combatants via move on-hit/self effects or ability status effects.
@@ -640,7 +622,7 @@ governs the move slot.
     MAX_AP_DECREASE         — temporarily reduces the next planning AP budget
 
 ================================================================================
-  15. COMBAT EVENTS  (CombatEvent.java)
+  14. COMBAT EVENTS  (CombatEvent.java)
 ================================================================================
 
 Events emitted by CombatResolver and consumed by the View (TextBattleView).
@@ -652,7 +634,7 @@ These are the canonical names for what happened in a given tick.
   MOVE_BLOCKED        — block fully negated incoming damage (PERCENTAGE_BLOCK at 100%)
   MOVE_BLOCK_REDUCED  — block reduced but did not fully negate damage
                         (PERCENTAGE_BLOCK < 100%, or FLAT_BLOCK)
-  MOVE_STUNNED        — interrupt or STUN tag removed this action segment
+  MOVE_STUNNED        — STUN tag, CE depletion, or ability cancellation removed this action segment
   DAMAGE_DEALT        — HP was deducted from a combatant
   BLACK_FLASH         — BF proc; includes BF damage value
   CE_DRAINED          — CE was spent on a move
@@ -667,7 +649,7 @@ These are the canonical names for what happened in a given tick.
   BATTLE_OVER         — fight ended; winner determined
 
 ================================================================================
-  16. AI  (AIStrategy.java, GreedyAIStrategy.java)
+  15. AI  (AIStrategy.java, GreedyAIStrategy.java)
 ================================================================================
 
   AI STRATEGY
@@ -679,7 +661,7 @@ These are the canonical names for what happened in a given tick.
     AP bar greedily with the highest-power moves the AI can afford (AP and CE).
 
 ================================================================================
-  17. EDITORS  (MoveEditorMain, CharacterEditorMain, AbilityEditorMain)
+  16. EDITORS  (MoveEditorMain, CharacterEditorMain, AbilityEditorMain)
 ================================================================================
 
   MOVE EDITOR

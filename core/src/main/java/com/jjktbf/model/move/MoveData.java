@@ -67,9 +67,6 @@ public class MoveData {
     public int     minCeCost      = 0;
     public int     maxCeCost      = 0;
 
-    /** InterruptType enum name */
-    public String  interruptType  = "NONE";
-
     /** DefenseType enum name */
     public String  defenseType    = "NONE";
 
@@ -243,7 +240,6 @@ public class MoveData {
             .hasCeCost(hasCeCost != null ? hasCeCost : baseCeCost > 0)
             .minCeCost(minCeCost)
             .maxCeCost(maxCeCost)
-            .interruptType(InterruptType.valueOf(interruptType != null ? interruptType : "NONE"))
             .defenseType(DefenseType.valueOf(defenseType != null ? defenseType : "NONE"))
             .blockDuration(blockDuration)
             .blockAffectedTags(blockAffectedTags)
@@ -350,7 +346,6 @@ public class MoveData {
         d.hasCeCost           = move.hasCeCost();
         d.minCeCost           = move.getMinCeCost();
         d.maxCeCost           = move.getMaxCeCost();
-        d.interruptType         = move.getInterruptType().name();
         d.defenseType           = move.getDefenseType().name();
         d.blockDuration         = move.getBlockDuration();
         d.blockAffectedTags     = move.getBlockAffectedTags() != null

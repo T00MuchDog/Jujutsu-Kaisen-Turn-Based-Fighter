@@ -35,7 +35,6 @@ import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.character.coded.NewShadowStyleAbility;
 import com.jjktbf.model.character.coded.RatioAbility;
 import com.jjktbf.model.move.DefenseType;
-import com.jjktbf.model.move.InterruptType;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveRepository;
 import com.jjktbf.model.move.MoveTag;
@@ -95,7 +94,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         m.hasCeCost = false;
         m.minCeCost = 0;
         m.maxCeCost = 0;
-        m.interruptType = InterruptType.NONE.name();
         m.defenseType = DefenseType.NONE.name();
         m.blockDuration = 0;
         m.blockAffectedTags = null;
@@ -137,7 +135,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         d.hasCeCost             = s.hasCeCost != null ? s.hasCeCost : s.baseCeCost > 0;
         d.minCeCost             = s.minCeCost;
         d.maxCeCost             = s.maxCeCost;
-        d.interruptType         = s.interruptType;
         d.defenseType           = s.defenseType;
         d.blockDuration         = s.blockDuration;
         d.blockAffectedTags     = s.blockAffectedTags != null
@@ -645,9 +642,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             });
             attack.add(neverMissCb).left().row();
 
-            attack.add(labelledRow("Interrupt Type", new EnumSelectBox<>(
-                InterruptType.class, d.interruptType, false,
-                s -> { d.interruptType = s; markDirty(); }, skin))).growX().row();
             attack.add(new Label("ON-HIT EFFECTS", skin, "small")).padTop(8f).left().row();
             attack.add(buildEffectsEditor("onHit", d)).growX().row();
         }
@@ -1272,7 +1266,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             d.basePower = 0;
             d.baseAccuracy = 1.0;
             d.neverMiss = false;
-            d.interruptType = InterruptType.NONE.name();
             d.onHitEffects = new ArrayList<>();
         }
         if (!hasTag(d, MoveTag.DEFENSIVE)) {

@@ -26,7 +26,7 @@ The desktop entry point is `com.jjktbf.graphics.GraphicsMain`. `JJKGame` owns al
 PLANNING -> RESOLUTION -> ROUND_END -> PLANNING ... -> BATTLE_OVER
 ```
 
-The human creates a two-board `BattlePlan` in `PlanningPanel`; `GreedyAIStrategy` creates the CPU plan. Both plans are flattened to a legacy `Timeline`, and `CombatResolver` processes CE costs, move ordering, hit rolls, damage, blocks, statuses, interrupts, Black Flash, and victory.
+The human creates a two-board `BattlePlan` in `PlanningPanel`; `GreedyAIStrategy` creates the CPU plan. Both plans are flattened to a legacy `Timeline`, and `CombatResolver` processes CE costs, move ordering, hit rolls, damage, blocks, statuses, stun tags, Black Flash, and victory.
 
 ### Relevant domain classes
 

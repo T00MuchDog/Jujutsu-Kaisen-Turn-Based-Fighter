@@ -122,9 +122,6 @@ public class Move {
     /** Hard maximum CE cost — efficiency cannot raise above this. */
     private final int maxCeCost;
 
-    /** Whether this move can interrupt an opponent's queued actions. */
-    private final InterruptType interruptType;
-
     /** Defensive behavior, if any. */
     private final DefenseType defenseType;
 
@@ -202,7 +199,6 @@ public class Move {
         this.hasCeCost           = b.hasCeCost != null ? b.hasCeCost : b.baseCeCost > 0;
         this.minCeCost           = b.minCeCost;
         this.maxCeCost           = b.maxCeCost;
-        this.interruptType        = b.interruptType;
         this.defenseType          = b.defenseType;
         this.blockDuration        = b.blockDuration;
         this.blockAffectedTags    = b.blockAffectedTags != null
@@ -246,7 +242,6 @@ public class Move {
     public boolean hasCeCost()                     { return hasCeCost; }
     public int getMinCeCost()                     { return minCeCost; }
     public int getMaxCeCost()                     { return maxCeCost; }
-    public InterruptType getInterruptType()       { return interruptType; }
     public DefenseType getDefenseType()           { return defenseType; }
     public int getBlockDuration()                 { return blockDuration; }
     public List<String> getBlockAffectedTags()    { return blockAffectedTags; }
@@ -386,10 +381,6 @@ public class Move {
         return true;
     }
 
-    public boolean hasInterrupt() {
-        return interruptType != InterruptType.NONE;
-    }
-
     public boolean isDefensive() {
         return category == MoveCategory.DEFENSIVE;
     }
@@ -454,34 +445,6 @@ public class Move {
         };
     }
 
-    /**
-     * Resolve this move's interrupt effect against the defender's timeline at the given tick.
-     * Returns the ActionSegment that was stunned, or null if no segment was targeted.
-     *
-     * <p>A segment that has already fired cannot be interrupted — interrupting a
-     * move whose effects are already in play (e.g. a defensive block still inside
-     * its AP window) would retroactively deactivate it, which is not what the
-     * interrupt tag is for. The STUN tag and interrupts share this invariant;
-     * see {@link com.jjktbf.model.combat.ActionSegment#stun()}.
-     *
-     * Should only be called if hasInterrupt() is true.
-     */
-    public com.jjktbf.model.combat.ActionSegment resolveInterruptOn(
-            int tick,
-            com.jjktbf.model.combat.Timeline defenderTimeline) {
-        if (defenderTimeline == null) return null;
-        com.jjktbf.model.combat.ActionSegment target = switch (interruptType) {
-            case KNOCK_CURRENT_SEGMENT -> defenderTimeline.segmentAt(tick);
-            case KNOCK_NEXT_SEGMENT    -> defenderTimeline.nextSegmentAfter(tick);
-            case NONE                  -> null;
-        };
-        if (target != null && !target.isStunned() && !target.hasFired()) {
-            target.stun();
-            return target;
-        }
-        return null;
-    }
-
     @Override
     public String toString() {
         return String.format("Move{%s [%s] AP=%d unleash=%d CE=%d}", name, category, apCost, unleashPoint, baseCeCost);
@@ -510,7 +473,6 @@ public class Move {
         private Boolean hasCeCost             = null;
         private int minCeCost                = 0;
         private int maxCeCost                = 0;
-        private InterruptType interruptType  = InterruptType.NONE;
         private DefenseType defenseType        = DefenseType.NONE;
         private int blockDuration              = 0;
         private List<String> blockAffectedTags = null;
@@ -542,7 +504,6 @@ public class Move {
         public Builder hasCeCost(boolean v)                { this.hasCeCost = v; return this; }
         public Builder minCeCost(int v)                    { this.minCeCost = v; return this; }
         public Builder maxCeCost(int v)                    { this.maxCeCost = v; return this; }
-        public Builder interruptType(InterruptType v)      { this.interruptType = v; return this; }
         public Builder defenseType(DefenseType v)          { this.defenseType = v; return this; }
         public Builder blockDuration(int v)                { this.blockDuration = v; return this; }
         public Builder blockAffectedTags(List<String> v)   { this.blockAffectedTags = v; return this; }
