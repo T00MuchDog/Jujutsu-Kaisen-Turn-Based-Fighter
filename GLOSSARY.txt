@@ -1,689 +1,1043 @@
 ================================================================================
   JUJUTSU KAISEN — TURN BASED FIGHTER
-  GLOSSARY  (based on current code implementation)
+  GLOSSARY  (canonical reference for the current code implementation)
 ================================================================================
 
 This file is the canonical reference for every key term in the game.
 When in doubt about what to call something, use the term defined here.
-All code field names, editor labels, flavour text, and event messages should
-be consistent with this document.
+All code field names, editor labels, flavour text, and event messages should be
+consistent with this document.
+
+Everything below is verified against the source under core/src/main/java.
+Placeholder tuning knobs are marked PLACEHOLDER.
 
 ================================================================================
-  1. CHARACTER STATS  (CharacterStats.java, StatKey.java)
+  CONTENTS
 ================================================================================
 
-These are the ten raw base stats defined per character. Range: 10 (minimum) to
-300 (maximum). Baseline (default) is 80. In editors these are unclamped.
-The value 0 means N/A — the stat is absent (used for CTM on characters without
-an innate technique).
-
-  VITALITY (VIT)
-    Determines maximum HP.
-    Formula: HP = Vitality × 2.67  (baseline 80 → 200 HP, max 300 → ~800 HP)
-
-  STRENGTH (STR)
-    Physical striking power. Primary driver of Power for Physical-tagged moves.
-
-  DURABILITY (DUR)
-    Physical resilience. Contributes to the computed Defense value alongside
-    the character's remaining Cursed Energy.
-
-  SPEED (SPD)
-    Movement and reaction speed. Drives AP Bar size (primary), Accuracy, and
-    Evasion. High Speed = larger AP Bar, harder to hit, easier to hit others.
-
-  COMBAT ABILITY (CA)
-    General combat aptitude. Secondary driver of AP Bar size, Accuracy, and
-    Physical Power. Determines the number of Physical move slots.
-
-  CURSED ENERGY RESERVES (CE RES / CER)
-    Total pool of Cursed Energy available in a fight. No mid-fight regeneration.
-    Also contributes to the computed Defense value.
-
-  CURSED ENERGY EFFICIENCY (CE EFF / CEEFF)
-    Modifies the CE cost of all CE-tagged moves.
-    Baseline 80 = neutral cost. Below 80 increases cost; above 80 decreases cost.
-    Formula: actual cost = baseCost × (80 / efficiency), clamped to [minCeCost, maxCeCost].
-
-  CURSED ENERGY OUTPUT (CE OUT / CEO)
-    Raw cursed energy output. Primary driver of Power for CE-tagged moves
-    (Innate Technique, Non-Innate Technique, and hybrids).
-
-  JUJUTSU SKILL (JS)
-    Governs learned non-innate techniques (barriers, RCT, cursed tool amplification).
-    Determines the number of Jujutsu Art move slots.
-    Also contributes to AP Bar size.
-
-  CURSED TECHNIQUE MASTERY (CTM)
-    Only meaningful for characters with an innate cursed technique.
-    Scales Innate Technique-tagged moves and contributes to Domain Expansion /
-    Maximum Technique potency.
-    Determines the number of Jujutsu Art move slots.
-    Set to 0 (N/A) for characters without an innate technique.
+  1.  CHARACTER STATS             (StatKey.java, CharacterStats.java)
+  2.  BATTLE STATS                (BattleStatKey.java)
+  3.  COMBAT STATS                (CombatStats.java)
+  4.  MOVE STRUCTURE              (Move.java, MoveData.java)
+  5.  MOVE TAGS                   (MoveTag.java)
+  6.  MOVE CATEGORIES             (MoveCategory.java)
+  7.  MOVE POOLS & MOVE SLOTS     (MovePool.java, SlotBudgetEnforcer.java)
+  8.  DEFENSE TYPES               (DefenseType.java)
+  9.  AP TIMELINE                 (Timeline.java, ActionSegment.java)
+  10. COMBAT PHASES               (BattleState.java)
+  11. DAMAGE CALCULATION          (DamageCalculator.java, PowerCalculator.java)
+  12. BLACK FLASH                 (CombatStats.java, BattleCombatant.java)
+  13. CURSED ENERGY               (CharacterStats.java, CombatStats.java)
+  14. ABILITIES                   (AbilityEffectType.java, AbilityApplicator.java)
+  15. CODED ABILITIES             (coded/*.java, CodedAbilityRegistry.java)
+  16. STATUS EFFECTS              (StatusEffectType.java)
+  17. COMBAT EVENTS               (CombatEvent.java)
+  18. AI                          (AIStrategy.java, GreedyAIStrategy.java)
+  19. EDITORS                     (graphics .../screens/editors/*.java)
+  20. CONTENT CATALOG             (data/*.json — current shipped content)
 
 ================================================================================
-  2. COMBAT STATS  (CombatStats.java)
+  1. CHARACTER STATS  (StatKey.java, CharacterStats.java)
 ================================================================================
 
-Derived values computed from base stats at character load time.
-These are the numbers actually used in combat calculations.
+The ten raw base stats defined per character. StatKey is the single source of
+truth: each constant owns its camelCase JSON field name, display label, and
+lookup aliases.
 
-  HP (Maximum HP)
-    Formula: HP = Vitality × 2.67
-    A combatant is defeated when current HP reaches 0.
+  Range:      MIN_STAT = 10 (minimum) to MAX_STAT = 300 (maximum).
+  Baseline:   BASELINE = 80 (default, and the point-buy starting value).
+  N/A:        value 0 means the stat is absent. Used for CURSED_TECHNIQUE_MASTERY
+              on characters without an innate technique. Editors are unclamped;
+              gameplay clamps to [10, 300].
 
-  AP BAR (Maximum AP Bar)
-    The total AP available to a combatant for queuing moves each round.
-    Formula: AP Bar = (Speed × 15 + Combat Ability × 3) / 18
-    Baseline (both = 80): 80 AP. Maximum (both = 300): 300 AP.
+  StatKey constants (label / aliases):
 
-  ACCURACY (ACC)
-    Used in the hit-chance formula. Higher Accuracy = attacks land more often.
-    Formula: Accuracy = (Combat Ability × 4 + Speed) / 5
+    VITALITY                       vitality / vit
+      Determines maximum HP.
+      HP = round(Vitality × HP_PER_VIT),  HP_PER_VIT = 2.67 (PLACEHOLDER).
+      Baseline 80 → ~214 HP. Max 300 → ~801 HP.
 
-  EVASION (EVA)
-    Used in the hit-chance formula. Higher Evasion = harder to hit.
-    Formula: Evasion = (Speed × 4 + Combat Ability) / 5
+    STRENGTH                       strength / str
+      Physical striking power. Primary driver of Power for PHYSICAL moves
+      (4:1 with Combat Ability).
 
-  MAX CURSED ENERGY (CE Pool)
-    The total CE a character begins a fight with.
-    Formula: CE Pool = Cursed Energy Reserves × 5
+    DURABILITY                     durability / dur
+      Physical resilience. Weighted 2 in the Defense formula (alongside CE
+      reinforcement, weighted 6).
 
-  MOVE SLOTS
-    The number of moves of each category a character can equip.
-    Formula: slots = governing stat / 20  (integer division)
-    Baseline stat 80 → 4 slots.
-    See MOVE SLOTS section for per-category rules.
+    SPEED                          speed / spd
+      Movement and reaction speed. Primary driver of AP Bar size and Evasion;
+      secondary driver of Accuracy.
 
-  POWER
-    A mid-fight multiplier computed per move based on the move's category and
-    the attacker's base stats. Not a stored field — computed at damage resolution.
-    See DAMAGE CALCULATION section for formulas.
+    COMBAT_ABILITY                 combatAbility / ca
+      General combat aptitude. Primary driver of Accuracy; secondary driver of
+      AP Bar size and PHYSICAL Power. Determines the COMBAT_ARTS slot budget.
 
-  DEFENSE (computed combat stat)
-    A value computed during damage calculation, applied AFTER defensive moves
-    (PERCENTAGE_BLOCK / FLAT_BLOCK) have already reduced incoming damage.
-    Defense represents the defender's current resilience at the moment of each hit.
+    CURSED_ENERGY_RESERVES         cursedEnergyReserves / cer
+      Total CE pool available in a fight (no mid-fight regen). Weighted 2 in the
+      CE Power component and supplies the CE term of Defense.
 
-    The CE contribution to Defense (CE reinforcement) is CAPPED by Cursed Energy
-    Output, NOT by pool size. While the pool can supply at least the cap, Defense
-    holds at a plateau — spending CE early in a round costs no Defense. Only once
-    the pool drops below the cap does Defense degrade (steeply, since the CE term
-    is weighted 6). This is lore accurate: a bottomless-CE character (e.g. Yuta,
-    Hakari) still has finite Defense because their OUTPUT, not their pool size,
-    limits their reinforcement.
-    Formula: ceFromPool       = Cursed Energy Reserves × (currentCE / maxCE)
-             reinforcementCap = Cursed Energy Output × DEFENSE_CE_CAP_FACTOR
-             ceReinforcement  = min(ceFromPool, reinforcementCap)
-             Defense = (ceReinforcement × 6 + Durability × 2) / 6
+    CURSED_ENERGY_EFFICIENCY       cursedEnergyEfficiency / ceeff
+      Modifies the CE cost of all CE-tagged moves. 80 = neutral cost.
+      actualCost = baseCeCost × (80 / efficiency), clamped to [minCeCost, maxCeCost].
 
+    CURSED_ENERGY_OUTPUT           cursedEnergyOutput / ceo
+      Raw cursed energy output. Primary driver (3:2:1) of the CE Power component,
+      and caps CE reinforcement in the Defense formula (× DEFENSE_CE_CAP_FACTOR).
+
+    JUJUTSU_SKILL                  jujutsuSkill / js
+      Governs NON_INNATE_TECHNIQUE moves and barriers / RCT / cursed-tool styles.
+      Determines the JUJUTSU_ARTS slot budget. Secondary AP Bar driver.
+
+    CURSED_TECHNIQUE_MASTERY       cursedTechniqueMastery / ctm
+      Only meaningful for characters with an innate cursed technique. Scales
+      INNATE_TECHNIQUE Power (50:50 with the CE component).
+      Does NOT grant move slots — slots come from JUJUTSU_SKILL and COMBAT_ABILITY
+      only. Set to 0 (N/A) for characters without an innate technique.
+
+  Lookup: StatKey.fromString normalises to lowercase and strips spaces and
+  underscores before matching aliases or fieldName. Throws on no match.
+
+================================================================================
+  2. BATTLE STATS  (BattleStatKey.java)
+================================================================================
+
+Derived or battle-only values that can be modified at runtime by abilities
+(BATTLE_STAT_* effects, statuses). Distinct from base stats (StatKey).
+
+    MAX_HP            Max HP
+    MAX_CE            Max Cursed Energy
+    MAX_AP            Max AP (next planning budget)
+    ACCURACY          Accuracy
+    EVASION          Evasion
+    POWER             Power (per-move multiplier)
+    DEFENSE           Defense (computed value)
+    DAMAGE_DEALT      Outgoing damage multiplier
+    DAMAGE_TAKEN      Incoming damage multiplier
+    CE_COST           CE cost multiplier
+    BLACK_FLASH_CHANCE  Black Flash chance
+    HEALING           HP healing multiplier
+    CE_RESTORATION    CE restoration multiplier
+
+  Lookup: BattleStatKey.fromString uppercases and replaces spaces with '_'.
+
+================================================================================
+  3. COMBAT STATS  (CombatStats.java)
+================================================================================
+
+Derived values computed from base stats at combatant load time, plus the static
+damage-resolution helpers. These are the numbers actually used in combat.
+
+  Tuning constants (lines noted; PLACEHOLDER unless marked):
+    HP_PER_VIT            = 2.67     (L99,  PLACEHOLDER)
+    AP_DIVISOR            = 18       (L108, final)
+    HIT_BALANCE_FACTOR    = 1/19     (L115, final)  → equal ACC/EVA = 95% on a 1.0 move
+    CE_POOL_SCALE         = 5        (L118, PLACEHOLDER)
+    MOVES_PER_STAT_POINTS = 20       (L121, PLACEHOLDER)  → baseline 80 = 4 slots
+    BF_BASE_CHANCE        = 0.03     (L124, PLACEHOLDER)
+    BFS_BF_CHANCES        = {0.10, 0.20, 0.35, 0.50}  (L127, final)
+    BF_DAMAGE_MULTIPLIER  = 2.5      (L130, final)
+    BF_CE_RESTORE_FRACTION= 0.05     (L133, PLACEHOLDER)
+    DEFENSE_CE_CAP_FACTOR = 0.5      (L142, PLACEHOLDER)
+
+  Stored derived values (computed once per combatant):
+    Max HP          = round(Vitality × HP_PER_VIT)
+    Max AP Bar      = (Speed × 15 + CombatAbility × 3) / AP_DIVISOR      → baseline 80, max 300
+    Accuracy        = (CombatAbility × 4 + Speed) / 5                     → baseline 80
+    Evasion         = (Speed × 4 + CombatAbility) / 5                    → baseline 80
+    Max CE (pool)   = CursedEnergyReserves × CE_POOL_SCALE               → baseline 80 = 400
+    Combat Arts slots = CombatAbility / MOVES_PER_STAT_POINTS            → baseline 4
+    Jujutsu Arts slots= JujutsuSkill / MOVES_PER_STAT_POINTS             → baseline 4
+
+  DEFENSE — computed per hit, NOT stored.
+    The defender's resilience at the moment of each hit. CE reinforcement is
+    CAPPED by Cursed Energy Output, NOT by pool size. While the pool can supply
+    at least the cap, Defense holds at a plateau — spending CE early in a round
+    costs no Defense. Once the pool drops below the cap, Defense degrades
+    (steeply, since the CE term is weighted 6). Lore-accurate: a bottomless-CE
+    character (e.g. Yuta, Hakari) still has finite Defense because their OUTPUT,
+    not their pool, limits reinforcement.
+
+      ceFromPool       = CursedEnergyReserves × (currentCe / maxCe)
+      reinforcementCap = CursedEnergyOutput × DEFENSE_CE_CAP_FACTOR        (= × 0.5)
+      ceReinforcement  = min(ceFromPool, reinforcementCap)
+      Defense          = round((ceReinforcement × 6 + Durability × 2) / 6)
+
+    Pipeline: incoming damage → DEFENSIVE move reduction (block) → Defense → final.
     Key clarifications:
-    - Defense IS a combat stat (computed, not stored as a base stat).
-    - "Defense stat" is acceptable terminology — it refers to this computed value.
-    - Utility moves that raise Durability (via stat enhancements) indirectly raise Defense.
-    - CURSED_ENERGY_OUTPUT_INCREASE raises the reinforcement cap.
-    - Do NOT confuse with DEFENSIVE (a MoveTag for blocking moves).
-    - Do NOT confuse blockDamageReduction (block %) with Defense.
-    - Pipeline: incoming damage → DEFENSIVE move reduction → Defense → final damage.
+      - Defense IS a combat stat (computed, not a stored base stat). "Defense
+        stat" is acceptable shorthand for the computed value.
+      - CURSED_ENERGY_OUTPUT_INCREASE raises the reinforcement cap.
+      - MODIFY_DEFENSE multiplies the effective Defense value.
+      - Do NOT confuse with DEFENSIVE (a MoveTag for blocking moves).
+      - Do NOT confuse blockDamageReduction (block %) with Defense.
+
+  HIT CHANCE (static):
+      hitChance = min(1.0, baseAccuracy × attackerAccuracy
+                              / (attackerAccuracy + defenderEvasion × HIT_BALANCE_FACTOR))
+    Equal ACC/EVA on a 1.0-base-accuracy move → 95%.
 
 ================================================================================
-  3. MOVE STRUCTURE  (Move.java, MoveData.java)
+  4. MOVE STRUCTURE  (Move.java, MoveData.java)
 ================================================================================
 
-  MOVE ID
-    A 6-digit zero-padded string (e.g. "000003"). Auto-assigned by MoveRepository.
-    Used to reference moves in character move lists and ability grants.
+Move is the immutable domain object; MoveData is its JSON DTO. Field names below
+are the Move/MoveData field names.
 
-  BASE POWER
-    The raw damage number on a move. 0 for non-attacking moves.
-    Scaled by the Power multiplier and divided by Defense in the damage formula.
+  Identity / classification
+    id                    6-digit zero-padded string (e.g. "000003"). Auto-assigned
+                          by MoveRepository; resequenced on delete.
+    name, description     Display text.
+    category              MoveCategory (derived from tags; see §6).
+    tags                  Set<MoveTag> — the original data tags, retained for
+                          UI, filtering, ability scoping, and round-tripping.
+    pool                  MovePool (Combat Arts vs Jujutsu Arts; see §7).
 
-  BASE ACCURACY
-    A fraction [0.0, 1.0] representing the move's inherent accuracy before
-    Accuracy vs Evasion is applied. 1.0 = 100% (still subject to the hit roll).
+  Combat numbers
+    basePower             Raw damage number. 0 for non-attacking moves. Scaled by
+                          Power, reduced by block, divided by Defense.
+    baseAccuracy          Fraction [0.0, 1.0] — inherent accuracy before ACC/EVA.
+                          1.0 = 100% (still subject to the hit roll).
+    neverMiss             If true, the move bypasses the hit roll and always hits.
+    apCost                 AP ticks the move occupies on the AP Timeline. The
+                          segment spans [startTick, startTick + apCost - 1].
+    unleashPoint          Tick within the segment at which the move fires.
+                          Range [1, apCost]. 1 = instant (highest priority);
+                          == apCost = full charge (fires last).
 
-  NEVER MISS
-    If true, the move always hits regardless of Evasion. Bypass the hit roll.
+  Cursed Energy cost
+    baseCeCost            CE cost before efficiency scaling.
+    hasCeCost             Whether the move has a CE cost. False = no CE cost and
+                          CE is omitted from the card. True = any cost from 0 up.
+    minCeCost             Floor: efficiency scaling cannot reduce cost below this.
+    maxCeCost             Ceiling: efficiency scaling cannot raise cost above this.
 
-  AP COST
-    How many AP ticks the move occupies on the AP Timeline.
-    The action segment spans from startTick to startTick + apCost - 1.
+  Defensive data (used only when defenseType != NONE; see §8)
+    defenseType           NONE / PERCENTAGE_BLOCK / FLAT_BLOCK.
+    blockDuration         0 = whole segment (start..end); -1 = end of round;
+                          >0 = that many ticks from the unleash point.
+    blockAffectedTags     Null = reduces all damage types. Else reduces only
+                          attacks whose tags are a subset of this list.
+    blockDamageReduction  0–100, PERCENTAGE_BLOCK only. 100 = full negation.
+    blockFlatReduction    FLAT_BLOCK only. Subtracted from final damage (floor 1).
 
-  UNLEASH POINT
-    The AP tick within the move's action segment at which the move fires.
-    Range: [1, apCost].
-    Unleash point 1 = instant (highest priority, fires on the first tick).
-    Unleash point == apCost = full charge (fires on the last tick of the segment).
+  Effects
+    onHitEffects          List<StatusEffect> applied to the target on a hit.
+    selfEffects           List<StatusEffect> applied to the user on unleash
+                          (hit/miss/block agnostic). May carry a coded action.
 
-  BASE CE COST
-    CE cost before efficiency scaling. A CE move may intentionally have a cost of 0.
+  Learning / gating
+    prerequisites         Map<stat name → minimum value>. All must be met to
+                          learn and use the move.
+    requiredTechniqueId   Innate technique name the character must possess.
+                          Null/blank = no restriction. (Innate-tech-tagged moves
+                          must set this and a cursedTechniqueMastery prerequisite;
+                          non-innate-tech-tagged moves must declare a jujutsuSkill
+                          prerequisite — enforced by the Move builder.)
+    isFreeMove            If true, the move does not consume a move slot. Still
+                          respects prerequisites, technique restrictions, and CE/AP.
+    mustBeGranted         If true, the move cannot be assigned directly in the
+                          Character Editor; it must be made available through a
+                          GRANT_MOVE or FORCE_MOVE ability effect.
 
-  HAS CE COST (hasCeCost)
-    Whether the move has a CE cost. False means the move has no CE cost and CE
-    is omitted from its card. True permits any base CE cost from 0 upward.
+  Modifier flags (back dedicated MoveTag entries; see §5)
+    stun        boolean  → Move.isStun()       → STUN tag
+    guardBreak  boolean  → Move.isGuardBreak() → GUARD_BREAK tag
+    heavy       boolean  → Move.isHeavy()      → HEAVY tag
 
-  MIN CE COST
-    Floor: efficiency scaling cannot reduce CE cost below this value.
-
-  MAX CE COST
-    Ceiling: efficiency scaling cannot raise CE cost above this value.
-
-  FREE MOVE (isFreeMove)
-    If true, the move does not consume a move slot when assigned to a character.
-    Free moves still respect prerequisite stats and technique restrictions.
-    Only the slot budget check is skipped.
-
-  MUST BE GRANTED (mustBeGranted)
-    If true, the move cannot be assigned directly in the Character Editor or
-    character data unless an assigned ability makes it available through
-    GRANT_MOVE or FORCE_MOVE. Once available through GRANT_MOVE, it is learned
-    normally and still follows prerequisites and move-slot limits.
-
-  REQUIRED TECHNIQUE
-    An innate technique name the character must possess to use this move.
-    Null means no restriction. Stored as requiredTechniqueName in data files.
-    NOTE: the Move domain field is named requiredTechniqueId — see naming issue #2.
-
-  PREREQUISITES
-    A map of stat name → minimum value. The character must meet all prerequisites
-    to be eligible to learn and use this move.
-
-================================================================================
-  4. MOVE TAGS  (MoveTag.java)
-================================================================================
-
-Tags classify the nature and type of a move. Multiple tags can be combined.
-Category is derived from the combination of tags at runtime.
-The canonical terms for describing a move's type are the tag names below.
-
-  PHYSICAL
-    Pure physical strike (fists, weapons, body). Governed by Strength and Combat
-    Ability.
-
-  CURSED ENERGY
-    Raw Cursed energy without a specific technique. Always paired with other tags.
-    Governed by CE Output, CE Reserves, CE Efficiency.
-
-  INNATE TECHNIQUE
-    Move tied to a specific innate cursed technique (e.g. Shrine, Limitless).
-    Requires the character to possess that technique. CE is implied.
-    Governed by CE component and Cursed Technique Mastery.
-
-  NON-INNATE TECHNIQUE
-    Move from a learned, non-innate technique (barriers, RCT, cursed tool, etc.).
-    CE is implied. Governed by CE component and Jujutsu Skill. BF eligible.
-
-  ATTACK
-    Marks a move as an offensive action. Applied alongside damage-dealing tags.
-    Non-ATTACK moves do not prompt for base power or accuracy in the editor.
-
-  UTILITY
-    Non-damaging move that does not deal direct damage. Not slot-gated.
-
-  DEFENSIVE
-    A move that reduces or blocks incoming damage (PERCENTAGE_BLOCK, FLAT_BLOCK).
-    Applied BEFORE the defender's Defense stat in the damage pipeline. Not slot-gated.
-
-  SWORD
-    Weapon modifier for sword-based moves. It does not change MoveCategory, Power,
-    slot assignment, or Black Flash eligibility, but abilities can use it as a scope.
-
-  STUN
-    Modifier tag (like ATTACK): does not affect the Power formula, is not part of any
-    MoveCategory, and does not change Black Flash eligibility. Backed by a dedicated
-    flag on Move (Move.isStun()), not derived from the category.
-    Effect: when a STUN-tagged OFFENSIVE move HITS (not miss, not fully blocked), every
-    action segment of the defender that is on the current game tick is stunned (removed
-    from the timeline). Segments that already fired this tick are unaffected; segments
-    queued later this tick are skipped by the firing loop's stunned check and do not fire.
-    Only meaningful on offensive moves — defensive and utility moves return before the
-    stun effect is applied.
-
-  GUARD_BREAK
-    Modifier tag (like ATTACK / STUN): does not affect the Power formula, is not part
-    of any MoveCategory, and does not change Black Flash eligibility. Backed by a
-    dedicated flag on Move (Move.isGuardBreak()), not derived from the category.
-    Effect: a successful hit from a GUARD_BREAK move ignores the defender's blocking
-    defensive moves (PERCENTAGE_BLOCK / FLAT_BLOCK) — the block applies no reduction and
-    cannot fully negate the hit. Dodges and parries are unaffected; only blocks are
-    bypassed.
-
-  HEAVY
-    Modifier tag (like ATTACK / STUN / GUARD_BREAK): does not affect the Power formula,
-    is not part of any MoveCategory, and does not change Black Flash eligibility. Backed
-    by a dedicated flag on Move (Move.isHeavy()), not derived from the category.
-    Effect: an action segment carrying this move is IMMUNE to being stunned by a
-    STUN-tagged hit (it is skipped by the stun effect and still fires). HEAVY only
-    resists the STUN tag. This is the "heavy beats stun" half of the rock-paper-scissors
-    trio (stun > base > heavy > stun).
+  Other accessors worth knowing:
+    isBlackFlashEligible()  delegates to the move's category.
+    isMelee() / isRanged()  derived from the presence of the MELEE/RANGED tags.
+    isDefensive() / isActiveBlock()  derived from defenseType.
+    coveredByBlockTags(tags)  true if the attacker's tags are a subset of a
+                              block's blockAffectedTags (block-coverage check).
+    applyBlockTo(value)      applies a block's reduction to a damage value.
 
 ================================================================================
-  5. MOVE TYPES  (MoveCategory.java)
+  5. MOVE TAGS  (MoveTag.java)
 ================================================================================
 
-TYPES are derived at runtime from the move's tag set.
-They determine the Power formula, Black Flash eligibility, and which stat
-governs the move slot.
+Tags classify a move. Multiple tags combine; category and pool are derived from
+the tag set at runtime. The canonical terms for describing a move's type are the
+tag names below.
 
-  PHYSICAL                    Tags: {PHYSICAL}
-    Combat Art    BF: No.
+  TYPE TAGS (select the Power formula / MoveCategory — MoveTag.TYPE_TAGS):
+    PHYSICAL              Pure physical strike (fists, weapons, body).
+                          Governed by Strength + Combat Ability.
+    CURSED_ENERGY         Raw cursed energy without a specific technique. May
+                          stand alone as a dedicated CURSED_ENERGY category, or
+                          combine with PHYSICAL / technique tags.
+                          Governed by CE Output, CE Reserves, CE Efficiency.
+    INNATE_TECHNIQUE      Move tied to a specific innate cursed technique
+                          (e.g. Miracles, Ratio). Requires requiredTechniqueId.
+                          Governed by the CE component + Cursed Technique Mastery.
+    NON_INNATE_TECHNIQUE  Move from a learned, non-innate technique (barriers,
+                          RCT, cursed-tool styles such as New Shadow Style).
+                          Governed by the CE component + Jujutsu Skill.
 
-  INNATE TECHNIQUE            Tags: {INNATE_TECHNIQUE}
-    Jujutsu Art    BF: Yes.
+  FUNCTION TAGS:
+    ATTACK                Marks an offensive action. Applied alongside a damage
+                          type tag. Non-ATTACK moves prompt for no power/accuracy
+                          in the editor.
+    UTILITY               Non-damaging move (buffs, marks, resource moves). Not
+                          slot-gated by category; counted under Jujutsu Arts
+                          unless it carries PHYSICAL.
+    DEFENSIVE             A move that reduces or blocks incoming damage
+                          (PERCENTAGE_BLOCK / FLAT_BLOCK). Applied BEFORE Defense
+                          in the damage pipeline.
 
-  NON-INNATE TECHNIQUE        Tags: {NON_INNATE_TECHNIQUE}
-    Jujutsu Art    BF: Yes.
+  RANGE TAGS (MoveTag.RANGE_TAGS — meaningful only on ATTACK moves):
+    MELEE                 Close-quarters strike. Modifier tag: does not affect
+                          Power, category, or Black Flash eligibility. Lives only
+                          in the tag set (no dedicated Move flag).
+    RANGED                Distance strike (projectile, beam, thrown weapon).
+                          Same rules as MELEE.
 
-  PHYSICAL + CURSED ENERGY    Tags: {PHYSICAL, CURSED_ENERGY}
-    Combat Art    BF: Yes.
+  WEAPON TAG:
+    SWORD                 Sword / sword-like weapon modifier used by move-scoped
+                          abilities (e.g. Earnest Swordswoman). Modifier tag.
 
-  PHYSICAL + INNATE TECHNIQUE Tags: {PHYSICAL, INNATE_TECHNIQUE}
-    Combat Art    BF: Yes.
+  MODIFIER FLAGS (also backed by a dedicated boolean on Move):
+    STUN                  On a successful offensive hit, the defender's action
+                          segment(s) active on the current tick are stunned
+                          (removed from the timeline and prevented from firing).
+                          Segments that already fired are unaffected; HEAVY
+                          segments resist the stun. Defensive/utility moves do
+                          not apply the stun effect. Backed by Move.isStun().
+    GUARD_BREAK           A successful hit ignores the defender's blocking
+                          defensive moves (PERCENTAGE_BLOCK / FLAT_BLOCK) — the
+                          block applies no reduction and cannot negate the hit.
+                          Dodges and parries are unaffected; only blocks bypass.
+                          Backed by Move.isGuardBreak().
+    HEAVY                 An action segment carrying this move is IMMUNE to being
+                          stunned by a STUN-tagged hit. HEAVY only resists the
+                          STUN tag (not CE-depletion or ability-driven stuns).
+                          The "heavy beats stun" half of the stun ↔ heavy
+                          interaction. Backed by Move.isHeavy().
 
-  PHYSICAL + NON-INNATE TECHNIQUE  Tags: {PHYSICAL, NON_INNATE_TECHNIQUE}
-    Combat Art    BF: Yes.
-
-  INNATE + NON-INNATE TECHNIQUE  Tags: {INNATE_TECHNIQUE, NON_INNATE_TECHNIQUE}
-    Jujutsu Art    BF: Yes.
-
-  PHYSICAL + INNATE + NON-INNATE  Tags: all three technique tags
-    Combat Art    BF: Yes.
+  Black Flash eligibility rule (class javadoc, also enforced by MoveCategory):
+    a move must contain PHYSICAL AND at least one of {CURSED_ENERGY,
+    INNATE_TECHNIQUE, NON_INNATE_TECHNIQUE}.
 
 ================================================================================
-  6. DEFENSE TYPES  (DefenseType.java)
+  6. MOVE CATEGORIES  (MoveCategory.java)
 ================================================================================
 
-  NONE
-    Not a defensive move. No damage reduction applied.
+Categories are derived at runtime from the move's tag set (exact set match via
+MoveCategory.fromTags). They determine the Power formula and Black Flash
+eligibility. Pool (slot budget) is derived separately from the raw tags (§7).
 
-  PERCENTAGE_BLOCK
-    Percentage-based damage reduction. Incoming attacks that fire while this
-    block is active have their damage multiplied by (1 - blockDamageReduction / 100).
-    blockDamageReduction = 100: full negation (damage = 0, outcome = BLOCKED).
-    blockDamageReduction < 100: partial reduction (damage minimum 1, outcome = MOVE_BLOCK_REDUCED).
+  Category                                Tags                              BF?
+  PHYSICAL                                {PHYSICAL}                        No
+  CURSED_ENERGY                           {CURSED_ENERGY}                   No   (raw CE attack)
+  INNATE_TECHNIQUE                        {INNATE_TECHNIQUE}                No
+  NON_INNATE_TECHNIQUE                    {NON_INNATE_TECHNIQUE}            No
+  PHYSICAL_CURSED_ENERGY                  {PHYSICAL, CURSED_ENERGY}         Yes
+  PHYSICAL_INNATE_TECHNIQUE               {PHYSICAL, INNATE_TECHNIQUE}      Yes
+  PHYSICAL_NON_INNATE_TECHNIQUE           {PHYSICAL, NON_INNATE_TECHNIQUE}  Yes
+  INNATE_NON_INNATE_TECHNIQUE             {INNATE_TECHNIQUE, NON_INNATE_TECHNIQUE}  No
+  PHYSICAL_INNATE_NON_INNATE_TECHNIQUE    {all three technique tags}        Yes
+  UTILITY                                 {UTILITY}                         No
+  DEFENSIVE                               {DEFENSIVE}                       No
 
-  FLAT_BLOCK
-    Flat damage subtraction. Incoming attacks that fire while this block is
-    active have blockFlatReduction subtracted from their final damage.
-    Damage cannot go below 1 from this reduction alone.
+  Black Flash eligible (the four categories containing PHYSICAL):
+    PHYSICAL_CURSED_ENERGY, PHYSICAL_INNATE_TECHNIQUE,
+    PHYSICAL_NON_INNATE_TECHNIQUE, PHYSICAL_INNATE_NON_INNATE_TECHNIQUE.
 
-  Block duration rules (same for PERCENTAGE_BLOCK and FLAT_BLOCK):
-    blockDuration = 0:   block lasts for the move's full AP cost (the whole block window).
-    blockDuration = -1:  block lasts until end of round.
-    blockDuration > 0:   block lasts that many AP ticks from the unleash point.
+  MoveData.derivedCategory() collapses DEFENSIVE and UTILITY first (regardless of
+  any other tags) and falls back to UTILITY for unknown combinations.
+
+================================================================================
+  7. MOVE POOLS & MOVE SLOTS  (MovePool.java, SlotBudgetEnforcer.java)
+================================================================================
+
+POOL answers one question: which stat's slot budget does this move draw from?
+Pool is orthogonal to category and to tactical function (offensive/defensive/
+utility). It is derived from the RAW tag set, not from MoveCategory, because
+MoveCategory collapses the PHYSICAL tag away for defensive/utility moves.
+
+  COMBAT_ARTS    Moves carrying the PHYSICAL tag.  Slots = Combat Ability / 20.
+  JUJUTSU_ARTS   Moves WITHOUT the PHYSICAL tag.   Slots = Jujutsu Skill / 20.
+
+  Hybrid rule: any move containing PHYSICAL counts as a Combat Art, even if it
+  also carries technique or CE tags. A non-PHYSICAL move is always a Jujutsu Art
+  regardless of whether it is offensive, defensive, or utility.
+
+MOVE SLOTS
+  The number of moves of each pool a character can equip.
+  Formula: slots = governing stat / MOVES_PER_STAT_POINTS (integer division).
+  Baseline stat 80 → 4 slots. Stat 300 → 15 slots.
+  Governing stats: COMBAT_ABILITY for Combat Arts, JUJUTSU_SKILL for Jujutsu Arts.
+  (Cursed Technique Mastery does NOT grant slots.)
+  Free moves (isFreeMove) skip only the slot-budget check.
+
+================================================================================
+  8. DEFENSE TYPES  (DefenseType.java)
+================================================================================
+
+NONE
+  Not a defensive move. No damage reduction applied.
+
+PERCENTAGE_BLOCK
+  Percentage-based reduction. Incoming attacks that fire while this block is
+  active have their attack value multiplied by (1 − blockDamageReduction/100).
+  blockDamageReduction = 100  → full negation (damage 0, outcome BLOCKED).
+  blockDamageReduction < 100  → partial reduction (damage minimum 1,
+                                outcome MOVE_BLOCK_REDUCED).
+
+FLAT_BLOCK
+  Flat subtraction. blockFlatReduction is subtracted from the attack value.
+  Damage cannot go below 1 from this reduction alone.
+
+  Block duration rules (same for both block types):
+    blockDuration = 0    block lasts the whole segment (start..endTick).
+    blockDuration = -1   block lasts until end of round.
+    blockDuration > 0    block lasts that many ticks from the unleash point.
 
   blockAffectedTags:
-    Null = reduces all incoming damage types.
-    Specified = reduces only incoming attacks whose tags include all listed tags.
+    Null/empty = reduces all incoming damage types.
+    Specified  = reduces only attacks whose tags are a subset of the list
+                 (Move.coveredByBlockTags).
 
-  Applied before Defense in the damage pipeline.
-  DO NOT call "blockDamageReduction" the "Defense" value. Defense is the computed
-  stat from Durability + CE applied after these block moves. blockDamageReduction
-  is the block's percentage reduction property.
-
-================================================================================
-  7. AP TIMELINE  (Timeline.java, ActionSegment.java, BattleState.java)
-================================================================================
-
-  AP BAR
-    The total action points a combatant has available per round.
-    Determined by Combat Stats. Filled left-to-right with action segments.
-
-  AP TIMELINE
-    The ordered sequence of action segments a combatant queues for a round.
-    Segments are packed sequentially from tick 1. Empty space between segments
-    is valid (idle time, no move covering that tick).
-
-  TICK
-    One unit of the AP timeline. Equivalent to one action point.
-    The action counter advances tick by tick through the resolution phase.
-    NOTE: the code uses "tick" (BattleState.currentTick, ActionSegment.fireTick).
-    The term "game tick" is also acceptable. "AP tick" is the most precise.
-
-  ACTION COUNTER
-    The sweeping counter that advances tick by tick during resolution.
-    When it reaches an action segment's startTick: CE is drained.
-    When it reaches an action segment's fireTick: the move fires.
-
-  ACTION SEGMENT
-    One move's occupancy on the AP timeline. Has a startTick, endTick,
-    fireTick, and an actualCeCost. Can be stunned (removed) by a hit from a
-    STUN-tagged move, by CE depletion, or by an ability cancellation.
-
-  START TICK
-    The AP tick at which an action segment begins. CE is drained here.
-
-  FIRE TICK
-    The AP tick at which a move's effect is resolved.
-    fireTick = startTick + unleashPoint - 1.
-
-  END TICK
-    The last AP tick of an action segment.
-    endTick = startTick + apCost - 1.
-    For defensive block moves, this is currently used as the active block window.
-
-  INSTANT MOVE
-    A move with unleashPoint == 1. Its fireTick equals its startTick.
-    Highest priority in tie-breaking — fires before all same-tick moves.
-
-  STUNNED
-    An action segment that has been removed from the timeline — by a hit from a
-    STUN-tagged move, by CE depletion, or by an ability cancellation. Its AP slot
-    is still spent and any CE already drained remains spent; the move simply does
-    not fire or take effect. Log line: "<combatant> was stunned and could not
-    move."
+  Applied BEFORE Defense in the damage pipeline.
+  Do NOT call "blockDamageReduction" the "Defense" value. Defense is the
+  computed stat from Durability + CE applied AFTER these block moves.
 
 ================================================================================
-  8. COMBAT PHASES  (BattleState.java)
+  9. AP TIMELINE  (Timeline.java, ActionSegment.java, BattlePlan.java)
 ================================================================================
 
-  PLANNING
-    Both combatants submit their move queues (AP timelines) for the round.
-    Player selects manually; AI (AIStrategy) selects automatically.
+AP BAR
+  The total action points a combatant has per round (Max AP, §3). Filled with
+  action segments during planning.
 
-  RESOLUTION
-    The action counter sweeps tick by tick through the AP timeline.
-    Moves fire, damage is resolved, stun effects are applied.
+AP TIMELINE
+  The ordered sequence of action segments queued for a round, packed from tick 1.
+  Empty space between segments is valid (idle ticks). Two boards exist per plan:
+  an offensive board and a defensive board; they are merged for legacy resolution.
 
-  ROUND END
-    Status effects tick, Black Flash State expiry is checked, defense buffs
-    and block states are cleared, the round counter increments.
+TICK (a.k.a. AP tick / game tick)
+  One unit of the timeline. The action counter advances tick by tick during
+  resolution. DEFAULT_GRID_LENGTH = 150; ticks are 1-indexed (1..gridLength).
 
-  BATTLE OVER
-    One or both combatants have 0 HP. A winner is declared.
-    Simultaneous KO = draw (winner is null).
+ACTION COUNTER
+  The sweeping counter that advances tick by tick during RESOLUTION. When it
+  reaches a segment's startTick: CE is drained. When it reaches its fireTick: the
+  move fires.
 
-  ROUND
-    One full cycle of PLANNING → RESOLUTION → ROUND END.
+ACTION SEGMENT
+  One move's occupancy on the timeline.
+    startTick      CE is drained here.
+    fireTick       = startTick + unleashPoint − 1. The move's effect resolves here.
+    endTick        = startTick + apCost − 1. The last tick of the segment.
+    actualCeCost   CE after efficiency scaling (drained at startTick).
+    stunned / fired flags.
+  Can be stunned (skipped) by: a STUN-tagged hit, CE depletion, or an ability
+  cancellation. markFired() is final — a fired segment cannot be retro-cancelled
+  (a fired block keeps protecting for its AP window).
 
-================================================================================
-  9. DAMAGE CALCULATION  (DamageCalculator.java)
-================================================================================
+INSTANT MOVE
+  A move with unleashPoint == 1 (fireTick == startTick). Highest priority in
+  tie-breaking — fires before other same-tick moves; further ties broken by Speed.
 
-  Pipeline:
-    1. HIT ROLL — does the move connect?
-    2. POWER — attacker's power multiplier for this move category.
-    3. BLOCK CHECK / REDUCTION — active DEFENSIVE moves reduce basePower × Power.
-    4. DEFENSE — defender's current Defense value divides the remaining attack value.
-    5. DAMAGE FORMULA — scale and random roll are applied.
-    6. DAMAGE MULTIPLIERS — ability damage modifiers apply.
-    7. BLACK FLASH ROLL — BF check on eligible moves.
-    8. BF MULTIPLIER — apply ×2.5 if Black Flash proc'd.
-
-  DAMAGE FORMULA (verbatim):
-    attackValue = basePower × Power
-    attackValueAfterBlock = DEFENSIVE move reduction applied to attackValue
-    damage = (attackValueAfterBlock / Defense) × DAMAGE_SCALE × roll × damageMultiplier
-    DAMAGE_SCALE = 0.5 (placeholder — balance pass pending)
-    roll = random value in [0.85, 1.0]
-
-  HIT ROLL
-    hitChance = baseAccuracy × (attackerAccuracy / (attackerAccuracy + defenderEvasion × (1/19)))
-    Equal stats on a 1.0 base accuracy move → 95% hit rate.
-
-  POWER
-    A multiplier computed from the attacker's base stats and the move's category.
-    Not a stored field — recalculated at each hit.
-    Physical:     (Strength × 4 + Combat Ability) / 5
-    CE:           (CE Output × 3 + CE Reserves × 2 + CE Efficiency) / 6
-    Innate Tech:  average of CE_power and Cursed Technique Mastery (50:50)
-    Non-Innate:   average of CE_power and Jujutsu Skill (50:50)
-    Hybrids:      weighted combinations per PowerCalculator.
-
-  DEFENSE (computed at time of hit)
-    Defense = (CE_remaining_fraction × Cursed Energy Reserves × 3
-               + Durability × 2) / 5
-    Falls as CE is spent: a depleted character is easier to damage.
-
-  DAMAGE_SCALE
-    Global multiplier (currently 0.5). Placeholder — to be tuned during
-    balance pass. Lower = longer fights; higher = faster fights.
-
-  DAMAGE ROLL
-    Random variance applied to each hit. Range: [0.85, 1.0] (±15%).
-
-  BLOCKED (outcome)
-    The attack connected but was fully negated by the defender's BLOCK
-    (blockDamageReduction = 100). No damage applied. Distinct from MISS.
-
-  MISS (outcome)
-    The attack failed the hit roll. No damage applied.
-
-  HIT (outcome)
-    The attack connected. Final damage is applied. May include block reduction.
-
-  RAW DAMAGE
-    The damage value before Black Flash multiplier is applied.
-
-  FINAL DAMAGE
-    The damage value after all modifiers (block reduction, BF multiplier).
-    This is what is subtracted from the defender's HP.
+STUNNED (segment state)
+  An action segment removed from firing — by a STUN-tagged hit, by CE depletion,
+  or by an ability cancellation (CANCEL_NEXT_MOVE). Its AP slot is still spent
+  and any CE already drained remains spent; the move simply does not fire.
+  Log line: "<combatant> was stunned and could not move."
 
 ================================================================================
-  10. BLACK FLASH  (CombatStats.java, DamageCalculator.java)
+  10. COMBAT PHASES  (BattleState.java)
 ================================================================================
 
-  BLACK FLASH (BF)
-    A rare critical hit that multiplies damage. Occurs randomly on eligible moves.
-    Eligible: moves whose category requires PHYSICAL + at least one CE tag.
-    BF Damage Multiplier: ×2.5 applied to raw damage.
+  Phase enum: PLANNING, RESOLUTION, ROUND_END, BATTLE_OVER.
+  Cycle: PLANNING → RESOLUTION → ROUND_END → PLANNING … → BATTLE_OVER.
 
-  BLACK FLASH CHANCE
-    Base: 3%
-    Modified by ability effects (BF_CHANCE_ADD) and BFS escalation.
+PLANNING
+  Both combatants submit their move queues (AP timelines) for the round. The
+  player selects manually; the AI (AIStrategy) selects automatically. Automatic
+  statuses timed ROUND_START refresh here.
 
-  BLACK FLASH STATE (BFS)
-    A temporary state entered after a Black Flash proc. Each consecutive BF hit
-    escalates the BF chance for subsequent moves.
-    BF chances while in BFS:
-      1st consecutive BF: 10%
-      2nd consecutive BF: 20%
-      3rd consecutive BF: 35%
-      4th+ consecutive BF: 50% (cap)
-    BFS expires at a set round (implementation: tickBfsExpiry on ROUND_END).
-    CE is partially restored on each BF proc (5% of max CE pool).
+RESOLUTION
+  currentTick starts at 1 and advances tick by tick. Moves fire, damage is
+  resolved, stun effects and coded effects are applied.
 
-================================================================================
-  11. CURSED ENERGY  (CharacterStats.java, CombatStats.java)
-================================================================================
+ROUND END (round maintenance)
+  Status effects tick, Black Flash State expiry is checked (tickBfsExpiry),
+  defense buffs and block states are cleared, roundNumber increments,
+  currentTick resets to 0, ROUND_START automatic statuses re-apply.
 
-  CURSED ENERGY (CE)
-    A combat resource. Spent when CE-tagged action segments begin their startTick.
-    Not regenerated during a fight. Defense holds at a plateau while the pool can
-    supply the CE Output cap; once the pool drops below that cap, Defense degrades.
+BATTLE OVER
+  One or both combatants have 0 HP. Winner is declared. Simultaneous KO = draw
+  (winner is null). checkAndResolveBattleOver sets the phase when either
+  combatant isDefeated().
 
-  CE POOL (Max Cursed Energy)
-    Total CE available at fight start.
-    Formula: CE Pool = Cursed Energy Reserves × 5
-
-  CE COST (of a move)
-    The amount of CE drained when a CE-tagged action segment reaches its startTick.
-    Scaled by CE Efficiency from the base CE cost, clamped to [minCeCost, maxCeCost].
-
-  CE EFFICIENCY SCALING
-    actualCost = baseCeCost × (80 / cursedEnergyEfficiency)
-    Baseline (efficiency = 80): cost is neutral.
-    Efficiency > 80: costs less.
-    Efficiency < 80: costs more.
+ROUND
+  One full cycle of PLANNING → RESOLUTION → ROUND END. roundNumber starts at 1.
+  Automatic statuses also fire at FIGHT_START (construction) then each ROUND_START.
 
 ================================================================================
-  12. ABILITIES  (AbilityEffectType.java, AbilityApplicator.java)
+  11. DAMAGE CALCULATION  (DamageCalculator.java, PowerCalculator.java)
 ================================================================================
 
-  ABILITY
-    A passive or active power attached to a character. Abilities modify stats,
-    CE costs, accuracy, damage, or apply automated effects.
+Pipeline:
+  1. HIT ROLL        — does the move connect? (neverMiss / guaranteed hit /
+                       guaranteed dodge / hitChance roll)
+  2. CODED CONNECT   — onAttackConnected runs on a confirmed connection only.
+  3. GUARD_BREAK     — if forceFullBlock and !move.isGuardBreak() → BLOCKED;
+                       bypassBlock = move.isGuardBreak() || codedModifiers.bypassBlock().
+  4. BLOCK REDUCTION — active DEFENSIVE move reduces attackValue (skipped if bypassBlock).
+  5. POWER           — PowerCalculator.compute(category, attackerStats), then run
+                       through attacker.modifyBattleStat(POWER).
+  6. DEFENSE         — max(1, defender.computeCurrentDefense(tick) × codedModifiers.defenseMultiplier()).
+  7. DAMAGE FORMULA  — scale, roll, and damage multipliers applied (see below).
+  8. BLACK FLASH     — BF roll on eligible moves; ×2.5 if proc'd.
 
-  PASSIVE ABILITY
-    Applied once at BattleCombatant construction via AbilityApplicator.
-    Effects persist for the entire fight without requiring activation.
+  DAMAGE FORMULA (verbatim, DamageCalculator L150–157):
+    attackValue = basePower × basePowerMultiplierFor(move) × power
+    attackValueAfterBlock = block applied to attackValue (if any active block)
+    randomRoll = ROLL_MIN + (1 − ROLL_MIN) × rng.nextDouble()     // ROLL_MIN = 0.85
+    rawDamage  = round( (attackValueAfterBlock / defense)
+                        × DAMAGE_SCALE × randomRoll
+                        × attacker.getAbilityFlags().damageMultiplierFor(move) )
+    rawDamage  = max(1, rawDamage)                                 // floor 1 on a hit
+    rawDamage  = attacker.modifyBattleStat(DAMAGE_DEALT, rawDamage)
+    finalDamage = rawDamage  (× BF_DAMAGE_MULTIPLIER if Black Flash proc'd)
 
-  ACTIVE ABILITY
-    Triggered manually (ACTIVE/QUEUED) or by a condition (ACTIVE/TRIGGERED).
-    Not yet fully implemented in the combat engine.
+  DAMAGE_SCALE = 0.5  (private, PLACEHOLDER — balance pass pending).
+  DAMAGE ROLL range = [0.85, 1.0] (±15%).
 
-  AVAILABLE
-    Content shown in the Character Editor's AVAILABLE list. Available content is
-    not learned or active until the user moves it into LEARNED or ASSIGNED.
+POWER (PowerCalculator — integer division; cursedEnergyBase is shared):
+  PHYSICAL                            (Strength × 4 + CombatAbility) / 5
+  CURSED_ENERGY (base)                (CE_Output × 3 + CE_Reserves × 2 + CE_Efficiency) / 6
+  INNATE_TECHNIQUE                    (cursedEnergyBase + CursedTechniqueMastery) / 2
+  NON_INNATE_TECHNIQUE                (cursedEnergyBase + JujutsuSkill) / 2
+  PHYSICAL_CURSED_ENERGY              (cursedEnergyBase × 3 + physical) / 4
+  PHYSICAL_INNATE_TECHNIQUE           (innateTechnique × 4 + physical) / 5
+  PHYSICAL_NON_INNATE_TECHNIQUE       (nonInnateTechnique × 3 + physical) / 4
+  INNATE_NON_INNATE_TECHNIQUE         (innateTechnique × 3 + nonInnateTechnique × 2) / 5
+  PHYSICAL_INNATE_NON_INNATE_TECHNIQUE(physical + innateTechnique × 3 + nonInnateTechnique × 2) / 6
+  UTILITY, DEFENSIVE                  0
 
-  GRANT_MOVE
-    Adds a move to AVAILABLE. It does not add the move to LEARNED, bypass its
-    prerequisites, bypass its move-slot cost, or prevent it from being removed.
+OUTCOMES (DamageResult.Outcome):
+  MISS      Hit roll failed (or guaranteed dodge). No damage.
+  BLOCKED   Connected but fully negated by a block (PERCENTAGE_BLOCK at 100%).
+  HIT       Connected. Final damage applied (may include partial block reduction).
 
-  GRANT_ABILITY
-    Adds an ability to AVAILABLE. It does not add the ability to ASSIGNED and
-    does not activate any of that ability's effects.
-
-  FORCE_MOVE
-    Adds a move directly to LEARNED. A forced move bypasses normal learning
-    prerequisites and move-slot limits, is greyed in the Character Editor, and
-    cannot be removed while its source remains active. Its source is displayed
-    as "Granted by ability" or "Granted by technique".
-
-  CHARACTER-SOURCE ABILITY
-    An ability whose sourceType is CHARACTER. It is available to every character;
-    CHARACTER does not mean character-exclusive. Only assigned abilities are active.
-
-  ABILITY EFFECT TYPES (grouped):
-
-    Stat Modifiers:
-      STAT_ADD           — flat additive modifier to a stat
-      STAT_MULTIPLY      — multiplicative modifier (applied after all additive)
-      STAT_DIVIDE        — divide modifier (equivalent to STAT_MULTIPLY with 1/x)
-      STAT_SET_VALUE     — override a stat to a specific value
-      STAT_SET_MIN       — override a stat to 0 (N/A)
-      STAT_BONUS_POINTS  — grant extra point-buy budget (editor only, no combat effect)
-
-    CE Cost Modifiers:
-      CE_COST_TO_MINIMUM — force CE cost to the move's minimum
-      CE_COST_MULTIPLY   — multiply CE cost by a factor
-
-    Accuracy Modifiers:
-      MOVE_ACCURACY_ADD          — flat accuracy bonus/penalty on own moves
-      MOVE_ACCURACY_MULTIPLY     — accuracy multiplier on own moves
-      OPPONENT_ACCURACY_ADD      — flat accuracy bonus/penalty on opponent's moves
-      OPPONENT_ACCURACY_MULTIPLY — accuracy multiplier on opponent's moves
-
-    Damage Modifiers:
-      DAMAGE_MULTIPLY    — multiply damage dealt
-
-    Black Flash Modifier:
-      BF_CHANCE_ADD      — add to Black Flash proc chance (negative = reduce)
-
-    Defense Modifier:
-      MODIFY_DEFENSE     — multiply the character's effective Defense value
-
-    AP Bar Modifier:
-      MODIFY_AP_BAR      — flat addition/subtraction to AP bar size
-
-    Grants:
-      GRANT_MOVE         — add a move to AVAILABLE for normal learning
-      GRANT_ABILITY      — add an ability to AVAILABLE for normal assignment
-      FORCE_MOVE         — add and lock a move in LEARNED
-      UNLOCK_TECHNIQUE   — grant an innate cursed technique by name
-
-    Status Automation:
-      AUTO_STATUS_APPLY  — automatically apply a status effect at a given timing
-        target: SELF or ENEMY
-        timing: FIGHT_START, ROUND_START, or ON_HIT
-
-    Move Locking:
-      LOCK_MOVE_TAG      — prevent use of moves with a given tag (PASSIVE: permanent;
-                           ACTIVE/TRIGGERED: removes matching action segments from opponent's
-                           timeline for the current round)
-
-    Sustained Cost:
-      COST_CE_PER_ROUND  — drain CE at round start (models sustained technique costs)
+RAW DAMAGE     Damage before the Black Flash multiplier.
+FINAL DAMAGE   Damage after all modifiers (block reduction, BF multiplier). What is
+               subtracted from the defender's HP.
 
 ================================================================================
-  13. STATUS EFFECTS  (StatusEffectType.java)
+  12. BLACK FLASH  (CombatStats.java, BattleCombatant.java, DamageCalculator.java)
 ================================================================================
 
-  Applied to combatants via move on-hit/self effects or ability status effects.
-  Each effect has round and AP-tick duration fields plus a non-negative flat
-  amount. Use rounds > 0 with ticks = 0 for round-only, rounds = 0 with ticks > 0
-  for tick-only, or set both above 0 to keep the effect for the full rounds and
-  then through that many ticks of the following round. Rounds = -1 and ticks = 0
-  means permanent. Direction is explicit in the type name: *_INCREASE adds the
-  amount and *_DECREASE subtracts it.
+BLACK FLASH (BF)
+  A rare critical hit that multiplies damage, rolled only on BF-eligible moves
+  (the four PHYSICAL + CE-bearing categories, §6). BF_DAMAGE_MULTIPLIER = ×2.5,
+  applied to raw damage.
 
-  Every base stat supports both directions:
-    VITALITY, STRENGTH, DURABILITY, SPEED, COMBAT_ABILITY,
-    CURSED_ENERGY_RESERVES, CURSED_ENERGY_EFFICIENCY,
-    CURSED_ENERGY_OUTPUT, JUJUTSU_SKILL, CURSED_TECHNIQUE_MASTERY.
+BLACK FLASH CHANCE
+  Base BF_BASE_CHANCE = 3% (0.03). Modified by BF_CHANCE_ADD and by BFS escalation.
 
-  Every runtime-derived stat supports both directions:
-    MAX_HP, MAX_CURSED_ENERGY, MAX_AP, ACCURACY, EVASION, POWER, DEFENSE.
+BLACK FLASH STATE (BFS)
+  A temporary state entered after a Black Flash proc. Each consecutive BF hit
+  while in BFS escalates the BF chance for subsequent moves:
+    Normal (not in BFS)                 3%   (BF_BASE_CHANCE)
+    BFS, 0 consecutive hits             10%  (BFS_BF_CHANCES[0])
+    BFS, 1 consecutive hit              20%  (BFS_BF_CHANCES[1])
+    BFS, 2 consecutive hits             35%  (BFS_BF_CHANCES[2])
+    BFS, 3+ consecutive hits            50%  (cap, BFS_BF_CHANCES[3])
 
-  Examples:
-    STRENGTH_INCREASE       — temporarily adds to Strength
-    EVASION_DECREASE        — temporarily subtracts from Evasion
-    POWER_INCREASE          — temporarily adds to the move-specific Power value
-    MAX_AP_DECREASE         — temporarily reduces the next planning AP budget
+  State machine (BattleCombatant):
+    enterBlackFlashState(round)  on first entry sets inBlackFlashState=true and
+                                 resets consecutiveBfsHits=0; always sets
+                                 bfsExpiresAfterRound = round + 1 (refreshed each proc).
+    recordBfsHit()               increments consecutiveBfsHits (called AFTER
+                                 enterBlackFlashState on a re-trigger).
+    tickBfsExpiry(completedRound) clears BFS when completedRound ≥ bfsExpiresAfterRound.
+    getCurrentBfChance()         returns the array entry if in BFS else BF_BASE_CHANCE,
+                                 + bfChanceBonus, through modifyBattleStat(BLACK_FLASH_CHANCE),
+                                 capped at 1.0.
 
-================================================================================
-  14. COMBAT EVENTS  (CombatEvent.java)
-================================================================================
-
-Events emitted by CombatResolver and consumed by the View (TextBattleView).
-These are the canonical names for what happened in a given tick.
-
-  MOVE_STARTED        — startTick reached; CE drained from combatant
-  MOVE_FIRED          — fireTick reached; move effect resolved
-  MOVE_MISSED         — hit roll failed
-  MOVE_BLOCKED        — block fully negated incoming damage (PERCENTAGE_BLOCK at 100%)
-  MOVE_BLOCK_REDUCED  — block reduced but did not fully negate damage
-                        (PERCENTAGE_BLOCK < 100%, or FLAT_BLOCK)
-  MOVE_STUNNED        — STUN tag, CE depletion, or ability cancellation removed this action segment
-  DAMAGE_DEALT        — HP was deducted from a combatant
-  BLACK_FLASH         — BF proc; includes BF damage value
-  CE_DRAINED          — CE was spent on a move
-  CE_RESTORED         — CE was returned (e.g. BF proc restores 5%)
-  CE_DEPLETED         — combatant reached 0 CE
-  STATUS_APPLIED      — a status effect or block message was applied
-  STATUS_EXPIRED      — a status effect ended
-  BFS_ENTERED         — combatant entered Black Flash State
-  BFS_EXPIRED         — Black Flash State ended
-  ROUND_START         — beginning of a new round (used by view)
-  ROUND_END           — end of the round (used by view)
-  BATTLE_OVER         — fight ended; winner determined
+  On each BF proc: CE restored = round(maxCE × BF_CE_RESTORE_FRACTION) = 5% of max CE.
+  BFS expiry is checked at ROUND_END and emits a BFS_EXPIRED event.
 
 ================================================================================
-  15. AI  (AIStrategy.java, GreedyAIStrategy.java)
+  13. CURSED ENERGY  (CharacterStats.java, CombatStats.java)
 ================================================================================
 
-  AI STRATEGY
-    Interface that selects moves for the enemy combatant each round.
-    Receives the AI combatant and its opponent; returns an ordered list of moves.
+CURSED ENERGY (CE)
+  A combat resource. Spent when a CE-tagged action segment reaches its startTick.
+  Not regenerated during a fight (except BF procs and ability effects). Defense
+  holds at a plateau while the pool can supply the CE Output cap; once the pool
+  drops below that cap, Defense degrades.
 
-  GREEDY AI STRATEGY
-    Default implementation. Sorts moves by base power descending and fills the
-    AP bar greedily with the highest-power moves the AI can afford (AP and CE).
+CE POOL (Max Cursed Energy)
+  Total CE at fight start. CE Pool = CursedEnergyReserves × CE_POOL_SCALE (= ×5).
+
+CE COST (of a move)
+  The CE drained when a CE-tagged segment reaches its startTick. Scaled by CE
+  Efficiency from baseCeCost, clamped to [minCeCost, maxCeCost]. Abilities can
+  force minimum (CE_COST_TO_MINIMUM) or multiply (CE_COST_MULTIPLY).
+
+CE EFFICIENCY SCALING
+  actualCost = baseCeCost × (80 / cursedEnergyEfficiency).
+  Efficiency 80 = neutral. Above 80 = cheaper. Below 80 = costlier.
 
 ================================================================================
-  16. EDITORS  (MoveEditorMain, CharacterEditorMain, AbilityEditorMain)
+  14. ABILITIES  (AbilityEffectType.java, AbilityApplicator.java)
 ================================================================================
 
-  MOVE EDITOR
-    CLI tool for creating and editing moves. Saved to data/moves/all_moves.json.
-    Stat bounds are NOT enforced in editors (uncapped entry allowed).
+ABILITY
+  A passive (or, in data, ACTIVE) power attached to a character. Each ability has
+  a category (PASSIVE / ACTIVE), a sourceType (CHARACTER / TECHNIQUE / MOVE /
+  STAT_THRESHOLD / ABILITY), an optional innate-technique mastery threshold, and a
+  list of effects. Coded abilities (codedAbilityKey set) are implemented in
+  compiled code and are read-only in the editor (see §15).
 
-  CHARACTER EDITOR
-    CLI tool for creating and editing characters. Two creation modes:
-      Manual: enter each stat directly (uncapped).
-      Point-Buy: 1000-point budget, all stats begin at 80.
-    Saved to data/characters/all_characters.json.
+PASSIVE ABILITY
+  Applied once at BattleCombatant construction via AbilityApplicator for
+  always-active effects, which persist for the entire fight. Triggered runtime
+  effects (HEAL_HP and below) are instead executed by the passive dispatcher when
+  the ability's activation predicate fires.
 
-  ABILITY EDITOR
-    CLI tool for creating and editing abilities. Saved to data/abilities/all_abilities.json.
+ACTIVE ABILITY
+  Linked to a move (activeMoveId) and normalized to subtype QUEUED on save; its
+  effects list is cleared. (Combat hook-up for queued actives is incomplete.)
 
-  FREE MOVE (isFreeMove)
-    A move that does not consume a move slot when assigned to a character.
-    Respects prereqs and technique restrictions — only slot budget is skipped.
+AVAILABLE
+  Content shown in the Character Editor's AVAILABLE list. Available content is
+  not learned or active until moved into LEARNED (moves) or ASSIGNED (abilities).
 
-  POINT-BUY BUDGET
-    1000 points baseline. Characters without an innate technique receive +80 bonus
-    points because Cursed Technique Mastery is locked at N/A (free).
+GRANT_MOVE        Adds a move to AVAILABLE. The move must still be learned
+                  normally (prerequisites, technique, slot budget all apply).
+GRANT_ABILITY     Adds an ability to AVAILABLE for normal assignment.
+FORCE_MOVE        Adds a move directly to LEARNED and locks it: it bypasses
+                  normal prerequisites and slot limits, is greyed in the editor,
+                  and cannot be removed while its source remains active. Source
+                  label: "Granted by ability" / "Granted by technique".
+UNLOCK_TECHNIQUE  Lets a character learn and use moves belonging to a technique
+                  it does not innately possess.
+
+CHARACTER-SOURCE ABILITY
+  An ability whose sourceType is CHARACTER. It is available to every character;
+  CHARACTER does not mean character-exclusive. Only assigned abilities are active.
+
+ABILITY EFFECT TYPES  (49 enum constants; grouped as in source).
+  Each type owns its editor display name, description, required parameters, and
+  defaults. Effects with ordinal ≥ HEAL_HP are TRIGGERED RUNTIME EFFECTS: applied
+  by the passive dispatcher on activation, not at construction.
+
+  Stat modifiers (construction-time):
+    STAT_ADD            Add to stat                       (STAT, INTEGER)
+    STAT_MULTIPLY       Multiply stat (after additive)    (STAT, DECIMAL)
+    STAT_DIVIDE         Divide stat (after additive)      (STAT, DECIMAL)
+    STAT_SET_VALUE      Set stat to an exact value        (STAT, INTEGER)
+    STAT_SET_MIN        Set stat to 0 (display N/A)       (STAT)
+    STAT_BONUS_POINTS   Change point-buy budget (editor)  (INTEGER)
+
+  CE cost modifiers (move-scoped):
+    CE_COST_TO_MINIMUM  Force matching moves to min CE cost      (MOVE_SCOPE)
+    CE_COST_MULTIPLY    Multiply CE cost of matching moves        (MOVE_SCOPE, DECIMAL)
+
+  Accuracy modifiers (move-scoped):
+    MOVE_ACCURACY_ADD         ± accuracy on own moves           (MOVE_SCOPE, INTEGER)
+    MOVE_ACCURACY_MULTIPLY    × accuracy on own moves           (MOVE_SCOPE, DECIMAL)
+    OPPONENT_ACCURACY_ADD     ± accuracy on enemy's moves       (MOVE_SCOPE, INTEGER)
+    OPPONENT_ACCURACY_MULTIPLY × accuracy on enemy's moves      (MOVE_SCOPE, DECIMAL)
+
+  Damage modifiers (move-scoped):
+    DAMAGE_MULTIPLY           × damage dealt                   (MOVE_SCOPE, DECIMAL)
+    MOVE_BASE_POWER_MULTIPLY  × configured base power (pre-Power, pre-Defense) (MOVE_SCOPE, DECIMAL)
+
+  Grants / technique:
+    GRANT_MOVE         Add move to AVAILABLE                    (MOVE_ID)
+    GRANT_ABILITY      Add ability to AVAILABLE                 (ABILITY_ID)
+    FORCE_MOVE         Add+lock move in LEARNED                 (MOVE_ID)
+    UNLOCK_TECHNIQUE   Grant an innate cursed technique         (TECHNIQUE)
+
+  Other persistent passives:
+    BF_CHANCE_ADD      ± Black Flash chance (enter 5 for +5pp)  (DECIMAL)
+    MODIFY_DEFENSE     × effective Defense                       (DECIMAL)
+    MODIFY_AP_BAR      ± flat AP bar size                        (INTEGER)
+    AUTO_STATUS_APPLY  Apply a status automatically              (STATUS_TYPE, TARGET, TIMING, DURATION, MAGNITUDE)
+    LOCK_MOVE_TAG      Prevent this character using one tag      (MOVE_SCOPE)
+    COST_CE_PER_ROUND  Drain CE at round start                   (INTEGER)
+
+  Triggered runtime — resources (target SELF / ENEMY / BOTH):
+    HEAL_HP            Restore flat HP                           (TARGET, INTEGER)
+    HEAL_HP_PERCENT    Restore % of max HP                       (TARGET, DECIMAL)
+    RESTORE_CE         Restore flat CE                           (TARGET, INTEGER)
+    RESTORE_CE_PERCENT Restore % of max CE                       (TARGET, DECIMAL)
+    DRAIN_CE           Remove flat CE                            (TARGET, INTEGER)
+    DRAIN_CE_PERCENT   Remove % of max CE                        (TARGET, DECIMAL)
+    DEAL_DIRECT_DAMAGE Fixed damage, bypasses accuracy/defense   (TARGET, INTEGER)
+    DEAL_MAX_HP_DAMAGE % of target max HP as direct damage       (TARGET, DECIMAL)
+    INSTANT_KILL       Reduce to 0 HP (unless fatal protection)  (TARGET)
+
+  Triggered runtime — status control:
+    APPLY_STATUS       Apply any status                          (STATUS_TYPE, TARGET, DURATION, MAGNITUDE)
+    REMOVE_STATUS      Remove every instance of one status       (STATUS_TYPE, TARGET)
+    CLEAR_STATUSES     Remove every active status                (TARGET)
+
+  Triggered runtime — timed (TEMP_*) stat/battle effects:
+    TEMP_STAT_ADD      Timed ± to a base stat                    (STAT, TARGET, INTEGER, DURATION)
+    TEMP_STAT_MULTIPLY Timed × a base stat                       (STAT, TARGET, DECIMAL, DURATION)
+    TEMP_STAT_SET_VALUE Timed set of a base stat                 (STAT, TARGET, INTEGER, DURATION)
+    BATTLE_STAT_ADD    Timed ± to a battle stat                  (BATTLE_STAT, TARGET, DECIMAL, DURATION)
+    BATTLE_STAT_MULTIPLY Timed × a battle stat                   (BATTLE_STAT, TARGET, DECIMAL, DURATION)
+
+  Triggered runtime — one-shot defensive/offensive guarantees (USES-based):
+    IGNORE_DAMAGE           Negate damaging instances (USES=1 once, −1 every hit) (TARGET, USES, DURATION)
+    DAMAGE_SHIELD           Absorb up to a flat total of incoming damage          (TARGET, INTEGER, DURATION)
+    SURVIVE_FATAL_DAMAGE    Leave target at 1 HP when damage would defeat them    (TARGET, USES, DURATION)
+    GUARANTEE_NEXT_HIT      Target's next eligible attack hits                    (TARGET, USES, DURATION)
+    GUARANTEE_NEXT_DODGE    Target dodges the next attack against them            (TARGET, USES, DURATION)
+    GUARANTEE_NEXT_BLACK_FLASH  Target's next BF-eligible hit becomes a Black Flash (TARGET, USES, DURATION)
+    CANCEL_NEXT_MOVE        Stun the target's next move when it begins            (TARGET, USES, DURATION)
+    TEMP_LOCK_MOVE_TAG      Prevent target planning moves with one tag            (TARGET, MOVE_SCOPE, DURATION)
+
+  Effect parameters (AbilityEffectParameter): STAT, INTEGER, DECIMAL, MOVE_SCOPE,
+    MOVE_ID, ABILITY_ID, TECHNIQUE, STATUS_TYPE, TARGET, TIMING, DURATION,
+    MAGNITUDE, USES, BATTLE_STAT.
+  Effect target (AbilityEffectTarget): SELF, ENEMY, BOTH.
+  Effect timing (AbilityEffectTiming): FIGHT_START, ROUND_START, ON_HIT.
+    A ROUND_START AUTO_STATUS_APPLY must last exactly 1 round / 0 ticks so it
+    refreshes without stacking.
+
+  Per-stat processing order (AbilityApplicator):
+    STAT_SET_MIN / STAT_SET_VALUE (overrides) → STAT_ADD (additive) →
+    STAT_MULTIPLY / STAT_DIVIDE (multiplicative, product) → noNeg clamp (≥0).
+  Move-scoped effects filter by tag: appliesTo(effect, move) is true when the
+  effect's moveTag is blank OR move.hasTag(moveTag).
+
+================================================================================
+  15. CODED ABILITIES  (coded/*.java, CodedAbilityRegistry.java)
+================================================================================
+
+Some mechanics cannot be composed from generic effect types. These are
+implemented as COMPILED CODED ABILITIES, exposed in data via an ability with a
+codedAbilityKey (and optional codedFeature) OR via a coded effect row on a move
+(a self/on-hit effect carrying a coded action). The Move stays pure data: the
+hardcoded behaviour lives in a CodedAbilityRuntime keyed off the effect's
+codedAbilityKey / codedAction.
+
+The registry (CodedAbilityRegistry) is an allow-list. At combatant construction
+it collects every coded ability key the character has (from assigned abilities
+and from coded effect rows on known moves), validates each binding, and
+instantiates one runtime per key. Unknown bindings log a warning and are skipped.
+
+CodedAbilityRuntime hooks (all optional except the first two):
+  onTrigger(state, trigger)            activation predicate fired
+  onEffectFired(state, effect, attacker, defender, tick)  coded effect row fired
+  onAttackConnected(attacker, defender, move, tick, rng)  → CodedHitModifiers (pre-block/defense)
+  beforeIncomingMove(state, attacker, defender, move, tick) → CodedMoveResponse
+  tickTimelineEffects(tick)            advance universal-tick timers
+  preventFatalDamage()                 true if a fatal hit should be negated this tick
+  drainPendingEvents(tick)             flush queued events
+  state()                              → CodedAbilityState snapshot for the view
+
+Shipped coded abilities (keys / features / actions):
+
+  MIRACLES                              (MiraclesAbility)
+    KEY = "MIRACLES". MAX_MIRACLES = 6.
+    Features:
+      RESERVOIR          Gain 6 Miracles at fight start; store up to 6.
+      FATEFUL_REPRIEVE   Expend 1 Miracle to negate fatal damage (preventFatalDamage).
+      FORTUNE_RECLAIMED  Gain 1 Miracle when the enemy misses or on your Black Flash.
+    Effect action: CREATE — a coded self-effect that creates a Miracle on unleash
+                   (used by the Miracle Creation move).
+
+  RATIO                                 (RatioAbility)
+    KEY = "RATIO". MAX_STACKS = 3. STACK_DURATION_TICKS = 50.
+    STACK_TRIGGER_CHANCE = 0.70. REINFORCEMENT_TRIGGER_CHANCE = 0.05.
+    DEFENSE_MULTIPLIER = 0.5.
+    Features:
+      REINFORCEMENT_RATIO  On a reinforcement hit, 5% chance to apply a Ratio
+                           stack that bypasses BLOCK and halves Defense (×0.5).
+      APPLY_TO_MOVE        Apply created stacks to a specific move (coded target = move id).
+      CREATE_STACKS        Create stacks from a coded effect row.
+    Effect action: RATIO_EFFECT — a coded on-hit effect that creates stacks on a
+                   target move; the row carries codedTarget (move id) and
+                   codedStackCount (1..MAX_STACKS).
+
+  NEW_SHADOW_STYLE                      (NewShadowStyleAbility)
+    KEY = "NEW_SHADOW_STYLE".
+    Features:
+      SIMPLE_DOMAIN_BINDING_VOW  Using any other move dispels an active Simple Domain.
+    Effect action: ACTIVATE_SIMPLE_DOMAIN — a coded self-effect (on the Simple
+                   Domain move) that activates Simple Domain as a reaction bound
+                   to a target move (codedTarget = move id, e.g. Batto Sword
+                   Drawing). Reacts to that move via MoveTag.STUN.
+
+CodedAbilityState (emitted with events) carries {key, label, value, max} for the
+view (e.g. "Miracles 3/6", "Ratio 2/3").
+
+Effect actions exposed to editors (CodedAbilityRegistry.effectActions):
+  MIRACLES / CREATE                 "Create Miracle"
+  RATIO / RATIO_EFFECT              "Ratio Effect"
+  NEW_SHADOW_STYLE / ACTIVATE_SIMPLE_DOMAIN  "Activate Simple Domain"
+
+================================================================================
+  16. STATUS EFFECTS  (StatusEffectType.java)
+================================================================================
+
+Temporary flat increases/decreases applied by moves (onHitEffects / selfEffects)
+or by ability effects (AUTO_STATUS_APPLY, APPLY_STATUS, TEMP_STAT_*). Each has
+round and tick duration fields plus a non-negative magnitude; direction is
+explicit in the type name (*_INCREASE adds, *_DECREASE subtracts).
+
+Duration rules (StatusEffect.validateDuration):
+  rounds > 0, ticks = 0      round-only
+  rounds = 0, ticks > 0      tick-only
+  both > 0                   full rounds, then that many ticks of the next round
+  rounds = -1, ticks = 0     permanent
+
+Every base stat has both directions (StatKey-backed):
+  VITALITY, STRENGTH, DURABILITY, SPEED, COMBAT_ABILITY,
+  CURSED_ENERGY_RESERVES, CURSED_ENERGY_EFFICIENCY,
+  CURSED_ENERGY_OUTPUT, JUJUTSU_SKILL, CURSED_TECHNIQUE_MASTERY
+    → *_INCREASE / *_DECREASE
+
+Every runtime battle stat has both directions (BattleStatKey-backed):
+  MAX_HP, MAX_CURSED_ENERGY (MAX_CE), MAX_AP, ACCURACY, EVASION, POWER, DEFENSE
+    → *_INCREASE / *_DECREASE
+
+Total: 17 stat pairs = 34 constants.
+
+Legacy aliases (StatusEffectType.fromName resolves these; "signed" names can mean
+either direction depending on the stored magnitude's sign):
+  FOCUS → ACCURACY_INCREASE
+  CE_OUTPUT_UP → CURSED_ENERGY_OUTPUT_INCREASE
+  SPEED_UP → SPEED_INCREASE
+  POWER_UP → POWER_INCREASE
+  DEFENSE_UP → DEFENSE_INCREASE
+  BIND → EVASION_DECREASE
+  CURSED_SEAL → CURSED_ENERGY_EFFICIENCY_DECREASE
+  AP_DRAIN → MAX_AP_DECREASE
+Old fractional Power/Defense/Accuracy magnitudes are multiplied by 100 into flat
+stat points (normalizeStoredMagnitude).
+
+================================================================================
+  17. COMBAT EVENTS  (CombatEvent.java)
+================================================================================
+
+Immutable records emitted by CombatResolver and consumed by the View layer (the
+Observer bridge — the core never calls the view directly). These are the
+canonical names for what happened on a given tick (tick = 0 for system/round
+events). Each event carries source, target, move, intValue, tick, an optional
+CodedAbilityState snapshot, and a human-readable message.
+
+  Move execution:
+    MOVE_FIRED          move unleashed — attack resolved
+    MOVE_MISSED         hit roll failed
+    MOVE_BLOCKED        block fully negated the damage (PERCENTAGE_BLOCK at 100%)
+    MOVE_BLOCK_REDUCED  block reduced but did not fully negate damage
+    MOVE_STUNNED        a STUN tag, CE depletion, or ability cancellation removed
+                        this action segment
+
+  Damage:
+    DAMAGE_DEALT        HP was deducted from a combatant
+    DAMAGE_IGNORED      incoming damage was negated (IGNORE_DAMAGE / shield)
+    HP_RESTORED         HP was restored
+    MAX_HP_CHANGED      max HP changed (battle stat effect)
+    MAX_CE_CHANGED      max CE changed (battle stat effect)
+    BLACK_FLASH         BF proc; includes the BF damage value
+
+  CE:
+    CE_DRAINED          CE was spent on a move
+    CE_RESTORED         CE was returned (e.g. BF proc restores 5%, RESTORE_CE)
+    CE_DEPLETED         combatant reached 0 CE
+
+  Status:
+    STATUS_APPLIED      a status effect or block message was applied
+    STATUS_EXPIRED      a status effect ended
+
+  BFS:
+    BFS_EXPIRED         Black Flash State ended (round maintenance)
+
+  Abilities:
+    ABILITY_ACTIVATED   a triggered/coded ability activated
+
+  Round / battle:
+    ROUND_END           end of the round (used by the view)
+    BATTLE_OVER         fight ended; winner determined
+
+================================================================================
+  18. AI  (AIStrategy.java, GreedyAIStrategy.java)
+================================================================================
+
+AI STRATEGY
+  Interface that selects a BattlePlan for the enemy combatant each round.
+  selectPlan(ai, opponent, RandomSource) receives both combatants and the shared
+  RandomSource (centralized, reproducible randomness). Implementing this interface
+  is the only step needed to add a new AI difficulty or behaviour.
+
+GREEDY AI STRATEGY  (the only shipped implementation; default)
+  A greedy, lightly-randomised round planner — NOT a power sort. A single loop
+  keeps committing moves until none is affordable (AP and CE) or placeable.
+
+  Selection — weighted-random pick favouring offence:
+    WEIGHT_OFFENSIVE = 6.0,  WEIGHT_DEFENSIVE = 2.5,  WEIGHT_UTILITY = 1.0.
+    Candidates are partitioned into offensive (ATTACK tag) / defensive
+    (move.isDefensive()) / utility. Defensive moves are gated out until at least
+    one offensive segment is placed (unless no offensive move is possible).
+    A weighted pool is rolled each iteration. The same move may be committed
+    multiple times in a round while budgets allow.
+
+  Affordability filter — known moves that fit both AP and CE budgets
+    (plan.fitsBudgets), are not locked by an ability (lockedMoveTags), and are
+    not in this round's "stuck" set.
+
+  Placement:
+    Offensive / utility moves — grouped early on the offensive board, placed
+      right after the last segment (tick 1 on an empty board) with a small
+      random 0–2 tick gap.
+    Defensive moves — their FIRE tick is aligned to a randomly chosen placed
+      offensive segment's fire tick (start = max(1, targetFireTick − unleashPoint + 1)),
+      so the block is active when the attack lands. Falls back to grouped-early
+      if alignment cannot be placed.
+
+  Termination — because the timeline only accumulates, a move that fails to
+    place once can never fit later this round; it is added to a per-round "stuck"
+    set and never retried.
+
+================================================================================
+  19. EDITORS  (graphics .../screens/editors/*.java)
+================================================================================
+
+All four editors are LibGDX Scene2D screens extending EditorScreenBase<D> with
+shared CRUD chrome (master-detail layout, save/delete, id resequencing). They
+are NOT CLI tools. Authoring mode is enabled with -Djjktbf.authoring=true.
+
+Re-sequencing: deleting an entity resequences all ids and remaps references in
+characters, abilities, coded targets, and technique trees.
+
+MOVE EDITOR  (MoveEditorScreen)
+  Creates/edits moves; saves data/moves/all_moves.json. Form sections: identity,
+  tags (TagPicker — STUN/GUARD_BREAK/HEAVY tags mirror to the dedicated boolean
+  flags), cost (AP/CE), tag-conditioned Attack/Defense/Utility cards, technique
+  requirement (with a live "technique found" hint), stat prerequisites, and
+  free-move / must-be-granted checkboxes. Validation runs MoveData.toMove() (the
+  same path the engine uses) and requires exactly one of ATTACK/UTILITY/DEFENSIVE;
+  an ATTACK needs a damage-type tag; a DEFENSIVE needs a block type or coded
+  self-effect. Field ranges: AP cost 1..999, unleash point 1..999, power/CE
+  0..99999, accuracy 0..100%, block reduction 0..100%, block duration -1..99999,
+  prerequisites 0..300.
+
+CHARACTER EDITOR  (CharacterEditorScreen)
+  Creates/edits characters; saves data/characters/all_characters.json. Sections:
+  identity (name/description/sprite/innate-technique select), a Manual / Point-Buy
+  toggle, ten StatField sliders, a live derived-stat preview (HP, AP bar, Acc,
+  Evasion, CE pool, Combat Arts / Jujutsu Arts slot counts), a MoveAssignmentPanel
+  (slot-gated, technique/prerequisite-filtered, drag-and-drop), an ability
+  assignment panel, and a SkillTreeCanvas per accessible technique.
+
+  Constants: STAT_MIN=10, STAT_MAX=300, BASELINE=80,
+    POINT_BUDGET_WITH_TECHNIQUE     = 1000
+    POINT_BUDGET_WITHOUT_TECHNIQUE  = 1080   (+80 when CTM is locked at N/A)
+  Point-buy math: budget = base + resolvedAbilities(cd).statBonusPoints() (a
+  STAT_BONUS_POINTS ability extends the budget); pointsSpent sums (stat − 80)
+  across stats, skipping CTM when the character has no technique.
+
+ABILITY EDITOR  (AbilityEditorScreen)
+  Creates/edits abilities; saves data/abilities/all_abilities.json. Category
+  {PASSIVE, ACTIVE}; sourceType {CHARACTER, TECHNIQUE, MOVE, STAT_THRESHOLD,
+  ABILITY}. Coded abilities (codedAbilityKey set) render read-only. Passive
+  abilities use an EffectListEditor + ConditionTreeEditor (nested AND/OR) and an
+  optional activation chance (0–100%). Active abilities link to a move and are
+  normalized to subtype QUEUED on save (effects cleared). Validation enforces
+  unique name, valid category/source, source-specific rules (TECHNIQUE needs an
+  existing technique + mastery threshold 0–300; MOVE needs a valid move;
+  STAT_THRESHOLD parses; ABILITY forbids self-reference and cycles), and that
+  GRANT_MOVE / FORCE_MOVE / GRANT_ABILITY / UNLOCK_TECHNIQUE / STAT_BONUS_POINTS
+  / LOCK_MOVE_TAG / AUTO_STATUS_APPLY require the ability to be always-active.
+
+TECHNIQUE EDITOR  (TechniqueEditorScreen)
+  Creates/edits innate techniques and their skill trees; saves
+  data/techniques/all_techniques.json. A SkillTreeCanvas authoring surface:
+  drag nodes, right-click to attach/edit prerequisites. Save rejects duplicate
+  names, rewrites technique-name references in moves (requiredTechniqueId),
+  abilities (sourceValue / UNLOCK_TECHNIQUE), and characters
+  (innateTechniqueName) on rename, and writes mastery/stat prerequisites back
+  onto the technique's moves and the mastery threshold onto its abilities.
+  Delete is blocked while any move or ability references the technique.
+
+  Skill tree prerequisites (SkillTreePrerequisiteData): NODE (nodeId, attached),
+  MASTERY (minimum), STAT (stat, minimum).
+
+================================================================================
+  20. CONTENT CATALOG  (data/*.json — current shipped content)
+================================================================================
+
+This section summarises the content currently shipped in data/; counts and names
+reflect HEAD at the time of writing. See the JSON files for full detail.
+
+  MOVES — 29 moves (data/moves/all_moves.json), ids 000000–000028.
+    Free moves:            000000 Basic Strike, 000001 Basic Block.
+    Must-be-granted:       000028 Simple Domain.
+    STUN-tagged (4):       000002 Jab, 000005 Sweeping Kick, 000008 Reinforced
+                           Jab, 000027 Batto Sword Drawing.
+    GUARD_BREAK-tagged (1):000004 Body Blow.
+    HEAVY-tagged (2):      000007 Overhand Punch, 000012 Cursed Energy Blast.
+    SWORD-tagged (3):      000023 Sword Slash, 000024 Sword Throw,
+                           000027 Batto Sword Drawing.
+    INNATE_TECHNIQUE moves:000022 Miracle Creation (Miracles),
+                           000025 Ratio Mark, 000026 Ratio Strike (Ratio).
+    NON_INNATE_TECHNIQUE:  000028 Simple Domain.
+    Notable: 000028 Simple Domain is a NON_INNATE_TECHNIQUE defensive move with
+             a coded self-effect NEW_SHADOW_STYLE/ACTIVATE_SIMPLE_DOMAIN.
+
+  ABILITIES — 8 abilities (data/abilities/all_abilities.json), ids 000000–000007.
+    All PASSIVE. Coded abilities (read-only in editor):
+      000001 Miracle Reservoir        MIRACLES/RESERVOIR
+      000002 Fateful Reprieve         MIRACLES/FATEFUL_REPRIEVE
+      000003 Fortune Reclaimed        MIRACLES/FORTUNE_RECLAIMED
+      000004 Ratio Reinforcement      RATIO/REINFORCEMENT_RATIO
+      000006 Simple Domain Binding Vow NEW_SHADOW_STYLE/SIMPLE_DOMAIN_BINDING_VOW
+    Generic abilities:
+      000000 Iron Constitution        STAT_ADD durability +15 (CHARACTER)
+      000005 New Shadow Style         GRANT_MOVE 000027 + GRANT_MOVE 000028 (CHARACTER)
+      000007 Earnest Swordswoman      MOVE_BASE_POWER_MULTIPLY ×1.10 on SWORD (CHARACTER)
+
+  CHARACTERS — 6 characters (data/characters/all_characters.json), ids 000000–000005.
+    000000 Ren Kurogane     (no innate technique)
+    000001 Mina Ishikawa    (no innate technique; ability: Iron Constitution)
+    000002 Sora Aizawa      (no innate technique)
+    000003 Haruta Shigemo   innate: Miracles  (abilities: Miracles trio)
+    000004 Shigechi Urata   innate: Ratio     (ability: Ratio Reinforcement)
+    000005 Miwa Kasumi      (no innate technique; abilities: New Shadow Style,
+                             Simple Domain Binding Vow, Earnest Swordswoman;
+                             includes move 000028 Simple Domain)
+    Characters without an innate technique have cursedTechniqueMastery = 0.
+
+  TECHNIQUES — 2 techniques (data/techniques/all_techniques.json), ids 000000–000001.
+    000000 Miracles   skill tree: move Miracle Creation; abilities Miracle
+                      Reservoir, Fateful Reprieve, Fortune Reclaimed.
+    000001 Ratio      skill tree: abilities Ratio Reinforcement; moves Ratio
+                      Mark, Ratio Strike.
+    NOTE: "Simple Domain" is a MOVE (000028), not a technique. "New Shadow Style"
+    is a CHARACTER-sourced ability (000005), not a technique.
+
+================================================================================
+  RELATED DOCUMENTS
+================================================================================
+
+  README.md                  Project overview, build/run, design principles, data
+                             flow, an inline Defense-vs-block mini-glossary, and a
+                             "Known Pending Work" section. Points here as canonical.
+  RELEASE.md                 Release process: single version in pom <revision>,
+                             release.sh, GitHub Actions on v* tags (macOS arm64/x64,
+                             Windows x64, server JAR, SHA256SUMS), SemVer, signing.
+  MULTIPLAYER.md             Multiplayer runbook: local H2 default (port 7070),
+                             optional Postgres, two-client test flow, env vars,
+                             client config, recovery limits.
+  MULTIPLAYER_ARCHITECTURE.md  Design doc: module responsibilities, shared engine
+                             (MatchState/PlayerState/CharacterState, ActionCommand,
+                             HeadlessBattleSession, RandomSource), HTTP API,
+                             WebSocket protocol, challenge/match lifecycle, DB
+                             (Flyway V1–V3), implementation-progress table.
 
 ================================================================================
   END OF GLOSSARY
