@@ -12,6 +12,7 @@ import static com.jjktbf.model.character.AbilityEffectParameter.DECIMAL;
 import static com.jjktbf.model.character.AbilityEffectParameter.DURATION;
 import static com.jjktbf.model.character.AbilityEffectParameter.INTEGER;
 import static com.jjktbf.model.character.AbilityEffectParameter.MAGNITUDE;
+import static com.jjktbf.model.character.AbilityEffectParameter.ABILITY_ID;
 import static com.jjktbf.model.character.AbilityEffectParameter.MOVE_ID;
 import static com.jjktbf.model.character.AbilityEffectParameter.MOVE_SCOPE;
 import static com.jjktbf.model.character.AbilityEffectParameter.STAT;
@@ -86,9 +87,21 @@ public enum AbilityEffectType {
         "Multiply damage",
         "Multiplies damage dealt by matching moves.",
         MOVE_SCOPE, DECIMAL),
+    MOVE_BASE_POWER_MULTIPLY(
+        "Multiply move base power",
+        "Multiplies the configured base power of matching moves before power and defense are applied.",
+        MOVE_SCOPE, DECIMAL),
     GRANT_MOVE(
         "Grant move",
-        "Adds one move to the character outside the normal slot and prerequisite rules.",
+        "Adds one move to the character's available moves. It must still be learned normally.",
+        MOVE_ID),
+    GRANT_ABILITY(
+        "Grant ability",
+        "Adds one ability to the character's available abilities. It must still be assigned normally.",
+        ABILITY_ID),
+    FORCE_MOVE(
+        "Force move",
+        "Adds one move to learned moves and prevents the character editor from removing it.",
         MOVE_ID),
     BF_CHANCE_ADD(
         "Change Black Flash chance",
@@ -279,6 +292,7 @@ public enum AbilityEffectType {
         effect.doubleValue = null;
         effect.moveTag = null;
         effect.moveId = null;
+        effect.abilityId = null;
         effect.stringValue = null;
         effect.target = null;
         effect.timing = null;
@@ -298,7 +312,7 @@ public enum AbilityEffectType {
             case STAT_SET_VALUE -> effect.intValue = CharacterStats.BASELINE;
             case STAT_BONUS_POINTS -> effect.intValue = 10;
             case CE_COST_MULTIPLY, MOVE_ACCURACY_MULTIPLY,
-                 OPPONENT_ACCURACY_MULTIPLY, DAMAGE_MULTIPLY,
+                 OPPONENT_ACCURACY_MULTIPLY, DAMAGE_MULTIPLY, MOVE_BASE_POWER_MULTIPLY,
                  MODIFY_DEFENSE -> effect.doubleValue = 1.10;
             case MOVE_ACCURACY_ADD, OPPONENT_ACCURACY_ADD -> effect.intValue = 10;
             case BF_CHANCE_ADD -> effect.doubleValue = 0.05;
@@ -410,6 +424,7 @@ public enum AbilityEffectType {
         if (!uses(DECIMAL)) effect.doubleValue = null;
         if (!uses(MOVE_SCOPE)) effect.moveTag = null;
         if (!uses(MOVE_ID)) effect.moveId = null;
+        if (!uses(ABILITY_ID)) effect.abilityId = null;
         if (!uses(TECHNIQUE) && !uses(STATUS_TYPE) && !uses(BATTLE_STAT)) effect.stringValue = null;
         if (!uses(TARGET)) effect.target = null;
         if (!uses(TIMING)) effect.timing = null;
@@ -445,7 +460,8 @@ public enum AbilityEffectType {
         if ((this == LOCK_MOVE_TAG || this == TEMP_LOCK_MOVE_TAG) && isBlank(effect.moveTag)) {
             return "Choose a move tag to lock.";
         }
-        if (uses(MOVE_ID) && isBlank(effect.moveId)) return "Choose a move to grant.";
+        if (uses(MOVE_ID) && isBlank(effect.moveId)) return "Choose a move.";
+        if (uses(ABILITY_ID) && isBlank(effect.abilityId)) return "Choose an ability to grant.";
         if (uses(TECHNIQUE) && isBlank(effect.stringValue)) return "Choose a technique.";
 
         if (uses(STATUS_TYPE)) {
@@ -500,7 +516,8 @@ public enum AbilityEffectType {
                   MODIFY_AP_BAR, TEMP_STAT_ADD -> effect.intValue == 0 ? "Enter a non-zero amount." : null;
             case STAT_SET_VALUE, TEMP_STAT_SET_VALUE -> effect.intValue < 0 ? "Stat value cannot be negative." : null;
             case STAT_MULTIPLY, CE_COST_MULTIPLY, MOVE_ACCURACY_MULTIPLY,
-                  OPPONENT_ACCURACY_MULTIPLY, DAMAGE_MULTIPLY, MODIFY_DEFENSE,
+                  OPPONENT_ACCURACY_MULTIPLY, DAMAGE_MULTIPLY, MOVE_BASE_POWER_MULTIPLY,
+                  MODIFY_DEFENSE,
                   TEMP_STAT_MULTIPLY, BATTLE_STAT_MULTIPLY ->
                 effect.doubleValue <= 0 || effect.doubleValue == 1.0
                     ? "Enter a positive multiplier other than 1.0." : null;

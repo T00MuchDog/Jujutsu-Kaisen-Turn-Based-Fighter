@@ -259,7 +259,8 @@ public class TagPicker extends Table {
             MoveTag.PHYSICAL, MoveTag.CURSED_ENERGY,
             MoveTag.INNATE_TECHNIQUE, MoveTag.NON_INNATE_TECHNIQUE));
         sections.put("RANGE", List.of(MoveTag.MELEE, MoveTag.RANGED));
-        sections.put("TAGS", List.of(MoveTag.STUN, MoveTag.GUARD_BREAK, MoveTag.HEAVY));
+        sections.put("TAGS", List.of(
+            MoveTag.SWORD, MoveTag.STUN, MoveTag.GUARD_BREAK, MoveTag.HEAVY));
         return sections;
     }
 

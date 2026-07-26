@@ -61,6 +61,17 @@ public interface CodedAbilityRuntime {
         return CodedHitModifiers.none();
     }
 
+    /** React immediately before an incoming planned move is marked as fired. */
+    default CodedMoveResponse beforeIncomingMove(
+        BattleState state,
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move move,
+        int tick
+    ) {
+        return CodedMoveResponse.none();
+    }
+
     /** Advance effects measured by the universal AP-tick clock. */
     default List<CombatEvent> tickTimelineEffects(int tick) {
         return List.of();

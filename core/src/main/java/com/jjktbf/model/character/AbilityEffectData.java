@@ -37,8 +37,11 @@ public class AbilityEffectData {
     /** Move tag name to filter on (e.g. "PHYSICAL", "INNATE_TECHNIQUE"). Null = all moves. */
     public String moveTag;
 
-    /** Move ID (6-digit) for GRANT_MOVE. */
+    /** Move ID (6-digit) for GRANT_MOVE or FORCE_MOVE. */
     public String moveId;
+
+    /** Ability ID (6-digit) for GRANT_ABILITY. */
+    public String abilityId;
 
     // ── Status effect automation ──────────────────────────────────────────────
     /**
@@ -85,6 +88,7 @@ public class AbilityEffectData {
         this.doubleValue = source.doubleValue;
         this.moveTag = source.moveTag;
         this.moveId = source.moveId;
+        this.abilityId = source.abilityId;
         this.stringValue = source.stringValue;
         this.target = source.target;
         this.timing = source.timing;
@@ -158,6 +162,7 @@ public class AbilityEffectData {
             + (doubleValue != null ? " dbl=" + doubleValue : "")
             + (moveTag     != null ? " tag=" + moveTag : "")
             + (moveId      != null ? " move=" + moveId : "")
+            + (abilityId   != null ? " ability=" + abilityId : "")
             + (stringValue != null ? " str=" + stringValue : "")
             + (target      != null ? " tgt=" + target : "")
             + (timing      != null ? " time=" + timing : "")

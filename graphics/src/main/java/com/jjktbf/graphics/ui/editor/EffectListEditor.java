@@ -12,6 +12,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.jjktbf.graphics.ui.ContentSizedDialog;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
+import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectParameter;
 import com.jjktbf.model.character.AbilityEffectTarget;
@@ -32,13 +33,16 @@ public class EffectListEditor extends Table {
 
     private static final String ALL_MOVES = "All moves";
     private static final String SELECT_MOVE = "[select a move]";
+    private static final String SELECT_ABILITY = "[select an ability]";
     private static final String SELECT_TECHNIQUE = "[select a technique]";
     private static final String NO_MOVES = "[no moves available]";
+    private static final String NO_ABILITIES = "[no abilities available]";
     private static final String NO_TECHNIQUES = "[no techniques available]";
 
     private final Skin skin;
     private final List<AbilityEffectData> effects;
     private final List<MoveData> moves;
+    private final List<AbilityData> abilities;
     private final List<InnateTechniqueData> techniques;
     private final Runnable onDirty;
     private final Runnable requestRebuild;
@@ -47,6 +51,7 @@ public class EffectListEditor extends Table {
     public EffectListEditor(
         List<AbilityEffectData> effects,
         List<MoveData> moves,
+        List<AbilityData> abilities,
         List<InnateTechniqueData> techniques,
         Runnable onDirty,
         Runnable requestRebuild,
@@ -56,6 +61,7 @@ public class EffectListEditor extends Table {
         this.skin = skin;
         this.effects = effects == null ? new ArrayList<>() : effects;
         this.moves = moves == null ? List.of() : moves;
+        this.abilities = abilities == null ? List.of() : abilities;
         this.techniques = techniques == null ? List.of() : techniques;
         this.onDirty = onDirty;
         this.requestRebuild = requestRebuild;
@@ -162,9 +168,16 @@ public class EffectListEditor extends Table {
                     error.setText(validationError);
                     return;
                 }
-                if (selected == AbilityEffectType.GRANT_MOVE
+                if ((selected == AbilityEffectType.GRANT_MOVE
+                    || selected == AbilityEffectType.FORCE_MOVE)
                     && moves.stream().noneMatch(move -> working.moveId.equals(move.id))) {
                     error.setText("Choose a move that still exists.");
+                    return;
+                }
+                if (selected == AbilityEffectType.GRANT_ABILITY
+                    && abilities.stream().noneMatch(ability ->
+                        working.abilityId.equals(ability.id))) {
+                    error.setText("Choose an ability that still exists.");
                     return;
                 }
                 if (selected == AbilityEffectType.UNLOCK_TECHNIQUE
@@ -274,6 +287,18 @@ public class EffectListEditor extends Table {
                 }
             });
             addRow(fields, "Move", moveBox);
+        }
+
+        if (type.uses(AbilityEffectParameter.ABILITY_ID)) {
+            SelectBox<String> abilityBox = new DynamicSelectBox<>(skin);
+            abilityBox.setItems(abilityReferenceLabels(effect.abilityId));
+            abilityBox.setSelected(abilityReferenceLabel(effect.abilityId));
+            abilityBox.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    effect.abilityId = referenceIdFromLabel(abilityBox.getSelected());
+                }
+            });
+            addRow(fields, "Ability", abilityBox);
         }
 
         if (type.uses(AbilityEffectParameter.TECHNIQUE)) {
@@ -443,6 +468,9 @@ public class EffectListEditor extends Table {
         if (type.uses(AbilityEffectParameter.MOVE_ID) && effect.moveId != null) {
             summary.append(" | ").append(moveReferenceLabel(effect.moveId));
         }
+        if (type.uses(AbilityEffectParameter.ABILITY_ID) && effect.abilityId != null) {
+            summary.append(" | ").append(abilityReferenceLabel(effect.abilityId));
+        }
         if (type.uses(AbilityEffectParameter.TECHNIQUE) && effect.stringValue != null) {
             summary.append(" | ").append(effect.stringValue);
         }
@@ -583,6 +611,35 @@ public class EffectListEditor extends Table {
     }
 
     private static String moveIdFromLabel(String label) {
+        return referenceIdFromLabel(label);
+    }
+
+    private String[] abilityReferenceLabels(String currentId) {
+        List<String> labels = new ArrayList<>();
+        labels.add(SELECT_ABILITY);
+        for (AbilityData ability : abilities) labels.add(abilityLabel(ability));
+        if (currentId != null && !currentId.isBlank()
+            && abilities.stream().noneMatch(ability -> currentId.equals(ability.id))) {
+            labels.add(currentId + " - (missing)");
+        }
+        if (abilities.isEmpty()) labels.add(NO_ABILITIES);
+        return labels.toArray(new String[0]);
+    }
+
+    private String abilityReferenceLabel(String abilityId) {
+        if (abilityId == null || abilityId.isBlank()) return SELECT_ABILITY;
+        return abilities.stream()
+            .filter(ability -> abilityId.equals(ability.id))
+            .findFirst()
+            .map(EffectListEditor::abilityLabel)
+            .orElse(abilityId + " - (missing)");
+    }
+
+    private static String abilityLabel(AbilityData ability) {
+        return ability.id + " - " + ability.name;
+    }
+
+    private static String referenceIdFromLabel(String label) {
         if (label == null || label.startsWith("[")) return null;
         int separator = label.indexOf(" - ");
         return separator < 0 ? label.trim() : label.substring(0, separator).trim();

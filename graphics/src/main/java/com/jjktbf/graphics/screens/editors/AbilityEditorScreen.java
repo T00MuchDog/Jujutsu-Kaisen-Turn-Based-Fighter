@@ -265,6 +265,8 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             }
             if (!ability.isAlwaysActive()
                 && (type == AbilityEffectType.GRANT_MOVE
+                    || type == AbilityEffectType.GRANT_ABILITY
+                    || type == AbilityEffectType.FORCE_MOVE
                     || type == AbilityEffectType.UNLOCK_TECHNIQUE
                     || type == AbilityEffectType.STAT_BONUS_POINTS
                     || type == AbilityEffectType.LOCK_MOVE_TAG)) {
@@ -274,10 +276,15 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             if (!ability.isAlwaysActive() && type == AbilityEffectType.AUTO_STATUS_APPLY) {
                 return "Use Apply status for a conditional ability; automatic status timing is only for Always active.";
             }
-            if (type == AbilityEffectType.GRANT_MOVE) {
+            if (type == AbilityEffectType.GRANT_MOVE
+                || type == AbilityEffectType.FORCE_MOVE) {
                 String moveError = validateMoveReference(
                     effect.moveId, "Effect " + (i + 1) + " references a move that does not exist.");
                 if (moveError != null) return moveError;
+            }
+            if (type == AbilityEffectType.GRANT_ABILITY
+                && repo.findById(effect.abilityId).isEmpty()) {
+                return "Effect " + (i + 1) + " references an ability that does not exist.";
             }
             if (type == AbilityEffectType.UNLOCK_TECHNIQUE
                 && techniqueRepo.findByName(effect.stringValue).isEmpty()) {
@@ -428,9 +435,18 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                 || ability.sourceValue.equalsIgnoreCase(deleted.name))
             .findFirst()
             .orElse(null);
+        if (dependent == null) {
+            dependent = repo.getAll().stream()
+                .filter(ability -> !id.equals(ability.id) && ability.effects != null)
+                .filter(ability -> ability.effects.stream()
+                    .filter(java.util.Objects::nonNull)
+                    .anyMatch(effect -> AbilityEffectType.GRANT_ABILITY.name()
+                        .equalsIgnoreCase(effect.type) && id.equals(effect.abilityId)))
+                .findFirst().orElse(null);
+        }
         if (dependent != null) {
             return ValidationResult.error(
-                "Cannot delete: \"" + dependent.name + "\" uses this ability as its source.");
+                "Cannot delete: \"" + dependent.name + "\" references this ability.");
         }
 
         try {
@@ -446,6 +462,14 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                 if ("ABILITY".equalsIgnoreCase(ability.sourceType)
                     && remappedIds.containsKey(ability.sourceValue)) {
                     ability.sourceValue = remappedIds.get(ability.sourceValue);
+                }
+                if (ability.effects != null) {
+                    ability.effects.stream()
+                        .filter(java.util.Objects::nonNull)
+                        .filter(effect -> AbilityEffectType.GRANT_ABILITY.name()
+                            .equalsIgnoreCase(effect.type))
+                        .forEach(effect -> effect.abilityId = remappedIds.getOrDefault(
+                            effect.abilityId, effect.abilityId));
                 }
             }
 
@@ -521,7 +545,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             }, skin))).growX().row();
 
         Table source = formSection(form, "SOURCE");
-        source.add(labelledRow("Granted by", new EnumSelectBox<>(
+        source.add(labelledRow("Available from", new EnumSelectBox<>(
             SourceTypeEnum.class, ability.sourceType, false,
             value -> {
                 ability.sourceType = value;
@@ -561,7 +585,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
 
         switch (source) {
             case CHARACTER -> {
-                table.add(formHint("Assign this ability directly in the Character Editor.")).row();
+                table.add(formHint("Available to every character for normal assignment.")).row();
             }
             case TECHNIQUE -> {
                 SelectBox<String> technique = techniqueSelect(ability.sourceValue, value ->
@@ -575,7 +599,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                 SelectBox<String> move = moveSelect(ability.sourceValue,
                     value -> ability.sourceValue = idFromLabel(value));
                 table.add(labelledRow("Known move", move)).growX().row();
-                table.add(formHint("Granted automatically while the character knows this move.")).row();
+                table.add(formHint("Available while the character knows this move.")).row();
             }
             case STAT_THRESHOLD -> {
                 AbilityResolver.StatRequirement requirement =
@@ -602,13 +626,13 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                 });
                 table.add(labelledRow("Stat", stat)).growX().row();
                 table.add(labelledRow("Minimum value", minimum)).growX().row();
-                table.add(formHint("Granted automatically while the stat meets this minimum.")).row();
+                table.add(formHint("Available while the stat meets this minimum.")).row();
             }
             case ABILITY -> {
                 SelectBox<String> parent = abilitySelect(ability, ability.sourceValue,
                     value -> ability.sourceValue = idFromLabel(value));
                 table.add(labelledRow("Parent ability", parent)).growX().row();
-                table.add(formHint("Granted automatically after the parent ability is acquired.")).row();
+                table.add(formHint("Available while the parent ability is assigned.")).row();
             }
         }
         return table;
@@ -637,6 +661,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         return new EffectListEditor(
             ability.effects,
             moveRepo.getAll(),
+            repo.getAll(),
             techniqueRepo.getAll(),
             this::markDirty,
             this::rebuildDetail,
@@ -687,7 +712,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
 
     private String modeHintText(AbilityData ability) {
         return ability.isActive()
-            ? "When acquired, the linked move is added outside the normal move-slot and prerequisite rules."
+            ? "When assigned, the linked move is forced into LEARNED and bypasses normal learning rules."
             : "Only passive effects are applied continuously in combat.";
     }
 

@@ -45,6 +45,7 @@ public abstract class Character extends Entity {
      */
     private final List<Move> knownMoves;
     private final List<Ability> abilities;
+    private final Set<String> forcedMoveIds;
 
     // -------------------------------------------------------------------------
     // Construction
@@ -104,13 +105,33 @@ public abstract class Character extends Entity {
         this.baseStats          = baseStats;
         this.combatStats        = new CombatStats(baseStats);
         this.innateTechniqueName = innateTechniqueName;
-        this.knownMoves         = Collections.unmodifiableList(
-            validateAndBuildMoveList(
-                knownMoves, baseStats, combatStats, accessibleTechniques,
-                grantedMoveIdsOf(abilities), lockedMoveTagsOf(abilities))
-        );
+        Set<String> availableMoveIds = availableMoveIdsOf(abilities);
+        Set<String> forcedMoves = forcedMoveIdsOf(abilities);
+        List<Move> validatedMoves = validateAndBuildMoveList(
+            knownMoves, baseStats, combatStats, accessibleTechniques,
+            availableMoveIds, forcedMoves, lockedMoveTagsOf(abilities));
+        validateCodedMoveReferences(validatedMoves);
+        this.knownMoves = Collections.unmodifiableList(validatedMoves);
+        this.forcedMoveIds = Collections.unmodifiableSet(forcedMoves);
         this.abilities          = abilities != null
             ? Collections.unmodifiableList(new ArrayList<>(abilities)) : List.of();
+    }
+
+    private static void validateCodedMoveReferences(List<Move> moves) {
+        Set<String> knownIds = new HashSet<>();
+        for (Move move : moves) knownIds.add(move.getId());
+        for (Move move : moves) {
+            List<com.jjktbf.model.move.StatusEffect> effects = new ArrayList<>(move.getOnHitEffects());
+            effects.addAll(move.getSelfEffects());
+            for (var effect : effects) {
+                String target = effect.getCodedTarget();
+                if (!effect.isCoded() || target == null || !target.matches("\\d{6}")) continue;
+                if (!knownIds.contains(target)) {
+                    throw new IllegalArgumentException(
+                        "Move '" + move.getName() + "' references unknown move " + target);
+                }
+            }
+        }
     }
 
     /**
@@ -140,8 +161,8 @@ public abstract class Character extends Entity {
         return set;
     }
 
-    /** Moves granted by passives or represented by a queued active ability. */
-    private static java.util.Set<String> grantedMoveIdsOf(List<Ability> abilities) {
+    /** Moves made available by passives or represented by a queued active ability. */
+    private static java.util.Set<String> availableMoveIdsOf(List<Ability> abilities) {
         java.util.Set<String> ids = new java.util.HashSet<>();
         if (abilities == null) return ids;
         for (Ability ability : abilities) {
@@ -153,7 +174,30 @@ public abstract class Character extends Entity {
             }
             if (!ability.isPassive() || !ability.isAlwaysActive()) continue;
             for (AbilityEffectData effect : ability.getEffects()) {
-                if (AbilityEffectType.GRANT_MOVE.name().equalsIgnoreCase(effect.type)
+                if ((AbilityEffectType.GRANT_MOVE.name().equalsIgnoreCase(effect.type)
+                    || AbilityEffectType.FORCE_MOVE.name().equalsIgnoreCase(effect.type))
+                    && effect.moveId != null && !effect.moveId.isBlank()) {
+                    ids.add(effect.moveId);
+                }
+            }
+        }
+        return ids;
+    }
+
+    /** Moves automatically learned and exempt from normal assignment rules. */
+    private static java.util.Set<String> forcedMoveIdsOf(List<Ability> abilities) {
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        if (abilities == null) return ids;
+        for (Ability ability : abilities) {
+            if (ability.isActive()
+                && "QUEUED".equalsIgnoreCase(ability.getActiveSubType())
+                && ability.getActiveMoveId() != null
+                && !ability.getActiveMoveId().isBlank()) {
+                ids.add(ability.getActiveMoveId());
+            }
+            if (!ability.isPassive() || !ability.isAlwaysActive()) continue;
+            for (AbilityEffectData effect : ability.getEffects()) {
+                if (AbilityEffectType.FORCE_MOVE.name().equalsIgnoreCase(effect.type)
                     && effect.moveId != null && !effect.moveId.isBlank()) {
                     ids.add(effect.moveId);
                 }
@@ -186,7 +230,8 @@ public abstract class Character extends Entity {
         CharacterStats cs,
         CombatStats    combatStats,
         java.util.Set<String> accessibleTechniques,
-        java.util.Set<String> grantedMoveIds,
+        java.util.Set<String> availableMoveIds,
+        java.util.Set<String> forcedMoveIds,
         java.util.Set<String> lockedMoveTags
     ) {
         if (moves == null) return List.of();
@@ -195,16 +240,23 @@ public abstract class Character extends Entity {
         List<Move> validated = new ArrayList<>();
 
         for (Move move : moves) {
-            boolean granted = grantedMoveIds != null && grantedMoveIds.contains(move.getId());
+            boolean moveAvailable = availableMoveIds != null
+                && availableMoveIds.contains(move.getId());
+            boolean forced = forcedMoveIds != null && forcedMoveIds.contains(move.getId());
 
-            if (!granted && lockedMoveTags != null
+            if (move.mustBeGranted() && !moveAvailable) {
+                throw new IllegalArgumentException(
+                    "Move '" + move.getName() + "' must be granted by an ability");
+            }
+
+            if (!forced && lockedMoveTags != null
                 && lockedMoveTags.stream().anyMatch(move::hasTag)) {
                 throw new IllegalArgumentException(
                     "Ability restrictions prevent learning move '" + move.getName() + "'");
             }
 
             // --- 1. Prerequisite stats ---
-            if (!granted) {
+            if (!forced) {
                 for (Map.Entry<String, Integer> prereq : move.getPrerequisites().entrySet()) {
                     int actual = getStatByName(cs, prereq.getKey());
                     if (actual < prereq.getValue()) {
@@ -221,7 +273,7 @@ public abstract class Character extends Entity {
             // A move is usable if its required technique is the character's
             // innate technique OR was granted by an UNLOCK_TECHNIQUE ability
             // effect (e.g. Six Eyes → Limitless, or a Copy ability). Case-insensitive.
-            if (!granted && move.getRequiredTechniqueId() != null) {
+            if (!forced && move.getRequiredTechniqueId() != null) {
                 if (accessibleTechniques == null
                     || !accessibleTechniques.contains(move.getRequiredTechniqueId().toLowerCase())) {
                     throw new IllegalArgumentException(
@@ -236,7 +288,7 @@ public abstract class Character extends Entity {
             // Every non-free move consumes a slot in its pool (Combat Arts or
             // Jujutsu Arts), regardless of whether it is offensive, defensive,
             // or utility.
-            if (!granted && !move.isFreeMove()) {
+            if (!forced && !move.isFreeMove()) {
                 MovePool pool = move.getPool();
                 int used      = slotUsed.getOrDefault(pool, 0);
                 int available = SlotBudgetEnforcer.slotBudgetFor(combatStats, pool);
@@ -270,5 +322,6 @@ public abstract class Character extends Entity {
     public String          getInnateTechniqueName()  { return innateTechniqueName; }
     public List<Move>      getKnownMoves()           { return knownMoves; }
     public List<Ability>   getAbilities()            { return abilities; }
+    public Set<String>     getForcedMoveIds()         { return forcedMoveIds; }
     public boolean         hasInnateTechnique()      { return innateTechniqueName != null; }
 }

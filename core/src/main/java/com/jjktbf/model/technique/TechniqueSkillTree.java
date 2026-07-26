@@ -43,7 +43,8 @@ public final class TechniqueSkillTree {
         Map<String, MoveData> expectedMoves = new LinkedHashMap<>();
         if (moves != null) {
             for (MoveData move : moves) {
-                if (move != null && techniqueMatches(technique.name, move.requiredTechniqueId)
+                if (move != null && !move.mustBeGranted
+                    && techniqueMatches(technique.name, move.requiredTechniqueId)
                     && move.id != null && !move.id.isBlank()) {
                     expectedMoves.put(move.id, move);
                 }

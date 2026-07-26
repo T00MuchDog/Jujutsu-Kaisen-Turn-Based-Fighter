@@ -148,6 +148,8 @@ public final class PixelSkin {
             new Color(0.075f, 0.095f, 0.145f, 1f), Color.WHITE, new Color(0.630f, 0.650f, 0.720f, 1f));
         Drawable textfieldOver = battleFrame("textfield-over", new Color(1f, 1f, 0.980f, 1f), YELLOW,
             new Color(1f, 1f, 0.780f, 1f), new Color(0.720f, 0.420f, 0.080f, 1f));
+        Drawable caret        = flat("text-caret", 2, TEXT_DARK, TEXT_DARK);
+        caret.setMinHeight(font.getLineHeight());
         Drawable selection    = patch("sel", SELECTION);
         Drawable selectionRow = patch("sel-row", new Color(SELECTION.r, SELECTION.g, SELECTION.b, 0.35f));
         Drawable sliderH      = patch("slider-bg-h",SLIDER_BG);
@@ -203,7 +205,7 @@ public final class PixelSkin {
         registerLabelStyles(skin);
         registerTextButtonStyles(skin, card, cardOver, cardDisabled, primary, primaryOver);
         registerButtonStyles(skin, card, cardOver, cardOver);
-        registerTextFieldStyles(skin, textfield, textfieldOver);
+        registerTextFieldStyles(skin, textfield, textfieldOver, caret);
         registerSliderStyles(skin, sliderH, sliderKnobH);
         registerScrollPaneStyles(skin);
         registerSelectBoxStyles(skin, textfield, textfieldOver, listSel);
@@ -415,9 +417,9 @@ public final class PixelSkin {
         skin.add("default", def, com.badlogic.gdx.scenes.scene2d.ui.Button.ButtonStyle.class);
     }
 
-    private void registerTextFieldStyles(Skin skin, Drawable bg, Drawable hoverBg) {
+    private void registerTextFieldStyles(Skin skin, Drawable bg, Drawable hoverBg, Drawable caret) {
         com.badlogic.gdx.scenes.scene2d.ui.TextField.TextFieldStyle def =
-            new com.badlogic.gdx.scenes.scene2d.ui.TextField.TextFieldStyle(font, TEXT_DARK, null, null, bg);
+            new com.badlogic.gdx.scenes.scene2d.ui.TextField.TextFieldStyle(font, TEXT_DARK, caret, null, bg);
         def.messageFontColor = new Color(0.45f, 0.45f, 0.45f, 1f);
         def.focusedBackground = hoverBg;
         // Use a 1-pixel selection drawable we already have

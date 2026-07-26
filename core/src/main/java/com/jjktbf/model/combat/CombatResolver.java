@@ -4,6 +4,7 @@ import com.jjktbf.model.character.CombatStats;
 import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectTarget;
 import com.jjktbf.model.character.AbilityEffectTiming;
+import com.jjktbf.model.character.coded.CodedMoveResponse;
 import com.jjktbf.model.move.*;
 
 import java.util.*;
@@ -493,6 +494,81 @@ public class CombatResolver {
         int               tick,
         List<CombatEvent> events
     ) {
+        Move incomingMove = entry.segment.getMove();
+        CodedMoveResponse response = entry.defender.getCodedAbilities().beforeIncomingMove(
+            state, entry.attacker, entry.defender, incomingMove, tick);
+        events.addAll(response.events());
+
+        for (Move reactionMove : response.reactionMoves()) {
+            resolveReactionMove(
+                reactionMove, entry.defender, entry.attacker, player, enemy, state, tick, events);
+            if (entry.segment.isStunned() || finishBattleIfNeeded(state, events, tick)) return;
+        }
+
+        resolveMove(entry, player, enemy, state, tick, events, response.fullBlock());
+    }
+
+    private void resolveReactionMove(
+        Move reactionMove,
+        BattleCombatant reactor,
+        BattleCombatant target,
+        BattleCombatant player,
+        BattleCombatant enemy,
+        BattleState state,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        if (reactor.consumeMoveCancellation()) {
+            events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
+                .target(reactor).move(reactionMove).tick(tick)
+                .message(reactor.getCharacter().getName() + "'s "
+                    + reactionMove.getName() + " was cancelled by an ability!")
+                .build());
+            return;
+        }
+        int cost = reactor.computeMoveCeCost(reactionMove);
+        if (!reactor.hasCe(cost)) {
+            events.add(CombatEvent.of(CombatEvent.Type.CE_DEPLETED)
+                .source(reactor).move(reactionMove).tick(tick)
+                .message(reactor.getCharacter().getName() + " does not have enough CE for "
+                    + reactionMove.getName() + "!")
+                .build());
+            return;
+        }
+        if (cost > 0) {
+            int drained = reactor.drainCe(cost);
+            events.add(CombatEvent.of(CombatEvent.Type.CE_DRAINED)
+                .source(reactor).move(reactionMove).intValue(drained).tick(tick)
+                .message(reactor.getCharacter().getName() + " uses " + drained
+                    + " CE for " + reactionMove.getName())
+                .build());
+            events.addAll(passiveAbilities.process(state, AbilityTrigger.amount(
+                AbilityTrigger.Type.CE_SPENT, reactor, null, drained, tick)));
+            if (finishBattleIfNeeded(state, events, tick)) return;
+            if (!reactor.hasAnyCe()) {
+                events.add(CombatEvent.of(CombatEvent.Type.CE_DEPLETED)
+                    .source(reactor).tick(tick)
+                    .message(reactor.getCharacter().getName()
+                        + " has exhausted all Cursed Energy!")
+                    .build());
+            }
+        }
+
+        ActionSegment reactionSegment = new ActionSegment(reactionMove, tick, cost);
+        resolveMove(
+            new FiringEntry(reactionSegment, reactor, target),
+            player, enemy, state, tick, events, false);
+    }
+
+    private void resolveMove(
+        FiringEntry       entry,
+        BattleCombatant   player,
+        BattleCombatant   enemy,
+        BattleState       state,
+        int               tick,
+        List<CombatEvent> events,
+        boolean           forceFullBlock
+    ) {
         ActionSegment   segment  = entry.segment;
         Move            move     = segment.getMove();
         BattleCombatant attacker = entry.attacker;
@@ -534,7 +610,7 @@ public class CombatResolver {
 
         // --- Damaging moves ---
         DamageCalculator.DamageResult result = DamageCalculator.resolve(
-            attacker, defender, move, tick, rng, state.getRoundNumber()
+            attacker, defender, move, tick, rng, state.getRoundNumber(), forceFullBlock
         );
         events.addAll(result.getCodedEvents());
 

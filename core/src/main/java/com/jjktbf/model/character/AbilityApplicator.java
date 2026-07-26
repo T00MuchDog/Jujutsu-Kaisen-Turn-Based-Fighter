@@ -120,6 +120,10 @@ public final class AbilityApplicator {
                         flags.damageMultiplier *= nvl(eff.doubleValue, 1.0);
                         flags.damageMultiplierEffects.add(eff);
                     }
+                    case MOVE_BASE_POWER_MULTIPLY -> {
+                        flags.basePowerMultiplier *= nvl(eff.doubleValue, 1.0);
+                        flags.basePowerMultiplierEffects.add(eff);
+                    }
                     case BF_CHANCE_ADD           -> flags.bfChanceBonus    += nvl(eff.doubleValue, 0.0);
                     case MODIFY_DEFENSE          -> flags.defenseMultiplier *= nvl(eff.doubleValue, 1.0);
                     case MODIFY_AP_BAR           -> flags.apBarBonus       += nvl(eff.intValue, 0);
@@ -127,6 +131,10 @@ public final class AbilityApplicator {
 
                     case GRANT_MOVE -> {
                         if (eff.moveId != null) flags.grantedMoveIds.add(eff.moveId);
+                    }
+                    case GRANT_ABILITY -> { /* character acquisition only */ }
+                    case FORCE_MOVE -> {
+                        if (eff.moveId != null) flags.forcedMoveIds.add(eff.moveId);
                     }
                     case LOCK_MOVE_TAG -> {
                         if (eff.moveTag != null) flags.lockedMoveTags.add(eff.moveTag);
@@ -138,9 +146,9 @@ public final class AbilityApplicator {
                         // applicator pass: Character.accessibleTechniquesOf() unions the
                         // granted technique name into the access set, and move validation
                         // (Character.validateAndBuildMoveList) checks membership. Nothing
-                        // to mutate on the combatant here — the granted moves flow in via
-                        // the character's knownMoves/ability list, and UNLOCK_TECHNIQUE
-                        // has no stat/slot side effects.
+                        // to mutate on the combatant here; learned and forced moves are
+                        // already in the character's knownMoves list, and UNLOCK_TECHNIQUE
+                        // has no combat-time stat or slot side effects.
                     }
                     case STAT_BONUS_POINTS -> { /* editor/creator-only — no runtime effect */ }
 
@@ -300,8 +308,10 @@ public final class AbilityApplicator {
 
         // Damage / defense
         public double  damageMultiplier   = 1.0;
+        public double  basePowerMultiplier = 1.0;
         public double  defenseMultiplier  = 1.0;
         public final java.util.List<AbilityEffectData> damageMultiplierEffects = new java.util.ArrayList<>();
+        public final java.util.List<AbilityEffectData> basePowerMultiplierEffects = new java.util.ArrayList<>();
 
         // Black Flash
         public double  bfChanceBonus      = 0.0;
@@ -311,6 +321,7 @@ public final class AbilityApplicator {
 
         // Moves
         public final java.util.List<String>            grantedMoveIds    = new java.util.ArrayList<>();
+        public final java.util.List<String>            forcedMoveIds     = new java.util.ArrayList<>();
 
         /**
          * Move tags that are locked by this character's abilities.
@@ -358,11 +369,17 @@ public final class AbilityApplicator {
                     damageMultiplier *= nvl(effect.doubleValue, 1.0);
                     damageMultiplierEffects.add(effect);
                 }
+                case MOVE_BASE_POWER_MULTIPLY -> {
+                    basePowerMultiplier *= nvl(effect.doubleValue, 1.0);
+                    basePowerMultiplierEffects.add(effect);
+                }
                 case BF_CHANCE_ADD -> bfChanceBonus += nvl(effect.doubleValue, 0.0);
                 case MODIFY_DEFENSE -> defenseMultiplier *= nvl(effect.doubleValue, 1.0);
                 case MODIFY_AP_BAR -> apBarBonus += nvl(effect.intValue, 0);
                 case COST_CE_PER_ROUND -> ceCostPerRound += nvl(effect.intValue, 0);
                 case GRANT_MOVE -> { if (effect.moveId != null) grantedMoveIds.add(effect.moveId); }
+                case GRANT_ABILITY -> { }
+                case FORCE_MOVE -> { if (effect.moveId != null) forcedMoveIds.add(effect.moveId); }
                 case LOCK_MOVE_TAG -> { if (effect.moveTag != null) lockedMoveTags.add(effect.moveTag); }
                 case AUTO_STATUS_APPLY -> autoStatusEffects.add(effect);
                 default -> { }
@@ -379,6 +396,7 @@ public final class AbilityApplicator {
             copy.opponentAccuracyBonus = opponentAccuracyBonus;
             copy.opponentAccuracyMultiplier = opponentAccuracyMultiplier;
             copy.damageMultiplier = damageMultiplier;
+            copy.basePowerMultiplier = basePowerMultiplier;
             copy.defenseMultiplier = defenseMultiplier;
             copy.bfChanceBonus = bfChanceBonus;
             copy.apBarBonus = apBarBonus;
@@ -389,7 +407,9 @@ public final class AbilityApplicator {
             copy.opponentAccuracyAddEffects.addAll(opponentAccuracyAddEffects);
             copy.opponentAccuracyMultiplierEffects.addAll(opponentAccuracyMultiplierEffects);
             copy.damageMultiplierEffects.addAll(damageMultiplierEffects);
+            copy.basePowerMultiplierEffects.addAll(basePowerMultiplierEffects);
             copy.grantedMoveIds.addAll(grantedMoveIds);
+            copy.forcedMoveIds.addAll(forcedMoveIds);
             copy.lockedMoveTags.addAll(lockedMoveTags);
             copy.autoStatusEffects.addAll(autoStatusEffects);
             return copy;
@@ -451,13 +471,21 @@ public final class AbilityApplicator {
             return multiplier;
         }
 
+        public double basePowerMultiplierFor(com.jjktbf.model.move.Move move) {
+            double multiplier = 1.0;
+            for (AbilityEffectData effect : basePowerMultiplierEffects) {
+                if (appliesTo(effect, move)) multiplier *= nvl(effect.doubleValue, 1.0);
+            }
+            return multiplier;
+        }
+
         public boolean hasAnyEffect() {
             return ceCostToMinimum || ceCostMultiplier != 1.0
                 || accuracyBonus != 0 || accuracyMultiplier != 1.0
                 || opponentAccuracyBonus != 0 || opponentAccuracyMultiplier != 1.0
-                || damageMultiplier != 1.0 || defenseMultiplier != 1.0
+                || damageMultiplier != 1.0 || basePowerMultiplier != 1.0 || defenseMultiplier != 1.0
                 || bfChanceBonus != 0.0 || apBarBonus != 0 || ceCostPerRound != 0
-                || !grantedMoveIds.isEmpty() || !lockedMoveTags.isEmpty()
+                || !grantedMoveIds.isEmpty() || !forcedMoveIds.isEmpty() || !lockedMoveTags.isEmpty()
                 || !autoStatusEffects.isEmpty();
         }
     }

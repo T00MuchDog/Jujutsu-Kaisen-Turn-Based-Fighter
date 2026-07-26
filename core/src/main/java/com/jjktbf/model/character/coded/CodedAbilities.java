@@ -69,6 +69,21 @@ public final class CodedAbilities {
         return modifiers;
     }
 
+    public CodedMoveResponse beforeIncomingMove(
+        BattleState state,
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move move,
+        int tick
+    ) {
+        CodedMoveResponse response = CodedMoveResponse.none();
+        for (CodedAbilityRuntime runtime : runtimes) {
+            response = response.combine(runtime.beforeIncomingMove(
+                state, attacker, defender, move, tick));
+        }
+        return response;
+    }
+
     public List<CombatEvent> tickTimelineEffects(int tick) {
         List<CombatEvent> events = new ArrayList<>();
         for (CodedAbilityRuntime runtime : runtimes) {

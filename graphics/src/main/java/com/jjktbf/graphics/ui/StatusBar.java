@@ -11,11 +11,13 @@ public class StatusBar {
 
     private static final Color DAMAGE_COLOR = new Color(0.920f, 0.220f, 0.180f, 1f);
     private static final Color TRACK_COLOR = new Color(0.770f, 0.790f, 0.720f, 1f);
+    private static final Color HP_MID_COLOR = new Color(1f, 1f, 0f, 1f);
     /** Fraction of the remaining gap eased per second toward the live value. */
     private static final float EASE_RATE = 1.8f;
 
     private final String label;
     private final Color fillColor;
+    private final Color healthFillColor = new Color();
 
     private float x;
     private float y;
@@ -78,9 +80,9 @@ public class StatusBar {
         float inner = trackWidth - 6f;
         float fillHeight = height - 6f;
 
-        // Live fill (green/blue) up to the current value.
+        // HP transitions from green through yellow to red as it is depleted.
         float fillWidth = Math.max(0f, inner * current / max);
-        batch.setColor(fillColor);
+        batch.setColor(fillColor());
         batch.draw(ui.pixel, fillX, y + 3f, fillWidth, fillHeight);
 
         // Damage trail: the portion between current and the still-easing
@@ -113,5 +115,16 @@ public class StatusBar {
         font.draw(batch, value, x + width - 7f - valueLayout.width, textY);
         font.getData().setScale(originalScaleX, originalScaleY);
         batch.setColor(Color.WHITE);
+    }
+
+    private Color fillColor() {
+        if (!"HP".equals(label)) return fillColor;
+
+        float percent = Math.min(1f, (float) current / max);
+        if (percent >= 0.5f) {
+            return healthFillColor.set(HP_MID_COLOR)
+                .lerp(fillColor, (percent - 0.5f) * 2f);
+        }
+        return healthFillColor.set(DAMAGE_COLOR).lerp(HP_MID_COLOR, percent * 2f);
     }
 }

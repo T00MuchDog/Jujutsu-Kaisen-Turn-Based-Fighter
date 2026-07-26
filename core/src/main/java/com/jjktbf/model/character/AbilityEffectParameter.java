@@ -7,6 +7,7 @@ public enum AbilityEffectParameter {
     DECIMAL,
     MOVE_SCOPE,
     MOVE_ID,
+    ABILITY_ID,
     TECHNIQUE,
     STATUS_TYPE,
     TARGET,

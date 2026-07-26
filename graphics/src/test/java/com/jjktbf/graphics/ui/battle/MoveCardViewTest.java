@@ -28,6 +28,20 @@ class MoveCardViewTest {
     }
 
     @Test
+    void nonInnateTechniqueCardsKeepTheirPaletteAcrossRoles() {
+        Color nonInnate = new Color(0.180f, 0.450f, 0.800f, 1f);
+
+        Move defensive = moveWithTags(
+            "DEFENSIVE", "NON_INNATE_TECHNIQUE", "CURSED_ENERGY");
+        Move utility = moveWithTags(
+            "UTILITY", "NON_INNATE_TECHNIQUE", "CURSED_ENERGY");
+
+        assertEquals("NON-INNATE TECHNIQUE", MoveCardView.typeNameFor(defensive));
+        assertEquals(nonInnate, MoveCardView.typeColorFor(defensive));
+        assertEquals(nonInnate, MoveCardView.typeColorFor(utility));
+    }
+
+    @Test
     void attackingPhysicalCardsKeepThePhysicalAttackPalette() {
         Move move = moveWithTags("ATTACK", "PHYSICAL");
 
@@ -42,6 +56,9 @@ class MoveCardViewTest {
         data.tags = List.of(tags);
         data.apCost = 10;
         data.unleashPoint = 1;
+        if (data.tags.contains("NON_INNATE_TECHNIQUE")) {
+            data.prerequisites = java.util.Map.of("jujutsuSkill", 0);
+        }
         return data.toMove();
     }
 }

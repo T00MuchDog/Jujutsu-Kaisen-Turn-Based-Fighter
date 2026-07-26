@@ -8,29 +8,6 @@ When in doubt about what to call something, use the term defined here.
 All code field names, editor labels, flavour text, and event messages should
 be consistent with this document.
 
-Last updated: May 2026
-
---------------------------------------------------------------------------------
-  RESOLVED CONTRADICTIONS (previously flagged, now fixed)
---------------------------------------------------------------------------------
-
-  1. MOVE_PARTIAL_BLOCK → MOVE_BLOCK_REDUCED
-     Renamed in CombatEvent.java to reflect that both PERCENTAGE_BLOCK (< 100%)
-     and FLAT_BLOCK reduce but do not fully negate damage.
-
-  2. MoveData.requiredTechniqueName → requiredTechniqueId
-     Both the DTO (MoveData) and domain (Move) now use requiredTechniqueId.
-     The value is still stored as a plain string (e.g. "SHRINE") and matched
-     case-insensitively, pending implementation of the Technique class.
-
-  3. isGuaranteedMove → isFreeMove
-     Renamed everywhere. Free moves do not consume a move slot. They still
-     respect prerequisite stats and technique restrictions — only the slot
-     budget is skipped.
-
-  4. BLOCK → PERCENTAGE_BLOCK
-     DefenseType.BLOCK renamed to PERCENTAGE_BLOCK for clarity alongside FLAT_BLOCK.
-
 ================================================================================
   1. CHARACTER STATS  (CharacterStats.java, StatKey.java)
 ================================================================================
@@ -74,14 +51,14 @@ an innate technique).
 
   JUJUTSU SKILL (JS)
     Governs learned non-innate techniques (barriers, RCT, cursed tool amplification).
-    Determines the number of Jujutsu Technique / CE move slots.
+    Determines the number of Jujutsu Art move slots.
     Also contributes to AP Bar size.
 
   CURSED TECHNIQUE MASTERY (CTM)
     Only meaningful for characters with an innate cursed technique.
     Scales Innate Technique-tagged moves and contributes to Domain Expansion /
     Maximum Technique potency.
-    Determines the number of Cursed Technique move slots.
+    Determines the number of Jujutsu Art move slots.
     Set to 0 (N/A) for characters without an innate technique.
 
 ================================================================================
@@ -196,6 +173,12 @@ These are the numbers actually used in combat calculations.
     Free moves still respect prerequisite stats and technique restrictions.
     Only the slot budget check is skipped.
 
+  MUST BE GRANTED (mustBeGranted)
+    If true, the move cannot be assigned directly in the Character Editor or
+    character data unless an assigned ability makes it available through
+    GRANT_MOVE or FORCE_MOVE. Once available through GRANT_MOVE, it is learned
+    normally and still follows prerequisites and move-slot limits.
+
   REQUIRED TECHNIQUE
     An innate technique name the character must possess to use this move.
     Null means no restriction. Stored as requiredTechniqueName in data files.
@@ -241,6 +224,10 @@ The canonical terms for describing a move's type are the tag names below.
     A move that reduces or blocks incoming damage (PERCENTAGE_BLOCK, FLAT_BLOCK).
     Applied BEFORE the defender's Defense stat in the damage pipeline. Not slot-gated.
 
+  SWORD
+    Weapon modifier for sword-based moves. It does not change MoveCategory, Power,
+    slot assignment, or Black Flash eligibility, but abilities can use it as a scope.
+
   STUN
     Modifier tag (like ATTACK): does not affect the Power formula, is not part of any
     MoveCategory, and does not change Black Flash eligibility. Backed by a dedicated
@@ -271,66 +258,39 @@ The canonical terms for describing a move's type are the tag names below.
     the rock-paper-scissors trio (stun > base > heavy > stun).
 
 ================================================================================
-  5. MOVE CATEGORIES  (MoveCategory.java)
+  5. MOVE TYPES  (MoveCategory.java)
 ================================================================================
 
-Categories are derived at runtime from the move's tag set.
+TYPES are derived at runtime from the move's tag set.
 They determine the Power formula, Black Flash eligibility, and which stat
 governs the move slot.
 
   PHYSICAL                    Tags: {PHYSICAL}
-    Slot: Combat Ability.  BF: No.
+    Combat Art    BF: No.
 
   INNATE TECHNIQUE            Tags: {INNATE_TECHNIQUE}
-    Slot: Cursed Technique Mastery.  BF: Yes.
+    Jujutsu Art    BF: Yes.
 
   NON-INNATE TECHNIQUE        Tags: {NON_INNATE_TECHNIQUE}
-    Slot: Jujutsu Skill.  BF: Yes.
+    Jujutsu Art    BF: Yes.
 
   PHYSICAL + CURSED ENERGY    Tags: {PHYSICAL, CURSED_ENERGY}
-    Slot: Lesser of Combat Ability / Jujutsu Skill.  BF: Yes.
+    Combat Art    BF: Yes.
 
   PHYSICAL + INNATE TECHNIQUE Tags: {PHYSICAL, INNATE_TECHNIQUE}
-    Slot: Lesser of Combat Ability / Cursed Technique Mastery.  BF: Yes.
+    Combat Art    BF: Yes.
 
   PHYSICAL + NON-INNATE TECHNIQUE  Tags: {PHYSICAL, NON_INNATE_TECHNIQUE}
-    Slot: Lesser of Combat Ability / Jujutsu Skill.  BF: Yes.
+    Combat Art    BF: Yes.
 
   INNATE + NON-INNATE TECHNIQUE  Tags: {INNATE_TECHNIQUE, NON_INNATE_TECHNIQUE}
-    Slot: Lesser of Cursed Technique Mastery / Jujutsu Skill.  BF: Yes.
+    Jujutsu Art    BF: Yes.
 
   PHYSICAL + INNATE + NON-INNATE  Tags: all three technique tags
-    Slot: Lesser of all three (CA, CTM, JS).  BF: Yes.
-
-  UTILITY                     Tags: {UTILITY}
-    No slot. BF: No.
-
-  DEFENSIVE                   Tags: {DEFENSIVE}
-    No slot. BF: No.
+    Combat Art    BF: Yes.
 
 ================================================================================
-  6. MOVE SLOTS
-================================================================================
-
-The number of moves of each category a character can equip.
-Free moves (isGuaranteedMove = true) do not consume a slot.
-Utility and Defensive moves have no slot limit.
-
-  Formula: slots = governing stat / 20  (integer division, baseline 80 → 4 slots)
-
-  Governing stat per category:
-    Physical:                      Combat Ability
-    Innate Technique:              Cursed Technique Mastery
-    Non-Innate Technique:          Jujutsu Skill
-    Hybrid categories:             Lesser of the relevant two or three stats
-
-  Slot budget is enforced at:
-    - Character creation/editing (CharacterEditorMain / MoveAssignmentFlow)
-    - Character domain construction (Character.validateAndBuildMoveList)
-    - Both delegate to SlotBudgetEnforcer.
-
-================================================================================
-  7. DEFENSE TYPES  (DefenseType.java)
+  6. DEFENSE TYPES  (DefenseType.java)
 ================================================================================
 
   NONE
@@ -362,7 +322,7 @@ Utility and Defensive moves have no slot limit.
   is the block's percentage reduction property.
 
 ================================================================================
-  8. INTERRUPT TYPES  (InterruptType.java)
+  7. INTERRUPT TYPES  (InterruptType.java)
 ================================================================================
 
   NONE
@@ -380,7 +340,7 @@ Utility and Defensive moves have no slot limit.
     resulting segment state is "stunned".)
 
 ================================================================================
-  9. AP TIMELINE  (Timeline.java, ActionSegment.java, BattleState.java)
+  8. AP TIMELINE  (Timeline.java, ActionSegment.java, BattleState.java)
 ================================================================================
 
   AP BAR
@@ -432,7 +392,7 @@ Utility and Defensive moves have no slot limit.
     was stunned and could not move."
 
 ================================================================================
-  10. COMBAT PHASES  (BattleState.java)
+  9. COMBAT PHASES  (BattleState.java)
 ================================================================================
 
   PLANNING
@@ -455,7 +415,7 @@ Utility and Defensive moves have no slot limit.
     One full cycle of PLANNING → RESOLUTION → ROUND END.
 
 ================================================================================
-  11. DAMAGE CALCULATION  (DamageCalculator.java)
+  10. DAMAGE CALCULATION  (DamageCalculator.java)
 ================================================================================
 
   Pipeline:
@@ -518,7 +478,7 @@ Utility and Defensive moves have no slot limit.
     This is what is subtracted from the defender's HP.
 
 ================================================================================
-  12. BLACK FLASH  (CombatStats.java, DamageCalculator.java)
+  11. BLACK FLASH  (CombatStats.java, DamageCalculator.java)
 ================================================================================
 
   BLACK FLASH (BF)
@@ -542,7 +502,7 @@ Utility and Defensive moves have no slot limit.
     CE is partially restored on each BF proc (5% of max CE pool).
 
 ================================================================================
-  13. CURSED ENERGY  (CharacterStats.java, CombatStats.java)
+  12. CURSED ENERGY  (CharacterStats.java, CombatStats.java)
 ================================================================================
 
   CURSED ENERGY (CE)
@@ -565,7 +525,7 @@ Utility and Defensive moves have no slot limit.
     Efficiency < 80: costs more.
 
 ================================================================================
-  14. ABILITIES  (AbilityEffectType.java, AbilityApplicator.java)
+  13. ABILITIES  (AbilityEffectType.java, AbilityApplicator.java)
 ================================================================================
 
   ABILITY
@@ -579,6 +539,28 @@ Utility and Defensive moves have no slot limit.
   ACTIVE ABILITY
     Triggered manually (ACTIVE/QUEUED) or by a condition (ACTIVE/TRIGGERED).
     Not yet fully implemented in the combat engine.
+
+  AVAILABLE
+    Content shown in the Character Editor's AVAILABLE list. Available content is
+    not learned or active until the user moves it into LEARNED or ASSIGNED.
+
+  GRANT_MOVE
+    Adds a move to AVAILABLE. It does not add the move to LEARNED, bypass its
+    prerequisites, bypass its move-slot cost, or prevent it from being removed.
+
+  GRANT_ABILITY
+    Adds an ability to AVAILABLE. It does not add the ability to ASSIGNED and
+    does not activate any of that ability's effects.
+
+  FORCE_MOVE
+    Adds a move directly to LEARNED. A forced move bypasses normal learning
+    prerequisites and move-slot limits, is greyed in the Character Editor, and
+    cannot be removed while its source remains active. Its source is displayed
+    as "Granted by ability" or "Granted by technique".
+
+  CHARACTER-SOURCE ABILITY
+    An ability whose sourceType is CHARACTER. It is available to every character;
+    CHARACTER does not mean character-exclusive. Only assigned abilities are active.
 
   ABILITY EFFECT TYPES (grouped):
 
@@ -613,7 +595,9 @@ Utility and Defensive moves have no slot limit.
       MODIFY_AP_BAR      — flat addition/subtraction to AP bar size
 
     Grants:
-      GRANT_MOVE         — add a move outside the slot system
+      GRANT_MOVE         — add a move to AVAILABLE for normal learning
+      GRANT_ABILITY      — add an ability to AVAILABLE for normal assignment
+      FORCE_MOVE         — add and lock a move in LEARNED
       UNLOCK_TECHNIQUE   — grant an innate cursed technique by name
 
     Status Automation:
@@ -630,7 +614,7 @@ Utility and Defensive moves have no slot limit.
       COST_CE_PER_ROUND  — drain CE at round start (models sustained technique costs)
 
 ================================================================================
-  15. STATUS EFFECTS  (StatusEffectType.java)
+  14. STATUS EFFECTS  (StatusEffectType.java)
 ================================================================================
 
   Applied to combatants via move on-hit/self effects or ability status effects.
@@ -656,7 +640,7 @@ Utility and Defensive moves have no slot limit.
     MAX_AP_DECREASE         — temporarily reduces the next planning AP budget
 
 ================================================================================
-  16. COMBAT EVENTS  (CombatEvent.java)
+  15. COMBAT EVENTS  (CombatEvent.java)
 ================================================================================
 
 Events emitted by CombatResolver and consumed by the View (TextBattleView).
@@ -683,7 +667,7 @@ These are the canonical names for what happened in a given tick.
   BATTLE_OVER         — fight ended; winner determined
 
 ================================================================================
-  17. AI  (AIStrategy.java, GreedyAIStrategy.java)
+  16. AI  (AIStrategy.java, GreedyAIStrategy.java)
 ================================================================================
 
   AI STRATEGY
@@ -695,7 +679,7 @@ These are the canonical names for what happened in a given tick.
     AP bar greedily with the highest-power moves the AI can afford (AP and CE).
 
 ================================================================================
-  18. EDITORS  (MoveEditorMain, CharacterEditorMain, AbilityEditorMain)
+  17. EDITORS  (MoveEditorMain, CharacterEditorMain, AbilityEditorMain)
 ================================================================================
 
   MOVE EDITOR

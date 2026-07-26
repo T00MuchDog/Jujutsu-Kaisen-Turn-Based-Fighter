@@ -137,10 +137,12 @@ public class CharacterData {
                     }
                 })
                 .orElse(false), techniqueRepo);
+        validateAbilityAssignments(abilityRepo, resolvedAbilities);
         List<Ability> abilities = resolvedAbilities.toDomainAbilities();
+        validateDirectMoveAssignments(moveRepo, resolvedAbilities.availableMoveIds());
         Set<String> resolvedMoveIds = new LinkedHashSet<>();
         if (moveIds != null) resolvedMoveIds.addAll(moveIds);
-        resolvedMoveIds.addAll(resolvedAbilities.grantedMoveIds());
+        resolvedMoveIds.addAll(resolvedAbilities.forcedMoveIds());
 
         validateSelectedMoveNodes(moveRepo, techniques);
 
@@ -185,6 +187,36 @@ public class CharacterData {
         }
     }
 
+    private void validateDirectMoveAssignments(
+        MoveRepository moveRepo,
+        List<String> availableMoves
+    ) {
+        if (moveIds == null) return;
+        for (String moveId : moveIds) {
+            MoveData move = moveRepo.findById(moveId).orElse(null);
+            if (move != null && move.mustBeGranted
+                && (availableMoves == null || !availableMoves.contains(moveId))) {
+                throw new IllegalArgumentException(
+                    "Move '" + move.name
+                        + "' must be granted before it can be learned");
+            }
+        }
+    }
+
+    private void validateAbilityAssignments(
+        AbilityRepository abilityRepo,
+        AbilityResolver.Result resolved
+    ) {
+        if (abilityRepo == null || abilityIds == null) return;
+        for (String abilityId : abilityIds) {
+            AbilityData ability = abilityRepo.findById(abilityId).orElse(null);
+            if (ability != null && !resolved.containsAbility(abilityId)) {
+                throw new IllegalArgumentException(
+                    "Ability '" + ability.name + "' is not available to this character");
+            }
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Conversion: CharacterData → CharacterData (from domain Character)
     // -------------------------------------------------------------------------
@@ -208,6 +240,7 @@ public class CharacterData {
         d.cursedTechniqueMastery = cs.getCursedTechniqueMastery();
 
         d.moveIds = character.getKnownMoves().stream()
+            .filter(move -> !character.getForcedMoveIds().contains(move.getId()))
             .map(Move::getId)
             .toList();
         d.abilityIds = character.getAbilities().stream()

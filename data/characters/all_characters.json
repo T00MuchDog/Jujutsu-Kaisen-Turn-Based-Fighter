@@ -71,8 +71,8 @@
 }, {
   "id" : "000004",
   "name" : "Shigechi Urata",
-  "description" : "",
-  "spriteAsset" : "assets/sprites/characters/megumi_frontsprite.png",
+  "description" : "A measured fighter who uses Ratio to turn small openings into decisive strikes. Shigechi lacks the speed and durability for a drawn-out brawl, but disciplined cursed-energy control makes his close-range pressure dangerous.",
+  "spriteAsset" : "assets/sprites/characters/nanami_frontsprite.png",
   "innateTechniqueName" : "Ratio",
   "vitality" : 40,
   "strength" : 50,
@@ -88,4 +88,22 @@
   "availableMoveIds" : [ "000026", "000025" ],
   "abilityIds" : [ "000004" ],
   "availableAbilityIds" : [ "000004" ]
+}, {
+  "id" : "000005",
+  "name" : "Miwa Kasumi",
+  "description" : "A diligent swordswoman without an innate cursed technique. Miwa combines disciplined sword combat with New Shadow Style, holding Simple Domain until an opponent commits to an attack.",
+  "spriteAsset" : "assets/sprites/characters/haruta_frontsprite.png",
+  "vitality" : 50,
+  "strength" : 40,
+  "durability" : 40,
+  "speed" : 65,
+  "cursedEnergyReserves" : 50,
+  "cursedEnergyEfficiency" : 50,
+  "cursedEnergyOutput" : 45,
+  "jujutsuSkill" : 80,
+  "combatAbility" : 80,
+  "cursedTechniqueMastery" : 0,
+  "moveIds" : [ "000000", "000001", "000013", "000020", "000023", "000027", "000024", "000011", "000021", "000028" ],
+  "availableMoveIds" : [ "000000", "000001", "000013", "000014", "000020", "000023", "000027", "000028" ],
+  "abilityIds" : [ "000005", "000006", "000007" ]
 } ]

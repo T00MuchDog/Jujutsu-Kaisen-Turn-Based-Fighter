@@ -14,12 +14,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.function.Predicate;
 
-/** Resolves explicitly assigned and prerequisite-granted abilities for a character. */
+/** Resolves ability availability, assigned abilities, and their acquisition effects. */
 public final class AbilityResolver {
+
+    public static final String GRANTED_BY_ABILITY = "Granted by ability";
+    public static final String GRANTED_BY_TECHNIQUE = "Granted by technique";
 
     private static final Pattern STAT_THRESHOLD = Pattern.compile(
         "^\\s*([A-Za-z][A-Za-z0-9_ ]*)\\s*>=\\s*(-?\\d+)\\s*$");
@@ -51,10 +54,6 @@ public final class AbilityResolver {
             techniqueRepository == null ? null : techniqueRepository.getAll());
     }
 
-    /**
-     * Resolve ability acquisition to a fixed point. An acquired ability may
-     * grant a move or technique which then unlocks another sourced ability.
-     */
     public static Result resolve(CharacterData character, List<AbilityData> definitions) {
         return resolve(character, definitions, ignored -> true);
     }
@@ -67,80 +66,94 @@ public final class AbilityResolver {
         return resolve(character, definitions, moveExists, null);
     }
 
+    /** Resolve availability and assigned acquisition effects to a fixed point. */
     public static Result resolve(
         CharacterData character,
         List<AbilityData> definitions,
         Predicate<String> moveExists,
         List<InnateTechniqueData> techniques
     ) {
-        if (character == null || definitions == null || definitions.isEmpty()) {
-            return Result.empty(character);
-        }
+        if (character == null) return Result.empty(null);
 
+        List<AbilityData> availableDefinitions = definitions == null ? List.of() : definitions;
         Predicate<String> validMove = moveExists == null ? ignored -> true : moveExists;
-
-        Set<String> explicitIds = new LinkedHashSet<>(
+        Set<String> assignedAbilityIds = new LinkedHashSet<>(
             character.abilityIds == null ? List.of() : character.abilityIds);
-        Set<String> availableMoveIds = new LinkedHashSet<>();
+        Set<String> learnedMoveIds = new LinkedHashSet<>();
         if (character.moveIds != null) {
-            character.moveIds.stream().filter(validMove).forEach(availableMoveIds::add);
+            character.moveIds.stream().filter(validMove).forEach(learnedMoveIds::add);
         }
-        Set<String> grantedMoveIds = new LinkedHashSet<>();
+        Set<String> availableMoveIds = new LinkedHashSet<>();
+        if (character.availableMoveIds != null) {
+            character.availableMoveIds.stream().filter(validMove).forEach(availableMoveIds::add);
+        }
+        Set<String> availableAbilityIds = new LinkedHashSet<>();
+        Map<String, String> forcedMoveSources = new LinkedHashMap<>();
         Map<String, String> techniqueNames = new LinkedHashMap<>();
         addTechnique(techniqueNames, character.innateTechniqueName);
 
-        Map<String, AbilityData> resolved = new LinkedHashMap<>();
+        Map<String, AbilityData> assignedAbilities = new LinkedHashMap<>();
         boolean changed;
         do {
             changed = false;
-            for (AbilityData definition : definitions) {
-                if (definition == null || resolved.containsKey(keyOf(definition))) continue;
-                if (!isEligible(definition, character, explicitIds, availableMoveIds,
-                                techniqueNames.keySet(), resolved.values(), techniques)) {
+            for (AbilityData definition : availableDefinitions) {
+                if (definition == null || definition.id == null || definition.id.isBlank()) continue;
+                if (isSourceAvailable(definition, character, learnedMoveIds,
+                    techniqueNames.keySet(), assignedAbilities.values(), techniques)) {
+                    changed |= availableAbilityIds.add(definition.id);
+                }
+            }
+            for (AbilityData definition : availableDefinitions) {
+                if (definition == null || definition.id == null
+                    || !assignedAbilityIds.contains(definition.id)
+                    || !availableAbilityIds.contains(definition.id)
+                    || assignedAbilities.containsKey(keyOf(definition))) {
                     continue;
                 }
-
-                resolved.put(keyOf(definition), definition);
-                collectGrants(
-                    definition, availableMoveIds, grantedMoveIds, techniqueNames, validMove);
+                assignedAbilities.put(keyOf(definition), definition);
                 changed = true;
+                changed |= collectAcquisition(
+                    definition,
+                    availableMoveIds,
+                    availableAbilityIds,
+                    learnedMoveIds,
+                    forcedMoveSources,
+                    techniqueNames,
+                    validMove);
             }
         } while (changed);
 
         return new Result(
-            new ArrayList<>(resolved.values()),
-            new ArrayList<>(grantedMoveIds),
+            new ArrayList<>(assignedAbilities.values()),
+            new ArrayList<>(availableMoveIds),
+            new ArrayList<>(availableAbilityIds),
+            forcedMoveSources,
             new LinkedHashSet<>(techniqueNames.values())
         );
     }
 
-    private static boolean isEligible(
+    private static boolean isSourceAvailable(
         AbilityData definition,
         CharacterData character,
-        Set<String> explicitIds,
-        Set<String> availableMoveIds,
+        Set<String> learnedMoveIds,
         Set<String> techniqueNames,
-        java.util.Collection<AbilityData> resolved,
+        java.util.Collection<AbilityData> assignedAbilities,
         List<InnateTechniqueData> techniques
     ) {
         String source = definition.sourceType == null
             ? "CHARACTER" : definition.sourceType.trim().toUpperCase(Locale.ROOT);
-
         return switch (source) {
-            case "CHARACTER" -> definition.id != null && explicitIds.contains(definition.id);
-            // Technique ownership makes a node eligible to be authored in its
-            // technique tree; the character must still explicitly activate it.
-            case "TECHNIQUE" -> definition.id != null && explicitIds.contains(definition.id)
-                && containsIgnoreCase(techniqueNames, definition.sourceValue)
+            case "CHARACTER" -> true;
+            case "TECHNIQUE" -> containsIgnoreCase(techniqueNames, definition.sourceValue)
                 && treeAllows(definition, character, techniques);
             case "MOVE" -> definition.sourceValue != null
-                && availableMoveIds.contains(definition.sourceValue);
+                && learnedMoveIds.contains(definition.sourceValue);
             case "STAT_THRESHOLD" -> parseStatRequirement(definition.sourceValue)
                 .map(requirement -> requirement.isMetBy(character))
                 .orElse(false);
-            case "ABILITY" -> resolved.stream().anyMatch(ability ->
+            case "ABILITY" -> assignedAbilities.stream().anyMatch(ability ->
                 matchesAbilityReference(ability, definition.sourceValue));
-            default -> definition.id != null && explicitIds.contains(definition.id);
+            default -> false;
         };
     }
 
@@ -159,40 +172,71 @@ public final class AbilityResolver {
             && TechniqueSkillTree.isUnlocked(technique, node, character);
     }
 
-    private static void collectGrants(
+    private static boolean collectAcquisition(
         AbilityData ability,
         Set<String> availableMoveIds,
-        Set<String> grantedMoveIds,
+        Set<String> availableAbilityIds,
+        Set<String> learnedMoveIds,
+        Map<String, String> forcedMoveSources,
         Map<String, String> techniqueNames,
         Predicate<String> moveExists
     ) {
+        boolean changed = false;
         if (ability.isActive() && ability.isQueued()
-            && ability.activeMoveId != null && !ability.activeMoveId.isBlank()) {
-            if (moveExists.test(ability.activeMoveId)) {
-                availableMoveIds.add(ability.activeMoveId);
-                grantedMoveIds.add(ability.activeMoveId);
-            }
+            && ability.activeMoveId != null && !ability.activeMoveId.isBlank()
+            && moveExists.test(ability.activeMoveId)) {
+            changed |= availableMoveIds.add(ability.activeMoveId);
+            changed |= learnedMoveIds.add(ability.activeMoveId);
+            changed |= forcedMoveSources.putIfAbsent(
+                ability.activeMoveId, forcedMoveSource(ability)) == null;
         }
-        if (!ability.isPassive() || !ability.isAlwaysActive() || ability.effects == null) return;
+        if (!ability.isPassive() || !ability.isAlwaysActive() || ability.effects == null) {
+            return changed;
+        }
 
         for (AbilityEffectData effect : ability.effects) {
             if (effect == null || effect.type == null) continue;
             try {
                 switch (AbilityEffectType.fromName(effect.type)) {
                     case GRANT_MOVE -> {
-                        if (effect.moveId != null && !effect.moveId.isBlank()
-                            && moveExists.test(effect.moveId)) {
-                            availableMoveIds.add(effect.moveId);
-                            grantedMoveIds.add(effect.moveId);
+                        if (validMove(effect.moveId, moveExists)) {
+                            changed |= availableMoveIds.add(effect.moveId);
                         }
                     }
-                    case UNLOCK_TECHNIQUE -> addTechnique(techniqueNames, effect.stringValue);
+                    case GRANT_ABILITY -> {
+                        if (effect.abilityId != null && !effect.abilityId.isBlank()) {
+                            changed |= availableAbilityIds.add(effect.abilityId);
+                        }
+                    }
+                    case FORCE_MOVE -> {
+                        if (validMove(effect.moveId, moveExists)) {
+                            changed |= availableMoveIds.add(effect.moveId);
+                            changed |= learnedMoveIds.add(effect.moveId);
+                            changed |= forcedMoveSources.putIfAbsent(
+                                effect.moveId, forcedMoveSource(ability)) == null;
+                        }
+                    }
+                    case UNLOCK_TECHNIQUE -> {
+                        int before = techniqueNames.size();
+                        addTechnique(techniqueNames, effect.stringValue);
+                        changed |= techniqueNames.size() != before;
+                    }
                     default -> { }
                 }
             } catch (IllegalArgumentException ignored) {
-                // Invalid effects are rejected by the editor and skipped by runtime resolution.
+                // Invalid effects are rejected by the editor and skipped by resolution.
             }
         }
+        return changed;
+    }
+
+    private static String forcedMoveSource(AbilityData ability) {
+        return "TECHNIQUE".equalsIgnoreCase(ability.sourceType)
+            ? GRANTED_BY_TECHNIQUE : GRANTED_BY_ABILITY;
+    }
+
+    private static boolean validMove(String moveId, Predicate<String> moveExists) {
+        return moveId != null && !moveId.isBlank() && moveExists.test(moveId);
     }
 
     private static boolean matchesAbilityReference(AbilityData ability, String reference) {
@@ -243,14 +287,23 @@ public final class AbilityResolver {
 
     public static final class Result {
         private final List<AbilityData> abilities;
-        private final List<String> grantedMoveIds;
+        private final List<String> availableMoveIds;
+        private final List<String> availableAbilityIds;
+        private final Map<String, String> forcedMoveSources;
         private final Set<String> accessibleTechniqueNames;
 
-        private Result(List<AbilityData> abilities,
-                       List<String> grantedMoveIds,
-                       Set<String> accessibleTechniqueNames) {
+        private Result(
+            List<AbilityData> abilities,
+            List<String> availableMoveIds,
+            List<String> availableAbilityIds,
+            Map<String, String> forcedMoveSources,
+            Set<String> accessibleTechniqueNames
+        ) {
             this.abilities = List.copyOf(abilities);
-            this.grantedMoveIds = List.copyOf(grantedMoveIds);
+            this.availableMoveIds = List.copyOf(availableMoveIds);
+            this.availableAbilityIds = List.copyOf(availableAbilityIds);
+            this.forcedMoveSources = Collections.unmodifiableMap(
+                new LinkedHashMap<>(forcedMoveSources));
             this.accessibleTechniqueNames = Collections.unmodifiableSet(accessibleTechniqueNames);
         }
 
@@ -260,15 +313,30 @@ public final class AbilityResolver {
                 && !character.innateTechniqueName.isBlank()) {
                 techniques.add(character.innateTechniqueName);
             }
-            return new Result(List.of(), List.of(), techniques);
+            List<String> availableMoves = character != null && character.availableMoveIds != null
+                ? character.availableMoveIds : List.of();
+            return new Result(
+                List.of(), availableMoves, List.of(), Map.of(), techniques);
         }
 
         public List<AbilityData> abilities() {
             return abilities;
         }
 
-        public List<String> grantedMoveIds() {
-            return grantedMoveIds;
+        public List<String> availableMoveIds() {
+            return availableMoveIds;
+        }
+
+        public List<String> availableAbilityIds() {
+            return availableAbilityIds;
+        }
+
+        public List<String> forcedMoveIds() {
+            return List.copyOf(forcedMoveSources.keySet());
+        }
+
+        public Map<String, String> forcedMoveSources() {
+            return forcedMoveSources;
         }
 
         public Set<String> accessibleTechniqueNames() {

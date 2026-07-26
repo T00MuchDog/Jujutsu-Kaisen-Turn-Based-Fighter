@@ -101,6 +101,9 @@ public class MoveData {
 
     public boolean isFreeMove = false;
 
+    /** Cannot be assigned directly; an ability must add this move to the character. */
+    public boolean mustBeGranted = false;
+
     // -------------------------------------------------------------------------
     // Status effect sub-DTO
     // -------------------------------------------------------------------------
@@ -247,7 +250,8 @@ public class MoveData {
             .blockDamageReduction(blockDamageReduction)
             .blockFlatReduction(blockFlatReduction)
             .requiredTechniqueId(requiredTechniqueId)
-            .freeMove(isFreeMove);
+            .freeMove(isFreeMove)
+            .mustBeGranted(mustBeGranted);
 
         if (!rawTags.isEmpty()) b.tags(rawTags);
         if (prerequisites != null)  b.prerequisites(prerequisites);
@@ -355,6 +359,7 @@ public class MoveData {
         d.blockFlatReduction    = move.getBlockFlatReduction();
         d.requiredTechniqueId = move.getRequiredTechniqueId();
         d.isFreeMove          = move.isFreeMove();
+        d.mustBeGranted       = move.mustBeGranted();
         d.prerequisites       = move.getPrerequisites().isEmpty() ? null
                                     : new java.util.LinkedHashMap<>(move.getPrerequisites());
 

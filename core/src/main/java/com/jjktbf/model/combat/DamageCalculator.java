@@ -68,6 +68,18 @@ public final class DamageCalculator {
         RandomSource    rng,
         int             currentRound
     ) {
+        return resolve(attacker, defender, move, currentTick, rng, currentRound, false);
+    }
+
+    public static DamageResult resolve(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move            move,
+        int             currentTick,
+        RandomSource    rng,
+        int             currentRound,
+        boolean         forceFullBlock
+    ) {
         // Use ability-modified stats for all calculations
         CharacterStats acs = attacker.getEffectiveStats();
 
@@ -100,6 +112,10 @@ public final class DamageCalculator {
         // defense are calculated. Misses never reach this hook.
         CodedHitModifiers codedModifiers = attacker.getCodedAbilities().onAttackConnected(
             attacker, defender, move, currentTick, rng);
+
+        if (forceFullBlock && !move.isGuardBreak()) {
+            return DamageResult.blocked(move, codedModifiers.events());
+        }
         boolean bypassBlock = move.isGuardBreak() || codedModifiers.bypassBlock();
 
         // --- 2. Check block ---
@@ -115,7 +131,9 @@ public final class DamageCalculator {
             PowerCalculator.compute(move.getCategory(), acs)));
 
         // --- 4. Apply defensive block before Defense ---
-        double attackValue = move.getBasePower() * (double) power;
+        double attackValue = move.getBasePower()
+            * attacker.getAbilityFlags().basePowerMultiplierFor(move)
+            * power;
         if (activeBlockSegment != null) {
             attackValue = activeBlockSegment.getMove().applyBlockTo(attackValue);
             if (attackValue == 0) {
@@ -173,7 +191,8 @@ public final class DamageCalculator {
             move,
             currentTick,
             new SeededRandomSource(rng),
-            currentRound
+            currentRound,
+            false
         );
     }
 

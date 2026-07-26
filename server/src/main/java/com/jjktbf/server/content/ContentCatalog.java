@@ -9,6 +9,7 @@ import com.jjktbf.model.character.AbilityResolver;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
+import com.jjktbf.model.character.coded.NewShadowStyleAbility;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.technique.InnateTechniqueData;
@@ -137,6 +138,17 @@ public final class ContentCatalog {
                     "invalid move " + definition.id + ": " + exception.getMessage(), exception);
             }
         }
+        for (MoveData definition : moveDefinitions) {
+            for (MoveData.StatusEffectData effect : codedEffectRows(definition)) {
+                if (NewShadowStyleAbility.KEY.equalsIgnoreCase(effect.codedAbilityKey)
+                    && NewShadowStyleAbility.ACTIVATE_SIMPLE_DOMAIN.equalsIgnoreCase(effect.codedAction)
+                    && !NewShadowStyleAbility.isValidReactionMove(
+                        movesById.get(effect.codedTarget))) {
+                    throw invalid(MOVES_RESOURCE, "Simple Domain move " + definition.id
+                        + " must reference a physical, reinforced, stunning melee SWORD move");
+                }
+            }
+        }
 
         Set<String> abilityIds = new LinkedHashSet<>();
         for (AbilityData definition : abilityDefinitions) {
@@ -175,11 +187,19 @@ public final class ContentCatalog {
             verifyReferences(definition.abilityIds, abilityIds, "ability", definition.id);
             verifyReferences(definition.availableAbilityIds, abilityIds,
                 "available ability", definition.id);
-
             AbilityResolver.Result resolved = AbilityResolver.resolve(
                 definition, abilityDefinitions, movesById::containsKey, techniqueDefinitions);
+            if (definition.abilityIds != null) {
+                for (String abilityId : definition.abilityIds) {
+                    if (!resolved.containsAbility(abilityId)) {
+                        throw invalid(CHARACTERS_RESOURCE,
+                            "character " + definition.id
+                                + " assigns unavailable ability " + abilityId);
+                    }
+                }
+            }
             LinkedHashSet<String> resolvedMoveIds = new LinkedHashSet<>(definition.moveIds);
-            resolvedMoveIds.addAll(resolved.grantedMoveIds());
+            resolvedMoveIds.addAll(resolved.forcedMoveIds());
             List<Move> moves = new ArrayList<>();
             for (String moveId : resolvedMoveIds) {
                 Move move = movesById.get(moveId);
@@ -189,6 +209,12 @@ public final class ContentCatalog {
                 }
                 if (definition.moveIds.contains(moveId)) {
                     MoveData moveData = moveDataById.get(moveId);
+                    if (move.mustBeGranted()
+                        && !resolved.availableMoveIds().contains(moveId)) {
+                        throw invalid(CHARACTERS_RESOURCE,
+                            "character " + definition.id
+                                + " learns unavailable grant-only move " + moveId);
+                    }
                     InnateTechniqueData technique = moveData == null ? null
                         : TechniqueSkillTree.techniqueByName(
                             techniqueDefinitions, moveData.requiredTechniqueId);

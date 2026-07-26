@@ -49,7 +49,7 @@ public class MoveCardView {
         return switch (category) {
             case PHYSICAL -> new Color(0.850f, 0.380f, 0.190f, 1f);
             case INNATE_TECHNIQUE -> new Color(0.560f, 0.280f, 0.820f, 1f);
-            case NON_INNATE_TECHNIQUE -> new Color(0.220f, 0.530f, 0.900f, 1f);
+            case NON_INNATE_TECHNIQUE -> new Color(0.180f, 0.450f, 0.800f, 1f);
             case CURSED_ENERGY -> new Color(0.150f, 0.620f, 0.910f, 1f);
             case PHYSICAL_CURSED_ENERGY,
                 PHYSICAL_INNATE_TECHNIQUE,
@@ -64,17 +64,20 @@ public class MoveCardView {
     /** Returns the color from the move's role palette and its underlying nature. */
     public static Color typeColorFor(Move move) {
         if (move == null) return Color.GRAY;
+        boolean innate = hasNatureTag(move, MoveTag.INNATE_TECHNIQUE);
+        boolean nonInnate = hasNatureTag(move, MoveTag.NON_INNATE_TECHNIQUE);
+
+        // Learned techniques retain their distinct identity even on utility or defensive cards.
+        if (nonInnate && !innate) return typeColorFor(MoveCategory.NON_INNATE_TECHNIQUE);
         if (isDefensiveRole(move)) return typeColorFor(MoveCategory.DEFENSIVE);
         // A utility innate technique is its own hybrid: a desaturated lavender that
         // reads between UTILITY grey and the pure INNATE_TECHNIQUE purple.
-        if (isUtilityRole(move) && hasNatureTag(move, MoveTag.INNATE_TECHNIQUE)) {
+        if (isUtilityRole(move) && innate) {
             return new Color(0.640f, 0.560f, 0.760f, 1f);
         }
         if (isUtilityRole(move)) return typeColorFor(MoveCategory.UTILITY);
 
         boolean physical = hasNatureTag(move, MoveTag.PHYSICAL);
-        boolean innate = hasNatureTag(move, MoveTag.INNATE_TECHNIQUE);
-        boolean nonInnate = hasNatureTag(move, MoveTag.NON_INNATE_TECHNIQUE);
         boolean cursedEnergy = hasNatureTag(move, MoveTag.CURSED_ENERGY);
 
         // Innate technique is the headline category: it gets its own colour regardless
@@ -88,7 +91,7 @@ public class MoveCardView {
         if (natureCount > 1) return new Color(0.130f, 0.690f, 0.570f, 1f);
         if (physical) return new Color(0.850f, 0.380f, 0.190f, 1f);
         if (innate) return new Color(0.560f, 0.280f, 0.820f, 1f);
-        if (nonInnate) return new Color(0.220f, 0.530f, 0.900f, 1f);
+        if (nonInnate) return new Color(0.180f, 0.450f, 0.800f, 1f);
         if (cursedEnergy) return new Color(0.150f, 0.620f, 0.910f, 1f);
         return Color.GRAY;
     }

@@ -176,6 +176,9 @@ public class Move {
     /** If true, this move does not consume a move slot when assigned to a character. */
     private final boolean isFreeMove;
 
+    /** If true, this move can only enter a character's pool through an ability grant. */
+    private final boolean mustBeGranted;
+
     // -------------------------------------------------------------------------
     // Construction via Builder
     // -------------------------------------------------------------------------
@@ -211,6 +214,7 @@ public class Move {
         this.prerequisites       = Collections.unmodifiableMap(b.prerequisites);
         this.requiredTechniqueId = b.requiredTechniqueId;
         this.isFreeMove          = b.isFreeMove;
+        this.mustBeGranted       = b.mustBeGranted;
     }
 
     private static Set<MoveTag> immutableTags(Set<MoveTag> source, MoveCategory category) {
@@ -253,6 +257,7 @@ public class Move {
     public java.util.Map<String, Integer> getPrerequisites() { return prerequisites; }
     public String getRequiredTechniqueId()        { return requiredTechniqueId; }
     public boolean isFreeMove()                    { return isFreeMove; }
+    public boolean mustBeGranted()                 { return mustBeGranted; }
 
     public boolean isBlackFlashEligible() {
         return category.isBlackFlashEligible();
@@ -386,7 +391,7 @@ public class Move {
     }
 
     public boolean isDefensive() {
-        return defenseType != DefenseType.NONE;
+        return category == MoveCategory.DEFENSIVE;
     }
 
     /**
@@ -516,6 +521,7 @@ public class Move {
         private java.util.Map<String, Integer> prerequisites = java.util.Map.of();
         private String requiredTechniqueId   = null;
         private boolean isFreeMove           = false;
+        private boolean mustBeGranted        = false;
 
         public Builder(String id) { this.id = id; }
 
@@ -547,6 +553,7 @@ public class Move {
         public Builder prerequisites(java.util.Map<String, Integer> v) { this.prerequisites = v; return this; }
         public Builder requiredTechniqueId(String v)       { this.requiredTechniqueId = v; return this; }
         public Builder freeMove(boolean v)                 { this.isFreeMove = v; return this; }
+        public Builder mustBeGranted(boolean v)            { this.mustBeGranted = v; return this; }
 
         public Move build() {
             if (id == null || id.isBlank()) throw new IllegalStateException("Move id is required");
@@ -560,7 +567,7 @@ public class Move {
             // discovered and mastery-sorted at runtime, and keeps the editor's
             // save validation honest (it routes through this builder).
             if (category != null) {
-                var tags = category.getTags();
+                var tags = this.tags != null ? this.tags : category.getTags();
                 boolean isInnate    = tags.contains(MoveTag.INNATE_TECHNIQUE);
                 boolean isNonInnate = tags.contains(MoveTag.NON_INNATE_TECHNIQUE);
                 if (isInnate) {

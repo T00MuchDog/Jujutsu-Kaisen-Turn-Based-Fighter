@@ -66,6 +66,7 @@ public final class InnateTechnique {
      */
     public List<MoveData> moves(int ctm, MoveRepository moveRepo) {
         return moveRepo.getAll().stream()
+            .filter(md -> !md.mustBeGranted)
             .filter(md -> nameMatches(md.requiredTechniqueId))
             .filter(md -> ctmPrereqOf(md) <= ctm)
             .sorted(Comparator.comparingInt(InnateTechnique::ctmPrereqOf))

@@ -26,12 +26,12 @@ import java.util.List;
  * The UI layer extracts and highlights them via regex at render time.
  *
  * Source types:
- *   CHARACTER      — intrinsic to the character (no prerequisite)
+ *   CHARACTER      — available to every character (no prerequisite)
  *   TECHNIQUE      — appears as an activatable node in a named technique's tree
  *   MOVE           — requires knowing a specific move (by ID)
  *   STAT_THRESHOLD — requires a stat to be at or above a threshold ("strength>=200")
- *   ABILITY        — granted by possessing another specific ability (by ID or name)
- *                    e.g. "Precog" is granted by having "Heavenly Restriction"
+ *   ABILITY        — available while another specific ability is assigned (by ID or name)
+ *                    e.g. "Precog" is available after assigning "Heavenly Restriction"
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)

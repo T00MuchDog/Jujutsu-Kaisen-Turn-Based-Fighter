@@ -103,6 +103,9 @@ public enum MoveTag {
      */
     RANGED,
 
+    /** Sword or sword-like weapon modifier used by move-scoped abilities. */
+    SWORD,
+
     /**
      * Stun modifier — on a successful hit, the defender's action segment(s) on the
      * current tick are stunned (removed from the timeline and prevented from firing).

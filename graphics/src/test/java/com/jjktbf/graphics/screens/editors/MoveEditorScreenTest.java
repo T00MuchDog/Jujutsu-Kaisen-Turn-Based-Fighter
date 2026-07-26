@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -79,7 +80,7 @@ class MoveEditorScreenTest {
     }
 
     @Test
-    void savingAnAttackOnlyMoveDiscardsDefenseAndUtilityDetails() {
+    void savingAnAttackOnlyMoveDiscardsDefenseDetailsButKeepsSelfEffects() {
         MoveData draft = moveWithAllSectionDetails();
         draft.tags = new ArrayList<>(List.of(MoveTag.ATTACK.name(), MoveTag.PHYSICAL.name()));
 
@@ -90,7 +91,7 @@ class MoveEditorScreenTest {
         assertNull(saved.blockAffectedTags);
         assertEquals(100, saved.blockDamageReduction);
         assertEquals(0, saved.blockFlatReduction);
-        assertTrue(saved.selfEffects.isEmpty());
+        assertEquals(1, saved.selfEffects.size());
 
         assertEquals(75, saved.basePower);
         assertEquals(1, saved.onHitEffects.size());
@@ -139,8 +140,42 @@ class MoveEditorScreenTest {
         MoveData defense = new MoveData();
         defense.tags = new ArrayList<>(List.of(MoveTag.DEFENSIVE.name()));
         defense.defenseType = DefenseType.NONE.name();
-        assertEquals("A Defensive move needs a percentage or flat block type.",
+        assertEquals("A Defensive move needs a block type or coded self effect.",
             MoveEditorScreen.categoryTagValidationError(defense));
+    }
+
+    @Test
+    void saveCopyPreservesMustBeGrantedAndDefensiveCodedSelfEffects() {
+        MoveData defense = new MoveData();
+        defense.tags = new ArrayList<>(List.of(MoveTag.DEFENSIVE.name()));
+        defense.defenseType = DefenseType.NONE.name();
+        defense.mustBeGranted = true;
+        MoveData.StatusEffectData coded = new MoveData.StatusEffectData();
+        coded.codedAbilityKey = "NEW_SHADOW_STYLE";
+        coded.codedAction = "ACTIVATE_SIMPLE_DOMAIN";
+        coded.codedTarget = "000027";
+        defense.selfEffects = new ArrayList<>(List.of(coded));
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(defense);
+
+        assertTrue(saved.mustBeGranted);
+        assertEquals(1, saved.selfEffects.size());
+        assertNull(MoveEditorScreen.categoryTagValidationError(saved));
+    }
+
+    @Test
+    void moveResequencingRemapsCodedReactionMoveReferences() {
+        MoveData domain = new MoveData();
+        MoveData.StatusEffectData reaction = new MoveData.StatusEffectData();
+        reaction.codedAbilityKey = "NEW_SHADOW_STYLE";
+        reaction.codedAction = "ACTIVATE_SIMPLE_DOMAIN";
+        reaction.codedTarget = "000027";
+        domain.selfEffects = new ArrayList<>(List.of(reaction));
+
+        MoveEditorScreen.remapCodedMoveTargets(
+            List.of(domain), Map.of("000027", "000026"));
+
+        assertEquals("000026", reaction.codedTarget);
     }
 
     private static MoveData moveWithAllSectionDetails() {

@@ -63,6 +63,8 @@ public final class CodedAbilityRegistry {
                 runtimes.add(new MiraclesAbility(owner, entry.getValue()));
             } else if (RatioAbility.KEY.equals(entry.getKey())) {
                 runtimes.add(new RatioAbility(owner, entry.getValue()));
+            } else if (NewShadowStyleAbility.KEY.equals(entry.getKey())) {
+                runtimes.add(new NewShadowStyleAbility(owner, entry.getValue()));
             }
         }
         return new CodedAbilities(runtimes);
@@ -75,7 +77,9 @@ public final class CodedAbilityRegistry {
         return (MiraclesAbility.KEY.equals(normalizedKey)
             && MiraclesAbility.supportsFeature(normalizedFeature))
             || (RatioAbility.KEY.equals(normalizedKey)
-            && RatioAbility.supportsFeature(normalizedFeature));
+            && RatioAbility.supportsFeature(normalizedFeature))
+            || (NewShadowStyleAbility.KEY.equals(normalizedKey)
+            && NewShadowStyleAbility.supportsFeature(normalizedFeature));
     }
 
     /**
@@ -94,7 +98,9 @@ public final class CodedAbilityRegistry {
         return (MiraclesAbility.KEY.equals(normalizedKey)
             && MiraclesAbility.CREATE.equals(normalizedAction))
             || (RatioAbility.KEY.equals(normalizedKey)
-            && RatioAbility.RATIO_EFFECT.equals(normalizedAction));
+            && RatioAbility.RATIO_EFFECT.equals(normalizedAction))
+            || (NewShadowStyleAbility.KEY.equals(normalizedKey)
+            && NewShadowStyleAbility.ACTIVATE_SIMPLE_DOMAIN.equals(normalizedAction));
     }
 
     public static boolean supportsEffect(
@@ -109,13 +115,18 @@ public final class CodedAbilityRegistry {
         if (RatioAbility.KEY.equals(normalizedKey)) {
             return RatioAbility.supportsTarget(normalizedTarget, stackCount);
         }
+        if (NewShadowStyleAbility.KEY.equals(normalizedKey)) {
+            return NewShadowStyleAbility.supportsTarget(normalizedTarget, stackCount);
+        }
         return normalizedTarget.isEmpty() && stackCount == null;
     }
 
     public static List<EffectAction> effectActions() {
         return List.of(
             new EffectAction(MiraclesAbility.KEY, MiraclesAbility.CREATE, "Create Miracle"),
-            new EffectAction(RatioAbility.KEY, RatioAbility.RATIO_EFFECT, "Ratio Effect")
+            new EffectAction(RatioAbility.KEY, RatioAbility.RATIO_EFFECT, "Ratio Effect"),
+            new EffectAction(NewShadowStyleAbility.KEY,
+                NewShadowStyleAbility.ACTIVATE_SIMPLE_DOMAIN, "Activate Simple Domain")
         );
     }
 

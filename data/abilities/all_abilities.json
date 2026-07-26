@@ -64,4 +64,46 @@
   "codedFeature" : "REINFORCEMENT_RATIO",
   "triggerThreshold" : 0,
   "masteryThreshold" : 0
+}, {
+  "id" : "000005",
+  "name" : "New Shadow Style",
+  "flavourText" : "A learned school of swordsmanship and barrier techniques developed so sorcerers without inherited techniques can defend themselves against superior jujutsu.",
+  "mechanicText" : "Grants BATTO SWORD DRAWING and SIMPLE DOMAIN.",
+  "category" : "PASSIVE",
+  "sourceType" : "CHARACTER",
+  "effects" : [ {
+    "type" : "GRANT_MOVE",
+    "moveId" : "000027"
+  }, {
+    "type" : "GRANT_MOVE",
+    "moveId" : "000028"
+  } ],
+  "triggerThreshold" : 0,
+  "masteryThreshold" : 0
+}, {
+  "id" : "000006",
+  "name" : "Simple Domain Binding Vow",
+  "flavourText" : "Miwa anchors both feet to the point where her stance began, sacrificing all movement to maintain the boundary.",
+  "mechanicText" : "If another move is used while SIMPLE DOMAIN is active, SIMPLE DOMAIN is dispelled and must be cast again.",
+  "category" : "PASSIVE",
+  "sourceType" : "CHARACTER",
+  "effects" : [ ],
+  "codedAbilityKey" : "NEW_SHADOW_STYLE",
+  "codedFeature" : "SIMPLE_DOMAIN_BINDING_VOW",
+  "triggerThreshold" : 0,
+  "masteryThreshold" : 0
+}, {
+  "id" : "000007",
+  "name" : "Earnest Swordswoman",
+  "flavourText" : "Miwa's diligent practice gives every measured draw more force than her unassuming presence suggests.",
+  "mechanicText" : "Increases the base power of SWORD moves by 10%.",
+  "category" : "PASSIVE",
+  "sourceType" : "CHARACTER",
+  "effects" : [ {
+    "type" : "MOVE_BASE_POWER_MULTIPLY",
+    "moveTag" : "SWORD",
+    "doubleValue" : 1.1
+  } ],
+  "triggerThreshold" : 0,
+  "masteryThreshold" : 0
 } ]
