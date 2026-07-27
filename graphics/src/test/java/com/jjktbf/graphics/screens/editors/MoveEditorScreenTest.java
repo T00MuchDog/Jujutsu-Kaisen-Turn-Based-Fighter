@@ -178,6 +178,17 @@ class MoveEditorScreenTest {
     }
 
     @Test
+    void saveCopyForcesWeaponRequirementForSwordTaggedMoves() {
+        MoveData swordMove = new MoveData();
+        swordMove.tags = new ArrayList<>(List.of(MoveTag.ATTACK.name(), MoveTag.SWORD.name()));
+        swordMove.weaponRequired = false;
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(swordMove);
+
+        assertTrue(saved.weaponRequired);
+    }
+
+    @Test
     void moveResequencingRemapsCodedReactionMoveReferences() {
         MoveData domain = new MoveData();
         MoveData.StatusEffectData reaction = new MoveData.StatusEffectData();

@@ -70,6 +70,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     private Container<Actor> defenseFieldsContainer;
     private Container<Actor> ceMinMaxContainer;
     private Container<Actor> powerFieldsContainer;
+    private CheckBox weaponRequiredCheckbox;
 
     public MoveEditorScreen(JJKGame game, AssetLoader assets) {
         super(game, assets);
@@ -546,6 +547,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         defenseFieldsContainer = null;
         ceMinMaxContainer = null;
         powerFieldsContainer = null;
+        weaponRequiredCheckbox = null;
 
         Table form = formRoot();
 
@@ -573,6 +575,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             d.guardBreak = tags.contains(MoveTag.GUARD_BREAK);
             d.heavy = tags.contains(MoveTag.HEAVY);
             ensureTechniqueStatPrerequisites(d, tags);
+            synchronizeWeaponRequirement(d);
             refreshCategorySections(d);
         }, skin);
         // Sync the draft's tags with the picker's coupling-enforced initial set
@@ -582,6 +585,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         d.stun = tagPicker.getSelected().contains(MoveTag.STUN);
         d.guardBreak = tagPicker.getSelected().contains(MoveTag.GUARD_BREAK);
         d.heavy = tagPicker.getSelected().contains(MoveTag.HEAVY);
+        synchronizeWeaponRequirement(d);
         tagsSection.add(tagPicker).growX().row();
 
         // ── Cost ───────────────────────────────────────────────────────────────
@@ -659,23 +663,20 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             "Hidden until an ability grants or forces it. A granted move is learned normally."))
             .left().row();
 
-        // Weapon requirement: forces the wielder to have a weapon. Locked on for
-        // parries (which always require a weapon) — read-only in that case.
-        boolean parryLocked = DefenseType.PARRY.name().equals(d.defenseType);
-        if (parryLocked) d.weaponRequired = true;
-        CheckBox weaponCb = new CheckBox(" Requires a weapon", skin);
-        weaponCb.setChecked(d.weaponRequired);
-        weaponCb.setDisabled(parryLocked);
-        weaponCb.addListener(new ChangeListener() {
+        // Sword-tagged moves and parries always require a weapon, so their
+        // requirement is shown as a fixed-on, disabled checkbox.
+        weaponRequiredCheckbox = new CheckBox(" Requires a weapon", skin);
+        synchronizeWeaponRequirement(d);
+        weaponRequiredCheckbox.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
-                if (weaponCb.isDisabled()) return;
-                d.weaponRequired = weaponCb.isChecked();
+                if (weaponRequiredCheckbox.isDisabled()) return;
+                d.weaponRequired = weaponRequiredCheckbox.isChecked();
                 markDirty();
             }
         });
-        misc.add(weaponCb).left().row();
+        misc.add(weaponRequiredCheckbox).left().row();
         misc.add(formHint(
-            "Only usable by characters with a weapon. Always on for parries."))
+            "Only usable by characters with a weapon. Always on for parries and sword-tagged moves."))
             .left().row();
 
         return form;
@@ -719,9 +720,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 DefenseType.class, d.defenseType, false,
                 s -> {
                     d.defenseType = s;
-                    // A parry requires a weapon by definition — force it on so the
-                    // weapon-required indicator and downstream validation agree.
-                    if (DefenseType.PARRY.name().equals(s)) d.weaponRequired = true;
+                    synchronizeWeaponRequirement(d);
                     refreshConditionalFields(d);
                 }, skin))).growX().row();
 
@@ -1449,6 +1448,20 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         if (powerFieldsContainer != null) powerFieldsContainer.setActor(buildPowerFields(d));
     }
 
+    /** Force and lock the weapon requirement for moves whose semantics require a weapon. */
+    private void synchronizeWeaponRequirement(MoveData d) {
+        boolean locked = weaponRequirementIsLocked(d);
+        if (locked) d.weaponRequired = true;
+        if (weaponRequiredCheckbox != null) {
+            weaponRequiredCheckbox.setDisabled(locked);
+            weaponRequiredCheckbox.setChecked(d.weaponRequired);
+        }
+    }
+
+    private static boolean weaponRequirementIsLocked(MoveData d) {
+        return hasTag(d, MoveTag.SWORD) || DefenseType.PARRY.name().equals(d.defenseType);
+    }
+
     private static boolean hasTag(MoveData d, MoveTag tag) {
         return d.tags != null && d.tags.contains(tag.name());
     }
@@ -1456,6 +1469,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     static MoveData normalizedCopyForSave(MoveData draft) {
         MoveData copy = deepCopy(draft);
         discardInactiveCategoryDetails(copy);
+        if (weaponRequirementIsLocked(copy)) copy.weaponRequired = true;
         return copy;
     }
 
