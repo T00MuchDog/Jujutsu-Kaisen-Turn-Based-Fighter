@@ -54,9 +54,13 @@ package com.jjktbf.model.character;
  *    CE_POOL_SCALE = 8  (raised from 5 — more techniques per fight)
  *
  *  MOVE SLOTS (two pools)
- *    1 slot per 20 (scaled) stat points.
- *    Formula: slots = S(stat) / MOVES_PER_STAT_POINTS  (integer division)
- *    MOVES_PER_STAT_POINTS = 20  → baseline 80 → 4 slots
+ *    Threshold-based progression off the RAW governing stat (NOT StatScale-scaled —
+ *    slots are the one derived value that bypasses StatScale so thresholds land on
+ *    clean stat milestones). Both pools share ART_SLOT_TIERS:
+ *      stat ≥  :   0   30   45   60   80   100   120   150   180   210   240   270   300
+ *      slots   :   2    3    4    5    6     8     9    10    11    12    13    14    15
+ *    So: 2 to start, +1 at 30/45/60/80, +2 at 100, +1 at 120/150, then +1 every
+ *    30 points up to a max of 15 at 300. Stats above the max tier clamp to 15.
  *    Combat Arts slots   ← Combat Ability   (moves containing the PHYSICAL tag)
  *    Jujutsu Arts slots  ← Jujutsu Skill    (moves without the PHYSICAL tag)
  *    Free moves (isFreeMove = true) never consume a slot.
@@ -127,10 +131,9 @@ public class CombatStats {
     /** Multiplier to convert the SCALED CE Reserves stat → CE pool units. Raised from 5. */
     public static final int CE_POOL_SCALE = 8;
 
-    /** PLACEHOLDER: Number of stat points needed per move slot. */
-    public static final int MOVES_PER_STAT_POINTS = 20;
-
-    /** Base Black Flash chance (as a fraction). */
+    /**
+     * Base Black Flash chance (as a fraction).
+     */
     public static final double BF_BASE_CHANCE = 0.03;
 
     /** BFS escalating BF chances (index = consecutive BF hits in BFS, 0-indexed). */
@@ -158,6 +161,42 @@ public class CombatStats {
      * kill a peer. < 1 = weaker. Applied in DamageCalculator's power step.
      */
     public static final double PHYSICAL_POWER_MULTIPLIER = 0.85;
+
+    /**
+     * Art-slot progression table — shared by both pools.
+     *
+     * Each row is {rawStatThreshold, cumulativeSlotsAtOrAboveThatThreshold}. Both
+     * pools start with 2 slots at stat 0 and gain more as the governing stat climbs:
+     * everyone gets 2 of each to start, then +1 at 30/45/60/80, +2 at 100, +1 at
+     * 120/150, then +1 every 30 points up to a max of 15 at 300.
+     *
+     * Slots read the RAW governing stat (NOT the StatScale-scaled value) — this is
+     * the one derived value that intentionally bypasses StatScale, so thresholds
+     * land on clean stat milestones instead of distorted intermediate numbers.
+     *
+     *   stat ≥  :   0   30   45   60   80   100   120   150   180   210   240   270   300
+     *   slots   :   2    3    4    5    6     8     9    10    11    12    13    14    15
+     *
+     * Governing stat: Combat Ability → Combat Arts, Jujutsu Skill → Jujutsu Arts.
+     */
+    public static final int[][] ART_SLOT_TIERS = {
+        {   0,  2 },
+        {  30,  3 },
+        {  45,  4 },
+        {  60,  5 },
+        {  80,  6 },
+        { 100,  8 },
+        { 120,  9 },
+        { 150, 10 },
+        { 180, 11 },
+        { 210, 12 },
+        { 240, 13 },
+        { 270, 14 },
+        { 300, 15 },
+    };
+
+    /** Maximum slots a pool can ever reach (last entry of ART_SLOT_TIERS). */
+    public static final int MAX_ART_SLOTS = ART_SLOT_TIERS[ART_SLOT_TIERS.length - 1][1];
 
     // ------------------------------------------------------------------
     // Derived values computed at construction time
@@ -215,11 +254,28 @@ public class CombatStats {
     }
 
     private static int computeCombatArtsSlots(CharacterStats cs) {
-        return StatScale.scale(cs.getCombatAbility()) / MOVES_PER_STAT_POINTS;
+        return artSlotsFor(cs.getCombatAbility());
     }
 
     private static int computeJujutsuArtsSlots(CharacterStats cs) {
-        return StatScale.scale(cs.getJujutsuSkill()) / MOVES_PER_STAT_POINTS;
+        return artSlotsFor(cs.getJujutsuSkill());
+    }
+
+    /**
+     * Art slots granted for a given RAW governing stat, per ART_SLOT_TIERS.
+     * Walks the table and returns the cumulative count for the highest threshold
+     * met. Stats above the max tier clamp to MAX_ART_SLOTS.
+     */
+    public static int artSlotsFor(int rawStat) {
+        int slots = ART_SLOT_TIERS[0][1];
+        for (int[] tier : ART_SLOT_TIERS) {
+            if (rawStat >= tier[0]) {
+                slots = tier[1];
+            } else {
+                break;
+            }
+        }
+        return slots;
     }
 
     /**

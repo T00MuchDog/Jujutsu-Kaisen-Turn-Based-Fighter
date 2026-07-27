@@ -1,6 +1,10 @@
 package com.jjktbf.graphics.ui.editor;
 
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
@@ -10,9 +14,13 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+import com.badlogic.gdx.scenes.scene2d.ui.Widget;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.FocusListener;
 import com.badlogic.gdx.utils.Align;
+import com.jjktbf.model.character.CharacterStats;
+import com.jjktbf.model.character.StatTier;
 
 import java.util.function.IntConsumer;
 
@@ -31,8 +39,11 @@ import java.util.function.IntConsumer;
  */
 public class StatField extends Table {
 
-    private final Skin skin;
-    private final String name;
+    private static final float NAME_LABEL_WIDTH = 165f;
+    private static final float EDGE_LABEL_WIDTH = 24f;
+    private static final float VALUE_FIELD_WIDTH = 56f;
+    private static final float TIER_MARKER_WIDTH = 2f;
+
     private final int min;
     private final int max;
 
@@ -52,10 +63,8 @@ public class StatField extends Table {
      * @param disabled when true the field+slider are read-only (e.g. CTM with no technique)
      */
     public StatField(String name, int initial, int min, int max,
-                     IntConsumer onChange, Runnable onEdited, boolean disabled, Skin skin) {
+                      IntConsumer onChange, Runnable onEdited, boolean disabled, Skin skin) {
         super(skin);
-        this.skin     = skin;
-        this.name     = name;
         this.min      = min;
         this.max      = max;
         this.onChange = onChange;
@@ -64,23 +73,26 @@ public class StatField extends Table {
         // Fixed minimum label width keeps every slider's left edge aligned when
         // several StatFields stack vertically in the stats section.
         Label nameLabel = new Label(name, skin);
-        add(nameLabel).left().minWidth(190f).padRight(8);
+        Label minLabel = new Label(String.valueOf(min), skin, "small");
+        minLabel.setAlignment(Align.right);
+        minLabel.setColor(skin.get("text-dim", Color.class));
+        Label maxLabel = new Label(String.valueOf(max), skin, "small");
+        maxLabel.setColor(skin.get("text-dim", Color.class));
+
+        Slider.SliderStyle sliderStyle = skin.get("default-horizontal", Slider.SliderStyle.class);
+        add(nameLabel).left().minWidth(NAME_LABEL_WIDTH).padRight(8);
 
         // Min edge label
-        Label minLabel = new Label(String.valueOf(min), skin, "small");
-        minLabel.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
-        add(minLabel).padRight(4);
+        add(minLabel).width(EDGE_LABEL_WIDTH).padRight(4);
 
         // Slider
-        slider = new Slider(min, max, 1, false, skin);
+        slider = new TierSlider(min, max, sliderStyle, skin.getDrawable("white-pixel"));
         slider.setDisabled(disabled);
         slider.setValue(clamp(initial));
         add(slider).growX().padRight(4);
 
         // Max edge label
-        Label maxLabel = new Label(String.valueOf(max), skin, "small");
-        maxLabel.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
-        add(maxLabel).padRight(6);
+        add(maxLabel).width(EDGE_LABEL_WIDTH).padRight(6);
 
         // Numeric text field (type a value). Digits only — the field is
         // free-form while focused; clamping happens on commit (focus loss /
@@ -91,7 +103,7 @@ public class StatField extends Table {
         valueField.setDisabled(disabled);
         // Fixed-ish width for the numeric input
         Container<TextField> fc = new Container<>(valueField);
-        fc.width(56f);
+        fc.width(VALUE_FIELD_WIDTH);
         add(fc).right();
 
         wire();
@@ -206,5 +218,108 @@ public class StatField extends Table {
 
     private int clamp(int v) {
         return Math.max(min, Math.min(max, v));
+    }
+
+    /** Header row whose tier scale uses the exact same horizontal geometry as every stat slider. */
+    public static Table tierHeader(Actor leadingActor, Skin skin) {
+        Slider.SliderStyle sliderStyle = skin.get("default-horizontal", Slider.SliderStyle.class);
+        Table header = new Table(skin);
+        header.add(leadingActor).left().top().minWidth(NAME_LABEL_WIDTH).padRight(8);
+        header.add().width(EDGE_LABEL_WIDTH).padRight(4);
+        header.add(new TierLabels(sliderStyle, skin)).growX().padRight(4);
+        header.add().width(EDGE_LABEL_WIDTH).padRight(6);
+        header.add().width(VALUE_FIELD_WIDTH);
+        return header;
+    }
+
+    private static float tierPosition(float width, Slider.SliderStyle style, float statValue) {
+        float backgroundLeft = style.background == null ? 0f : style.background.getLeftWidth();
+        float backgroundRight = style.background == null ? 0f : style.background.getRightWidth();
+        float knobWidth = style.knob == null ? 0f : style.knob.getMinWidth();
+        float start = backgroundLeft + knobWidth / 2f;
+        float end = width - backgroundRight - knobWidth / 2f;
+        float progress = (statValue - CharacterStats.MIN_STAT)
+            / (float) (CharacterStats.MAX_STAT - CharacterStats.MIN_STAT);
+        return start + progress * (end - start);
+    }
+
+    private static final class TierSlider extends Slider {
+
+        private final Drawable marker;
+
+        private TierSlider(float min, float max, SliderStyle style, Drawable marker) {
+            super(min, max, 1f, false, style);
+            this.marker = marker;
+        }
+
+        @Override
+        public void draw(Batch batch, float parentAlpha) {
+            super.draw(batch, parentAlpha);
+
+            SliderStyle style = getStyle();
+            float markerHeight = style.background == null ? 4f : style.background.getMinHeight();
+            float markerY = getY() + (getHeight() - markerHeight) / 2f;
+            float oldColor = batch.getPackedColor();
+            Color actorColor = getColor();
+            batch.setColor(Color.GRAY.r, Color.GRAY.g, Color.GRAY.b, actorColor.a * parentAlpha);
+            for (StatTier tier : StatTier.values()) {
+                float markerX = getX() + tierPosition(getWidth(), style, tier.minimumStat());
+                marker.draw(batch, Math.round(markerX - TIER_MARKER_WIDTH / 2f),
+                    Math.round(markerY), TIER_MARKER_WIDTH, markerHeight);
+            }
+            batch.setPackedColor(oldColor);
+        }
+    }
+
+    private static final class TierLabels extends Widget {
+
+        private static final float LABEL_GAP = 5f;
+        private static final float POINTER_SIZE = 14f;
+        private static final float LEVEL_GAP = 4f;
+        private static final float VERTICAL_DROP = 40f;
+
+        private final Slider.SliderStyle sliderStyle;
+        private final BitmapFont font;
+        private final Drawable pointer;
+        private final GlyphLayout layout = new GlyphLayout();
+
+        private TierLabels(Slider.SliderStyle sliderStyle, Skin skin) {
+            this.sliderStyle = sliderStyle;
+            font = skin.get("small", Label.LabelStyle.class).font;
+            pointer = skin.getDrawable("tier-pointer");
+        }
+
+        @Override
+        public float getPrefHeight() {
+            return (font.getLineHeight() + POINTER_SIZE) * 2f + LEVEL_GAP;
+        }
+
+        @Override
+        public void draw(Batch batch, float parentAlpha) {
+            Color oldFontColor = new Color(font.getColor());
+            font.setColor(0f, 0f, 0f, getColor().a * parentAlpha);
+            float oldBatchColor = batch.getPackedColor();
+            batch.setColor(1f, 1f, 1f, getColor().a * parentAlpha);
+            float levelHeight = font.getLineHeight() + POINTER_SIZE;
+            float[] lastLabelRight = {Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY};
+            StatTier[] tiers = StatTier.values();
+            for (StatTier tier : tiers) {
+                layout.setText(font, tier.displayName());
+                float midpoint = (tier.minimumStat() + tier.maximumStat()) / 2f;
+                float pointerX = getX() + tierPosition(getWidth(), sliderStyle, midpoint);
+                float labelX = Math.max(getX(), Math.min(pointerX - layout.width / 2f,
+                    getX() + getWidth() - layout.width));
+                int level = labelX < lastLabelRight[0] + LABEL_GAP ? 1 : 0;
+                float pointerY = getY() - VERTICAL_DROP;
+                float labelY = pointerY + POINTER_SIZE + layout.height
+                    + level * (levelHeight + LEVEL_GAP) / 2f;
+                font.draw(batch, layout, labelX, labelY);
+                pointer.draw(batch, pointerX - POINTER_SIZE / 2f, pointerY,
+                    POINTER_SIZE, POINTER_SIZE);
+                lastLabelRight[level] = labelX + layout.width;
+            }
+            batch.setPackedColor(oldBatchColor);
+            font.setColor(oldFontColor);
+        }
     }
 }

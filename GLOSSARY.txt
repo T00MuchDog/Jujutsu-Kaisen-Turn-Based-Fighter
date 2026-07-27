@@ -133,7 +133,7 @@ damage-resolution helpers. These are the numbers actually used in combat.
     AP_DIVISOR            = 18       (L108, final)
     HIT_BALANCE_FACTOR    = 1/19     (L115, final)  → equal ACC/EVA = 95% on a 1.0 move
     CE_POOL_SCALE         = 8        (L118, final)
-    MOVES_PER_STAT_POINTS = 20       (L121, final)  → baseline 80 = 4 slots
+    ART_SLOT_TIERS        = table    (see §7)  → baseline 80 = 6 slots, max 15 at 300
     BF_BASE_CHANCE        = 0.03     (L124, PLACEHOLDER)
     BFS_BF_CHANCES        = {0.10, 0.20, 0.35, 0.50}  (L127, final)
     BF_DAMAGE_MULTIPLIER  = 2.5      (L130, final)
@@ -156,8 +156,8 @@ damage-resolution helpers. These are the numbers actually used in combat.
     Accuracy        = (S(CombatAbility) × 4 + S(Speed)) / 5                 → baseline 80
     Evasion         = (S(Speed) × 4 + S(CombatAbility)) / 5                → baseline 80
     Max CE (pool)   = round(S(CursedEnergyReserves) × CE_POOL_SCALE)       → baseline 80 = 640
-    Combat Arts slots = S(CombatAbility) / MOVES_PER_STAT_POINTS           → baseline 4
-    Jujutsu Arts slots= S(JujutsuSkill) / MOVES_PER_STAT_POINTS            → baseline 4
+    Combat Arts slots = artSlotsFor(CombatAbility)   ← RAW stat, threshold table (§7) → baseline 6
+    Jujutsu Arts slots= artSlotsFor(JujutsuSkill)    ← RAW stat, threshold table (§7) → baseline 6
 
   DEFENSE — computed per hit, NOT stored.
     The defender's resilience at the moment of each hit. CE reinforcement is
@@ -393,17 +393,25 @@ Pool is orthogonal to category and to tactical function (offensive/defensive/
 utility). It is derived from the RAW tag set, not from MoveCategory, because
 MoveCategory collapses the PHYSICAL tag away for defensive/utility moves.
 
-  COMBAT_ARTS    Moves carrying the PHYSICAL tag.  Slots = Combat Ability / 20.
-  JUJUTSU_ARTS   Moves WITHOUT the PHYSICAL tag.   Slots = Jujutsu Skill / 20.
+  COMBAT_ARTS    Moves carrying the PHYSICAL tag.  Slots ← Combat Ability (raw).
+  JUJUTSU_ARTS   Moves WITHOUT the PHYSICAL tag.   Slots ← Jujutsu Skill (raw).
 
   Hybrid rule: any move containing PHYSICAL counts as a Combat Art, even if it
   also carries technique or CE tags. A non-PHYSICAL move is always a Jujutsu Art
   regardless of whether it is offensive, defensive, or utility.
 
 MOVE SLOTS
-  The number of moves of each pool a character can equip.
-  Formula: slots = governing stat / MOVES_PER_STAT_POINTS (integer division).
-  Baseline stat 80 → 4 slots. Stat 300 → 15 slots.
+  The number of moves of each pool a character can equip. Progression is a
+  threshold table (ART_SLOT_TIERS), shared by both pools, read off the RAW
+  governing stat — slots are the one derived value that BYPASSES StatScale so
+  thresholds land on clean stat milestones instead of distorted numbers.
+
+  stat ≥  :   0   30   45   60   80   100   120   150   180   210   240   270   300
+  slots   :   2    3    4    5    6     8     9    10    11    12    13    14    15
+
+  In words: everyone gets 2 of each to start, then +1 at 30/45/60/80, +2 at 100,
+  +1 at 120/150, then +1 every 30 points up to a max of 15 at 300. Stats above
+  the max tier clamp to 15.
   Governing stats: COMBAT_ABILITY for Combat Arts, JUJUTSU_SKILL for Jujutsu Arts.
   (Cursed Technique Mastery does NOT grant slots.)
   Free moves (isFreeMove) skip only the slot-budget check.

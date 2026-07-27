@@ -19,8 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Builds a complete Scene2D {@link Skin} entirely in code, drawing every UI
- * texture as a 9-patch pixel pixmap at startup (no binary asset files required).
+ * Builds the Scene2D {@link Skin}, drawing its panel and control textures as
+ * 9-patch pixel pixmaps at startup and registering bundled UI sprites.
  *
  * The visual language matches the battle planner and character dossier:
  *   - Ink-blue framed headers and palette surfaces
@@ -168,6 +168,11 @@ public final class PixelSkin {
         Drawable scrollKnobV  = patch("scroll-knob-v", SCROLL_KNOB);
         Drawable listSel      = patch("list-sel",   new Color(SELECTION.r, SELECTION.g, SELECTION.b, 0.85f));
         Drawable whitePixel   = patch("white-pixel", Color.WHITE);
+        Texture pointerTexture = new Texture(
+            Gdx.files.internal("assets/ui/common/pointer.png"));
+        pointerTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        ownedTextures.add(pointerTexture);
+        Drawable tierPointer = new TextureRegionDrawable(new TextureRegion(pointerTexture));
         // Pure-white dropdown + list background (was parchment, which let the
         // screen colour bleed through).
         Drawable whitePanel   = textfield;
@@ -201,6 +206,7 @@ public final class PixelSkin {
         skin.add("scroll-knob-v", scrollKnobV,  Drawable.class);
         skin.add("list-sel",      listSel,      Drawable.class);
         skin.add("white-pixel",   whitePixel,   Drawable.class);
+        skin.add("tier-pointer",  tierPointer,  Drawable.class);
 
         registerLabelStyles(skin);
         registerTextButtonStyles(skin, card, cardOver, cardDisabled, primary, primaryOver);

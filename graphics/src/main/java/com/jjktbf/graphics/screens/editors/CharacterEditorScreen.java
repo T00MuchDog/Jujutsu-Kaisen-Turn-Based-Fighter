@@ -10,6 +10,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
@@ -34,6 +35,7 @@ import com.jjktbf.model.character.CombatStats;
 import com.jjktbf.model.character.CharacterRepository;
 import com.jjktbf.model.character.SlotBudgetEnforcer;
 import com.jjktbf.model.character.StatKey;
+import com.jjktbf.model.character.StatTier;
 import com.jjktbf.model.combat.PowerCalculator;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveData;
@@ -92,6 +94,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private Container<Actor> skillTreeContainer;
     private CheckBox pointBuyToggle;
     private Label baseStatTotalLabel;
+    private Label baseStatTierLabel;
     private Label budgetLabel;
     private int lastEditedStatIndex = -1;
     private int heldStatKey = -1;
@@ -373,8 +376,18 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             }
         });
         baseStatTotalLabel = new Label("", skin);
-        stats.add(pointBuyToggle).left().expandX();
-        stats.add(baseStatTotalLabel).right().padRight(10f).row();
+        baseStatTierLabel = new Label("", skin);
+        baseStatTierLabel.setFontScale(1.15f / AssetLoader.FONT_OVERSAMPLE);
+        Table baseStatSummary = new Table(skin);
+        baseStatSummary.add(baseStatTotalLabel).center().row();
+        baseStatSummary.add(baseStatTierLabel).center().padTop(2f).row();
+        Table baseStatSummaryOverlay = new Table(skin);
+        baseStatSummaryOverlay.top().right();
+        baseStatSummaryOverlay.add(baseStatSummary).right().padRight(10f);
+        Stack statsHeader = new Stack();
+        statsHeader.add(StatField.tierHeader(pointBuyToggle, skin));
+        statsHeader.add(baseStatSummaryOverlay);
+        stats.add(statsHeader).growX().colspan(2).row();
         refreshBaseStatTotalLabel(cd);
 
         // Budget label (point-buy only)
@@ -403,7 +416,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 markDirty();
             }, () -> lastEditedStatIndex = statIndex, locked, skin);
             statFields[i] = sf;
-            stats.add(sf).growX().row();
+            stats.add(sf).growX().colspan(2).row();
         }
 
         // ── Derived preview ──────────────────────────────────────────────────────
@@ -668,6 +681,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         int total = 0;
         for (StatKey stat : STAT_ORDER) total += stat.get(cd);
         baseStatTotalLabel.setText("Base Stat Total: " + total);
+        baseStatTierLabel.setText(StatTier.forBaseStatTotal(total).displayName());
     }
 
     private void refreshCtmLock() {
