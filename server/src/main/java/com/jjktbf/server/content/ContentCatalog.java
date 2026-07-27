@@ -238,7 +238,8 @@ public final class ContentCatalog {
                     definition.toCharacterStats(),
                     definition.innateTechniqueName,
                     moves,
-                    abilities
+                    abilities,
+                    definition.hasWeapon
                 );
                 charactersById.put(definition.id, character);
                 summaries.add(new CharacterSummary(

@@ -16,6 +16,9 @@ class ContentCatalogTest {
         assertTrue(catalog.findCharacter("000000").isPresent());
         assertTrue(catalog.findCharacter("000005").orElseThrow().getKnownMoves().stream()
             .anyMatch(move -> "Simple Domain".equals(move.getName())));
+        assertTrue(catalog.findCharacter("000003").orElseThrow().hasWeapon());
+        assertTrue(catalog.findCharacter("000003").orElseThrow().getKnownMoves().stream()
+            .anyMatch(move -> "Sword Slash".equals(move.getName())));
         assertFalse(catalog.findCharacter("missing").isPresent());
         assertFalse(catalog.findCharacter("000000").orElseThrow().getKnownMoves().isEmpty());
         assertThrows(UnsupportedOperationException.class,
