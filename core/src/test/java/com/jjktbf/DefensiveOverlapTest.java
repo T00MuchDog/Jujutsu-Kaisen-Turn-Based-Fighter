@@ -9,6 +9,7 @@ import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.CombatResolver;
 import com.jjktbf.model.combat.Timeline;
+import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
@@ -57,7 +58,7 @@ public class DefensiveOverlapTest {
         Move block = new Move.Builder("OVERLAP_BLOCK")
             .name("Overlap Guard")
             .category(MoveCategory.DEFENSIVE)
-            .defenseType(DefenseType.PERCENTAGE_BLOCK)
+            .defenseType(DefenseType.BLOCK).blockStyle(BlockStyle.PERCENTAGE)
             .blockDamageReduction(100)   // full block, for a loud log line
             .apCost(10)
             .unleashPoint(1)

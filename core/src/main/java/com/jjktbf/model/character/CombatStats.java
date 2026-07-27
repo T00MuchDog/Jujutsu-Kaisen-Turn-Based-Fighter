@@ -60,7 +60,7 @@ package com.jjktbf.model.character;
  *    BF only rolls on moves that are BlackFlashEligible (PHYSICAL + CE component).
  *
  *  DEFENSE (computed combat stat — applied on each hit AFTER defensive moves)
- *    Defense is computed during damage calculation, after PERCENTAGE_BLOCK and FLAT_BLOCK
+ *    Defense is computed during damage calculation, after BLOCK defensive moves
  *    have already been applied to the incoming damage. It is NOT a raw base stat but
  *    is derived from Durability, CE Reserves, the current CE pool, and CE Output at the
  *    moment of resolution. Utility moves that temporarily raise Durability will
@@ -205,7 +205,7 @@ public class CombatStats {
      * Compute the Defense value at the moment of a hit.
      *
      * Defense is a combat stat (not a base stat) applied AFTER defensive moves
-     * (PERCENTAGE_BLOCK / FLAT_BLOCK) have already reduced incoming damage.
+     * (BLOCK) have already reduced incoming damage.
      *
      * The CE contribution is CAPPED by Cursed Energy Output: while the pool can supply at
      * least (CE_OUTPUT × DEFENSE_CE_CAP_FACTOR), Defense holds at a plateau and spending CE

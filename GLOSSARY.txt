@@ -22,7 +22,7 @@ Placeholder tuning knobs are marked PLACEHOLDER.
   5.  MOVE TAGS                   (MoveTag.java)
   6.  MOVE CATEGORIES             (MoveCategory.java)
   7.  MOVE POOLS & MOVE SLOTS     (MovePool.java, SlotBudgetEnforcer.java)
-  8.  DEFENSE TYPES               (DefenseType.java)
+  8.  DEFENSE TYPES               (DefenseType.java, BlockStyle.java, DodgeScope.java)
   9.  AP TIMELINE                 (Timeline.java, ActionSegment.java)
   10. COMBAT PHASES               (BattleState.java)
   11. DAMAGE CALCULATION          (DamageCalculator.java, PowerCalculator.java)
@@ -213,19 +213,36 @@ are the Move/MoveData field names.
     maxCeCost             Ceiling: efficiency scaling cannot raise cost above this.
 
   Defensive data (used only when defenseType != NONE; see §8)
-    defenseType           NONE / PERCENTAGE_BLOCK / FLAT_BLOCK.
+    defenseType           NONE / BLOCK / PARRY / DODGE / SHIELD.
+    blockStyle            PERCENTAGE / FLAT. Used only when defenseType = BLOCK.
     blockDuration         0 = whole segment (start..end); -1 = end of round;
-                          >0 = that many ticks from the unleash point.
+                          >0 = that many ticks from the unleash point. Shared by
+                          BLOCK, PARRY, and DODGE.
     blockAffectedTags     Null = reduces all damage types. Else reduces only
-                          attacks whose tags are a subset of this list.
-    blockDamageReduction  0–100, PERCENTAGE_BLOCK only. 100 = full negation.
-    blockFlatReduction    FLAT_BLOCK only. Subtracted from final damage (floor 1).
+                          attacks whose tags are a subset of this list. (BLOCK.)
+    blockDamageReduction  0–100, PERCENTAGE block only. 100 = full negation.
+    blockFlatReduction    FLAT block only. Subtracted from final damage (floor 1).
+    dodgeChance           0–100%. DODGE only — probability to avoid a matching
+                          incoming attack entirely (no damage). Chance-based;
+                          not potency-gated.
+    dodgeScope            MELEE / RANGED / BOTH. DODGE only — which attack ranges
+                          the dodge reacts to.
+    parryStaggerTicks     AP ticks to STAGGER the attacker on a successful parry
+                          of a non-GUARD_BREAK attack. PARRY only. 0 = no stagger.
+    potency               1–5. Gates defence vs attack: a BLOCK/PARRY applies iff
+                          its potency ≥ the attack's potency. Always 1 for utility.
 
   Effects
     onHitEffects          List<StatusEffect> applied to the target on a hit.
                           STAGGER is configured here with an AP-tick duration.
     selfEffects           List<StatusEffect> applied to the user on unleash
                           (hit/miss/block agnostic). May carry a coded action.
+    onBlockEffects        List<StatusEffect> applied to the defender when a BLOCK
+                          negates/reduces a hit.
+    onParryEffects        List<StatusEffect> applied to the defender when a PARRY
+                          negates a hit.
+    onDodgeEffects        List<StatusEffect> applied to the defender when a DODGE
+                          avoids a hit.
 
   Learning / gating
     prerequisites         Map<stat name → minimum value>. All must be met to
@@ -240,6 +257,9 @@ are the Move/MoveData field names.
     mustBeGranted         If true, the move cannot be assigned directly in the
                           Character Editor; it must be made available through a
                           GRANT_MOVE or FORCE_MOVE ability effect.
+    weaponRequired        If true, only a character with a weapon
+                          (CharacterData.hasWeapon) can learn/use the move. Forced
+                          on for PARRY moves.
 
   Modifier flags (back dedicated MoveTag entries; see §5)
     stun        boolean  → Move.isStun()       → STUN tag
@@ -249,7 +269,11 @@ are the Move/MoveData field names.
   Other accessors worth knowing:
     isBlackFlashEligible()  delegates to the move's category.
     isMelee() / isRanged()  derived from the presence of the MELEE/RANGED tags.
-    isDefensive() / isActiveBlock()  derived from defenseType.
+    isDefensive()           derived from category == DEFENSIVE.
+    isBlock() / isParry() / isDodge()  derived from defenseType.
+    isActiveDefense()       true for BLOCK/PARRY/DODGE (has a tracked window).
+    dodgeAppliesTo(move)   DODGE scope vs an incoming attack's range.
+    parryStaggersAttacker(move)  true iff a parry should stagger the attacker.
     coveredByBlockTags(tags)  true if the attacker's tags are a subset of a
                               block's blockAffectedTags (block-coverage check).
     applyBlockTo(value)      applies a block's reduction to a damage value.
@@ -305,11 +329,12 @@ tag names below.
                           Segments that already fired are unaffected; HEAVY
                            segments resist the stun. Defensive/utility moves do
                            not apply the stun effect. Backed by Move.isStun().
-    GUARD_BREAK           A successful hit ignores the defender's blocking
-                          defensive moves (PERCENTAGE_BLOCK / FLAT_BLOCK) — the
-                          block applies no reduction and cannot negate the hit.
-                          Dodges and parries are unaffected; only blocks bypass.
-                          Backed by Move.isGuardBreak().
+    GUARD_BREAK           A successful hit ignores the defender's BLOCK defensive
+                          moves — the block applies no reduction and cannot negate
+                          the hit. Dodges and parries are unaffected; only blocks
+                          bypass. A guard-break attack is still negated by a parry
+                          but does NOT get staggered by one. Backed by
+                          Move.isGuardBreak().
     HEAVY                 An action segment carrying this move is IMMUNE to being
                           stunned by a STUN-tagged hit. HEAVY only resists the
                            STUN tag (not CE-depletion, ability-driven stuns, or
@@ -374,36 +399,73 @@ MOVE SLOTS
   Free moves (isFreeMove) skip only the slot-budget check.
 
 ================================================================================
-  8. DEFENSE TYPES  (DefenseType.java)
+  8. DEFENSE TYPES  (DefenseType.java, BlockStyle.java, DodgeScope.java)
 ================================================================================
 
+A DEFENSIVE move picks one defense type. Three are implemented (BLOCK, PARRY,
+DODGE); SHIELD is reserved.
+
+Shared duration rules (blockDuration; same for BLOCK, PARRY, DODGE):
+    blockDuration = 0    defense lasts the whole segment (start..endTick).
+    blockDuration = -1   defense lasts until end of round.
+    blockDuration > 0    defense lasts that many ticks from the unleash point.
+
+POTENCY GATE — attack vs defence
+  Every attack and every BLOCK/PARRY move carries a potency (1–5). A BLOCK or
+  PARRY applies iff its potency ≥ the incoming attack's potency; a higher-potency
+  attack blows through a lower-potency defence (the defence is simply ignored).
+  DODGE is chance-based and ignores potency. The gate is checked in
+  DamageCalculator; the window itself is tracked by Timeline.activeDefenseAt.
+
+GUARD_BREAK interaction
+  GUARD_BREAK bypasses BLOCK only. PARRY and DODGE are unaffected: a guard-break
+  attack is still parried (negated) and still rolled against by a dodge. A parry
+  of a guard-break attack deals no damage but does NOT stagger the attacker.
+
 NONE
-  Not a defensive move. No damage reduction applied.
+  Not a defensive move. No defence applied.
 
-PERCENTAGE_BLOCK
-  Percentage-based reduction. Incoming attacks that fire while this block is
-  active have their attack value multiplied by (1 − blockDamageReduction/100).
-  blockDamageReduction = 100  → full negation (damage 0, outcome BLOCKED).
-  blockDamageReduction < 100  → partial reduction (damage minimum 1,
-                                outcome MOVE_BLOCK_REDUCED).
+BLOCK
+  Damage reduction. The reduction formula is set by BlockStyle:
+    PERCENTAGE  attack value × (1 − blockDamageReduction/100).
+                blockDamageReduction = 100  → full negation (outcome BLOCKED).
+                blockDamageReduction < 100  → partial (outcome MOVE_BLOCK_REDUCED).
+    FLAT        subtract blockFlatReduction (damage floor 1).
+  Applied BEFORE Defense in the damage pipeline. Do NOT call "blockDamageReduction"
+  the "Defense" value — Defense is the computed stat applied AFTER the block.
+  blockAffectedTags: null/empty = all damage types; else only attacks whose tags
+  are a subset of the list (Move.coveredByBlockTags).
+  On a block, onBlockEffects fire on the defender.
 
-FLAT_BLOCK
-  Flat subtraction. blockFlatReduction is subtracted from the attack value.
-  Damage cannot go below 1 from this reduction alone.
+PARRY
+  A short reactive window that negates a hit entirely (outcome PARRIED, no damage
+  roll). Requires a weapon: weaponRequired is forced on for parries, so only a
+  character with a weapon (CharacterData.hasWeapon) can use one. Parries are
+  weapon-based and type-agnostic — any ATTACK can be parried.
+  On a successful parry of a non-GUARD_BREAK attack, the attacker is STAGGERED
+  for parryStaggerTicks AP ticks (0 = no stagger). A GUARD_BREAK attack is still
+  negated but is NOT staggered.
+  On a parry, onParryEffects fire on the defender.
 
-  Block duration rules (same for both block types):
-    blockDuration = 0    block lasts the whole segment (start..endTick).
-    blockDuration = -1   block lasts until end of round.
-    blockDuration > 0    block lasts that many ticks from the unleash point.
+DODGE
+  While active, each incoming attack matching the dodgeScope has a dodgeChance%
+  probability to be avoided entirely (outcome DODGED, no damage). Type-agnostic
+  (works vs physical and cursed energy) and NOT potency-gated. Future AOE attacks
+  will bypass dodge. dodgeScope (DodgeScope): MELEE / RANGED / BOTH.
+  On a dodge, onDodgeEffects fire on the defender.
 
-  blockAffectedTags:
-    Null/empty = reduces all incoming damage types.
-    Specified  = reduces only attacks whose tags are a subset of the list
-                 (Move.coveredByBlockTags).
+SHIELD
+  Reserved for a future defence flavour. Not yet implemented — the editor exposes
+  it as a placeholder and the engine treats it as NONE.
 
-  Applied BEFORE Defense in the damage pipeline.
-  Do NOT call "blockDamageReduction" the "Defense" value. Defense is the
-  computed stat from Durability + CE applied AFTER these block moves.
+DEFENSE DIALOGUE
+  Each type has its own activation/expiry and outcome lines:
+    BLOCK activation: "X raises their block! (…)"   expiry: "X drops their guard!"
+    PARRY activation: "X readies a parry!"           expiry: "X lowers their parry stance."
+    DODGE activation: "X stands ready to dodge!"     expiry: "X drops their ready stance."
+  Outcomes (distinct events): MOVE_BLOCKED / MOVE_BLOCK_REDUCED, MOVE_PARRIED,
+  MOVE_DODGED — note DODGED ("X dodged Y!") is separate from MOVE_MISSED
+  ("Y missed X!").
 
 ================================================================================
   9. AP TIMELINE  (Timeline.java, ActionSegment.java, BattlePlan.java)
@@ -523,8 +585,17 @@ POWER (PowerCalculator — integer division; cursedEnergyBase is shared):
 
 OUTCOMES (DamageResult.Outcome):
   MISS      Hit roll failed (or guaranteed dodge). No damage.
-  BLOCKED   Connected but fully negated by a block (PERCENTAGE_BLOCK at 100%).
+  DODGED    A live DODGE defence avoided the attack (dodgeChance roll). No damage.
+  PARRIED   A live PARRY negated the attack (potency-gated). No damage; the
+            attacker may be STAGGERED if the move lacked GUARD_BREAK.
+  BLOCKED   Connected but fully negated by a BLOCK (PERCENTAGE at 100%).
   HIT       Connected. Final damage applied (may include partial block reduction).
+
+RESOLUTION ORDER (DamageCalculator.resolve):
+  dodge roll (DODGE, chance-based) → hit roll → coded onAttackConnected →
+  parry check (PARRY, potency-gated) → forceFullBlock → block query (BLOCK,
+  potency-gated; bypassed by GUARD_BREAK) → power → block reduction →
+  defense → damage → Black Flash.
 
 RAW DAMAGE     Damage before the Black Flash multiplier.
 FINAL DAMAGE   Damage after all modifiers (block reduction, BF multiplier). What is

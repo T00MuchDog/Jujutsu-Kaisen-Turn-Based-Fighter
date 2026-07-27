@@ -42,6 +42,12 @@ public class CharacterData {
      */
     public String innateTechniqueName;
 
+    /**
+     * Whether this character wields a weapon. Gates {@code weaponRequired} moves
+     * (notably parries). Defaults to false.
+     */
+    public boolean hasWeapon = false;
+
     // --- Stats (all integers, range 10–300, baseline 80) ---
     public int vitality               = 80;
     public int strength               = 80;
@@ -163,7 +169,7 @@ public class CharacterData {
                 }
         }
 
-        return new SorcererCharacter(id, name, stats, innateTechniqueName, moves, abilities);
+        return new SorcererCharacter(id, name, stats, innateTechniqueName, moves, abilities, hasWeapon);
     }
 
     private void validateSelectedMoveNodes(

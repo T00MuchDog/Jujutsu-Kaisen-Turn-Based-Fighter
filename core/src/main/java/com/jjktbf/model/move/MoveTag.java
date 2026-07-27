@@ -123,8 +123,9 @@ public enum MoveTag {
 
     /**
      * Guard break modifier — a successful hit from this move ignores the defender's
-     * blocking defensive moves (PERCENTAGE_BLOCK / FLAT_BLOCK). Dodges and parries are
-     * unaffected; only blocks are bypassed.
+     * blocking defensive moves (BLOCK). Dodges and parries are unaffected; only
+     * blocks are bypassed. A guard-break attack is still negated by a parry but
+     * does not get staggered by one.
      *
      * A modifier tag like {@link #ATTACK} and {@link #STUN}: it does not affect the
      * Power formula, is not part of any {@link com.jjktbf.model.move.MoveCategory}'s

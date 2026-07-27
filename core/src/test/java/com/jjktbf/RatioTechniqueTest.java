@@ -15,6 +15,7 @@ import com.jjktbf.model.combat.CombatResolver;
 import com.jjktbf.model.combat.DamageCalculator;
 import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.combat.Timeline;
+import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
@@ -338,7 +339,7 @@ class RatioTechniqueTest {
         return new Move.Builder("FULL_BLOCK")
             .name("Full Block")
             .category(MoveCategory.DEFENSIVE)
-            .defenseType(DefenseType.PERCENTAGE_BLOCK)
+            .defenseType(DefenseType.BLOCK).blockStyle(BlockStyle.PERCENTAGE)
             .blockDamageReduction(100)
             .neverMiss(true)
             .apCost(10)

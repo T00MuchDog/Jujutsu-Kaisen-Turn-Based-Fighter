@@ -48,7 +48,7 @@ public class MoveData {
 
     /**
      * Backs the GUARD_BREAK move tag. When true, a successful hit ignores the
-     * defender's blocking defensive moves (PERCENTAGE_BLOCK / FLAT_BLOCK).
+     * defender's blocking defensive moves (BLOCK).
      */
     public boolean guardBreak     = false;
 
@@ -57,6 +57,19 @@ public class MoveData {
      * cannot be stunned by a STUN-tagged hit.
      */
     public boolean heavy          = false;
+
+    /**
+     * Move potency tier (1–5). For attack and defensive moves, gates which
+     * defences stop which attacks (a defence applies iff its potency ≥ the
+     * attack's). Utility moves ignore it. Defaults to 1.
+     */
+    public int     potency        = 1;
+
+    /**
+     * If true, this move requires the wielder to have a weapon
+     * (CharacterData.hasWeapon). Forced on for PARRY defence moves.
+     */
+    public boolean weaponRequired = false;
 
     public int     apCost;
     public int     unleashPoint;
@@ -70,21 +83,38 @@ public class MoveData {
     /** DefenseType enum name */
     public String  defenseType    = "NONE";
 
-    /** Block-specific fields (used when defenseType = PERCENTAGE_BLOCK or FLAT_BLOCK) */
-    /** Duration in AP ticks. 0 = use move's apCost. -1 = end of round. */
+    /** BlockStyle enum name (PERCENTAGE / FLAT). Used only when defenseType = BLOCK. */
+    public String  blockStyle     = "PERCENTAGE";
+
+    /** Block/dodge/parry shared field: duration in AP ticks. 0 = use move's apCost. -1 = end of round. */
     public int     blockDuration = 0;
-    /** Tags this block affects. Null = all damage types. */
+    /** Tags this block affects. Null = all damage types. (BLOCK only) */
     public List<String> blockAffectedTags;
-    /** PERCENTAGE_BLOCK only: percentage of damage reduced (0-100). 100 = full block. */
+    /** PERCENTAGE block only: percentage of damage reduced (0-100). 100 = full block. */
     public int     blockDamageReduction = 100;
-    /** FLAT_BLOCK only: flat damage amount subtracted from incoming attacks. */
+    /** FLAT block only: flat damage amount subtracted from incoming attacks. */
     public int     blockFlatReduction = 0;
+
+    /** DODGE only: chance (0-100%) to avoid a matching incoming attack. */
+    public int     dodgeChance    = 0;
+    /** DODGE only: MELEE / RANGED / BOTH. */
+    public String  dodgeScope     = "BOTH";
+
+    /** PARRY only: AP ticks to stagger the attacker on a successful non-GUARD_BREAK parry. 0 = none. */
+    public int     parryStaggerTicks = 0;
 
     /** List of on-hit StatusEffect descriptors */
     public List<StatusEffectData> onHitEffects;
 
     /** List of self StatusEffect descriptors */
     public List<StatusEffectData> selfEffects;
+
+    /** Status effects applied to the defender when a BLOCK negates/reduces a hit. */
+    public List<StatusEffectData> onBlockEffects;
+    /** Status effects applied to the defender when a PARRY negates a hit. */
+    public List<StatusEffectData> onParryEffects;
+    /** Status effects applied to the defender when a DODGE avoids a hit. */
+    public List<StatusEffectData> onDodgeEffects;
 
     /** Prerequisite stats: {"strength": 80, "speed": 60, ...} */
     public Map<String, Integer> prerequisites;
@@ -200,19 +230,36 @@ public class MoveData {
     // Defense type helpers — use these instead of raw string comparisons
     // -------------------------------------------------------------------------
 
-    /** True if this move uses percentage-based block reduction. */
+    /** True if this move uses percentage-based block reduction (defenceType = BLOCK, style = PERCENTAGE). */
     public boolean isPercentageBlock() {
-        return DefenseType.PERCENTAGE_BLOCK.name().equals(defenseType);
+        return DefenseType.BLOCK.name().equals(defenseType)
+            && BlockStyle.PERCENTAGE.name().equals(blockStyle);
     }
 
-    /** True if this move uses flat damage subtraction. */
+    /** True if this move uses flat damage subtraction (defenceType = BLOCK, style = FLAT). */
     public boolean isFlatBlock() {
-        return DefenseType.FLAT_BLOCK.name().equals(defenseType);
+        return DefenseType.BLOCK.name().equals(defenseType)
+            && BlockStyle.FLAT.name().equals(blockStyle);
     }
 
-    /** True if this move has any active block (PERCENTAGE_BLOCK or FLAT_BLOCK). */
+    /** True if this move has any active block (defenceType = BLOCK). */
     public boolean isAnyBlock() {
-        return isPercentageBlock() || isFlatBlock();
+        return DefenseType.BLOCK.name().equals(defenseType);
+    }
+
+    /** True if this move is a parry (defenceType = PARRY). */
+    public boolean isParry() {
+        return DefenseType.PARRY.name().equals(defenseType);
+    }
+
+    /** True if this move is a dodge (defenceType = DODGE). */
+    public boolean isDodge() {
+        return DefenseType.DODGE.name().equals(defenseType);
+    }
+
+    /** True if this move carries an active defense window (BLOCK, PARRY, or DODGE). */
+    public boolean hasActiveDefense() {
+        return isAnyBlock() || isParry() || isDodge();
     }
 
     // -------------------------------------------------------------------------
@@ -234,17 +281,23 @@ public class MoveData {
             .stun(stun)
             .guardBreak(guardBreak)
             .heavy(heavy)
+            .potency(potency)
+            .weaponRequired(weaponRequired)
             .apCost(apCost)
             .unleashPoint(unleashPoint)
             .baseCeCost(baseCeCost)
             .hasCeCost(hasCeCost != null ? hasCeCost : baseCeCost > 0)
             .minCeCost(minCeCost)
             .maxCeCost(maxCeCost)
-            .defenseType(DefenseType.valueOf(defenseType != null ? defenseType : "NONE"))
+            .defenseType(resolveDefenseType())
+            .blockStyle(resolveBlockStyle())
             .blockDuration(blockDuration)
             .blockAffectedTags(blockAffectedTags)
             .blockDamageReduction(blockDamageReduction)
             .blockFlatReduction(blockFlatReduction)
+            .dodgeChance(dodgeChance)
+            .dodgeScope(dodgeScope)
+            .parryStaggerTicks(parryStaggerTicks)
             .requiredTechniqueId(requiredTechniqueId)
             .freeMove(isFreeMove)
             .mustBeGranted(mustBeGranted);
@@ -253,8 +306,44 @@ public class MoveData {
         if (prerequisites != null)  b.prerequisites(prerequisites);
         if (onHitEffects  != null)  b.onHitEffects(toStatusEffects(onHitEffects));
         if (selfEffects   != null)  b.selfEffects(toStatusEffects(selfEffects));
+        if (onBlockEffects != null) b.onBlockEffects(toStatusEffects(onBlockEffects));
+        if (onParryEffects != null) b.onParryEffects(toStatusEffects(onParryEffects));
+        if (onDodgeEffects != null) b.onDodgeEffects(toStatusEffects(onDodgeEffects));
 
         return b.build();
+    }
+
+    /**
+     * Resolve the {@link DefenseType}, tolerating the legacy
+     * {@code PERCENTAGE_BLOCK} / {@code FLAT_BLOCK} enum names from older saves:
+     * both map to {@link DefenseType#BLOCK} (with the matching {@link BlockStyle}
+     * inferred for {@link #blockStyle} when it is blank).
+     */
+    private DefenseType resolveDefenseType() {
+        String name = defenseType != null ? defenseType.trim().toUpperCase() : "NONE";
+        return switch (name) {
+            case "PERCENTAGE_BLOCK", "FLAT_BLOCK" -> DefenseType.BLOCK;
+            default -> {
+                try { yield DefenseType.valueOf(name); }
+                catch (IllegalArgumentException e) { yield DefenseType.NONE; }
+            }
+        };
+    }
+
+    /**
+     * Resolve the {@link BlockStyle} for a BLOCK move, inferring it from a legacy
+     * {@code PERCENTAGE_BLOCK} / {@code FLAT_BLOCK} defence type when {@link #blockStyle}
+     * is blank. Defaults to {@link BlockStyle#PERCENTAGE}.
+     */
+    private BlockStyle resolveBlockStyle() {
+        String legacy = defenseType != null ? defenseType.trim().toUpperCase() : "";
+        if ("FLAT_BLOCK".equals(legacy)) return BlockStyle.FLAT;
+        if ("PERCENTAGE_BLOCK".equals(legacy)) return BlockStyle.PERCENTAGE;
+        String name = blockStyle != null ? blockStyle.trim().toUpperCase() : "PERCENTAGE";
+        return switch (name) {
+            case "FLAT" -> BlockStyle.FLAT;
+            default    -> BlockStyle.PERCENTAGE;
+        };
     }
 
     private Set<MoveTag> parsedTags() {
@@ -340,6 +429,8 @@ public class MoveData {
         d.stun                = move.isStun();
         d.guardBreak          = move.isGuardBreak();
         d.heavy               = move.isHeavy();
+        d.potency             = move.getPotency();
+        d.weaponRequired      = move.isWeaponRequired();
         d.apCost              = move.getApCost();
         d.unleashPoint        = move.getUnleashPoint();
         d.baseCeCost          = move.getBaseCeCost();
@@ -347,11 +438,15 @@ public class MoveData {
         d.minCeCost           = move.getMinCeCost();
         d.maxCeCost           = move.getMaxCeCost();
         d.defenseType           = move.getDefenseType().name();
+        d.blockStyle            = move.getBlockStyle() != null ? move.getBlockStyle().name() : "PERCENTAGE";
         d.blockDuration         = move.getBlockDuration();
         d.blockAffectedTags     = move.getBlockAffectedTags() != null
                                     ? new java.util.ArrayList<>(move.getBlockAffectedTags()) : null;
         d.blockDamageReduction  = move.getBlockDamageReduction();
         d.blockFlatReduction    = move.getBlockFlatReduction();
+        d.dodgeChance           = move.getDodgeChance();
+        d.dodgeScope            = move.getDodgeScope();
+        d.parryStaggerTicks     = move.getParryStaggerTicks();
         d.requiredTechniqueId = move.getRequiredTechniqueId();
         d.isFreeMove          = move.isFreeMove();
         d.mustBeGranted       = move.mustBeGranted();
@@ -363,6 +458,15 @@ public class MoveData {
         }
         if (!move.getSelfEffects().isEmpty()) {
             d.selfEffects = move.getSelfEffects().stream().map(MoveData::toEffectData).toList();
+        }
+        if (!move.getOnBlockEffects().isEmpty()) {
+            d.onBlockEffects = move.getOnBlockEffects().stream().map(MoveData::toEffectData).toList();
+        }
+        if (!move.getOnParryEffects().isEmpty()) {
+            d.onParryEffects = move.getOnParryEffects().stream().map(MoveData::toEffectData).toList();
+        }
+        if (!move.getOnDodgeEffects().isEmpty()) {
+            d.onDodgeEffects = move.getOnDodgeEffects().stream().map(MoveData::toEffectData).toList();
         }
         return d;
     }

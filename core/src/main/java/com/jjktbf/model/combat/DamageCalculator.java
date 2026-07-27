@@ -83,6 +83,22 @@ public final class DamageCalculator {
         // Use ability-modified stats for all calculations
         CharacterStats acs = attacker.getEffectiveStats();
 
+        Timeline defTimeline = defender.getTimeline();
+
+        // --- 0. Dodge roll (chance-based, no potency gate) ---
+        // A live DODGE defense reacts to a scope-matching incoming attack with a
+        // dodgeChance% probability of avoiding it entirely. (Future AOE bypasses.)
+        if (defTimeline != null) {
+            ActionSegment dodgeSeg = defTimeline.activeDefenseAt(
+                currentTick, move, com.jjktbf.model.move.DefenseType.DODGE);
+            if (dodgeSeg != null) {
+                int chance = Math.max(0, Math.min(100, dodgeSeg.getMove().getDodgeChance()));
+                if (chance >= 100 || rng.nextDouble() < chance / 100.0) {
+                    return DamageResult.dodged(move, dodgeSeg, List.of());
+                }
+            }
+        }
+
         // --- 1. Hit roll ---
         boolean hit;
         if (defender.consumeGuaranteedDodge()) {
@@ -113,17 +129,36 @@ public final class DamageCalculator {
         CodedHitModifiers codedModifiers = attacker.getCodedAbilities().onAttackConnected(
             attacker, defender, move, currentTick, rng);
 
+        // --- 1b. Parry check (potency-gated; GUARD_BREAK does NOT bypass parry) ---
+        // A parry negates the hit entirely. If the parry would stagger the attacker
+        // (non-GUARD_BREAK, parryStaggerTicks > 0), the resolver applies the stagger.
+        if (defTimeline != null) {
+            ActionSegment parrySeg = defTimeline.activeDefenseAt(
+                currentTick, move, com.jjktbf.model.move.DefenseType.PARRY);
+            if (parrySeg != null && parrySeg.getMove().getPotency() >= move.getPotency()) {
+                boolean stagger = parrySeg.getMove().parryStaggersAttacker(move);
+                int staggerTicks = stagger ? parrySeg.getMove().getParryStaggerTicks() : 0;
+                return DamageResult.parried(move, parrySeg, staggerTicks, codedModifiers.events());
+            }
+        }
+
         if (forceFullBlock && !move.isGuardBreak()) {
             return DamageResult.blocked(move, codedModifiers.events());
         }
         boolean bypassBlock = move.isGuardBreak() || codedModifiers.bypassBlock();
 
         // --- 2. Check block ---
-        // A GUARD_BREAK move ignores blocking defensive moves (PERCENTAGE_BLOCK /
-        // FLAT_BLOCK). Dodges and parries are unaffected; only blocks are bypassed.
-        Timeline defTimeline = defender.getTimeline();
-        ActionSegment activeBlockSegment = (!bypassBlock && defTimeline != null)
-            ? defTimeline.activeBlockAt(currentTick, move) : null;
+        // A GUARD_BREAK move ignores blocking defensive moves (BLOCK). Dodges and
+        // parries are unaffected; only blocks are bypassed. Blocks are potency-gated:
+        // a block only applies when block.potency >= attack.potency.
+        ActionSegment activeBlockSegment = null;
+        if (!bypassBlock && defTimeline != null) {
+            ActionSegment blk = defTimeline.activeDefenseAt(
+                currentTick, move, com.jjktbf.model.move.DefenseType.BLOCK);
+            if (blk != null && blk.getMove().getPotency() >= move.getPotency()) {
+                activeBlockSegment = blk;
+            }
+        }
 
         // --- 3. Power ---
         double power = Math.max(0.0, attacker.modifyBattleStat(
@@ -202,7 +237,7 @@ public final class DamageCalculator {
 
     public static class DamageResult {
 
-        public enum Outcome { MISS, BLOCKED, HIT }
+        public enum Outcome { MISS, BLOCKED, HIT, DODGED, PARRIED }
 
         private final Outcome outcome;
         private final Move    move;
@@ -211,6 +246,10 @@ public final class DamageCalculator {
         private final boolean blackFlash;
         private final boolean bypassedBlock;
         private final List<CombatEvent> codedEvents;
+        /** The defender's defense segment that resolved this result (block/parry/dodge), if any. */
+        private final ActionSegment defenseSegment;
+        /** For a PARRIED result: ticks to stagger the attacker (0 = no stagger). */
+        private final int parryStaggerTicks;
 
         private DamageResult(
             Outcome outcome,
@@ -219,7 +258,9 @@ public final class DamageCalculator {
             int rawDamage,
             boolean blackFlash,
             boolean bypassedBlock,
-            List<CombatEvent> codedEvents
+            List<CombatEvent> codedEvents,
+            ActionSegment defenseSegment,
+            int parryStaggerTicks
         ) {
             this.outcome     = outcome;
             this.move        = move;
@@ -228,14 +269,28 @@ public final class DamageCalculator {
             this.blackFlash  = blackFlash;
             this.bypassedBlock = bypassedBlock;
             this.codedEvents = codedEvents == null ? List.of() : List.copyOf(codedEvents);
+            this.defenseSegment = defenseSegment;
+            this.parryStaggerTicks = parryStaggerTicks;
         }
 
         public static DamageResult miss(Move move) {
-            return new DamageResult(Outcome.MISS, move, 0, 0, false, false, List.of());
+            return new DamageResult(Outcome.MISS, move, 0, 0, false, false, List.of(), null, 0);
         }
         public static DamageResult blocked(Move move, List<CombatEvent> codedEvents) {
             return new DamageResult(
-                Outcome.BLOCKED, move, 0, 0, false, false, codedEvents);
+                Outcome.BLOCKED, move, 0, 0, false, false, codedEvents, null, 0);
+        }
+        /** Dodge outcome — the defender avoided the attack entirely. */
+        public static DamageResult dodged(Move move, ActionSegment dodgeSegment,
+                                          List<CombatEvent> codedEvents) {
+            return new DamageResult(Outcome.DODGED, move, 0, 0, false, false,
+                codedEvents, dodgeSegment, 0);
+        }
+        /** Parry outcome — the defender negated the attack; {@code staggerTicks} stagger the attacker. */
+        public static DamageResult parried(Move move, ActionSegment parrySegment,
+                                           int staggerTicks, List<CombatEvent> codedEvents) {
+            return new DamageResult(Outcome.PARRIED, move, 0, 0, false, false,
+                codedEvents, parrySegment, staggerTicks);
         }
         public static DamageResult hit(Move move, int finalDmg, int rawDmg, boolean bf) {
             return hit(move, finalDmg, rawDmg, bf, move.isGuardBreak(), List.of());
@@ -249,7 +304,7 @@ public final class DamageCalculator {
             List<CombatEvent> codedEvents
         ) {
             return new DamageResult(Outcome.HIT, move, finalDmg, rawDmg, bf,
-                bypassedBlock, codedEvents);
+                bypassedBlock, codedEvents, null, 0);
         }
 
         public Outcome getOutcome()     { return outcome; }
@@ -259,8 +314,16 @@ public final class DamageCalculator {
         public boolean isBlackFlash()   { return blackFlash; }
         public boolean bypassedBlock()  { return bypassedBlock; }
         public List<CombatEvent> getCodedEvents() { return codedEvents; }
+        public ActionSegment getDefenseSegment() { return defenseSegment; }
+        public int getParryStaggerTicks() { return parryStaggerTicks; }
         public boolean isHit()          { return outcome == Outcome.HIT; }
         public boolean isMiss()         { return outcome == Outcome.MISS; }
         public boolean isBlocked()      { return outcome == Outcome.BLOCKED; }
+        public boolean isDodged()       { return outcome == Outcome.DODGED; }
+        public boolean isParried()      { return outcome == Outcome.PARRIED; }
+        /** True iff a parry should stagger the attacker (PARRIED + staggerTicks > 0). */
+        public boolean staggersAttacker() {
+            return outcome == Outcome.PARRIED && parryStaggerTicks > 0;
+        }
     }
 }

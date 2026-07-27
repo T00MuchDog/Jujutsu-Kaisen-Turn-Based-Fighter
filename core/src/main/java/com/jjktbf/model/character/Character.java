@@ -47,6 +47,13 @@ public abstract class Character extends Entity {
     private final List<Ability> abilities;
     private final Set<String> forcedMoveIds;
 
+    /**
+     * Whether this character wields a weapon. A move flagged
+     * {@code weaponRequired} (notably every {@link com.jjktbf.model.move.DefenseType#PARRY})
+     * can only be learned/used by a character with a weapon.
+     */
+    private final boolean hasWeapon;
+
     // -------------------------------------------------------------------------
     // Construction
     // -------------------------------------------------------------------------
@@ -71,7 +78,8 @@ public abstract class Character extends Entity {
         List<Move>     knownMoves,
         List<Ability>  abilities
     ) {
-        this(id, name, type, baseStats, innateTechniqueName, knownMoves, abilities, accessibleTechniquesOf(innateTechniqueName, abilities));
+        this(id, name, type, baseStats, innateTechniqueName, knownMoves, abilities,
+             accessibleTechniquesOf(innateTechniqueName, abilities), false);
     }
 
     /**
@@ -86,6 +94,9 @@ public abstract class Character extends Entity {
      * <p>Move validation checks membership against this set instead of a single
      * {@code equalsIgnoreCase} against the innate name — which is what makes
      * UNLOCK_TECHNIQUE (and, by extension, Copy) functional.
+     *
+     * @param hasWeapon whether this character wields a weapon (gates
+     *                  {@code weaponRequired} moves such as parries)
      */
     protected Character(
         String         id,
@@ -95,7 +106,8 @@ public abstract class Character extends Entity {
         String         innateTechniqueName,
         List<Move>     knownMoves,
         List<Ability>  abilities,
-        java.util.Set<String> accessibleTechniques
+        java.util.Set<String> accessibleTechniques,
+        boolean        hasWeapon
     ) {
         super(id, name);
         Objects.requireNonNull(type,      "CharacterType cannot be null");
@@ -105,11 +117,12 @@ public abstract class Character extends Entity {
         this.baseStats          = baseStats;
         this.combatStats        = new CombatStats(baseStats);
         this.innateTechniqueName = innateTechniqueName;
+        this.hasWeapon          = hasWeapon;
         Set<String> availableMoveIds = availableMoveIdsOf(abilities);
         Set<String> forcedMoves = forcedMoveIdsOf(abilities);
         List<Move> validatedMoves = validateAndBuildMoveList(
             knownMoves, baseStats, combatStats, accessibleTechniques,
-            availableMoveIds, forcedMoves, lockedMoveTagsOf(abilities));
+            availableMoveIds, forcedMoves, lockedMoveTagsOf(abilities), hasWeapon);
         validateCodedMoveReferences(validatedMoves);
         this.knownMoves = Collections.unmodifiableList(validatedMoves);
         this.forcedMoveIds = Collections.unmodifiableSet(forcedMoves);
@@ -139,7 +152,7 @@ public abstract class Character extends Entity {
      * innate technique plus any technique granted by an {@code UNLOCK_TECHNIQUE}
      * ability effect. Case-insensitive (names are lower-cased on insertion).
      */
-    private static java.util.Set<String> accessibleTechniquesOf(
+    static java.util.Set<String> accessibleTechniquesOf(
             String innateTechniqueName, List<Ability> abilities) {
         java.util.Set<String> set = new java.util.HashSet<>();
         if (innateTechniqueName != null && !innateTechniqueName.isBlank()) {
@@ -232,7 +245,8 @@ public abstract class Character extends Entity {
         java.util.Set<String> accessibleTechniques,
         java.util.Set<String> availableMoveIds,
         java.util.Set<String> forcedMoveIds,
-        java.util.Set<String> lockedMoveTags
+        java.util.Set<String> lockedMoveTags,
+        boolean        hasWeapon
     ) {
         if (moves == null) return List.of();
 
@@ -247,6 +261,16 @@ public abstract class Character extends Entity {
             if (move.mustBeGranted() && !moveAvailable) {
                 throw new IllegalArgumentException(
                     "Move '" + move.getName() + "' must be granted by an ability");
+            }
+
+            // --- 0. Weapon requirement ---
+            // A weaponRequired move (notably every parry) needs a weapon-wielding
+            // character. Forced moves (ability-granted) bypass this like the other
+            // restrictions, so an ability can still bestow a weapon technique.
+            if (!forced && move.isWeaponRequired() && !hasWeapon) {
+                throw new IllegalArgumentException(
+                    "Move '" + move.getName() + "' requires a weapon but character '"
+                    + "' does not have one");
             }
 
             if (!forced && lockedMoveTags != null
@@ -324,4 +348,5 @@ public abstract class Character extends Entity {
     public List<Ability>   getAbilities()            { return abilities; }
     public Set<String>     getForcedMoveIds()         { return forcedMoveIds; }
     public boolean         hasInnateTechnique()      { return innateTechniqueName != null; }
+    public boolean         hasWeapon()                { return hasWeapon; }
 }

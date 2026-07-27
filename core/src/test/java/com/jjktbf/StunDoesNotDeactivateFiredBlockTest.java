@@ -8,6 +8,7 @@ import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.CombatResolver;
 import com.jjktbf.model.combat.Timeline;
+import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
@@ -57,7 +58,7 @@ public class StunDoesNotDeactivateFiredBlockTest {
         Move block = new Move.Builder("GUARD")
             .name("Guard")
             .category(MoveCategory.DEFENSIVE)
-            .defenseType(DefenseType.PERCENTAGE_BLOCK)
+            .defenseType(DefenseType.BLOCK).blockStyle(BlockStyle.PERCENTAGE)
             .blockDamageReduction(50)
             .blockDuration(10)            // window = [1, 10] after firing at tick 1
             .apCost(10)

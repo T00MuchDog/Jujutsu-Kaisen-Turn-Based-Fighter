@@ -34,7 +34,9 @@ import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.character.coded.NewShadowStyleAbility;
 import com.jjktbf.model.character.coded.RatioAbility;
+import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
+import com.jjktbf.model.move.DodgeScope;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveRepository;
 import com.jjktbf.model.move.MoveTag;
@@ -65,7 +67,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
     // Handles to dynamically-shown/hidden widgets, refreshed in rebuildDetail.
     private Container<Actor> categorySectionsContainer;
-    private Container<Actor> blockFieldsContainer;
+    private Container<Actor> defenseFieldsContainer;
     private Container<Actor> ceMinMaxContainer;
     private Container<Actor> powerFieldsContainer;
 
@@ -95,12 +97,21 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         m.minCeCost = 0;
         m.maxCeCost = 0;
         m.defenseType = DefenseType.NONE.name();
+        m.blockStyle = BlockStyle.PERCENTAGE.name();
         m.blockDuration = 0;
         m.blockAffectedTags = null;
         m.blockDamageReduction = 100;
         m.blockFlatReduction = 0;
+        m.dodgeChance = 0;
+        m.dodgeScope = "BOTH";
+        m.parryStaggerTicks = 0;
+        m.potency = 1;
+        m.weaponRequired = false;
         m.onHitEffects = new ArrayList<>();
         m.selfEffects = new ArrayList<>();
+        m.onBlockEffects = new ArrayList<>();
+        m.onParryEffects = new ArrayList<>();
+        m.onDodgeEffects = new ArrayList<>();
         m.prerequisites = null;
         m.requiredTechniqueId = null;
         m.isFreeMove = false;
@@ -129,6 +140,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         d.stun                  = s.stun;
         d.guardBreak            = s.guardBreak;
         d.heavy                 = s.heavy;
+        d.potency               = s.potency;
+        d.weaponRequired        = s.weaponRequired;
         d.apCost                = s.apCost;
         d.unleashPoint          = s.unleashPoint;
         d.baseCeCost            = s.baseCeCost;
@@ -136,11 +149,15 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         d.minCeCost             = s.minCeCost;
         d.maxCeCost             = s.maxCeCost;
         d.defenseType           = s.defenseType;
+        d.blockStyle            = s.blockStyle;
         d.blockDuration         = s.blockDuration;
         d.blockAffectedTags     = s.blockAffectedTags != null
                                   ? new ArrayList<>(s.blockAffectedTags) : null;
         d.blockDamageReduction  = s.blockDamageReduction;
         d.blockFlatReduction    = s.blockFlatReduction;
+        d.dodgeChance           = s.dodgeChance;
+        d.dodgeScope            = s.dodgeScope;
+        d.parryStaggerTicks     = s.parryStaggerTicks;
         // Effect lists MUST be mutable ArrayLists — the "+ Add effect" handlers
         // call list.add(...). Stream.toList() returns an immutable list which
         // throws UnsupportedOperationException on add (the editor crash bug).
@@ -154,12 +171,23 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                                       .filter(java.util.Objects::nonNull)
                                       .collect(java.util.stream.Collectors.toCollection(ArrayList::new))
                                   : new ArrayList<>();
+        d.onBlockEffects        = copyEffectList(s.onBlockEffects);
+        d.onParryEffects        = copyEffectList(s.onParryEffects);
+        d.onDodgeEffects        = copyEffectList(s.onDodgeEffects);
         d.prerequisites         = s.prerequisites != null
                                   ? new LinkedHashMap<>(s.prerequisites) : null;
         d.requiredTechniqueId   = s.requiredTechniqueId;
         d.isFreeMove            = s.isFreeMove;
         d.mustBeGranted         = s.mustBeGranted;
         return d;
+    }
+
+    /** Deep-copy an effect list into a mutable ArrayList (null → empty ArrayList). */
+    private static ArrayList<MoveData.StatusEffectData> copyEffectList(java.util.List<MoveData.StatusEffectData> src) {
+        if (src == null) return new ArrayList<>();
+        return src.stream().map(MoveEditorScreen::copyEffect)
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
     }
 
     private static MoveData.StatusEffectData copyEffect(MoveData.StatusEffectData e) {
@@ -349,7 +377,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             boolean hasCodedSelfEffect = move.selfEffects != null
                 && move.selfEffects.stream().anyMatch(MoveData.StatusEffectData::isCoded);
             if (defense == DefenseType.NONE && !hasCodedSelfEffect) {
-                return "A Defensive move needs a block type or coded self effect.";
+                return "A Defensive move needs a defense type (Block, Parry, or Dodge) or a coded self effect.";
             }
         }
         return null;
@@ -515,7 +543,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         // Drop references to the previous form so that event cannot refresh
         // detached actors.
         categorySectionsContainer = null;
-        blockFieldsContainer = null;
+        defenseFieldsContainer = null;
         ceMinMaxContainer = null;
         powerFieldsContainer = null;
 
@@ -631,6 +659,25 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             "Hidden until an ability grants or forces it. A granted move is learned normally."))
             .left().row();
 
+        // Weapon requirement: forces the wielder to have a weapon. Locked on for
+        // parries (which always require a weapon) — read-only in that case.
+        boolean parryLocked = DefenseType.PARRY.name().equals(d.defenseType);
+        if (parryLocked) d.weaponRequired = true;
+        CheckBox weaponCb = new CheckBox(" Requires a weapon", skin);
+        weaponCb.setChecked(d.weaponRequired);
+        weaponCb.setDisabled(parryLocked);
+        weaponCb.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                if (weaponCb.isDisabled()) return;
+                d.weaponRequired = weaponCb.isChecked();
+                markDirty();
+            }
+        });
+        misc.add(weaponCb).left().row();
+        misc.add(formHint(
+            "Only usable by characters with a weapon. Always on for parries."))
+            .left().row();
+
         return form;
     }
 
@@ -642,7 +689,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         Table sections = formRoot();
         sections.pad(0f);
         powerFieldsContainer = null;
-        blockFieldsContainer = null;
+        defenseFieldsContainer = null;
 
         if (hasTag(d, MoveTag.ATTACK)) {
             Table attack = formSection(sections, "ATTACK");
@@ -670,11 +717,17 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             Table defense = formSection(sections, "DEFENSE");
             defense.add(labelledRow("Type", new EnumSelectBox<>(
                 DefenseType.class, d.defenseType, false,
-                s -> { d.defenseType = s; refreshConditionalFields(d); }, skin))).growX().row();
+                s -> {
+                    d.defenseType = s;
+                    // A parry requires a weapon by definition — force it on so the
+                    // weapon-required indicator and downstream validation agree.
+                    if (DefenseType.PARRY.name().equals(s)) d.weaponRequired = true;
+                    refreshConditionalFields(d);
+                }, skin))).growX().row();
 
-            blockFieldsContainer = new Container<>();
-            blockFieldsContainer.setActor(buildBlockFields(d));
-            defense.add(blockFieldsContainer).growX().row();
+            defenseFieldsContainer = new Container<>();
+            defenseFieldsContainer.setActor(buildDefenseFields(d));
+            defense.add(defenseFieldsContainer).growX().row();
         }
 
         if (hasTag(d, MoveTag.UTILITY)) {
@@ -694,6 +747,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         t.defaults().left().pad(4);
         t.add(labelledIntField("Base Power", d.basePower, 0, 99999,
                 v -> { d.basePower = v; })).growX().row();
+        // Potency gates which defensive moves can stop this attack (1–5).
+        t.add(labelledIntField("Potency (1–5)", d.potency, 1, 5,
+                v -> { d.potency = v; })).growX().row();
         if (d.neverMiss) {
             t.add(formHint("Accuracy is N/A for a never-miss move.")).row();
             return t;
@@ -721,34 +777,116 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         return t;
     }
 
-    private Actor buildBlockFields(MoveData d) {
-        Table t = new Table(skin);
-        t.defaults().left().pad(4);
+    /**
+     * Dispatcher that renders the per-defense-type sub-options. Rebuilt whenever
+     * the DEFENSE Type dropdown changes (via {@link #refreshConditionalFields}).
+     */
+    private Actor buildDefenseFields(MoveData d) {
         DefenseType dt;
         try { dt = DefenseType.valueOf(d.defenseType); }
         catch (Exception e) { dt = DefenseType.NONE; }
 
-        if (dt == DefenseType.NONE) {
-            t.add(formHint("(no defense — select PERCENTAGE_BLOCK or FLAT_BLOCK)")).row();
-            return t;
+        switch (dt) {
+            case BLOCK:  return buildBlockFields(d);
+            case PARRY:  return buildParryFields(d);
+            case DODGE:  return buildDodgeFields(d);
+            case SHIELD:
+                Table stub = new Table(skin);
+                stub.defaults().left().pad(4);
+                stub.add(formHint("(SHIELD is reserved — not yet implemented)")).row();
+                return stub;
+            default:
+                Table none = new Table(skin);
+                none.defaults().left().pad(4);
+                none.add(formHint("(no defense — select BLOCK, PARRY, or DODGE)")).row();
+                return none;
         }
+    }
 
-        // Block duration (−1 = end of round, 0 = use AP)
-        t.add(labelledIntField("Block Duration (−1 = EOR, 0 = use AP)",
-                d.blockDuration, -1, 99999,
-                v -> { d.blockDuration = v; })).growX().row();
+    private Actor buildBlockFields(MoveData d) {
+        Table t = new Table(skin);
+        t.defaults().left().pad(4);
 
-        if (dt == DefenseType.PERCENTAGE_BLOCK) {
+        // Block style: percentage vs flat reduction.
+        t.add(labelledRow("Style", new EnumSelectBox<>(
+            BlockStyle.class, d.blockStyle, false,
+            s -> { d.blockStyle = s; refreshConditionalFields(d); }, skin))).growX().row();
+
+        if (d.isPercentageBlock()) {
             t.add(labelledIntField("Damage Reduction %", d.blockDamageReduction, 0, 100,
                     v -> { d.blockDamageReduction = v; d.blockFlatReduction = 0; })).growX().row();
-        } else { // FLAT_BLOCK
+        } else if (d.isFlatBlock()) {
             t.add(labelledIntField("Flat Reduction", d.blockFlatReduction, 0, 99999,
                     v -> { d.blockFlatReduction = v; d.blockDamageReduction = 100; })).growX().row();
         }
 
+        // Duration (shared by all defence types): -1 = end of round, 0 = use AP.
+        t.add(labelledIntField("Duration (−1 = EOR, 0 = use AP)",
+                d.blockDuration, -1, 99999,
+                v -> { d.blockDuration = v; })).growX().row();
+
+        // Potency gates which attacks this block can stop.
+        t.add(labelledIntField("Potency (1–5)", d.potency, 1, 5,
+                v -> { d.potency = v; })).growX().row();
+
         // Affected tags — multi-toggle
         t.add(new Label("Affected Tags (blank = all)", skin)).padTop(4).row();
         t.add(buildBlockTagToggles(d)).growX().row();
+
+        t.add(new Label("ON-BLOCK EFFECTS", skin, "small")).padTop(8f).left().row();
+        t.add(buildEffectsEditor("onBlock", d)).growX().row();
+        return t;
+    }
+
+    private Actor buildParryFields(MoveData d) {
+        Table t = new Table(skin);
+        t.defaults().left().pad(4);
+
+        // A parry forces weaponRequired on; show it as a fixed-on indicator.
+        t.add(labelledRow("Weapon Required", new Label("Yes (parries always require a weapon)",
+            skin, "small"))).growX().row();
+
+        // Duration (parry windows are typically short).
+        t.add(labelledIntField("Duration (−1 = EOR, 0 = use AP)",
+                d.blockDuration, -1, 99999,
+                v -> { d.blockDuration = v; })).growX().row();
+
+        // Potency gates which attacks this parry can stop.
+        t.add(labelledIntField("Potency (1–5)", d.potency, 1, 5,
+                v -> { d.potency = v; })).growX().row();
+
+        // Stagger ticks applied to the attacker on a successful non-GUARD_BREAK parry.
+        t.add(labelledIntField("Stagger Ticks on Attacker (0 = none)",
+                d.parryStaggerTicks, 0, 99999,
+                v -> { d.parryStaggerTicks = v; })).growX().row();
+        t.add(formHint("Applied only when the parried move lacks the GUARD_BREAK tag.")).row();
+
+        t.add(new Label("ON-PARRY EFFECTS", skin, "small")).padTop(8f).left().row();
+        t.add(buildEffectsEditor("onParry", d)).growX().row();
+        return t;
+    }
+
+    private Actor buildDodgeFields(MoveData d) {
+        Table t = new Table(skin);
+        t.defaults().left().pad(4);
+
+        // Dodge chance (0–100%). Chance-based, not potency-gated.
+        t.add(labelledIntField("Dodge Chance %", d.dodgeChance, 0, 100,
+                v -> { d.dodgeChance = v; })).growX().row();
+
+        // Scope: which attack ranges this dodge reacts to.
+        t.add(labelledRow("Scope", new EnumSelectBox<>(
+            DodgeScope.class, d.dodgeScope, false,
+            s -> { d.dodgeScope = s; }, skin))).growX().row();
+
+        // Duration.
+        t.add(labelledIntField("Duration (−1 = EOR, 0 = use AP)",
+                d.blockDuration, -1, 99999,
+                v -> { d.blockDuration = v; })).growX().row();
+        t.add(formHint("Dodge is chance-based and ignores potency. (AOE will bypass it.)")).row();
+
+        t.add(new Label("ON-DODGE EFFECTS", skin, "small")).padTop(8f).left().row();
+        t.add(buildEffectsEditor("onDodge", d)).growX().row();
         return t;
     }
 
@@ -885,14 +1023,29 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     }
 
     /**
-     * Build a simple list editor for status effects (onHit or self).
-     * @param which "onHit" or "self"
+     * Build a simple list editor for status effects.
+     * @param which one of "onHit", "self", "onBlock", "onParry", "onDodge"
      */
     private Actor buildEffectsEditor(String which, MoveData d) {
-        List<MoveData.StatusEffectData> raw = "onHit".equals(which) ? d.onHitEffects : d.selfEffects;
+        List<MoveData.StatusEffectData> raw;
+        switch (which) {
+            case "onHit":   raw = d.onHitEffects;   break;
+            case "self":    raw = d.selfEffects;    break;
+            case "onBlock": raw = d.onBlockEffects;  break;
+            case "onParry": raw = d.onParryEffects;  break;
+            case "onDodge": raw = d.onDodgeEffects;  break;
+            default:        raw = d.onHitEffects;    break;
+        }
         if (raw == null) {
             raw = new ArrayList<>();
-            if ("onHit".equals(which)) d.onHitEffects = raw; else d.selfEffects = raw;
+            switch (which) {
+                case "onHit":   d.onHitEffects = raw;   break;
+                case "self":    d.selfEffects = raw;    break;
+                case "onBlock": d.onBlockEffects = raw; break;
+                case "onParry": d.onParryEffects = raw; break;
+                case "onDodge": d.onDodgeEffects = raw; break;
+                default:        d.onHitEffects = raw;   break;
+            }
         }
         final List<MoveData.StatusEffectData> list = raw;
 
@@ -1294,7 +1447,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     /** Re-render fields whose contents depend on another value in their card. */
     private void refreshConditionalFields(MoveData d) {
         markDirty();
-        if (blockFieldsContainer != null) blockFieldsContainer.setActor(buildBlockFields(d));
+        if (defenseFieldsContainer != null) defenseFieldsContainer.setActor(buildDefenseFields(d));
         if (ceMinMaxContainer  != null) ceMinMaxContainer.setActor(buildCeMinMax(d));
         if (powerFieldsContainer != null) powerFieldsContainer.setActor(buildPowerFields(d));
     }
@@ -1318,10 +1471,17 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         }
         if (!hasTag(d, MoveTag.DEFENSIVE)) {
             d.defenseType = DefenseType.NONE.name();
+            d.blockStyle = BlockStyle.PERCENTAGE.name();
             d.blockDuration = 0;
             d.blockAffectedTags = null;
             d.blockDamageReduction = 100;
             d.blockFlatReduction = 0;
+            d.dodgeChance = 0;
+            d.dodgeScope = "BOTH";
+            d.parryStaggerTicks = 0;
+            d.onBlockEffects = new ArrayList<>();
+            d.onParryEffects = new ArrayList<>();
+            d.onDodgeEffects = new ArrayList<>();
         }
     }
 

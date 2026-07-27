@@ -1,5 +1,6 @@
 package com.jjktbf.graphics.screens.editors;
 
+import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveTag;
@@ -47,7 +48,8 @@ class MoveEditorScreenTest {
         assertFalse(saved.neverMiss);
         assertTrue(saved.onHitEffects.isEmpty());
 
-        assertEquals(DefenseType.FLAT_BLOCK.name(), saved.defenseType);
+        assertEquals(DefenseType.BLOCK.name(), saved.defenseType);
+        assertEquals(BlockStyle.FLAT.name(), saved.blockStyle);
         assertEquals(4, saved.blockDuration);
         assertEquals(List.of(MoveTag.PHYSICAL.name()), saved.blockAffectedTags);
         assertEquals(20, saved.blockFlatReduction);
@@ -152,7 +154,7 @@ class MoveEditorScreenTest {
         MoveData defense = new MoveData();
         defense.tags = new ArrayList<>(List.of(MoveTag.DEFENSIVE.name()));
         defense.defenseType = DefenseType.NONE.name();
-        assertEquals("A Defensive move needs a block type or coded self effect.",
+        assertEquals("A Defensive move needs a defense type (Block, Parry, or Dodge) or a coded self effect.",
             MoveEditorScreen.categoryTagValidationError(defense));
     }
 
@@ -202,7 +204,8 @@ class MoveEditorScreenTest {
         data.onHitEffects = new ArrayList<>(List.of(
             effect(StatusEffectType.STRENGTH_DECREASE)));
 
-        data.defenseType = DefenseType.FLAT_BLOCK.name();
+        data.defenseType = DefenseType.BLOCK.name();
+        data.blockStyle = BlockStyle.FLAT.name();
         data.blockDuration = 4;
         data.blockAffectedTags = new ArrayList<>(List.of(MoveTag.PHYSICAL.name()));
         data.blockDamageReduction = 35;

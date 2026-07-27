@@ -19,8 +19,10 @@ public class CombatEvent {
         // Move execution
         MOVE_FIRED,         // move unleashed — attack resolved
         MOVE_MISSED,
-        MOVE_BLOCKED,        // block fully negated the damage (PERCENTAGE_BLOCK at 100%)
+        MOVE_BLOCKED,        // block fully negated the damage (BLOCK at 100% reduction)
         MOVE_BLOCK_REDUCED,  // block reduced but did not fully negate damage
+        MOVE_DODGED,         // defender's DODGE defense avoided the attack entirely
+        MOVE_PARRIED,        // defender's PARRY negated the attack (attacker may be staggered)
         MOVE_STUNNED,       // interrupt or stun tag removed this action segment
 
         // Damage

@@ -6,6 +6,7 @@ import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.DamageCalculator;
 import com.jjktbf.model.combat.Timeline;
+import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
@@ -168,7 +169,7 @@ public class GuardBreakTagTest {
         return new Move.Builder(id)
             .name(id)
             .category(MoveCategory.DEFENSIVE)
-            .defenseType(DefenseType.PERCENTAGE_BLOCK)
+            .defenseType(DefenseType.BLOCK).blockStyle(BlockStyle.PERCENTAGE)
             .blockDamageReduction(reduction)
             .neverMiss(true)
             .apCost(10)

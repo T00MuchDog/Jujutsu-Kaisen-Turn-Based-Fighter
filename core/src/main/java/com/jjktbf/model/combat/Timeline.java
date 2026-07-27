@@ -21,7 +21,7 @@ import java.util.List;
  * wholly within the grid and not overlap any existing segment. Multiple
  * segments may coexist with empty gaps between them.
  *
- * <p>Resolution-support queries ({@link #firingAt}, {@link #activeBlockAt})
+ * <p>Resolution-support queries ({@link #firingAt}, {@link #activeDefenseAt})
  * are preserved so the (deferred) cross-timeline ticker can sweep both boards by tick.
  */
 public class Timeline {
@@ -126,14 +126,37 @@ public class Timeline {
         return firing;
     }
 
-    public ActionSegment activeBlockAt(int tick, Move incomingMove) {
+    /**
+     * Find the active defense segment of the requested {@code type} whose window
+     * covers {@code tick} and which applies to {@code incomingMove}. Returns the
+     * first match, or null if none.
+     *
+     * <p>Coverage rules per defense type:
+     * <ul>
+     *   <li>{@link com.jjktbf.model.move.DefenseType#BLOCK BLOCK} — uses
+     *       {@link Move#coveredByBlockTags(List)} (attack tags ⊆ block tags).</li>
+     *   <li>{@link com.jjktbf.model.move.DefenseType#PARRY PARRY} — parries are
+     *       weapon-based and type-agnostic; any attack with the ATTACK nature
+     *       can be parried.</li>
+     *   <li>{@link com.jjktbf.model.move.DefenseType#DODGE DODGE} — uses
+     *       {@link Move#dodgeAppliesTo(Move)} (MELEE / RANGED / BOTH scope).</li>
+     * </ul>
+     * Stunned segments are skipped. The window is computed from
+     * {@link Move#getBlockDuration()} with the same semantics as the legacy block
+     * window (0 = apCost, -1 = end of round, &gt;0 = N ticks from unleash).
+     */
+    public ActionSegment activeDefenseAt(int tick, Move incomingMove,
+                                         com.jjktbf.model.move.DefenseType type) {
         for (ActionSegment s : segments) {
             Move move = s.getMove();
-            if (s.isStunned() || !move.isActiveBlock()) continue;
-            // A block fires iff it COVERS every damage tag the incoming attack
-            // uses (attack tags ⊆ block tags). See Move#coveredByBlockTags.
-            if (incomingMove != null && !incomingMove.coveredByBlockTags(move.getBlockAffectedTags())) continue;
-
+            if (s.isStunned() || move.getDefenseType() != type) continue;
+            if (incomingMove != null) {
+                if (type == com.jjktbf.model.move.DefenseType.BLOCK
+                        && !incomingMove.coveredByBlockTags(move.getBlockAffectedTags())) continue;
+                if (type == com.jjktbf.model.move.DefenseType.DODGE
+                        && !move.dodgeAppliesTo(incomingMove)) continue;
+                // PARRY: no tag/scope filter — any attack is parryable.
+            }
             int start = s.getFireTick();
             int end = switch (move.getBlockDuration()) {
                 case -1 -> gridLength;
@@ -143,6 +166,37 @@ public class Timeline {
             if (tick >= start && tick <= end) return s;
         }
         return null;
+    }
+
+    /**
+     * Convenience for any active defense (BLOCK / PARRY / DODGE) covering the
+     * tick. Returns the first matching segment regardless of type.
+     */
+    public ActionSegment activeDefenseAt(int tick, Move incomingMove) {
+        for (ActionSegment s : segments) {
+            Move move = s.getMove();
+            if (s.isStunned() || !move.isActiveDefense()) continue;
+            if (incomingMove != null) {
+                com.jjktbf.model.move.DefenseType dt = move.getDefenseType();
+                if (dt == com.jjktbf.model.move.DefenseType.BLOCK
+                        && !incomingMove.coveredByBlockTags(move.getBlockAffectedTags())) continue;
+                if (dt == com.jjktbf.model.move.DefenseType.DODGE
+                        && !move.dodgeAppliesTo(incomingMove)) continue;
+            }
+            int start = s.getFireTick();
+            int end = switch (move.getBlockDuration()) {
+                case -1 -> gridLength;
+                case 0  -> start + move.getApCost() - 1;
+                default -> start + move.getBlockDuration() - 1;
+            };
+            if (tick >= start && tick <= end) return s;
+        }
+        return null;
+    }
+
+    /** Legacy alias kept for callers that query any blocking defense. */
+    public ActionSegment activeBlockAt(int tick, Move incomingMove) {
+        return activeDefenseAt(tick, incomingMove, com.jjktbf.model.move.DefenseType.BLOCK);
     }
 
     // -------------------------------------------------------------------------

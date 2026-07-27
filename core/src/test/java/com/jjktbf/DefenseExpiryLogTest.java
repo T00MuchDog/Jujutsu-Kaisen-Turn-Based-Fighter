@@ -8,6 +8,7 @@ import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.CombatResolver;
 import com.jjktbf.model.combat.Timeline;
+import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
@@ -42,7 +43,7 @@ public class DefenseExpiryLogTest {
         Move block = new Move.Builder("EXPIRY_BLOCK")
             .name("Short Guard")
             .category(MoveCategory.DEFENSIVE)
-            .defenseType(DefenseType.PERCENTAGE_BLOCK)
+            .defenseType(DefenseType.BLOCK).blockStyle(BlockStyle.PERCENTAGE)
             .blockDamageReduction(50)
             .blockDuration(5)            // window = [fireTick, fireTick + 4]
             .apCost(10)
@@ -99,7 +100,7 @@ public class DefenseExpiryLogTest {
         Move block = new Move.Builder("WORDING_BLOCK")
             .name("Wording Guard")
             .category(MoveCategory.DEFENSIVE)
-            .defenseType(DefenseType.PERCENTAGE_BLOCK)
+            .defenseType(DefenseType.BLOCK).blockStyle(BlockStyle.PERCENTAGE)
             .blockDamageReduction(50)
             .blockDuration(5)
             .apCost(10)

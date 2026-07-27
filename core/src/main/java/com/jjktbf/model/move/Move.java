@@ -84,10 +84,25 @@ public class Move {
 
     /**
      * If true, a successful hit ignores the defender's blocking defensive moves
-     * (PERCENTAGE_BLOCK / FLAT_BLOCK). Dodges and parries are unaffected; only blocks
+     * ({@link DefenseType#BLOCK}). Dodges and parries are unaffected; only blocks
      * are bypassed. Backs the GUARD_BREAK move tag; not derived from {@link #category}.
      */
     private final boolean guardBreak;
+
+    /**
+     * Move potency tier (1–5). For attack moves, gates which defensive moves can
+     * stop them; for defensive moves, gates which attacks they can stop. A defence
+     * only applies when {@code defence.potency >= attack.potency}. Always 1 for
+     * utility moves (unused). Backs the {@code potency} data field.
+     */
+    private final int potency;
+
+    /**
+     * If true, this move can only be used by a character who has a weapon
+     * ({@code CharacterData.hasWeapon}). Forced on for {@link DefenseType#PARRY}
+     * moves. Backs the {@code weaponRequired} data field.
+     */
+    private final boolean weaponRequired;
 
     /**
      * If true, an action segment carrying this move cannot be stunned by a STUN-tagged
@@ -125,25 +140,53 @@ public class Move {
     /** Defensive behavior, if any. */
     private final DefenseType defenseType;
 
-    /** Duration in AP ticks. 0 = use move's apCost. -1 = end of round. Applies to PERCENTAGE_BLOCK and FLAT_BLOCK. */
+    /** Reduction formula used when {@link #defenseType} is {@link DefenseType#BLOCK}. */
+    private final BlockStyle blockStyle;
+
+    /**
+     * Duration in AP ticks of the active defense window. 0 = use move's apCost.
+     * -1 = end of round. Applies to {@link DefenseType#BLOCK}, {@link DefenseType#PARRY},
+     * and {@link DefenseType#DODGE}.
+     */
     private final int blockDuration;
 
     /**
      * The full set of damage tags this block can stop (null/empty = all). The
      * block fires against an incoming attack iff it COVERS every damage tag the
      * attack uses — i.e. the attack's category tags are a subset of this list.
-     * See {@link #coveredByBlockTags(List)}. Applies to PERCENTAGE_BLOCK / FLAT_BLOCK.
+     * See {@link #coveredByBlockTags(List)}. Applies to {@link DefenseType#BLOCK}.
      */
     private final List<String> blockAffectedTags;
 
-    /** Percentage of damage reduced (0-100). 100 = full block. Used by PERCENTAGE_BLOCK. */
+    /** Percentage of damage reduced (0-100). 100 = full block. Used by {@link BlockStyle#PERCENTAGE}. */
     private final int blockDamageReduction;
 
-    /** Flat damage subtracted from incoming damage. Used by FLAT_BLOCK. */
+    /** Flat damage subtracted from incoming damage. Used by {@link BlockStyle#FLAT}. */
     private final int blockFlatReduction;
+
+    /** {@link DefenseType#DODGE}: chance (0–100%) to avoid a matching incoming attack. */
+    private final int dodgeChance;
+
+    /** {@link DefenseType#DODGE}: which attack ranges this dodge reacts to (MELEE / RANGED / BOTH). */
+    private final String dodgeScope;
+
+    /**
+     * {@link DefenseType#PARRY}: AP ticks to {@link StatusEffectType#STAGGER stagger}
+     * the attacker on a successful parry of a non-GUARD_BREAK attack. 0 = no stagger.
+     */
+    private final int parryStaggerTicks;
 
     /** Status effects this move applies on hit (may be empty). */
     private final List<StatusEffect> onHitEffects;
+
+    /** Status effects applied to the defender when a {@link DefenseType#BLOCK} negates/reduces a hit. */
+    private final List<StatusEffect> onBlockEffects;
+
+    /** Status effects applied to the defender when a {@link DefenseType#PARRY} negates a hit. */
+    private final List<StatusEffect> onParryEffects;
+
+    /** Status effects applied to the defender when a {@link DefenseType#DODGE} avoids a hit. */
+    private final List<StatusEffect> onDodgeEffects;
 
     /**
      * Status effects this move applies to the user on unleash (may be empty).
@@ -193,6 +236,8 @@ public class Move {
         this.stun                = b.stun;
         this.guardBreak          = b.guardBreak;
         this.heavy               = b.heavy;
+        this.potency             = b.potency;
+        this.weaponRequired      = b.weaponRequired;
         this.apCost              = b.apCost;
         this.unleashPoint        = b.unleashPoint;
         this.baseCeCost          = b.baseCeCost;
@@ -200,13 +245,20 @@ public class Move {
         this.minCeCost           = b.minCeCost;
         this.maxCeCost           = b.maxCeCost;
         this.defenseType          = b.defenseType;
+        this.blockStyle           = b.blockStyle != null ? b.blockStyle : BlockStyle.PERCENTAGE;
         this.blockDuration        = b.blockDuration;
         this.blockAffectedTags    = b.blockAffectedTags != null
             ? Collections.unmodifiableList(b.blockAffectedTags) : null;
         this.blockDamageReduction = b.blockDamageReduction;
         this.blockFlatReduction   = b.blockFlatReduction;
+        this.dodgeChance          = b.dodgeChance;
+        this.dodgeScope           = b.dodgeScope;
+        this.parryStaggerTicks    = b.parryStaggerTicks;
         this.onHitEffects        = Collections.unmodifiableList(b.onHitEffects);
         this.selfEffects         = Collections.unmodifiableList(b.selfEffects);
+        this.onBlockEffects      = Collections.unmodifiableList(b.onBlockEffects);
+        this.onParryEffects      = Collections.unmodifiableList(b.onParryEffects);
+        this.onDodgeEffects      = Collections.unmodifiableList(b.onDodgeEffects);
         this.prerequisites       = Collections.unmodifiableMap(b.prerequisites);
         this.requiredTechniqueId = b.requiredTechniqueId;
         this.isFreeMove          = b.isFreeMove;
@@ -236,6 +288,8 @@ public class Move {
     public boolean isStun()                       { return stun; }
     public boolean isGuardBreak()                 { return guardBreak; }
     public boolean isHeavy()                      { return heavy; }
+    public int getPotency()                       { return potency; }
+    public boolean isWeaponRequired()             { return weaponRequired; }
     public int getApCost()                        { return apCost; }
     public int getUnleashPoint()                  { return unleashPoint; }
     public int getBaseCeCost()                    { return baseCeCost; }
@@ -243,12 +297,19 @@ public class Move {
     public int getMinCeCost()                     { return minCeCost; }
     public int getMaxCeCost()                     { return maxCeCost; }
     public DefenseType getDefenseType()           { return defenseType; }
+    public BlockStyle getBlockStyle()             { return blockStyle; }
     public int getBlockDuration()                 { return blockDuration; }
     public List<String> getBlockAffectedTags()    { return blockAffectedTags; }
     public int getBlockDamageReduction()          { return blockDamageReduction; }
     public int getBlockFlatReduction()            { return blockFlatReduction; }
+    public int getDodgeChance()                   { return dodgeChance; }
+    public String getDodgeScope()                 { return dodgeScope; }
+    public int getParryStaggerTicks()             { return parryStaggerTicks; }
     public List<StatusEffect> getOnHitEffects()   { return onHitEffects; }
     public List<StatusEffect> getSelfEffects()    { return selfEffects; }
+    public List<StatusEffect> getOnBlockEffects() { return onBlockEffects; }
+    public List<StatusEffect> getOnParryEffects() { return onParryEffects; }
+    public List<StatusEffect> getOnDodgeEffects() { return onDodgeEffects; }
     public java.util.Map<String, Integer> getPrerequisites() { return prerequisites; }
     public String getRequiredTechniqueId()        { return requiredTechniqueId; }
     public boolean isFreeMove()                    { return isFreeMove; }
@@ -385,63 +446,109 @@ public class Move {
         return category == MoveCategory.DEFENSIVE;
     }
 
+    /** True iff this move is a {@link DefenseType#BLOCK}. */
+    public boolean isBlock() {
+        return defenseType == DefenseType.BLOCK;
+    }
+
+    /** True iff this move is a {@link DefenseType#PARRY}. */
+    public boolean isParry() {
+        return defenseType == DefenseType.PARRY;
+    }
+
+    /** True iff this move is a {@link DefenseType#DODGE}. */
+    public boolean isDodge() {
+        return defenseType == DefenseType.DODGE;
+    }
+
     /**
-     * Returns a human-readable activation message for this block move, for use in combat events.
-     * Returns null if this move is not a block.
+     * True iff this move carries an active defense window that the timeline must
+     * track (BLOCK, PARRY, or DODGE). SHIELD has no behaviour yet. Replaces the
+     * former {@code isActiveBlock()}.
      */
-    public String blockActivationMessage(String characterName) {
-        return switch (defenseType) {
-            case PERCENTAGE_BLOCK -> characterName + " raises their block! (" + blockDamageReduction + "% damage reduction)";
-            case FLAT_BLOCK       -> characterName + " raises their block! (-" + blockFlatReduction + " flat damage reduction)";
-            default               -> null;
+    public boolean isActiveDefense() {
+        return defenseType == DefenseType.BLOCK
+            || defenseType == DefenseType.PARRY
+            || defenseType == DefenseType.DODGE;
+    }
+
+    /**
+     * Whether this dodge reacts to the given incoming attack's range. A DODGE
+     * move with scope BOTH reacts to anything; MELEE/RANGED react only to the
+     * matching range. Non-dodge moves return false.
+     */
+    public boolean dodgeAppliesTo(Move incoming) {
+        if (defenseType != DefenseType.DODGE || incoming == null) return false;
+        String scope = dodgeScope == null ? "BOTH" : dodgeScope.trim().toUpperCase();
+        return switch (scope) {
+            case "MELEE"  -> incoming.isMelee();
+            case "RANGED" -> incoming.isRanged();
+            default       -> true; // BOTH
         };
     }
 
     /**
-     * Returns a human-readable expiry message for this block move, fired at the
-     * tick where its AP window ends. The wording is intentionally neutral ("drops
-     * their guard") so it reads naturally across every defensive flavour — blocks,
-     * deflections, guards — and any future dodge/parry names — without per-move
-     * special-casing.
-     *
-     * Returns null if this move is not a block.
+     * Whether a successful parry of the given incoming attack should stagger the
+     * attacker: the move must be a PARRY, the incoming attack must NOT carry
+     * GUARD_BREAK, and {@code parryStaggerTicks} must be positive.
      */
-    public String blockExpiryMessage(String characterName) {
+    public boolean parryStaggersAttacker(Move incoming) {
+        if (defenseType != DefenseType.PARRY) return false;
+        if (incoming != null && incoming.isGuardBreak()) return false;
+        return parryStaggerTicks > 0;
+    }
+
+    /**
+     * Returns a human-readable activation message for this defensive move, for
+     * use in combat events. Returns null if this move is not an active defense.
+     */
+    public String defenseActivationMessage(String characterName) {
         return switch (defenseType) {
-            case PERCENTAGE_BLOCK, FLAT_BLOCK -> characterName + " drops their guard!";
-            default                           -> null;
+            case BLOCK -> switch (blockStyle) {
+                case PERCENTAGE -> characterName + " raises their block! (" + blockDamageReduction + "% damage reduction)";
+                case FLAT       -> characterName + " raises their block! (-" + blockFlatReduction + " flat damage reduction)";
+            };
+            case PARRY -> characterName + " readies a parry!";
+            case DODGE -> characterName + " stands ready to dodge!";
+            default    -> null;
         };
     }
 
     /**
-     * Returns true if this move acts as an active block (PERCENTAGE_BLOCK or FLAT_BLOCK).
-     * Used by Timeline to identify blocks without knowing concrete DefenseType values.
+     * Returns a human-readable expiry message for this defensive move, fired at
+     * the tick where its AP window ends. Returns null if this move is not an
+     * active defense.
      */
-    public boolean isActiveBlock() {
-        return defenseType == DefenseType.PERCENTAGE_BLOCK || defenseType == DefenseType.FLAT_BLOCK;
+    public String defenseExpiryMessage(String characterName) {
+        return switch (defenseType) {
+            case BLOCK -> characterName + " drops their guard!";
+            case PARRY -> characterName + " lowers their parry stance.";
+            case DODGE -> characterName + " drops their ready stance.";
+            default    -> null;
+        };
     }
 
     /**
      * Apply this move's block reduction to an incoming raw damage value.
      *
      * Returns the modified damage. Damage is never reduced below 1.
-     * If this is a full PERCENTAGE_BLOCK (100%), returns 0 to signal a complete block.
+     * If this is a full PERCENTAGE block (100%), returns 0 to signal a complete block.
      * Callers should treat a return value of 0 as BLOCKED outcome.
      *
-     * Should only be called if isActiveBlock() is true.
+     * Should only be called if {@link #isBlock()} is true.
      */
     public int applyBlockTo(int rawDamage) {
         return (int) Math.round(applyBlockTo((double) rawDamage));
     }
 
     public double applyBlockTo(double incomingDamage) {
-        return switch (defenseType) {
-            case PERCENTAGE_BLOCK -> {
+        if (defenseType != DefenseType.BLOCK) return incomingDamage;
+        return switch (blockStyle) {
+            case PERCENTAGE -> {
                 if (blockDamageReduction >= 100) yield 0; // full block
                 yield Math.max(1.0, incomingDamage * (100 - blockDamageReduction) / 100.0);
             }
-            case FLAT_BLOCK -> Math.max(1.0, incomingDamage - blockFlatReduction);
-            default -> incomingDamage; // not a block move — no reduction
+            case FLAT -> Math.max(1.0, incomingDamage - blockFlatReduction);
         };
     }
 
@@ -467,6 +574,8 @@ public class Move {
         private boolean stun                 = false;
         private boolean guardBreak           = false;
         private boolean heavy                = false;
+        private int potency                  = 1;
+        private boolean weaponRequired       = false;
         private int apCost                   = 10;
         private int unleashPoint             = 10;
         private int baseCeCost               = 0;
@@ -474,12 +583,19 @@ public class Move {
         private int minCeCost                = 0;
         private int maxCeCost                = 0;
         private DefenseType defenseType        = DefenseType.NONE;
+        private BlockStyle blockStyle          = BlockStyle.PERCENTAGE;
         private int blockDuration              = 0;
         private List<String> blockAffectedTags = null;
         private int blockDamageReduction       = 100;
         private int blockFlatReduction         = 0;
+        private int dodgeChance                = 0;
+        private String dodgeScope              = "BOTH";
+        private int parryStaggerTicks          = 0;
         private List<StatusEffect> onHitEffects = List.of();
         private List<StatusEffect> selfEffects  = List.of();
+        private List<StatusEffect> onBlockEffects = List.of();
+        private List<StatusEffect> onParryEffects = List.of();
+        private List<StatusEffect> onDodgeEffects = List.of();
         private java.util.Map<String, Integer> prerequisites = java.util.Map.of();
         private String requiredTechniqueId   = null;
         private boolean isFreeMove           = false;
@@ -498,6 +614,8 @@ public class Move {
         public Builder stun(boolean v)                     { this.stun = v; return this; }
         public Builder guardBreak(boolean v)               { this.guardBreak = v; return this; }
         public Builder heavy(boolean v)                    { this.heavy = v; return this; }
+        public Builder potency(int v)                      { this.potency = v; return this; }
+        public Builder weaponRequired(boolean v)           { this.weaponRequired = v; return this; }
         public Builder apCost(int v)                       { this.apCost = v; return this; }
         public Builder unleashPoint(int v)                 { this.unleashPoint = v; return this; }
         public Builder baseCeCost(int v)                   { this.baseCeCost = v; return this; }
@@ -505,12 +623,19 @@ public class Move {
         public Builder minCeCost(int v)                    { this.minCeCost = v; return this; }
         public Builder maxCeCost(int v)                    { this.maxCeCost = v; return this; }
         public Builder defenseType(DefenseType v)          { this.defenseType = v; return this; }
+        public Builder blockStyle(BlockStyle v)            { this.blockStyle = v; return this; }
         public Builder blockDuration(int v)                { this.blockDuration = v; return this; }
         public Builder blockAffectedTags(List<String> v)   { this.blockAffectedTags = v; return this; }
         public Builder blockDamageReduction(int v)         { this.blockDamageReduction = v; return this; }
         public Builder blockFlatReduction(int v)           { this.blockFlatReduction = v; return this; }
+        public Builder dodgeChance(int v)                  { this.dodgeChance = v; return this; }
+        public Builder dodgeScope(String v)                { this.dodgeScope = v; return this; }
+        public Builder parryStaggerTicks(int v)            { this.parryStaggerTicks = v; return this; }
         public Builder onHitEffects(List<StatusEffect> v)  { this.onHitEffects = v; return this; }
         public Builder selfEffects(List<StatusEffect> v)   { this.selfEffects = v; return this; }
+        public Builder onBlockEffects(List<StatusEffect> v){ this.onBlockEffects = v; return this; }
+        public Builder onParryEffects(List<StatusEffect> v){ this.onParryEffects = v; return this; }
+        public Builder onDodgeEffects(List<StatusEffect> v){ this.onDodgeEffects = v; return this; }
         public Builder prerequisites(java.util.Map<String, Integer> v) { this.prerequisites = v; return this; }
         public Builder requiredTechniqueId(String v)       { this.requiredTechniqueId = v; return this; }
         public Builder freeMove(boolean v)                 { this.isFreeMove = v; return this; }
@@ -520,6 +645,18 @@ public class Move {
             if (id == null || id.isBlank()) throw new IllegalStateException("Move id is required");
             if (unleashPoint < 1 || unleashPoint > apCost)
                 throw new IllegalStateException("unleashPoint must be in [1, apCost]");
+
+            // Potency lives on attack and defensive moves (gates which defences
+            // stop which attacks). Utility moves don't participate, so clamp to 1.
+            if (category == MoveCategory.UTILITY) {
+                potency = 1;
+            } else if (potency < 1) {
+                potency = 1;
+            }
+            // A parry requires a weapon by definition.
+            if (defenseType == DefenseType.PARRY) {
+                weaponRequired = true;
+            }
 
             // Technique-tag invariant: moves bearing the INNATE_TECHNIQUE or
             // NON_INNATE_TECHNIQUE tag MUST declare their governing mastery stat

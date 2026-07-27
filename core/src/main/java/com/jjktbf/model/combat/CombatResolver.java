@@ -639,12 +639,55 @@ public class CombatResolver {
                 AbilityTrigger.Type.ATTACK_MISSED, attacker, defender, move, tick)));
             finishBattleIfNeeded(state, events, tick);
 
+        } else if (result.isDodged()) {
+            // Dodge: no damage. Distinct message from a plain miss.
+            events.add(CombatEvent.of(CombatEvent.Type.MOVE_DODGED)
+                .source(attacker).target(defender).move(move)
+                .tick(tick)
+                .message(defender.getCharacter().getName() + " dodged " + move.getName() + "!")
+                .build());
+            applyDefenseEffects(state, defender, attacker, move,
+                move.getOnDodgeEffects(), tick, events);
+            events.addAll(passiveAbilities.process(state, AbilityTrigger.move(
+                AbilityTrigger.Type.ATTACK_MISSED, attacker, defender, move, tick)));
+            finishBattleIfNeeded(state, events, tick);
+
+        } else if (result.isParried()) {
+            // Parry: no damage; the attacker may be staggered (if non-GUARD_BREAK).
+            events.add(CombatEvent.of(CombatEvent.Type.MOVE_PARRIED)
+                .source(attacker).target(defender).move(move)
+                .tick(tick)
+                .message(defender.getCharacter().getName() + " parried " + move.getName() + "!")
+                .build());
+            if (result.staggersAttacker()) {
+                // STAGGER is a tick-duration stun applied to the attacker's
+                // charging segments. Mirrors the on-hit STAGGER application path.
+                attacker.addStatusEffect(
+                    new StatusEffect(StatusEffectType.STAGGER, 0,
+                                     result.getParryStaggerTicks(), 0.0),
+                    state.getCurrentPhase());
+                events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
+                    .source(defender).target(attacker).move(move)
+                    .tick(tick)
+                    .message(attacker.getCharacter().getName()
+                             + " is staggered by the parry!")
+                    .build());
+                stunActiveSegments(attacker, tick, false);
+            }
+            applyDefenseEffects(state, defender, attacker, move,
+                move.getOnParryEffects(), tick, events);
+            events.addAll(passiveAbilities.process(state, AbilityTrigger.move(
+                AbilityTrigger.Type.MOVE_BLOCKED, attacker, defender, move, tick)));
+            finishBattleIfNeeded(state, events, tick);
+
         } else if (result.isBlocked()) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_BLOCKED)
                 .source(attacker).target(defender).move(move)
                 .tick(tick)
                 .message(defender.getCharacter().getName() + " blocked " + move.getName() + "!")
                 .build());
+            applyDefenseEffects(state, defender, attacker, move,
+                move.getOnBlockEffects(), tick, events);
             events.addAll(passiveAbilities.process(state, AbilityTrigger.move(
                 AbilityTrigger.Type.MOVE_BLOCKED, attacker, defender, move, tick)));
             finishBattleIfNeeded(state, events, tick);
@@ -829,7 +872,7 @@ public class CombatResolver {
     // -------------------------------------------------------------------------
 
     private void resolveDefensiveMove(BattleCombatant combatant, Move move, int tick, List<CombatEvent> events) {
-        String msg = move.blockActivationMessage(combatant.getCharacter().getName());
+        String msg = move.defenseActivationMessage(combatant.getCharacter().getName());
         if (msg != null) {
             events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                 .source(combatant).move(move)
@@ -870,7 +913,7 @@ public class CombatResolver {
         // refreshes the carry and tells us which previously-tracked blocks fell out.
         IdentityHashMap<ActionSegment, Boolean> stillActive = new IdentityHashMap<>();
         for (ActionSegment segment : tl.getSegments()) {
-            if (!segment.getMove().isActiveBlock()) continue;
+            if (!segment.getMove().isActiveDefense()) continue;
             int start = segment.getFireTick();
             int end = blockWindowEnd(segment.getMove(), start, gridLength);
             boolean activeNow = !segment.isStunned() && tick >= start && tick <= end;
@@ -886,7 +929,7 @@ public class CombatResolver {
             if (stillActive.containsKey(entry.getKey())) continue; // still up — leave it tracked
 
             Move move = entry.getKey().getMove();
-            String msg = move.blockExpiryMessage(combatant.getCharacter().getName());
+            String msg = move.defenseExpiryMessage(combatant.getCharacter().getName());
             tracked.remove();
             if (msg != null) {
                 events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
@@ -932,7 +975,7 @@ public class CombatResolver {
             Map.Entry<ActionSegment, BattleCombatant> entry = tracked.next();
             if (entry.getValue() != combatant) continue;
             Move move = entry.getKey().getMove();
-            String msg = move.blockExpiryMessage(combatant.getCharacter().getName());
+            String msg = move.defenseExpiryMessage(combatant.getCharacter().getName());
             tracked.remove();
             if (msg != null) {
                 events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
@@ -1011,6 +1054,45 @@ public class CombatResolver {
                 combatant, combatant, previousMaxHp, previousMaxCe, tick, events);
             events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
                 AbilityTrigger.Type.STATUS_APPLIED, combatant, effect.getType(), tick)));
+        }
+    }
+
+    /**
+     * Apply a defensive move's on-defense effect list (on-block / on-parry /
+     * on-dodge). These fire when the defender's defense resolves the incoming
+     * attack. Effects apply to the defender (the move's wielder), mirroring
+     * {@link #applySelfEffects}; coded rows are dispatched to the defender's
+     * runtime.
+     */
+    private void applyDefenseEffects(
+        BattleState state,
+        BattleCombatant defender,
+        BattleCombatant attacker,
+        Move move,
+        List<StatusEffect> effects,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        if (effects == null || effects.isEmpty()) return;
+        for (StatusEffect effect : effects) {
+            if (effect.isCoded()) {
+                events.addAll(defender.getCodedAbilities().onEffectFired(
+                    state, effect, defender, attacker, tick));
+                continue;
+            }
+            int previousMaxHp = defender.getMaxHp();
+            int previousMaxCe = defender.getMaxCursedEnergy();
+            defender.addStatusEffect(effect, state.getCurrentPhase());
+            events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
+                .source(defender).move(move)
+                .tick(tick)
+                .message(defender.getCharacter().getName()
+                         + " gains " + effect.getType().displayName() + "!")
+                .build());
+            appendResourceMaximumEvents(
+                defender, defender, previousMaxHp, previousMaxCe, tick, events);
+            events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
+                AbilityTrigger.Type.STATUS_APPLIED, defender, effect.getType(), tick)));
         }
     }
 
