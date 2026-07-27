@@ -852,10 +852,10 @@ Shipped coded abilities (keys / features / actions):
   RATIO                                 (RatioAbility)
     KEY = "RATIO". MAX_STACKS = 3. STACK_DURATION_TICKS = 50.
     STACK_TRIGGER_CHANCE = 0.70. REINFORCEMENT_TRIGGER_CHANCE = 0.05.
-    DEFENSE_MULTIPLIER = 0.5.
+    DEFENSE_MULTIPLIER = 0.3.
     Features:
       REINFORCEMENT_RATIO  On a reinforcement hit, 5% chance to apply a Ratio
-                           stack that bypasses BLOCK and halves Defense (×0.5).
+                           stack that bypasses BLOCK and reduces Defense to 30% (×0.3).
       APPLY_TO_MOVE        Apply created stacks to a specific move (coded target = move id).
       CREATE_STACKS        Create stacks from a coded effect row.
     Effect action: RATIO_EFFECT — a coded on-hit effect that creates stacks on a

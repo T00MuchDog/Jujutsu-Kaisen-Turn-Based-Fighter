@@ -97,7 +97,7 @@ class RatioTechniqueTest {
     }
 
     @Test
-    void applyingRatioToMoveBypassesBlockAndHalvesDefenseForOnlyThatHit() {
+    void applyingRatioToMoveBypassesBlockAndReducesDefenseToThirtyPercentForOnlyThatHit() {
         BattleCombatant owner = ratioCombatant("OWNER", List.of());
         BattleCombatant target = combatant("TARGET", List.of());
         Move plain = plainAttack("PLAIN");
@@ -115,8 +115,8 @@ class RatioTechniqueTest {
             owner, target, plain, 1, new ConstantRandom(0.0), 1).getFinalDamage();
         int ratioDamage = DamageCalculator.resolve(
             owner, target, ratio, 1, new ConstantRandom(0.0), 1).getFinalDamage();
-        assertTrue(Math.abs(ratioDamage - plainDamage * 2) <= 1,
-            "Halving defense should approximately double otherwise identical damage");
+        assertTrue(Math.abs(ratioDamage - plainDamage / RatioAbility.DEFENSE_MULTIPLIER) <= 3,
+            "Reducing defense to 30% should deal approximately 10/3 of otherwise identical damage");
 
         Move block = fullBlock();
         target.setTimeline(timelineWith(block));

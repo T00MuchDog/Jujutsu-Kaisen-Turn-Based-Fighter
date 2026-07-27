@@ -95,24 +95,15 @@ public class BattleScreen implements Screen, BattleView {
      * tracks the actual on-screen text size, keeping the gap consistent.
      */
     private static final float LOG_LINE_SPACING = 1.7f;
+    /** Per-tick hold during resolution, in milliseconds. */
+    private static final int   TICK_DURATION_MS        = 100;
     /**
-     * Per-tick hold during resolution, in milliseconds. A tick that fires a
-     * move uses the longer {@link #SLOW_TICK_DURATION_MS} hold so the action
-     * has room to breathe alongside the move-unleash animation; everything
-     * else uses the short baseline so the sweep stays brisk. Whether a given
-     * tick fired is taken reactively from MOVE_FIRED events
-     * (see {@link #lastTickFired}).
-     */
-    private static final int   TICK_DURATION_MS        = 200;
-    private static final int   SLOW_TICK_DURATION_MS   = 3000;
-    /**
-     * Move-unleash animation length. Fixed at 3 seconds and decoupled from the
-     * firing-tick hold so it can outlast a tick; sized to dominate the slow
-     * hold so a firing tick reads as a deliberate beat.
+     * Move-unleash animation length. This is visual-only and does not delay
+     * resolution after a move's dialogue finishes.
      */
     private static final float MOVE_EFFECT_DURATION_SECONDS = 3f;
     /** Chars revealed per second when typing a log line out letter-by-letter. */
-    private static final float LOG_TYPE_RATE_CPS       = 30f;
+    private static final float LOG_TYPE_RATE_CPS       = 40f;
     /**
      * Beat held after a log line finishes typing before it commits and the
      * battle advances, so each sentence gets a moment to land.
@@ -203,23 +194,6 @@ public class BattleScreen implements Screen, BattleView {
     private volatile boolean nextRoundConfirmed = false;
     /** True while resolution tick calls are streaming; used to pace between ticks. */
     private volatile boolean resolvingTicks = false;
-    /**
-     * Whether the tick most recently shown fired a move. Set in
-     * {@link #displayCombatEvents} when a MOVE_FIRED event appears, then read by
-     * the next {@link #displayResolutionTick} (or by
-     * {@link #displayRoundEnd} for the final tick) when choosing that tick's
-     * hold. Resetting it after each hold matters for non-firing ticks, which
-     * produce no events and so would otherwise inherit a stale true. Touched
-     * only on the battle thread, so it needs no synchronization.
-     */
-    private boolean lastTickFired = false;
-    /**
-     * Absolute ticks at which some (non-stunned) segment fires this round,
-     * precomputed from both combatants' timelines. Used only by the multiplayer
-     * playback path to mark firing ticks for the slow hold; LOCAL uses the
-     * reactive {@link #lastTickFired} flag instead.
-     */
-    private Set<Integer> firingTicks = new HashSet<>();
     private boolean nextRoundHovered = false;
 
     /**
@@ -556,6 +530,7 @@ public class BattleScreen implements Screen, BattleView {
         }
         drawLog(sw, sh);
         drawNextRoundButton();
+        drawTickCounter(sw, sh);
         drawMoveUnleashAnimation(sw, sh);
         batch.end();
 
@@ -574,6 +549,18 @@ public class BattleScreen implements Screen, BattleView {
         float height = background.getHeight() * scale;
         batch.setColor(Color.WHITE);
         batch.draw(background, (screenWidth - width) / 2f, (screenHeight - height) / 2f, width, height);
+    }
+
+    /** Temporary execution readout for checking timeline playback. */
+    private void drawTickCounter(float screenWidth, float screenHeight) {
+        String label = "TICK: " + currentExecutionTick;
+        GlyphLayout layout = new GlyphLayout(assets.fontSmall, label);
+        float x = (screenWidth - layout.width) / 2f;
+        float y = screenHeight - 16f;
+        assets.fontSmall.setColor(Color.BLACK);
+        assets.fontSmall.draw(batch, label, x + 1f, y - 1f);
+        assets.fontSmall.setColor(Color.YELLOW);
+        assets.fontSmall.draw(batch, label, x, y);
     }
 
     /**
@@ -980,7 +967,6 @@ public class BattleScreen implements Screen, BattleView {
         for (CombatEvent e : events) {
             if (abortRequested || !isCurrentLocalBattleThread()) return;
             if (e.getType() == CombatEvent.Type.MOVE_FIRED) {
-                lastTickFired = true;
                 Move unleashedMove = e.getMove();
                 postLocal(() -> playMoveUnleashAnimation(unleashedMove));
             }
@@ -1015,15 +1001,11 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayResolutionTick(int tick, BattleState state) {
         if (abortRequested || !isCurrentLocalBattleThread()) return;
-        // Hold the previous tick before advancing. Only a tick that actually
-        // fired a move (tracked reactively via lastTickFired) gets the long
-        // slow hold; everything else uses the brisk baseline. The reactive
-        // flag means a segment stunned mid-sweep won't trip a false slow-mo.
+        // Hold the previous tick before advancing, regardless of whether it
+        // fired a move. Move animations continue independently of this pace.
         if (resolvingTicks) {
-            abortableSleepMs(isSlowTick(lastTickFired)
-                ? SLOW_TICK_DURATION_MS : TICK_DURATION_MS);
+            abortableSleepMs(TICK_DURATION_MS);
         }
-        lastTickFired = false;
         currentExecutionTick = tick;
         resolvingTicks = true;
     }
@@ -1031,30 +1013,18 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayRoundEnd(BattleState state) {
         if (!isCurrentLocalBattleThread()) return;
-        // The final tick's tail hold runs here: no further displayResolutionTick
-        // call follows to apply it. Without this the last hit of a round would
-        // jump straight to the "round complete" banner and skip its slow-mo.
+        // The final tick's brief hold runs here because no later
+        // displayResolutionTick call follows it.
         if (resolvingTicks) {
-            abortableSleepMs(isSlowTick(lastTickFired)
-                ? SLOW_TICK_DURATION_MS : TICK_DURATION_MS);
+            abortableSleepMs(TICK_DURATION_MS);
         }
         resolvingTicks = false;
-        lastTickFired = false;
         postLocal(() -> {
             // Re-seed from the model so end-of-round maintenance (poison, max-HP
             // changes, etc.) converges the deferred bars back to the true HP.
             syncLocalHpFromModel();
             updatePanels();
         });
-    }
-
-    /**
-     * Whether the tick being held should run in slow mode — i.e. it fired a
-     * move. LOCAL uses the reactive flag (exact even under stunning);
-     * multiplayer passes {@code firingTicks.contains(currentExecutionTick)}.
-     */
-    private static boolean isSlowTick(boolean fired) {
-        return fired;
     }
 
     @Override
@@ -1344,7 +1314,6 @@ public class BattleScreen implements Screen, BattleView {
         playbackEvents = state.recentEvents().stream()
             .filter(event -> event.roundNumber() == playbackRound)
             .toList();
-        firingTicks = onlineFiringTicks(state);
 
         onlinePlayerHp = roundStartValue(
             state, multiplayerSetup.playerSide(), true, onlinePlayer.character().currentHp());
@@ -1379,10 +1348,8 @@ public class BattleScreen implements Screen, BattleView {
         playbackTickElapsedMs += Math.max(0f, delta) * 1000f;
 
         while (resolvingTicks) {
-            int duration = isSlowTick(firingTicks.contains(currentExecutionTick))
-                ? SLOW_TICK_DURATION_MS : TICK_DURATION_MS;
-            if (playbackTickElapsedMs < duration) return;
-            playbackTickElapsedMs -= duration;
+            if (playbackTickElapsedMs < TICK_DURATION_MS) return;
+            playbackTickElapsedMs -= TICK_DURATION_MS;
 
             if (playbackActionIndex >= playbackActionTicks.size()) {
                 finishMultiplayerPlayback();
@@ -1668,16 +1635,6 @@ public class BattleScreen implements Screen, BattleView {
             }
         }
         return List.copyOf(ticks);
-    }
-
-    private static Set<Integer> onlineFiringTicks(MatchState state) {
-        Set<Integer> ticks = new HashSet<>();
-        for (ActionSegmentState segment : onlineSegments(state)) {
-            if (segment.status() != ActionSegmentStatus.STUNNED) {
-                ticks.add(segment.fireTick());
-            }
-        }
-        return ticks;
     }
 
     private static PlayerSide opposite(PlayerSide side) {

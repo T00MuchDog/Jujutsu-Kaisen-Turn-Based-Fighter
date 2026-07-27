@@ -27,7 +27,7 @@ public final class RatioAbility implements CodedAbilityRuntime {
     public static final int STACK_DURATION_TICKS = 50;
     public static final double STACK_TRIGGER_CHANCE = 0.70;
     public static final double REINFORCEMENT_TRIGGER_CHANCE = 0.05;
-    public static final double DEFENSE_MULTIPLIER = 0.5;
+    public static final double DEFENSE_MULTIPLIER = 0.3;
 
     private final BattleCombatant owner;
     private final Set<String> features;
