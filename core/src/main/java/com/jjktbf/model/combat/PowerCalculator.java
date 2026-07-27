@@ -1,7 +1,7 @@
 package com.jjktbf.model.combat;
 
 import com.jjktbf.model.character.CharacterStats;
-import com.jjktbf.model.character.CombatStats;
+import com.jjktbf.model.character.StatScale;
 import com.jjktbf.model.move.MoveCategory;
 
 /**
@@ -10,7 +10,9 @@ import com.jjktbf.model.move.MoveCategory;
  * Power is a per-move figure; it is NOT stored on the character.
  * It combines with the move's BasePower and the target's Defense inside DamageCalculator.
  *
- * All ratios are exact as specified in the design doc.
+ * All stat inputs are first passed through StatScale.scale() — the nonlinear stat
+ * transform anchored at 80. The weighted ratios below are unchanged; only the raw
+ * stat values are replaced by their scaled equivalents before the ratios are applied.
  */
 public final class PowerCalculator {
 
@@ -39,46 +41,47 @@ public final class PowerCalculator {
     }
 
     // -------------------------------------------------------------------------
-    // Pure category formulas
+    // Pure category formulas  (inputs are StatScale-scaled)
     // -------------------------------------------------------------------------
 
     /**
      * PHYSICAL: 4:1 Strength to CombatAbility.
-     * Power = (STR*4 + CA) / 5
+     * Power = (S(STR)*4 + S(CA)) / 5
      */
     public static int physical(CharacterStats cs) {
-        return (cs.getStrength() * 4 + cs.getCombatAbility()) / 5;
+        return (StatScale.scale(cs.getStrength()) * 4
+              + StatScale.scale(cs.getCombatAbility())) / 5;
     }
 
     /**
      * CE base component used by technique-derived formulas.
      * 3:2:1  CE_Output : CE_Reserves : CE_Efficiency
-     * = (OUT*3 + RES*2 + EFF) / 6
+     * = (S(OUT)*3 + S(RES)*2 + S(EFF)) / 6
      */
     public static int cursedEnergyBase(CharacterStats cs) {
-        return (cs.getCursedEnergyOutput() * 3
-              + cs.getCursedEnergyReserves() * 2
-              + cs.getCursedEnergyEfficiency()) / 6;
+        return (StatScale.scale(cs.getCursedEnergyOutput()) * 3
+              + StatScale.scale(cs.getCursedEnergyReserves()) * 2
+              + StatScale.scale(cs.getCursedEnergyEfficiency())) / 6;
     }
 
     /**
      * INNATE_TECHNIQUE: 50:50 CE_base and CursedTechniqueMastery.
-     * Power = (CE_base + CTM) / 2
+     * Power = (CE_base + S(CTM)) / 2
      */
     private static int innateTechnique(CharacterStats cs) {
-        return (cursedEnergyBase(cs) + cs.getCursedTechniqueMastery()) / 2;
+        return (cursedEnergyBase(cs) + StatScale.scale(cs.getCursedTechniqueMastery())) / 2;
     }
 
     /**
      * NON_INNATE_TECHNIQUE: 50:50 CE_base and JujutsuSkill.
-     * Power = (CE_base + JS) / 2
+     * Power = (CE_base + S(JS)) / 2
      */
     private static int nonInnateTechnique(CharacterStats cs) {
-        return (cursedEnergyBase(cs) + cs.getJujutsuSkill()) / 2;
+        return (cursedEnergyBase(cs) + StatScale.scale(cs.getJujutsuSkill())) / 2;
     }
 
     // -------------------------------------------------------------------------
-    // Hybrid formulas
+    // Hybrid formulas  (composed from the scaled pure formulas above)
     // -------------------------------------------------------------------------
 
     /**

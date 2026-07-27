@@ -41,8 +41,10 @@ public class StatVerificationTest {
         CombatStats cs = new CombatStats(stats);
         int ap = cs.getMaxApBar();
         System.out.println("Max AP bar (300/300): " + ap);
-        // (300*15 + 300*3) / 18 = 5400/18 = 300 exactly
-        assertEquals(300, ap, "Expected max AP = 300 exactly");
+        // Stats are StatScale-scaled: S(300) = 472. AP uses scaled stats:
+        //   (472*15 + 472*3) / 18 = 8496/18 = 472. The nonlinear curve amplifies
+        // high-tier AP bars (a 300-stat character has a much larger action economy).
+        assertEquals(472, ap, "Expected AP at 300/300 (scaled) = 472");
     }
 
     @Test
@@ -913,9 +915,12 @@ public class StatVerificationTest {
             attacker, defender, attack, 1, new FixedRandom(0.0), 1
         );
 
-        // Baseline stats (all 80), full CE. Defense caps CE reinforcement by Output:
+        // Baseline stats (all 80, S(80)=80). Full CE. Power = ((80*4+80)/5)*0.85 = 68
+        // (physical dampened by PHYSICAL_POWER_MULTIPLIER). After 50% block: attackValue
+        // = 100 * 68 * 0.5 = 3400. Defense caps CE reinforcement by Output:
         //   ceReinf = min(80, 80*0.5=40) = 40; DEF = (40*6 + 80*2)/6 = 67
-        assertEquals(25, result.getFinalDamage());
+        // roll = 0.85 (FixedRandom 0.0). rawDamage = round((3400/67) * 0.40 * 0.85) = 17.
+        assertEquals(17, result.getFinalDamage());
     }
 
     private static void writeJson(Path root, String relativePath, String contents) throws IOException {

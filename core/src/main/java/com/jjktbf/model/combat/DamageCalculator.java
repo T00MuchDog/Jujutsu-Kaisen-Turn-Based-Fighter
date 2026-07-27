@@ -4,6 +4,7 @@ import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.CombatStats;
 import com.jjktbf.model.character.coded.CodedHitModifiers;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.MoveCategory;
 
 import java.util.List;
 import java.util.Random;
@@ -23,13 +24,12 @@ import java.util.Random;
  * Damage formula:
  *   damage = ((basePower × power) after block / defense) × DAMAGE_SCALE × roll
  *
- * DAMAGE_SCALE = 0.5 (PLACEHOLDER — tune during balance pass).
+ * Power (and Defense) are computed from StatScale-scaled stats (see PowerCalculator
+ * and CombatStats). PHYSICAL-category Power is then multiplied by
+ * PHYSICAL_POWER_MULTIPLIER (< 1.0) — physical moves are weaker than CE/technique
+ * moves at equal base power, so a physical Power edge cannot two-hit a peer.
  *
- * Design targets at baseline stats (power≈80, defense≈80):
- *   Basic Punch  (basePower=30):  ~13–15 dmg  on a 200 HP target = ~7%
- *   Heavy Punch  (basePower=65):  ~28–32 dmg  on a 200 HP target = ~15%
- *   Cleave       (basePower=110): ~48–56 dmg  on a 200 HP target = ~26%
- *   Sukuna Cleave vs Yuji (power≈294, defense≈172): ~83–97 dmg on 467 HP = ~19%
+ * DAMAGE_SCALE = 0.40 (tuned for longer fights; was 0.5).
  *
  * All randomness uses an injected {@link RandomSource} for testability and
  * deterministic authoritative resolution.
@@ -37,12 +37,12 @@ import java.util.Random;
 public final class DamageCalculator {
 
     /**
-     * PLACEHOLDER: global damage scale factor.
+     * Global damage scale factor.
      * Lower = less damage per hit, longer fights.
      * Higher = more damage, faster fights.
      * Target: even matchup fights last 4–6 rounds with 2–4 moves per round.
      */
-    private static final double DAMAGE_SCALE = 0.5;
+    private static final double DAMAGE_SCALE = 0.40;
 
     /** Low end of the random damage roll (±15% variance). */
     private static final double ROLL_MIN     = 0.85;
@@ -161,9 +161,16 @@ public final class DamageCalculator {
         }
 
         // --- 3. Power ---
-        double power = Math.max(0.0, attacker.modifyBattleStat(
-            com.jjktbf.model.character.BattleStatKey.POWER,
-            PowerCalculator.compute(move.getCategory(), acs)));
+        // PHYSICAL-category Power is dampened (PHYSICAL_POWER_MULTIPLIER < 1.0):
+        // physical moves are weaker than CE/technique moves at equal base power.
+        // The multiplier applies to the raw PowerCalculator output before
+        // POWER battle-stat modifiers, so ability Power buffs compose on top.
+        double power = PowerCalculator.compute(move.getCategory(), acs);
+        if (move.getCategory() == MoveCategory.PHYSICAL) {
+            power *= CombatStats.PHYSICAL_POWER_MULTIPLIER;
+        }
+        power = Math.max(0.0, attacker.modifyBattleStat(
+            com.jjktbf.model.character.BattleStatKey.POWER, power));
 
         // --- 4. Apply defensive block before Defense ---
         double attackValue = move.getBasePower()

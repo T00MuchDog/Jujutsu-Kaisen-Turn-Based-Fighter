@@ -54,8 +54,8 @@ lookup aliases.
 
     VITALITY                       vitality / vit
       Determines maximum HP.
-      HP = round(Vitality × HP_PER_VIT),  HP_PER_VIT = 2.67 (PLACEHOLDER).
-      Baseline 80 → ~214 HP. Max 300 → ~801 HP.
+      HP = round(S(Vitality) × HP_PER_VIT),  HP_PER_VIT = 4.0  (S = StatScale).
+      Baseline 80 → 320 HP. Max 300 → ~1886 HP (S(300)=472 — see STAT SCALING).
 
     STRENGTH                       strength / str
       Physical striking power. Primary driver of Power for PHYSICAL moves
@@ -128,26 +128,36 @@ Derived or battle-only values that can be modified at runtime by abilities
 Derived values computed from base stats at combatant load time, plus the static
 damage-resolution helpers. These are the numbers actually used in combat.
 
-  Tuning constants (lines noted; PLACEHOLDER unless marked):
-    HP_PER_VIT            = 2.67     (L99,  PLACEHOLDER)
+  Tuning constants (lines noted):
+    HP_PER_VIT            = 4.0      (L99,  final)
     AP_DIVISOR            = 18       (L108, final)
     HIT_BALANCE_FACTOR    = 1/19     (L115, final)  → equal ACC/EVA = 95% on a 1.0 move
-    CE_POOL_SCALE         = 5        (L118, PLACEHOLDER)
-    MOVES_PER_STAT_POINTS = 20       (L121, PLACEHOLDER)  → baseline 80 = 4 slots
+    CE_POOL_SCALE         = 8        (L118, final)
+    MOVES_PER_STAT_POINTS = 20       (L121, final)  → baseline 80 = 4 slots
     BF_BASE_CHANCE        = 0.03     (L124, PLACEHOLDER)
     BFS_BF_CHANCES        = {0.10, 0.20, 0.35, 0.50}  (L127, final)
     BF_DAMAGE_MULTIPLIER  = 2.5      (L130, final)
     BF_CE_RESTORE_FRACTION= 0.05     (L133, PLACEHOLDER)
-    DEFENSE_CE_CAP_FACTOR = 0.5      (L142, PLACEHOLDER)
+    DEFENSE_CE_CAP_FACTOR = 0.5      (L142, final)
+    PHYSICAL_POWER_MULT   = 0.85     (after CombatStats constants; PHYSICAL only)
 
-  Stored derived values (computed once per combatant):
-    Max HP          = round(Vitality × HP_PER_VIT)
-    Max AP Bar      = (Speed × 15 + CombatAbility × 3) / AP_DIVISOR      → baseline 80, max 300
-    Accuracy        = (CombatAbility × 4 + Speed) / 5                     → baseline 80
-    Evasion         = (Speed × 4 + CombatAbility) / 5                    → baseline 80
-    Max CE (pool)   = CursedEnergyReserves × CE_POOL_SCALE               → baseline 80 = 400
-    Combat Arts slots = CombatAbility / MOVES_PER_STAT_POINTS            → baseline 4
-    Jujutsu Arts slots= JujutsuSkill / MOVES_PER_STAT_POINTS             → baseline 4
+  STAT SCALING (StatScale.java) — applied to EVERY base stat before any formula:
+    S(s) = max(8, round(80 + sign(s − 80) · 0.12 · |s − 80|^1.5)),  anchored at S(80)=80.
+    Flattens at the baseline (derivative 0) and steepens away: stat differences matter
+    MORE the further from 80 — a 300-vs-250 gap dwarfs a 100-vs-200 gap — while low
+    stats stay meaningfully worse without collapsing (S(20)=24, S(40)=50, S(60)=69).
+    Applied symmetrically to both sides of every comparison (Power/Defense, ACC/EVA…).
+    Sample: s= 10 20 40 60 80 100 120 150 200 250 300
+            S= 10 24 50 69 80  91 110 150 238 346 472
+
+  Stored derived values (computed once per combatant; inputs are SCALED via S()):
+    Max HP          = round(S(Vitality) × HP_PER_VIT)
+    Max AP Bar      = (S(Speed) × 15 + S(CombatAbility) × 3) / AP_DIVISOR  → baseline 80
+    Accuracy        = (S(CombatAbility) × 4 + S(Speed)) / 5                 → baseline 80
+    Evasion         = (S(Speed) × 4 + S(CombatAbility)) / 5                → baseline 80
+    Max CE (pool)   = round(S(CursedEnergyReserves) × CE_POOL_SCALE)       → baseline 80 = 640
+    Combat Arts slots = S(CombatAbility) / MOVES_PER_STAT_POINTS           → baseline 4
+    Jujutsu Arts slots= S(JujutsuSkill) / MOVES_PER_STAT_POINTS            → baseline 4
 
   DEFENSE — computed per hit, NOT stored.
     The defender's resilience at the moment of each hit. CE reinforcement is
@@ -158,10 +168,10 @@ damage-resolution helpers. These are the numbers actually used in combat.
     character (e.g. Yuta, Hakari) still has finite Defense because their OUTPUT,
     not their pool, limits reinforcement.
 
-      ceFromPool       = CursedEnergyReserves × (currentCe / maxCe)
-      reinforcementCap = CursedEnergyOutput × DEFENSE_CE_CAP_FACTOR        (= × 0.5)
+      ceFromPool       = S(CursedEnergyReserves) × (currentCe / maxCe)
+      reinforcementCap = S(CursedEnergyOutput) × DEFENSE_CE_CAP_FACTOR     (= × 0.5)
       ceReinforcement  = min(ceFromPool, reinforcementCap)
-      Defense          = round((ceReinforcement × 6 + Durability × 2) / 6)
+      Defense          = round((ceReinforcement × 6 + S(Durability) × 2) / 6)
 
     Pipeline: incoming damage → DEFENSIVE move reduction (block) → Defense → final.
     Key clarifications:
@@ -557,25 +567,34 @@ Pipeline:
   7. DAMAGE FORMULA  — scale, roll, and damage multipliers applied (see below).
   8. BLACK FLASH     — BF roll on eligible moves; ×2.5 if proc'd.
 
-  DAMAGE FORMULA (verbatim, DamageCalculator L150–157):
+  DAMAGE FORMULA (verbatim, DamageCalculator):
+    power       = PowerCalculator.compute(category, acs)
+    if category == PHYSICAL: power ×= PHYSICAL_POWER_MULTIPLIER  (0.85)
+    power       = attacker.modifyBattleStat(POWER, power)
     attackValue = basePower × basePowerMultiplierFor(move) × power
     attackValueAfterBlock = block applied to attackValue (if any active block)
-    randomRoll = ROLL_MIN + (1 − ROLL_MIN) × rng.nextDouble()     // ROLL_MIN = 0.85
-    rawDamage  = round( (attackValueAfterBlock / defense)
-                        × DAMAGE_SCALE × randomRoll
-                        × attacker.getAbilityFlags().damageMultiplierFor(move) )
-    rawDamage  = max(1, rawDamage)                                 // floor 1 on a hit
-    rawDamage  = attacker.modifyBattleStat(DAMAGE_DEALT, rawDamage)
+    defense     = max(1, defender.computeCurrentDefense(tick) × codedModifiers.defenseMultiplier())
+    randomRoll  = ROLL_MIN + (1 − ROLL_MIN) × rng.nextDouble()     // ROLL_MIN = 0.85
+    rawDamage   = round( (attackValueAfterBlock / defense)
+                         × DAMAGE_SCALE × randomRoll
+                         × attacker.getAbilityFlags().damageMultiplierFor(move) )
+    rawDamage   = max(1, rawDamage)                                 // floor 1 on a hit
+    rawDamage   = attacker.modifyBattleStat(DAMAGE_DEALT, rawDamage)
     finalDamage = rawDamage  (× BF_DAMAGE_MULTIPLIER if Black Flash proc'd)
 
-  DAMAGE_SCALE = 0.5  (private, PLACEHOLDER — balance pass pending).
+    NOTE: power and defense are computed from StatScale-scaled stats (see STAT
+    SCALING above). PHYSICAL Power is dampened by PHYSICAL_POWER_MULTIPLIER so a
+    physical Power edge cannot two-hit a peer; CE/technique moves are unaffected.
+
+  DAMAGE_SCALE = 0.40  (private, tuned for longer fights; was 0.5).
   DAMAGE ROLL range = [0.85, 1.0] (±15%).
 
-POWER (PowerCalculator — integer division; cursedEnergyBase is shared):
-  PHYSICAL                            (Strength × 4 + CombatAbility) / 5
-  CURSED_ENERGY (base)                (CE_Output × 3 + CE_Reserves × 2 + CE_Efficiency) / 6
-  INNATE_TECHNIQUE                    (cursedEnergyBase + CursedTechniqueMastery) / 2
-  NON_INNATE_TECHNIQUE                (cursedEnergyBase + JujutsuSkill) / 2
+POWER (PowerCalculator — integer division; cursedEnergyBase is shared;
+       every stat input is StatScale-scaled, S(stat)):
+  PHYSICAL                            (S(Strength) × 4 + S(CombatAbility)) / 5
+  CURSED_ENERGY (base)                (S(CE_Output) × 3 + S(CE_Reserves) × 2 + S(CE_Efficiency)) / 6
+  INNATE_TECHNIQUE                    (cursedEnergyBase + S(CursedTechniqueMastery)) / 2
+  NON_INNATE_TECHNIQUE                (cursedEnergyBase + S(JujutsuSkill)) / 2
   PHYSICAL_CURSED_ENERGY              (cursedEnergyBase × 3 + physical) / 4
   PHYSICAL_INNATE_TECHNIQUE           (innateTechnique × 4 + physical) / 5
   PHYSICAL_NON_INNATE_TECHNIQUE       (nonInnateTechnique × 3 + physical) / 4
@@ -647,7 +666,7 @@ CURSED ENERGY (CE)
   drops below that cap, Defense degrades.
 
 CE POOL (Max Cursed Energy)
-  Total CE at fight start. CE Pool = CursedEnergyReserves × CE_POOL_SCALE (= ×5).
+  Total CE at fight start. CE Pool = round(S(CursedEnergyReserves) × CE_POOL_SCALE) (= ×8, scaled).
 
 CE COST (of a move)
   The CE drained when a CE-tagged segment reaches its startTick. Scaled by CE
