@@ -134,13 +134,21 @@ public class BattleController {
         if (!opening.isEmpty()) view.displayCombatEvents(opening, state);
 
         while (resolver.hasMoreTicks()) {
-            view.displayResolutionTick(state.getCurrentTick(), state);
+            int tick = state.getCurrentTick();
+            if (hasActiveActionAt(player, tick) || hasActiveActionAt(enemy, tick)) {
+                view.displayResolutionTick(tick, state);
+            }
             List<CombatEvent> tickEvents = resolver.resolveTick(state);
             if (!tickEvents.isEmpty()) view.displayCombatEvents(tickEvents, state);
             if (state.isBattleOver()) break;
         }
 
         state.checkAndResolveBattleOver();
+    }
+
+    private static boolean hasActiveActionAt(BattleCombatant combatant, int tick) {
+        Timeline timeline = combatant.getTimeline();
+        return timeline != null && timeline.hasActiveSegmentAt(tick);
     }
 
     // -------------------------------------------------------------------------

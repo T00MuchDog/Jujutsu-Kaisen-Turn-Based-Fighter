@@ -126,6 +126,16 @@ public class Timeline {
         return firing;
     }
 
+    /** True when a non-stunned action segment occupies the given tick. */
+    public boolean hasActiveSegmentAt(int tick) {
+        for (ActionSegment s : segments) {
+            if (!s.isStunned() && tick >= s.getStartTick() && tick <= s.getEndTick()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Find the active defense segment of the requested {@code type} whose window
      * covers {@code tick} and which applies to {@code incomingMove}. Returns the

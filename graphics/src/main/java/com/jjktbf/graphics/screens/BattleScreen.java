@@ -36,6 +36,8 @@ import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.multiplayer.protocol.BattleEventState;
 import com.jjktbf.multiplayer.protocol.BattleEventType;
 import com.jjktbf.multiplayer.protocol.BattlePhase;
+import com.jjktbf.multiplayer.protocol.ActionSegmentState;
+import com.jjktbf.multiplayer.protocol.ActionSegmentStatus;
 import com.jjktbf.multiplayer.protocol.CharacterState;
 import com.jjktbf.multiplayer.protocol.ErrorResponse;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
@@ -58,6 +60,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -279,9 +282,10 @@ public class BattleScreen implements Screen, BattleView {
     private long multiplayerRun;
 
     private List<BattleEventState> playbackEvents = List.of();
+    private List<Integer> playbackActionTicks = List.of();
     private int playbackRound = -1;
     private int playbackEventIndex;
-    private int playbackLastTick;
+    private int playbackActionIndex;
     private float playbackTickElapsedMs;
     private boolean playbackComplete;
     private int onlinePlayerHp;
@@ -373,9 +377,10 @@ public class BattleScreen implements Screen, BattleView {
         unleashedMoveIcon = null;
         unleashedMoveElapsed = 0f;
         playbackEvents = List.of();
+        playbackActionTicks = List.of();
         playbackRound = -1;
         playbackEventIndex = 0;
-        playbackLastTick = 0;
+        playbackActionIndex = 0;
         playbackTickElapsedMs = 0f;
         playbackComplete = false;
         onlinePlanningRound = -1;
@@ -1026,12 +1031,14 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayRoundEnd(BattleState state) {
         if (!isCurrentLocalBattleThread()) return;
-        resolvingTicks = false;
         // The final tick's tail hold runs here: no further displayResolutionTick
         // call follows to apply it. Without this the last hit of a round would
         // jump straight to the "round complete" banner and skip its slow-mo.
-        abortableSleepMs(isSlowTick(lastTickFired)
-            ? SLOW_TICK_DURATION_MS : TICK_DURATION_MS);
+        if (resolvingTicks) {
+            abortableSleepMs(isSlowTick(lastTickFired)
+                ? SLOW_TICK_DURATION_MS : TICK_DURATION_MS);
+        }
+        resolvingTicks = false;
         lastTickFired = false;
         postLocal(() -> {
             // Re-seed from the model so end-of-round maintenance (poison, max-HP
@@ -1326,6 +1333,8 @@ public class BattleScreen implements Screen, BattleView {
         playbackRound = state.roundNumber();
         playbackComplete = false;
         playbackEventIndex = 0;
+        playbackActionTicks = onlineActionTicks(state);
+        playbackActionIndex = 0;
         playbackTickElapsedMs = 0f;
         currentExecutionTick = 0;
         resolvingTicks = true;
@@ -1335,10 +1344,6 @@ public class BattleScreen implements Screen, BattleView {
         playbackEvents = state.recentEvents().stream()
             .filter(event -> event.roundNumber() == playbackRound)
             .toList();
-        playbackLastTick = Math.max(
-            state.currentTick(),
-            playbackEvents.stream().mapToInt(BattleEventState::tick).max().orElse(0)
-        );
         firingTicks = onlineFiringTicks(state);
 
         onlinePlayerHp = roundStartValue(
@@ -1363,6 +1368,7 @@ public class BattleScreen implements Screen, BattleView {
             state, multiplayerSetup.playerSide(), onlinePlayer.character().codedAbilities());
         processPlaybackEventsThrough(0);
         updatePanels();
+        if (playbackActionTicks.isEmpty()) finishMultiplayerPlayback();
     }
 
     private void updateMultiplayerPlayback(float delta) {
@@ -1378,11 +1384,11 @@ public class BattleScreen implements Screen, BattleView {
             if (playbackTickElapsedMs < duration) return;
             playbackTickElapsedMs -= duration;
 
-            if (currentExecutionTick >= playbackLastTick) {
+            if (playbackActionIndex >= playbackActionTicks.size()) {
                 finishMultiplayerPlayback();
                 return;
             }
-            currentExecutionTick++;
+            currentExecutionTick = playbackActionTicks.get(playbackActionIndex++);
             processPlaybackEventsThrough(currentExecutionTick);
             // If advancing the tick just queued log lines, hold further
             // advancement until they type out.
@@ -1412,13 +1418,6 @@ public class BattleScreen implements Screen, BattleView {
             }
         }
         playbackEvents = List.copyOf(merged);
-        playbackLastTick = Math.max(
-            playbackLastTick,
-            Math.max(
-                state.currentTick(),
-                playbackEvents.stream().mapToInt(BattleEventState::tick).max().orElse(0)
-            )
-        );
         processPlaybackEventsThrough(
             playbackComplete ? Integer.MAX_VALUE : currentExecutionTick);
         if (playbackComplete) showMultiplayerResult(state);
@@ -1646,15 +1645,37 @@ public class BattleScreen implements Screen, BattleView {
         return fallback;
     }
 
-    private static Set<Integer> onlineFiringTicks(MatchState state) {
-        Set<Integer> ticks = new HashSet<>();
+    private static List<ActionSegmentState> onlineSegments(MatchState state) {
+        List<ActionSegmentState> segments = new ArrayList<>();
         for (PlayerState player : state.players()) {
             if (player.character() == null || player.character().plan() == null) continue;
-            player.character().plan().queuedSegments().forEach(segment -> ticks.add(segment.fireTick()));
-            player.character().plan().resolvedSegments().stream()
-                .filter(segment -> segment.status() == null
-                    || !"STUNNED".equals(segment.status().name()))
-                .forEach(segment -> ticks.add(segment.fireTick()));
+            segments.addAll(player.character().plan().queuedSegments());
+            segments.addAll(player.character().plan().resolvedSegments());
+        }
+        return segments;
+    }
+
+    private static List<Integer> onlineActionTicks(MatchState state) {
+        return actionTicks(onlineSegments(state));
+    }
+
+    static List<Integer> actionTicks(Iterable<ActionSegmentState> segments) {
+        Set<Integer> ticks = new TreeSet<>();
+        for (ActionSegmentState segment : segments) {
+            if (segment == null || segment.status() == ActionSegmentStatus.STUNNED) continue;
+            for (int tick = Math.max(1, segment.startTick()); tick <= segment.endTick(); tick++) {
+                ticks.add(tick);
+            }
+        }
+        return List.copyOf(ticks);
+    }
+
+    private static Set<Integer> onlineFiringTicks(MatchState state) {
+        Set<Integer> ticks = new HashSet<>();
+        for (ActionSegmentState segment : onlineSegments(state)) {
+            if (segment.status() != ActionSegmentStatus.STUNNED) {
+                ticks.add(segment.fireTick());
+            }
         }
         return ticks;
     }

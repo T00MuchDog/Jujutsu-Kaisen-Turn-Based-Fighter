@@ -50,8 +50,8 @@ public interface BattleView {
     void displayCombatEvents(List<CombatEvent> events, BattleState state);
 
     /**
-     * Display the AP tick currently being resolved. Called for every tick,
-     * including ticks that produce no combat events.
+     * Display an AP tick that contains at least one active action segment. Idle
+     * ticks are resolved internally but skipped by playback.
      */
     default void displayResolutionTick(int tick, BattleState state) {}
 
