@@ -11,6 +11,7 @@ import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.character.coded.RatioAbility;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
+import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.CombatResolver;
 import com.jjktbf.model.combat.DamageCalculator;
 import com.jjktbf.model.combat.RandomSource;
@@ -90,6 +91,9 @@ class RatioTechniqueTest {
         assertTrue(result.bypassedBlock());
         assertTrue(result.getFinalDamage() > 0);
         assertEquals(0, ratioCount(owner));
+        assertTrue(result.getCodedEvents().stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.RATIO_TRIGGERED
+                && event.getMessage().contains("Ratio triggers!")));
     }
 
     @Test

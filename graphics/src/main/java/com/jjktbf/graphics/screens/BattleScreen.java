@@ -18,11 +18,13 @@ import com.jjktbf.graphics.multiplayer.MultiplayerMatchService;
 import com.jjktbf.graphics.multiplayer.MultiplayerSession;
 import com.jjktbf.graphics.ui.CombatantPanel;
 import com.jjktbf.graphics.ui.MiraclesMeter;
+import com.jjktbf.graphics.ui.RatioMeter;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 import com.jjktbf.graphics.ui.battle.PlanningPanel;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.coded.CodedAbilityState;
 import com.jjktbf.model.character.coded.MiraclesAbility;
+import com.jjktbf.model.character.coded.RatioAbility;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
@@ -132,6 +134,7 @@ public class BattleScreen implements Screen, BattleView {
     private CombatantPanel playerPanel;
     private CombatantPanel enemyPanel;
     private final MiraclesMeter miraclesMeter = new MiraclesMeter();
+    private final RatioMeter ratioMeter = new RatioMeter();
     private Texture playerSprite;
     private Texture enemySprite;
     private final Rectangle logBounds = new Rectangle();
@@ -286,6 +289,7 @@ public class BattleScreen implements Screen, BattleView {
     private int onlinePlayerCe;
     private int onlinePlayerMaxCe;
     private CodedAbilityState onlinePlayerMiracles;
+    private CodedAbilityState onlinePlayerRatio;
     private int onlineEnemyHp;
     private int onlineEnemyMaxHp;
     private int onlineEnemyCe;
@@ -382,7 +386,9 @@ public class BattleScreen implements Screen, BattleView {
         onlinePlayer = null;
         onlineEnemy = null;
         onlinePlayerMiracles = null;
+        onlinePlayerRatio = null;
         miraclesMeter.clear();
+        ratioMeter.clear();
         onlineMoves = Map.of();
 
         if (mode == BattleMode.MULTIPLAYER) {
@@ -541,6 +547,7 @@ public class BattleScreen implements Screen, BattleView {
         if (playerPanel != null && hasPlayerRenderState()) {
             playerPanel.draw(batch, assets.fontMedium, assets.fontSmall, playerCharacterName(), frameDelta);
             miraclesMeter.draw(batch, assets.battleUi);
+            ratioMeter.draw(batch, assets.battleUi, assets.fontLarge);
         }
         drawLog(sw, sh);
         drawNextRoundButton();
@@ -704,12 +711,13 @@ public class BattleScreen implements Screen, BattleView {
         float startSize = Math.max(40f, Math.min(64f, viewportSize * 0.09f));
         float endSize = Math.max(startSize, Math.min(240f, viewportSize * 0.34f));
         float size = startSize + (endSize - startSize) * easedGrowth;
+        float width = size * unleashedMoveIcon.getWidth() / (float) unleashedMoveIcon.getHeight();
 
         batch.setColor(1f, 1f, 1f, 1f - progress);
         batch.draw(unleashedMoveIcon,
-            (screenWidth - size) / 2f,
+            (screenWidth - width) / 2f,
             (screenHeight - size) / 2f,
-            size,
+            width,
             size);
         batch.setColor(Color.WHITE);
     }
@@ -723,6 +731,12 @@ public class BattleScreen implements Screen, BattleView {
         } else {
             unleashedMoveIcon = assets.battleUi.attackEffectIcon;
         }
+        unleashedMoveElapsed = 0f;
+    }
+
+    /** Plays the successful Ratio-stack proc with the same center-screen treatment as a move effect. */
+    private void playRatioUnleashAnimation() {
+        unleashedMoveIcon = assets.battleUi.ratioStack;
         unleashedMoveElapsed = 0f;
     }
 
@@ -965,6 +979,9 @@ public class BattleScreen implements Screen, BattleView {
                 Move unleashedMove = e.getMove();
                 postLocal(() -> playMoveUnleashAnimation(unleashedMove));
             }
+            if (e.getType() == CombatEvent.Type.RATIO_TRIGGERED) {
+                postLocal(this::playRatioUnleashAnimation);
+            }
             if (!e.getMessage().isBlank()) {
                 final CombatEvent ev = e;
                 final String msg = e.getMessage();
@@ -1141,6 +1158,7 @@ public class BattleScreen implements Screen, BattleView {
         onlineEnemy = opponent;
         if (!resolvingTicks || state.phase() == BattlePhase.PLANNING) {
             onlinePlayerMiracles = findMiraclesState(local.character().codedAbilities());
+            onlinePlayerRatio = findRatioState(local.character().codedAbilities());
         }
         initOnlineMoves(local.character());
         initPanels();
@@ -1341,6 +1359,8 @@ public class BattleScreen implements Screen, BattleView {
             state, opposite(multiplayerSetup.playerSide()), false, onlineEnemy.character().maxCe());
         onlinePlayerMiracles = roundStartMiraclesState(
             state, multiplayerSetup.playerSide(), onlinePlayer.character().codedAbilities());
+        onlinePlayerRatio = roundStartRatioState(
+            state, multiplayerSetup.playerSide(), onlinePlayer.character().codedAbilities());
         processPlaybackEventsThrough(0);
         updatePanels();
     }
@@ -1451,11 +1471,18 @@ public class BattleScreen implements Screen, BattleView {
             && codedAbilityState != null
             && MiraclesAbility.KEY.equals(codedAbilityState.key())) {
             onlinePlayerMiracles = codedAbilityState;
+        } else if (event.sourceSide() == multiplayerSetup.playerSide()
+            && codedAbilityState != null
+            && RatioAbility.KEY.equals(codedAbilityState.key())) {
+            onlinePlayerRatio = codedAbilityState;
         }
 
         if (event.type() == BattleEventType.MOVE_FIRED && event.moveId() != null) {
             Move move = findOnlineMove(event.sourceSide(), event.moveId());
             if (move != null) playMoveUnleashAnimation(move);
+        }
+        if (event.type() == BattleEventType.RATIO_TRIGGERED) {
+            playRatioUnleashAnimation();
         }
         if (event.message() != null && !event.message().isBlank()
             && (event.eventId() == null || loggedOnlineEventIds.add(event.eventId()))) {
@@ -1849,6 +1876,14 @@ public class BattleScreen implements Screen, BattleView {
             playerHud.y + (playerHud.height - miracleSize) / 2f,
             miracleSize
         );
+        float ratioHeight = Math.min(RatioMeter.heightForViewport(height),
+            Math.min(hudHeight * 0.75f, width * 0.12f));
+        float ratioWidth = RatioMeter.widthForHeight(ratioHeight);
+        ratioMeter.setBounds(
+            Math.max(margin, playerHud.x - ratioWidth - 14f),
+            playerHud.y + (playerHud.height - ratioHeight) / 2f,
+            ratioHeight
+        );
 
         float nextRoundWidth = Math.min(210f, Math.max(150f, width * 0.20f));
         float nextRoundHeight = Math.min(54f, logBounds.height - 24f);
@@ -1933,6 +1968,7 @@ public class BattleScreen implements Screen, BattleView {
                     onlinePlayerHp, onlinePlayerMaxHp, onlinePlayerCe, onlinePlayerMaxCe);
             }
             miraclesMeter.setState(onlinePlayerMiracles);
+            ratioMeter.setState(onlinePlayerRatio);
             if (enemyPanel != null && onlineEnemy != null) {
                 enemyPanel.update(
                     onlineEnemyHp, onlineEnemyMaxHp, onlineEnemyCe, onlineEnemyMaxCe);
@@ -1948,6 +1984,8 @@ public class BattleScreen implements Screen, BattleView {
         }
         miraclesMeter.setState(renderPlayer == null
             ? null : findMiraclesState(renderPlayer.getCodedAbilities().states()));
+        ratioMeter.setState(renderPlayer == null
+            ? null : findRatioState(renderPlayer.getCodedAbilities().states()));
         if (enemyPanel != null && renderEnemy != null) {
             enemyPanel.update(localEnemyHp, localEnemyMaxHp,
                 renderEnemy.getCurrentCe(), renderEnemy.getMaxCursedEnergy());
@@ -1958,6 +1996,14 @@ public class BattleScreen implements Screen, BattleView {
         if (states == null) return null;
         return states.stream()
             .filter(state -> MiraclesAbility.KEY.equals(state.key()))
+            .findFirst()
+            .orElse(null);
+    }
+
+    private static CodedAbilityState findRatioState(List<CodedAbilityState> states) {
+        if (states == null) return null;
+        return states.stream()
+            .filter(state -> RatioAbility.KEY.equals(state.key()))
             .findFirst()
             .orElse(null);
     }
@@ -1974,6 +2020,20 @@ public class BattleScreen implements Screen, BattleView {
             .filter(Objects::nonNull)
             .findFirst()
             .orElseGet(() -> findMiraclesState(fallback));
+    }
+
+    private static CodedAbilityState roundStartRatioState(
+        MatchState state,
+        PlayerSide side,
+        List<CodedAbilityState> fallback
+    ) {
+        if (state.roundStartCharacterStates() == null) return findRatioState(fallback);
+        return state.roundStartCharacterStates().stream()
+            .filter(character -> character.side() == side)
+            .map(character -> findRatioState(character.codedAbilities()))
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElseGet(() -> findRatioState(fallback));
     }
 
     private boolean hasPlayerRenderState() {

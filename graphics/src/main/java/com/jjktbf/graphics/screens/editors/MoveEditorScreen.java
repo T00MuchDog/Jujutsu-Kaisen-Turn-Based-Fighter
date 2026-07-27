@@ -734,9 +734,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             Table utility = formSection(sections, "UTILITY");
             utility.add(new Label("SELF EFFECTS", skin, "small")).left().row();
             utility.add(buildEffectsEditor("self", d)).growX().row();
-        } else {
-            Table self = formSection(sections, "SELF EFFECTS");
-            self.add(buildEffectsEditor("self", d)).growX().row();
         }
 
         return sections;

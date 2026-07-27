@@ -47,6 +47,7 @@ public class CombatEvent {
 
         // Abilities
         ABILITY_ACTIVATED,
+        RATIO_TRIGGERED,
 
         // Round / battle
         ROUND_END,

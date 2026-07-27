@@ -97,10 +97,16 @@ public final class RatioAbility implements CodedAbilityRuntime {
         String ownerName = owner.getCharacter().getName();
         String targetName = defender.getCharacter().getName();
         String message = ratioApplied
-            ? ownerName + " strikes " + targetName + "'s 7:3 point with " + move.getName() + "!"
+            ? (stackRatio ? "Ratio triggers! " : "Ratio activates! ")
+                + ownerName + " strikes " + targetName + "'s 7:3 point with " + move.getName() + "!"
             : ownerName + " consumes 1 Ratio stack on " + targetName
                 + ", but the 7:3 point does not open.";
-        List<CombatEvent> events = List.of(event(tick, defender, message));
+        List<CombatEvent> events = List.of(event(
+            stackRatio ? CombatEvent.Type.RATIO_TRIGGERED : CombatEvent.Type.ABILITY_ACTIVATED,
+            tick,
+            defender,
+            message
+        ));
         return ratioApplied
             ? new CodedHitModifiers(true, DEFENSE_MULTIPLIER, events)
             : new CodedHitModifiers(false, 1.0, events);
@@ -183,7 +189,16 @@ public final class RatioAbility implements CodedAbilityRuntime {
     }
 
     private CombatEvent event(int tick, BattleCombatant target, String message) {
-        return CombatEvent.of(CombatEvent.Type.ABILITY_ACTIVATED)
+        return event(CombatEvent.Type.ABILITY_ACTIVATED, tick, target, message);
+    }
+
+    private CombatEvent event(
+        CombatEvent.Type type,
+        int tick,
+        BattleCombatant target,
+        String message
+    ) {
+        return CombatEvent.of(type)
             .source(owner).target(target).tick(tick)
             .codedAbilityState(state())
             .message(message)

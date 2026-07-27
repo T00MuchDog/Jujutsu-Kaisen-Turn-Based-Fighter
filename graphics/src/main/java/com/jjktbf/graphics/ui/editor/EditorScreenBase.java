@@ -447,10 +447,8 @@ public abstract class EditorScreenBase<D> implements Screen {
     /**
      * Rebuild the master list from {@link #records}, honouring the search box.
      *
-     * With no search query, items are shown in id order (records is loaded
-     * sequentially from the repo, so id order == list order).
-     * With a search query, the *filtered matches* are sorted alphabetically by
-     * their display label — so typing narrows and re-orders for quick finding.
+     * Items are sorted alphabetically by their display label after applying an
+     * optional search query.
      */
     protected void refreshMasterList() {
         String q = searchField.getText().trim().toLowerCase();
@@ -461,12 +459,8 @@ public abstract class EditorScreenBase<D> implements Screen {
                 visibleRecords.add(r);
             }
         }
-        // Searching re-orders matches alphabetically for quick scanning;
-        // no-query view keeps id order (which == records order).
-        if (!q.isEmpty()) {
-            visibleRecords.sort((a, b) ->
-                String.CASE_INSENSITIVE_ORDER.compare(listLabel(a), listLabel(b)));
-        }
+        visibleRecords.sort((a, b) ->
+            String.CASE_INSENSITIVE_ORDER.compare(listLabel(a), listLabel(b)));
         visibleRecordIds.clear();
         visibleRecords.forEach(record -> visibleRecordIds.add(idOf(record)));
         masterList.setItems(visibleRecords.stream()

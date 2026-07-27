@@ -246,7 +246,7 @@ class StatusEffectStatModifierTest {
         List<CombatEvent> applied = resolver.resolveRound(state);
         int reducedMaxHp = user.getMaxHp();
 
-        assertEquals(270, reducedMaxHp);
+        assertEquals(230, reducedMaxHp);
         assertEquals(1, applied.stream()
             .filter(event -> event.getType() == CombatEvent.Type.MAX_HP_CHANGED)
             .filter(event -> event.getIntValue() == reducedMaxHp)
@@ -255,7 +255,7 @@ class StatusEffectStatModifierTest {
         state.transitionTo(BattleState.Phase.ROUND_END);
         List<CombatEvent> expired = resolver.processRoundEnd(state);
 
-        assertEquals(320, user.getMaxHp());
+        assertEquals(280, user.getMaxHp());
         assertEquals(1, expired.stream()
             .filter(event -> event.getType() == CombatEvent.Type.MAX_HP_CHANGED)
             .filter(event -> event.getIntValue() == user.getMaxHp())
@@ -319,16 +319,16 @@ class StatusEffectStatModifierTest {
         CombatResolver resolver = new CombatResolver(new Random(1));
         resolver.processRoundStart(state);
         user.heal(1_000);
-        assertEquals(370, user.getCurrentHp());
+        assertEquals(330, user.getCurrentHp());
         state.transitionTo(BattleState.Phase.ROUND_END);
 
         List<CombatEvent> events = resolver.processRoundEnd(state);
 
-        assertEquals(370, user.getMaxHp());
-        assertEquals(370, user.getCurrentHp());
+        assertEquals(330, user.getMaxHp());
+        assertEquals(330, user.getCurrentHp());
         assertEquals(0, events.stream()
             .filter(event -> event.getType() == CombatEvent.Type.MAX_HP_CHANGED)
-            .filter(event -> event.getIntValue() != 370)
+            .filter(event -> event.getIntValue() != 330)
             .count());
         assertEquals(0, resolver.processRoundStart(state).stream()
             .filter(event -> event.getType() == CombatEvent.Type.MAX_HP_CHANGED)
@@ -350,7 +350,7 @@ class StatusEffectStatModifierTest {
             .map(CombatEvent::getIntValue)
             .toList();
 
-        assertEquals(List.of(330, 350), maxima);
+        assertEquals(List.of(290, 310), maxima);
     }
 
     private static long effectsFor(StatKey stat, boolean increase) {

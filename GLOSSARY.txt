@@ -54,8 +54,8 @@ lookup aliases.
 
     VITALITY                       vitality / vit
       Determines maximum HP.
-      HP = round(S(Vitality) × HP_PER_VIT),  HP_PER_VIT = 4.0  (S = StatScale).
-      Baseline 80 → 320 HP. Max 300 → ~1886 HP (S(300)=472 — see STAT SCALING).
+      HP = round(S(Vitality) × HP_PER_VIT),  HP_PER_VIT = 3.5  (S = StatScale).
+      Baseline 80 → 280 HP. Max 300 → ~1652 HP (S(300)=472 — see STAT SCALING).
 
     STRENGTH                       strength / str
       Physical striking power. Primary driver of Power for PHYSICAL moves
@@ -129,7 +129,7 @@ Derived values computed from base stats at combatant load time, plus the static
 damage-resolution helpers. These are the numbers actually used in combat.
 
   Tuning constants (lines noted):
-    HP_PER_VIT            = 4.0      (L99,  final)
+    HP_PER_VIT            = 3.5      (L99,  final)
     AP_DIVISOR            = 18       (L108, final)
     HIT_BALANCE_FACTOR    = 1/19     (L115, final)  → equal ACC/EVA = 95% on a 1.0 move
     CE_POOL_SCALE         = 8        (L118, final)
@@ -594,7 +594,7 @@ Pipeline:
     SCALING above). PHYSICAL Power is dampened by PHYSICAL_POWER_MULTIPLIER so a
     physical Power edge cannot two-hit a peer; CE/technique moves are unaffected.
 
-  DAMAGE_SCALE = 0.40  (private, tuned for longer fights; was 0.5).
+  DAMAGE_SCALE = 0.42  (private, tuned for longer fights; was 0.5).
   DAMAGE ROLL range = [0.85, 1.0] (±15%).
 
 POWER (PowerCalculator — integer division; cursedEnergyBase is shared;

@@ -23,9 +23,9 @@ package com.jjktbf.model.character;
  * ============================================================
  *
  *  HP
- *    Baseline (VIT=80)  → 320 HP
+ *    Baseline (VIT=80)  → 280 HP
  *    Formula: HP = round(S(VIT) * HP_PER_VIT)
- *    HP_PER_VIT = 4.0  (raised from the 2.67 placeholder — longer fights)
+ *    HP_PER_VIT = 3.5  (raised from the 2.67 placeholder — longer fights)
  *
  *  AP BAR SIZE
  *    Baseline (SPD=80, CA=80)   → 80
@@ -113,7 +113,7 @@ public class CombatStats {
     // ------------------------------------------------------------------
 
     /** HP gained per SCALED point of Vitality. Raised from 2.67 — longer fights. */
-    public static final double HP_PER_VIT = 4.0;
+    public static final double HP_PER_VIT = 3.5;
 
     /**
      * AP bar divisor in the (S(SPD)*15 + S(CA)*3) formula.

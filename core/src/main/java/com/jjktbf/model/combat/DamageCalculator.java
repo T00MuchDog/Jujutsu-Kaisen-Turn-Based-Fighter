@@ -29,7 +29,7 @@ import java.util.Random;
  * PHYSICAL_POWER_MULTIPLIER (< 1.0) — physical moves are weaker than CE/technique
  * moves at equal base power, so a physical Power edge cannot two-hit a peer.
  *
- * DAMAGE_SCALE = 0.40 (tuned for longer fights; was 0.5).
+ * DAMAGE_SCALE = 0.42 (tuned for longer fights; was 0.5).
  *
  * All randomness uses an injected {@link RandomSource} for testability and
  * deterministic authoritative resolution.
@@ -42,7 +42,7 @@ public final class DamageCalculator {
      * Higher = more damage, faster fights.
      * Target: even matchup fights last 4–6 rounds with 2–4 moves per round.
      */
-    private static final double DAMAGE_SCALE = 0.40;
+    private static final double DAMAGE_SCALE = 0.42;
 
     /** Low end of the random damage roll (±15% variance). */
     private static final double ROLL_MIN     = 0.85;

@@ -22,6 +22,7 @@ public enum BattleEventType {
     BFS_ENTERED,
     BFS_EXPIRED,
     ABILITY_ACTIVATED,
+    RATIO_TRIGGERED,
     ROUND_START,
     ROUND_END,
     BATTLE_OVER

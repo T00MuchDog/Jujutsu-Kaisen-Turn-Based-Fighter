@@ -146,7 +146,7 @@ public class StatVerificationTest {
         List<MoveData> moves = new ObjectMapper().readValue(
             movesPath.toFile(), new TypeReference<List<MoveData>>() {});
 
-        assertEquals(29, moves.size());
+        assertEquals(32, moves.size());
         moves.forEach(move -> assertDoesNotThrow(move::toMove, move.name));
 
         MoveData surge = moves.stream()
@@ -919,8 +919,8 @@ public class StatVerificationTest {
         // (physical dampened by PHYSICAL_POWER_MULTIPLIER). After 50% block: attackValue
         // = 100 * 68 * 0.5 = 3400. Defense caps CE reinforcement by Output:
         //   ceReinf = min(80, 80*0.5=40) = 40; DEF = (40*6 + 80*2)/6 = 67
-        // roll = 0.85 (FixedRandom 0.0). rawDamage = round((3400/67) * 0.40 * 0.85) = 17.
-        assertEquals(17, result.getFinalDamage());
+        // roll = 0.85 (FixedRandom 0.0). rawDamage = round((3400/67) * 0.42 * 0.85) = 18.
+        assertEquals(18, result.getFinalDamage());
     }
 
     private static void writeJson(Path root, String relativePath, String contents) throws IOException {

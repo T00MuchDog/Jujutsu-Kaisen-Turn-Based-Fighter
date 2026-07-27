@@ -52,6 +52,7 @@ public final class BattleUiAssets {
     public final Texture attackEffectIcon;
     public final Texture defenseEffectIcon;
     public final Texture utilityEffectIcon;
+    public final Texture ratioStack;
     private final Texture[] miracleCounters = new Texture[7];
 
     public BattleUiAssets() {
@@ -99,6 +100,7 @@ public final class BattleUiAssets {
         attackEffectIcon = effectIcon("assets/Moves/Attack_Icon.png");
         defenseEffectIcon = effectIcon("assets/Moves/Defense_Icon.png");
         utilityEffectIcon = effectIcon("assets/Moves/Utility_Icon.png");
+        ratioStack = loadTexture("assets/ui/techniques/ratio/ratioStack.png");
         for (int count = 0; count < miracleCounters.length; count++) {
             miracleCounters[count] = loadTexture(
                 "assets/ui/techniques/miracles/miracle_counter_" + count + ".png");
