@@ -232,6 +232,7 @@ public class CharacterData {
         d.id                    = character.getId();
         d.name                  = character.getName();
         d.innateTechniqueName   = character.getInnateTechniqueName();
+        d.hasWeapon             = character.hasWeapon();
 
         CharacterStats cs = character.getBaseStats();
         d.vitality               = cs.getVitality();

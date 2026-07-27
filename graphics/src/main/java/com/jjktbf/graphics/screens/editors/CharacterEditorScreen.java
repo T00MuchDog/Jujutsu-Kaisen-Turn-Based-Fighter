@@ -166,6 +166,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         d.description         = stored.description;
         d.spriteAsset         = stored.spriteAsset;
         d.innateTechniqueName = stored.innateTechniqueName;
+        d.hasWeapon           = stored.hasWeapon;
         for (StatKey sk : STAT_ORDER) sk.set(d, sk.get(stored));
         if (d.innateTechniqueName == null) d.cursedTechniqueMastery = 0;
         d.moveIds    = stored.moveIds    != null ? new ArrayList<>(stored.moveIds)    : new ArrayList<>();
@@ -414,6 +415,16 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
         // ── Move assignment ────────────────────────────────────────────────────
         Table movesSection = formSection(form, "MOVE ASSIGNMENT");
+        CheckBox hasWeaponToggle = new CheckBox(" has a weapon", skin);
+        hasWeaponToggle.setChecked(cd.hasWeapon);
+        hasWeaponToggle.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                cd.hasWeapon = hasWeaponToggle.isChecked();
+                rebuildMoveAssignment(cd);
+                markDirty();
+            }
+        });
+        movesSection.add(hasWeaponToggle).left().row();
         moveAssignmentContainer = new Container<>();
         moveAssignmentContainer.fillX();
         movesSection.add(moveAssignmentContainer).growX().row();
@@ -873,13 +884,17 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         MoveData move,
         boolean alreadyAssigned
     ) {
+        Move built;
         try {
-            move.toMove();
+            built = move.toMove();
         } catch (Exception ex) {
             return "Move configuration is invalid: " + ex.getMessage();
         }
         if (move.mustBeGranted && !abilities.availableMoveIds().contains(move.id)) {
             return "This move must be granted by an ability.";
+        }
+        if (built.isWeaponRequired() && !character.hasWeapon) {
+            return "Requires a weapon.";
         }
         String lockedTag = lockingTag(abilities, move);
         if (lockedTag != null) return "Locked by ability: " + lockedTag;

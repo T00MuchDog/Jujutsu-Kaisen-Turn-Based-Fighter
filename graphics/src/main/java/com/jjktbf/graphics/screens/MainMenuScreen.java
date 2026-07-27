@@ -94,7 +94,7 @@ public class MainMenuScreen implements Screen {
         MenuButton quit      = makeButton("QUIT", () -> Gdx.app.exit());
 
         for (MenuButton button : new MenuButton[]{
-            singlePlayer, multiplayer, moveEd, charEd, abilityEd, techEd, quit
+            singlePlayer, multiplayer, charEd, moveEd, abilityEd, techEd, quit
         }) {
             menuButtons.add(button);
             menuButtonCells.add(commands.add(button).growX().height(46).pad(4));
