@@ -106,14 +106,14 @@ the full process; the short version:
 ### How to cut a new release
 
 ```bash
-git commit -am "Release 1.3"
+git commit -am "Release 1.3.1"
 
-mvn -Drevision=1.3.0 clean verify
+mvn -Drevision=1.3.1 clean verify
 
-git tag v1.3.0
+git tag v1.3.1
 
 git push origin HEAD
-git push origin v1.3.0
+git push origin v1.3.1
 ```
 
 Pushing the tag triggers GitHub Actions, which builds macOS (arm64 + x64) and
