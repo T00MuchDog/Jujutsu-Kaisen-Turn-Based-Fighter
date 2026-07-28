@@ -561,6 +561,9 @@ public class StatVerificationTest {
                   "availableAbilityIds": [ "000000" ]
                 } ]
                 """);
+            writeJson(resourceRoot, "data/keyword_descriptions.json", """
+                [ { "term": "Release Term", "description": "Release description" } ]
+                """);
 
             writeJson(profileRoot, "data/moves/all_moves.json", """
                 [
@@ -627,6 +630,8 @@ public class StatVerificationTest {
             assertEquals(List.of("000000"), haruta.get("moveIds"));
             assertEquals(List.of("000000"), haruta.get("abilityIds"));
             assertEquals(List.of("000000"), haruta.get("availableAbilityIds"));
+            assertTrue(Files.readString(profileRoot.resolve("data/keyword_descriptions.json"))
+                .contains("Release Term"));
         } finally {
             Thread.currentThread().setContextClassLoader(previousLoader);
             if (previousDataRoot == null) {
@@ -663,6 +668,9 @@ public class StatVerificationTest {
             writeJson(resourceRoot, "data/characters/all_characters.json", """
                 [ { "id": "000000", "name": "Release One Character" } ]
                 """);
+            writeJson(resourceRoot, "data/keyword_descriptions.json", """
+                [ { "term": "Release One Term", "description": "Description" } ]
+                """);
 
             System.setProperty(AppPaths.DATA_ROOT_SYSTEM_PROPERTY, profileRoot.toString());
             Thread.currentThread().setContextClassLoader(initialLoader);
@@ -680,6 +688,9 @@ public class StatVerificationTest {
             writeJson(profileRoot, "data/characters/all_characters.json", """
                 [ { "id": "000000", "name": "Player Character" } ]
                 """);
+            writeJson(profileRoot, "data/keyword_descriptions.json", """
+                [ { "term": "Player Term", "description": "Description" } ]
+                """);
 
             AppPaths.seedDataIfAbsent();
             assertTrue(Files.readString(profileRoot.resolve("data/moves/all_moves.json"))
@@ -690,6 +701,8 @@ public class StatVerificationTest {
                 .contains("Player Technique"));
             assertTrue(Files.readString(profileRoot.resolve("data/characters/all_characters.json"))
                 .contains("Player Character"));
+            assertTrue(Files.readString(profileRoot.resolve("data/keyword_descriptions.json"))
+                .contains("Player Term"));
 
             writeJson(resourceRoot, "jjktbf-version.properties", "game.version=1.0.1\n");
             writeJson(resourceRoot, "data/moves/all_moves.json", """
@@ -704,6 +717,9 @@ public class StatVerificationTest {
             writeJson(resourceRoot, "data/characters/all_characters.json", """
                 [ { "id": "000000", "name": "Release Two Character" } ]
                 """);
+            writeJson(resourceRoot, "data/keyword_descriptions.json", """
+                [ { "term": "Release Two Term", "description": "Description" } ]
+                """);
             updatedLoader = new URLClassLoader(
                 new java.net.URL[] { resourceRoot.toUri().toURL() }, null);
             Thread.currentThread().setContextClassLoader(updatedLoader);
@@ -717,6 +733,8 @@ public class StatVerificationTest {
                 .contains("Release Two Technique"));
             assertTrue(Files.readString(profileRoot.resolve("data/characters/all_characters.json"))
                 .contains("Release Two Character"));
+            assertTrue(Files.readString(profileRoot.resolve("data/keyword_descriptions.json"))
+                .contains("Release Two Term"));
             assertEquals("1.0.1", Files.readString(profileRoot.resolve("data-release-version")).trim());
         } finally {
             Thread.currentThread().setContextClassLoader(previousLoader);
@@ -727,6 +745,75 @@ public class StatVerificationTest {
             }
             if (updatedLoader != null) updatedLoader.close();
             initialLoader.close();
+            AppPaths.deleteRecursively(resourceRoot);
+            AppPaths.deleteRecursively(profileRoot);
+        }
+    }
+
+    @Test
+    void addingKeywordCatalogRefreshesOnlyBundledMechanicalText() throws Exception {
+        Path resourceRoot = Files.createTempDirectory("bundled-keywords");
+        Path profileRoot = Files.createTempDirectory("player-keywords");
+        String previousDataRoot = System.getProperty(AppPaths.DATA_ROOT_SYSTEM_PROPERTY);
+        ClassLoader previousLoader = Thread.currentThread().getContextClassLoader();
+        URLClassLoader resourceLoader = new URLClassLoader(
+            new java.net.URL[] { resourceRoot.toUri().toURL() }, null);
+        try {
+            writeJson(resourceRoot, "jjktbf-version.properties", "game.version=1.0.0\n");
+            writeJson(resourceRoot, "data/moves/all_moves.json", """
+                [ { "id": "000000", "name": "Bundled Move", "description": "New move text" } ]
+                """);
+            writeJson(resourceRoot, "data/abilities/all_abilities.json", """
+                [ { "id": "000000", "name": "Bundled Ability", "mechanicText": "New ability text" } ]
+                """);
+            writeJson(resourceRoot, "data/keyword_descriptions.json", """
+                [ { "term": "TERM", "description": "Description" } ]
+                """);
+
+            writeJson(profileRoot, "data-release-version", "1.0.0\n");
+            writeJson(profileRoot, "data/moves/all_moves.json", """
+                [
+                  { "id": "000000", "name": "Bundled Move", "description": "Old move text", "basePower": 99 },
+                  { "id": "000001", "name": "Custom Move", "description": "Custom move text" }
+                ]
+                """);
+            writeJson(profileRoot, "data/abilities/all_abilities.json", """
+                [
+                  { "id": "000000", "name": "Bundled Ability", "mechanicText": "Old ability text", "category": "PASSIVE" },
+                  { "id": "000001", "name": "Custom Ability", "mechanicText": "Custom ability text" }
+                ]
+                """);
+            writeJson(profileRoot, "data/techniques/all_techniques.json", "[]");
+            writeJson(profileRoot, "data/characters/all_characters.json", "[]");
+
+            System.setProperty(AppPaths.DATA_ROOT_SYSTEM_PROPERTY, profileRoot.toString());
+            Thread.currentThread().setContextClassLoader(resourceLoader);
+            AppPaths.seedDataIfAbsent();
+
+            ObjectMapper mapper = new ObjectMapper();
+            List<Map<String, Object>> moves = mapper.readValue(
+                profileRoot.resolve("data/moves/all_moves.json").toFile(),
+                new TypeReference<List<Map<String, Object>>>() {});
+            assertEquals("New move text", moves.get(0).get("description"));
+            assertEquals(99, moves.get(0).get("basePower"));
+            assertEquals("Custom move text", moves.get(1).get("description"));
+
+            List<Map<String, Object>> abilities = mapper.readValue(
+                profileRoot.resolve("data/abilities/all_abilities.json").toFile(),
+                new TypeReference<List<Map<String, Object>>>() {});
+            assertEquals("New ability text", abilities.get(0).get("mechanicText"));
+            assertEquals("PASSIVE", abilities.get(0).get("category"));
+            assertEquals("Custom ability text", abilities.get(1).get("mechanicText"));
+            assertTrue(Files.isRegularFile(
+                profileRoot.resolve("data/keyword_descriptions.json")));
+        } finally {
+            Thread.currentThread().setContextClassLoader(previousLoader);
+            if (previousDataRoot == null) {
+                System.clearProperty(AppPaths.DATA_ROOT_SYSTEM_PROPERTY);
+            } else {
+                System.setProperty(AppPaths.DATA_ROOT_SYSTEM_PROPERTY, previousDataRoot);
+            }
+            resourceLoader.close();
             AppPaths.deleteRecursively(resourceRoot);
             AppPaths.deleteRecursively(profileRoot);
         }

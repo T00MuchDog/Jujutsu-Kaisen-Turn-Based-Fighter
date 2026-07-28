@@ -18,10 +18,11 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
-import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.scenes.scene2d.ui.WidgetGroup;
 import com.jjktbf.graphics.ui.ContentSizedDialog;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
+import com.jjktbf.graphics.ui.text.KeywordLabel;
+import com.jjktbf.graphics.ui.text.KeywordTooltip;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.StatKey;
@@ -63,6 +64,7 @@ public class SkillTreeCanvas extends WidgetGroup {
     private final Map<String, NodeView> viewsByNodeId = new LinkedHashMap<>();
     private final Drawable background;
     private final Drawable connector;
+    private final KeywordTooltip keywordTooltip;
 
     private SkillTreeNodeData attachingSource;
     private Table contextMenu;
@@ -89,6 +91,7 @@ public class SkillTreeCanvas extends WidgetGroup {
         this.skin = Objects.requireNonNull(skin);
         this.background = skin.getDrawable("battle-palette");
         this.connector = skin.getDrawable("white-pixel");
+        this.keywordTooltip = new KeywordTooltip(skin);
         setTouchable(Touchable.enabled);
 
         if (moves != null) moves.stream().filter(Objects::nonNull)
@@ -139,10 +142,12 @@ public class SkillTreeCanvas extends WidgetGroup {
     @Override
     public boolean remove() {
         hideContextMenu();
+        keywordTooltip.hide();
         return super.remove();
     }
 
     private void rebuildNodes() {
+        keywordTooltip.hide();
         clearChildren();
         viewsByNodeId.clear();
         if (technique.skillTree == null) return;
@@ -624,7 +629,7 @@ public class SkillTreeCanvas extends WidgetGroup {
     private final class NodeView extends Table {
         private final SkillTreeNodeData node;
         private final Label name;
-        private final Label description;
+        private final KeywordLabel description;
         private float downStageX;
         private float downStageY;
         private float startX;
@@ -643,9 +648,10 @@ public class SkillTreeCanvas extends WidgetGroup {
             name = new Label(contentName(node), skin);
             name.setEllipsis(true);
             add(name).width(NODE_WIDTH - 18f).row();
-            description = new Label(contentDescription(node), skin, "small");
-            description.setWrap(true);
-            description.setAlignment(Align.topLeft);
+            description = new KeywordLabel(
+                contentDescription(node),
+                skin.get("small", Label.LabelStyle.class),
+                keywordTooltip);
             add(description).width(NODE_WIDTH - 18f).height(72f).top().row();
             refreshState();
 
@@ -725,18 +731,18 @@ public class SkillTreeCanvas extends WidgetGroup {
             setBackground(skin.getDrawable(backgroundName));
             if (character == null) {
                 name.setColor(skin.get("text-dark", Color.class));
-                description.setColor(skin.get("text-dark", Color.class));
+                description.setBaseColor(skin.get("text-dark", Color.class));
                 return;
             }
             if (active) {
                 name.setColor(skin.get("text-ok", Color.class));
-                description.setColor(skin.get("text-dark", Color.class));
+                description.setBaseColor(skin.get("text-dark", Color.class));
             } else if (locked) {
                 name.setColor(skin.get("text-dim", Color.class));
-                description.setColor(skin.get("text-dim", Color.class));
+                description.setBaseColor(skin.get("text-dim", Color.class));
             } else {
                 name.setColor(skin.get("text-dark", Color.class));
-                description.setColor(skin.get("text-dark", Color.class));
+                description.setBaseColor(skin.get("text-dark", Color.class));
             }
         }
     }

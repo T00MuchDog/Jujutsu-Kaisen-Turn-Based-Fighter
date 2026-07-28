@@ -92,13 +92,15 @@ public final class AppPaths {
     private static final String BUNDLED_CHARACTERS = "data/characters/all_characters.json";
     private static final String BUNDLED_ABILITIES = "data/abilities/all_abilities.json";
     private static final String BUNDLED_TECHNIQUES = "data/techniques/all_techniques.json";
+    private static final String BUNDLED_KEYWORD_DESCRIPTIONS = "data/keyword_descriptions.json";
     private static final String BUNDLED_VERSION = "jjktbf-version.properties";
     private static final String DATA_VERSION_FILE = "data-release-version";
     private static final List<String> BUNDLED_DATA_FILES = List.of(
         BUNDLED_MOVES,
         BUNDLED_ABILITIES,
         BUNDLED_TECHNIQUES,
-        BUNDLED_CHARACTERS
+        BUNDLED_CHARACTERS,
+        BUNDLED_KEYWORD_DESCRIPTIONS
     );
     private static final String LEGACY_CHARACTER_SPRITE_PREFIX = "assets/characters/";
     private static final String CHARACTER_SPRITE_PREFIX = "assets/sprites/characters/";
@@ -339,6 +341,10 @@ public final class AppPaths {
         try {
             String bundledVersion = bundledGameVersion(cl);
             if (bundledVersion.equals(savedDataVersion())) {
+                if (!Files.isRegularFile(dataDir().resolve(
+                    BUNDLED_KEYWORD_DESCRIPTIONS.substring("data/".length())))) {
+                    refreshBundledMechanicalDescriptions(cl);
+                }
                 copyBundledData(cl, false);
             } else {
                 copyBundledData(cl, true);
@@ -399,6 +405,47 @@ public final class AppPaths {
     }
 
     private record StagedDataFile(Path temporary, Path destination) {}
+
+    /** One-time migration for profiles created before the keyword catalog existed. */
+    private static void refreshBundledMechanicalDescriptions(ClassLoader cl) throws IOException {
+        refreshBundledField(cl, BUNDLED_MOVES, "description");
+        refreshBundledField(cl, BUNDLED_ABILITIES, "mechanicText");
+    }
+
+    private static void refreshBundledField(
+        ClassLoader cl,
+        String resource,
+        String field
+    ) throws IOException {
+        Path destination = dataDir().resolve(resource.substring("data/".length()));
+        if (!Files.isRegularFile(destination)) return;
+        try (InputStream input = cl.getResourceAsStream(resource)) {
+            if (input == null) throw new IOException("Missing bundled data resource: " + resource);
+            List<LinkedHashMap<String, Object>> saved = MAPPER.readValue(
+                destination.toFile(), new TypeReference<>() {});
+            List<LinkedHashMap<String, Object>> bundled = MAPPER.readValue(
+                input, new TypeReference<>() {});
+            Map<String, Object> bundledValues = new LinkedHashMap<>();
+            for (Map<String, Object> definition : bundled) {
+                String name = normalizedDefinitionName(definition);
+                if (name != null && definition.containsKey(field)) {
+                    bundledValues.putIfAbsent(name, definition.get(field));
+                }
+            }
+
+            boolean changed = false;
+            for (Map<String, Object> definition : saved) {
+                String name = normalizedDefinitionName(definition);
+                if (name == null || !bundledValues.containsKey(name)) continue;
+                Object replacement = deepCopyJsonValue(bundledValues.get(name));
+                if (!Objects.equals(definition.get(field), replacement)) {
+                    definition.put(field, replacement);
+                    changed = true;
+                }
+            }
+            if (changed) MAPPER.writeValue(destination.toFile(), saved);
+        }
+    }
 
     /**
      * Refresh bundled moves by name so release balance changes replace stale

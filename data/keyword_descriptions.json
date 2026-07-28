@@ -1,0 +1,374 @@
+[
+  {
+    "term": "ACTION SEGMENT",
+    "description": "A queued move's occupied section of the AP Timeline."
+  },
+  {
+    "term": "ACCURACY",
+    "description": "The attacker's chance to connect after the move's base accuracy and the target's Evasion are considered."
+  },
+  {
+    "term": "AP",
+    "description": "Action Points determine how many timeline ticks can be planned each round."
+  },
+  {
+    "term": "AP TICK",
+    "description": "One position on the AP Timeline."
+  },
+  {
+    "term": "AP TICKS",
+    "description": "Positions on the AP Timeline used to measure actions and effects."
+  },
+  {
+    "term": "ATTACK",
+    "description": "A move tag marking an offensive action."
+  },
+  {
+    "term": "ATTACKS",
+    "description": "Offensive actions marked with the Attack move tag."
+  },
+  {
+    "term": "AVAILABLE",
+    "description": "Content that can be learned or assigned but is not active yet."
+  },
+  {
+    "term": "BASE POWER",
+    "description": "A move's raw damage value before Power, Defense, and other modifiers."
+  },
+  {
+    "term": "BATTLE START",
+    "description": "The trigger that occurs once when combatants enter a fight."
+  },
+  {
+    "term": "BLACK FLASH",
+    "description": "A rare critical hit that deals 2.5 times damage and restores 5% of maximum CE."
+  },
+  {
+    "term": "BLOCK",
+    "description": "A defensive window that reduces matching attacks when its Potency is high enough."
+  },
+  {
+    "term": "CE",
+    "description": "Cursed Energy, the resource spent by CE-bearing moves."
+  },
+  {
+    "term": "CURSED ENERGY",
+    "description": "A move tag for raw cursed-energy actions governed by CE Output, Reserves, and Efficiency."
+  },
+  {
+    "term": "CURSED_ENERGY",
+    "description": "A move tag for raw cursed-energy actions governed by CE Output, Reserves, and Efficiency."
+  },
+  {
+    "term": "DEFENSE",
+    "description": "The defender's current resilience, calculated from Durability and available CE reinforcement."
+  },
+  {
+    "term": "DEFENSIVE",
+    "description": "A move tag marking an action that protects against incoming attacks."
+  },
+  {
+    "term": "DODGE",
+    "description": "A chance-based defensive window that avoids matching attacks entirely."
+  },
+  {
+    "term": "GUARD BREAK",
+    "description": "A move tag that bypasses Block but not Parry or Dodge."
+  },
+  {
+    "term": "GUARD_BREAK",
+    "description": "A move tag that bypasses Block but not Parry or Dodge."
+  },
+  {
+    "term": "HEAVY",
+    "description": "A move tag that prevents an action segment from being interrupted by Stun."
+  },
+  {
+    "term": "HP",
+    "description": "Health Points; a combatant is defeated when this reaches zero."
+  },
+  {
+    "term": "INNATE TECHNIQUE",
+    "description": "A move tag tied to a specific inherited cursed technique."
+  },
+  {
+    "term": "INNATE_TECHNIQUE",
+    "description": "A move tag tied to a specific inherited cursed technique."
+  },
+  {
+    "term": "MELEE",
+    "description": "A move tag marking a close-range attack."
+  },
+  {
+    "term": "MIRACLE",
+    "description": "A stored Miracles resource that can avert fatal damage."
+  },
+  {
+    "term": "MIRACLES",
+    "description": "An innate technique whose stored Miracles resource has a maximum capacity of six."
+  },
+  {
+    "term": "NON-INNATE TECHNIQUE",
+    "description": "A move tag for learned jujutsu such as barriers and cursed-tool styles."
+  },
+  {
+    "term": "NON_INNATE_TECHNIQUE",
+    "description": "A move tag for learned jujutsu such as barriers and cursed-tool styles."
+  },
+  {
+    "term": "PARRY",
+    "description": "A brief weapon-based defense that negates an attack and may stagger its user."
+  },
+  {
+    "term": "PHYSICAL",
+    "description": "A move tag for bodily or weapon attacks governed mainly by Strength."
+  },
+  {
+    "term": "POWER",
+    "description": "The offensive value derived from the stats associated with a move's type tags."
+  },
+  {
+    "term": "POTENCY",
+    "description": "An attack can be Blocked or Parried only by a defense with equal or greater Potency."
+  },
+  {
+    "term": "RANGED",
+    "description": "A move tag marking an attack made from a distance."
+  },
+  {
+    "term": "RATIO",
+    "description": "The Ratio technique's 7:3 weak point, which bypasses Block and reduces Defense for one hit."
+  },
+  {
+    "term": "RATIO STACK",
+    "description": "A stored Ratio mark consumed by the next connected attack for a 70% chance to trigger Ratio."
+  },
+  {
+    "term": "REINFORCEMENT",
+    "description": "An attack carrying both the Physical and Cursed Energy tags."
+  },
+  {
+    "term": "ROUND",
+    "description": "One complete planning and resolution cycle."
+  },
+  {
+    "term": "ROUNDS",
+    "description": "Complete planning and resolution cycles."
+  },
+  {
+    "term": "STAGGER",
+    "description": "An effect that delays the target's timeline actions by a number of AP ticks."
+  },
+  {
+    "term": "STUN",
+    "description": "A move tag that cancels the target's active non-Heavy action segment on hit."
+  },
+  {
+    "term": "SWORD",
+    "description": "A move tag for sword and sword-like weapon techniques."
+  },
+  {
+    "term": "UTILITY",
+    "description": "A move tag marking a non-damaging action."
+  },
+  {
+    "term": "VITALITY",
+    "description": "The character stat that determines maximum HP."
+  },
+  {
+    "term": "STRENGTH",
+    "description": "The character stat that primarily determines Physical Power."
+  },
+  {
+    "term": "DURABILITY",
+    "description": "The character stat that contributes physical resilience to Defense."
+  },
+  {
+    "term": "SPEED",
+    "description": "The character stat that primarily determines AP and Evasion."
+  },
+  {
+    "term": "COMBAT ABILITY",
+    "description": "The character stat that primarily determines Accuracy and the Combat Arts slot budget."
+  },
+  {
+    "term": "CURSED ENERGY RESERVES",
+    "description": "The character stat that determines maximum CE."
+  },
+  {
+    "term": "CURSED ENERGY EFFICIENCY",
+    "description": "The character stat that scales the CE cost of moves."
+  },
+  {
+    "term": "CURSED ENERGY OUTPUT",
+    "description": "The character stat that drives cursed-energy Power and caps CE reinforcement."
+  },
+  {
+    "term": "JUJUTSU SKILL",
+    "description": "The character stat governing non-innate techniques and the Jujutsu Arts slot budget."
+  },
+  {
+    "term": "CURSED TECHNIQUE MASTERY",
+    "description": "The character stat that scales Innate Technique Power."
+  },
+  {
+    "term": "Basic Strike",
+    "description": "A free baseline Physical melee attack."
+  },
+  {
+    "term": "Basic Block",
+    "description": "A free Potency 1 block that halves pure Physical attack damage."
+  },
+  {
+    "term": "Jab",
+    "description": "A fast, accurate melee attack that applies Stun."
+  },
+  {
+    "term": "Elbow Strike",
+    "description": "An accurate close-range Physical attack."
+  },
+  {
+    "term": "Body Blow",
+    "description": "A Physical melee attack with Guard Break."
+  },
+  {
+    "term": "Sweeping Kick",
+    "description": "A low Physical melee attack that applies Stun."
+  },
+  {
+    "term": "Knee Strike",
+    "description": "A balanced Physical melee attack."
+  },
+  {
+    "term": "Overhand Punch",
+    "description": "A powerful Heavy Physical melee attack."
+  },
+  {
+    "term": "Reinforced Jab",
+    "description": "A cursed-energy reinforced Jab that applies Stun."
+  },
+  {
+    "term": "Reinforced Elbow",
+    "description": "A cursed-energy reinforced Elbow Strike with increased base power."
+  },
+  {
+    "term": "Reinforced Knee",
+    "description": "A powerful cursed-energy reinforced Knee Strike."
+  },
+  {
+    "term": "Cursed Energy Burst",
+    "description": "A compact ranged attack made from raw Cursed Energy."
+  },
+  {
+    "term": "Cursed Energy Blast",
+    "description": "A Potency 2 Heavy ranged attack made from raw Cursed Energy."
+  },
+  {
+    "term": "Deflection",
+    "description": "A brief Potency 1 block that negates Melee attack damage."
+  },
+  {
+    "term": "Reinforced Deflection",
+    "description": "A CE-powered Potency 1 Deflection with the same brief defensive window."
+  },
+  {
+    "term": "Cross Guard",
+    "description": "A Potency 1 block that reduces pure Physical attack damage by 70%."
+  },
+  {
+    "term": "Reinforced Cross Guard",
+    "description": "A CE-powered block that reduces Potency 1 attack damage by 70%."
+  },
+  {
+    "term": "Braced Guard",
+    "description": "A delayed Potency 1 block that reduces pure Physical attack damage by 90%."
+  },
+  {
+    "term": "Reinforced Braced Guard",
+    "description": "A delayed CE-powered block that reduces Potency 1 attack damage by 90%."
+  },
+  {
+    "term": "Reinforced Basic Block",
+    "description": "A CE-powered block that halves Potency 1 attack damage."
+  },
+  {
+    "term": "Cursed Energy Focus",
+    "description": "A utility move that increases Accuracy for two rounds."
+  },
+  {
+    "term": "Cursed Energy Surge",
+    "description": "A utility move that temporarily increases Cursed Energy Output."
+  },
+  {
+    "term": "Miracle Creation",
+    "description": "A Miracles technique move that creates one Miracle when Miracle Reservoir is active."
+  },
+  {
+    "term": "Sword Slash",
+    "description": "A close-range Physical sword attack."
+  },
+  {
+    "term": "Sword Throw",
+    "description": "A ranged Physical sword attack."
+  },
+  {
+    "term": "Ratio Mark",
+    "description": "A Ratio technique move that places one Ratio Stack on the target, up to three total."
+  },
+  {
+    "term": "Ratio Strike",
+    "description": "A Ratio technique attack that applies the 7:3 weak point directly."
+  },
+  {
+    "term": "Batto Sword Drawing",
+    "description": "A fast reinforced sword attack that applies Stun."
+  },
+  {
+    "term": "Simple Domain",
+    "description": "A New Shadow Style stance that intercepts the next Melee or Ranged attack."
+  },
+  {
+    "term": "Sidestep",
+    "description": "A short defensive move with a 60% chance to dodge Melee attacks."
+  },
+  {
+    "term": "Weapon Parry",
+    "description": "A brief Potency 1 weapon defense that negates an attack and may stagger its user."
+  },
+  {
+    "term": "Evasive Dash",
+    "description": "A defensive move with a 75% chance to dodge Ranged attacks."
+  },
+  {
+    "term": "Iron Constitution",
+    "description": "A character ability that adds 15 Durability."
+  },
+  {
+    "term": "Miracle Reservoir",
+    "description": "A Miracles ability that fills and caps the Miracle resource at six."
+  },
+  {
+    "term": "Fateful Reprieve",
+    "description": "A Miracles ability that spends one Miracle to negate fatal damage."
+  },
+  {
+    "term": "Fortune Reclaimed",
+    "description": "A Miracles ability that recovers Miracles from natural misses and Black Flash."
+  },
+  {
+    "term": "Ratio Reinforcement",
+    "description": "A Ratio ability that gives reinforcement hits a small chance to find the 7:3 point."
+  },
+  {
+    "term": "New Shadow Style",
+    "description": "A learned school that grants access to Batto Sword Drawing and Simple Domain."
+  },
+  {
+    "term": "Simple Domain Binding Vow",
+    "description": "A character ability that dispels Simple Domain when another move is used."
+  },
+  {
+    "term": "Earnest Swordswoman",
+    "description": "A character ability that increases the Base Power of Sword moves."
+  }
+]

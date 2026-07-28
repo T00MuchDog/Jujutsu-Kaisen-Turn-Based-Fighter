@@ -6,9 +6,11 @@ import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.math.Rectangle;
+import com.jjktbf.graphics.ui.text.KeywordTextLayout;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveTag;
+import com.jjktbf.model.text.KeywordDescriptionCatalog;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +33,9 @@ public class MoveCardView {
     private boolean disabled;
     private boolean hovered;
     private boolean dragging;
+    private KeywordTextLayout descriptionLayout;
+    private float descriptionX;
+    private float descriptionTop;
 
     public MoveCardView(Move move, float x, float y) {
         this.move = move;
@@ -43,6 +48,23 @@ public class MoveCardView {
     public void setDisabled(boolean value)   { disabled = value; }
     public void setHovered(boolean value)    { hovered = value; }
     public void setDragging(boolean value)   { dragging = value; }
+
+    /** Returns the highlighted description term beneath the supplied planner coordinate. */
+    public KeywordHover keywordAt(float x, float y) {
+        if (descriptionLayout == null) return null;
+        KeywordTextLayout.KeywordHit hit = descriptionLayout.keywordAt(
+            x - descriptionX, y - descriptionTop);
+        if (hit == null) return null;
+        Rectangle local = hit.bounds();
+        return new KeywordHover(
+            hit.text(),
+            hit.entry(),
+            new Rectangle(
+                descriptionX + local.x,
+                descriptionTop + local.y,
+                local.width,
+                local.height));
+    }
 
     public static Color typeColorFor(MoveCategory category) {
         if (category == null) return Color.GRAY;
@@ -171,7 +193,17 @@ public class MoveCardView {
         drawFitted(batch, font, typeNameFor(move), textX, y + h - 48f, textW, 1);
 
         font.setColor(ink);
-        drawFitted(batch, font, move.getDescription(), textX, y + h - 74f, textW, 5);
+        descriptionX = textX;
+        descriptionTop = y + h - 74f;
+        descriptionLayout = KeywordTextLayout.build(
+            font, move.getDescription(), textW, 5, 0.3f, 0.7f);
+        descriptionLayout.draw(
+            batch,
+            font,
+            descriptionX,
+            descriptionTop,
+            ink,
+            KeywordTextLayout.KEYWORD_ORANGE);
         float extraActionBarHeight = drawActionPointDots(batch, ui, x + 20f, y + 8f, w - 40f,
             move.getApCost(), move.getUnleashPoint(), 6f, 4f);
 
@@ -375,4 +407,10 @@ public class MoveCardView {
     private static float width(BitmapFont font, String text) {
         return new GlyphLayout(font, text).width;
     }
+
+    public record KeywordHover(
+        String text,
+        KeywordDescriptionCatalog.Entry entry,
+        Rectangle bounds
+    ) { }
 }

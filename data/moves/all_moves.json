@@ -1,7 +1,7 @@
 [ {
   "id" : "000000",
   "name" : "Basic Strike",
-  "description" : "A basic physical attack",
+  "description" : "Perform a basic PHYSICAL MELEE ATTACK.",
   "tags" : [ "PHYSICAL", "ATTACK", "MELEE" ],
   "basePower" : 25,
   "baseAccuracy" : 0.9,
@@ -37,7 +37,7 @@
 }, {
   "id" : "000001",
   "name" : "Basic Block",
-  "description" : "A simple guard against physical blows",
+  "description" : "Raise a 50% BLOCK against pure PHYSICAL ATTACKS with POTENCY 1 for 10 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -74,7 +74,7 @@
 }, {
   "id" : "000002",
   "name" : "Jab",
-  "description" : "A short straight punch that stuns the opponent's current segment on hit.",
+  "description" : "Apply STUN to the target's active ACTION SEGMENT on a successful MELEE hit.",
   "tags" : [ "PHYSICAL", "ATTACK", "STUN", "MELEE" ],
   "basePower" : 15,
   "baseAccuracy" : 0.98,
@@ -115,7 +115,7 @@
 }, {
   "id" : "000003",
   "name" : "Elbow Strike",
-  "description" : "A compact elbow strike with high accuracy but limited power.",
+  "description" : "Perform a high-ACCURACY PHYSICAL MELEE ATTACK.",
   "tags" : [ "PHYSICAL", "ATTACK", "MELEE" ],
   "basePower" : 34,
   "baseAccuracy" : 0.97,
@@ -156,7 +156,7 @@
 }, {
   "id" : "000004",
   "name" : "Body Blow",
-  "description" : "A focused punch to the torso that guard breaks.",
+  "description" : "Use GUARD BREAK to bypass BLOCK on a successful MELEE hit.",
   "tags" : [ "PHYSICAL", "ATTACK", "GUARD_BREAK", "MELEE" ],
   "basePower" : 42,
   "baseAccuracy" : 0.86,
@@ -197,7 +197,7 @@
 }, {
   "id" : "000005",
   "name" : "Sweeping Kick",
-  "description" : "A low sweeping kick that stuns the opponent's current segment on hit.",
+  "description" : "Apply STUN to the target's active ACTION SEGMENT on a successful MELEE hit.",
   "tags" : [ "PHYSICAL", "ATTACK", "STUN", "MELEE" ],
   "basePower" : 25,
   "baseAccuracy" : 0.84,
@@ -238,7 +238,7 @@
 }, {
   "id" : "000006",
   "name" : "Knee Strike",
-  "description" : "A close knee strike that balances power, accuracy, and commitment.",
+  "description" : "Perform a balanced PHYSICAL MELEE ATTACK.",
   "tags" : [ "PHYSICAL", "ATTACK", "MELEE" ],
   "basePower" : 40,
   "baseAccuracy" : 0.91,
@@ -280,7 +280,7 @@
 }, {
   "id" : "000007",
   "name" : "Overhand Punch",
-  "description" : "A slow overhand punch with the Heavy tag; it ignores stun effects.",
+  "description" : "This HEAVY MELEE ATTACK cannot be interrupted by STUN.",
   "tags" : [ "PHYSICAL", "ATTACK", "HEAVY", "MELEE" ],
   "basePower" : 60,
   "baseAccuracy" : 0.84,
@@ -321,7 +321,7 @@
 }, {
   "id" : "000008",
   "name" : "Reinforced Jab",
-  "description" : "A CE-reinforced jab that stuns the opponent's current segment on hit.",
+  "description" : "Apply STUN to the target's active ACTION SEGMENT on a successful REINFORCEMENT hit.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "STUN", "MELEE" ],
   "basePower" : 23,
   "baseAccuracy" : 0.98,
@@ -366,7 +366,7 @@
 }, {
   "id" : "000009",
   "name" : "Reinforced Elbow",
-  "description" : "A CE-reinforced elbow that trades CE for stronger close damage.",
+  "description" : "Trade CE for a stronger REINFORCEMENT MELEE ATTACK.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 45,
   "baseAccuracy" : 0.97,
@@ -410,7 +410,7 @@
 }, {
   "id" : "000010",
   "name" : "Reinforced Knee",
-  "description" : "A CE-reinforced knee with high close-range damage and Black Flash potential.",
+  "description" : "Perform a high-power REINFORCEMENT MELEE ATTACK eligible for BLACK FLASH.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 54,
   "baseAccuracy" : 0.91,
@@ -455,7 +455,7 @@
 }, {
   "id" : "000011",
   "name" : "Cursed Energy Burst",
-  "description" : "A small, precise burst of raw cursed energy projected at the target.",
+  "description" : "Project a CURSED ENERGY RANGED ATTACK.",
   "tags" : [ "CURSED_ENERGY", "ATTACK", "RANGED" ],
   "basePower" : 30,
   "baseAccuracy" : 0.9,
@@ -497,7 +497,7 @@
 }, {
   "id" : "000012",
   "name" : "Cursed Energy Blast",
-  "description" : "A Heavy blast of raw cursed energy with high cost, late release, and poor accuracy.",
+  "description" : "Launch a POTENCY 2 HEAVY CURSED ENERGY RANGED ATTACK that resists STUN.",
   "tags" : [ "CURSED_ENERGY", "ATTACK", "HEAVY", "RANGED" ],
   "basePower" : 56,
   "baseAccuracy" : 0.78,
@@ -542,7 +542,7 @@
 }, {
   "id" : "000013",
   "name" : "Deflection",
-  "description" : "Redirect a melee strike during a brief, precise defensive window.",
+  "description" : "Raise a 100% BLOCK against MELEE ATTACKS with POTENCY 1 for 5 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -585,7 +585,7 @@
 }, {
   "id" : "000014",
   "name" : "Reinforced Deflection",
-  "description" : "Reinforce a precise deflection with CE to redirect any melee attack briefly.",
+  "description" : "Spend CE to raise a 100% BLOCK against MELEE ATTACKS with POTENCY 1 for 5 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL", "CURSED_ENERGY" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -632,7 +632,7 @@
 }, {
   "id" : "000015",
   "name" : "Cross Guard",
-  "description" : "Cover the head and torso with crossed arms to reduce physical damage.",
+  "description" : "Raise a 70% BLOCK against pure PHYSICAL ATTACKS with POTENCY 1 for 15 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -675,7 +675,7 @@
 }, {
   "id" : "000016",
   "name" : "Reinforced Cross Guard",
-  "description" : "Reinforce a cross guard with CE to reduce all incoming damage.",
+  "description" : "Spend CE to raise a 70% BLOCK against POTENCY 1 ATTACKS for 15 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL", "CURSED_ENERGY" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -721,7 +721,7 @@
 }, {
   "id" : "000017",
   "name" : "Braced Guard",
-  "description" : "Plant your stance to heavily reduce physical damage after a delayed setup.",
+  "description" : "After setup, raise a 90% BLOCK against pure PHYSICAL ATTACKS with POTENCY 1 for 20 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -764,7 +764,7 @@
 }, {
   "id" : "000018",
   "name" : "Reinforced Braced Guard",
-  "description" : "Reinforce a planted guard with CE to heavily reduce all damage after setup.",
+  "description" : "After setup, spend CE to raise a 90% BLOCK against POTENCY 1 ATTACKS for 20 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL", "CURSED_ENERGY" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -809,7 +809,7 @@
 }, {
   "id" : "000019",
   "name" : "Reinforced Basic Block",
-  "description" : "Reinforce a basic block with CE to reduce any incoming damage.",
+  "description" : "Spend CE to raise a 50% BLOCK against POTENCY 1 ATTACKS for 10 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL", "CURSED_ENERGY" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -854,7 +854,7 @@
 }, {
   "id" : "000020",
   "name" : "Cursed Energy Focus",
-  "description" : "Refine your CE control to improve the accuracy of later attacks.",
+  "description" : "Gain 10 ACCURACY for 2 rounds.",
   "tags" : [ "UTILITY", "CURSED_ENERGY" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -901,7 +901,7 @@
 }, {
   "id" : "000021",
   "name" : "Cursed Energy Surge",
-  "description" : "Temporarily increase cursed energy output by 15.",
+  "description" : "Gain 15 CURSED ENERGY OUTPUT for 1 round.",
   "tags" : [ "UTILITY", "CURSED_ENERGY" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -948,7 +948,7 @@
 }, {
   "id" : "000022",
   "name" : "Miracle Creation",
-  "description" : "Erase a small coincidence from memory and condense it into a stored miracle.",
+  "description" : "With MIRACLE RESERVOIR, create 1 MIRACLE, up to 6.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -998,7 +998,7 @@
 }, {
   "id" : "000023",
   "name" : "Sword Slash",
-  "description" : "A quick close-range slash with a sword or bladed cursed tool.",
+  "description" : "Perform a PHYSICAL MELEE ATTACK with a SWORD.",
   "tags" : [ "PHYSICAL", "ATTACK", "MELEE", "SWORD" ],
   "basePower" : 38,
   "baseAccuracy" : 0.93,
@@ -1042,7 +1042,7 @@
 }, {
   "id" : "000024",
   "name" : "Sword Throw",
-  "description" : "Throw a sword or bladed cursed tool in a sharp, opportunistic attack.",
+  "description" : "Perform a PHYSICAL RANGED ATTACK with a SWORD.",
   "tags" : [ "PHYSICAL", "ATTACK", "RANGED", "SWORD" ],
   "basePower" : 32,
   "baseAccuracy" : 0.88,
@@ -1086,7 +1086,7 @@
 }, {
   "id" : "000025",
   "name" : "Ratio Mark",
-  "description" : "Trace the seven-to-three division over the opponent, storing a Ratio weak point for a later direct hit.",
+  "description" : "Create 1 RATIO STACK on the target for up to 50 AP ticks, to a maximum of 3.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -1138,7 +1138,7 @@
 }, {
   "id" : "000026",
   "name" : "Ratio Strike",
-  "description" : "Drive a cursed-energy reinforced physical blow directly through the target's seven-to-three weak point.",
+  "description" : "On hit, apply RATIO to bypass BLOCK and reduce DEFENSE to 30% for that hit.",
   "tags" : [ "PHYSICAL", "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 42,
   "baseAccuracy" : 0.94,
@@ -1186,7 +1186,7 @@
 }, {
   "id" : "000027",
   "name" : "Batto Sword Drawing",
-  "description" : "Reinforce a sheathed sword with cursed energy and release a rapid draw slash that interrupts an approaching target.",
+  "description" : "Apply STUN with a fast REINFORCEMENT MELEE ATTACK using a SWORD.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "STUN", "MELEE", "SWORD" ],
   "basePower" : 30,
   "baseAccuracy" : 0.97,
@@ -1233,7 +1233,7 @@
 }, {
   "id" : "000028",
   "name" : "Simple Domain",
-  "description" : "The next ranged or melee attack consumes the stance: physical ranged attacks are fully blocked, while melee attacks trigger Batto Sword Drawing before resolving.",
+  "description" : "Consume this stance on the next MELEE or RANGED ATTACK to BLOCK PHYSICAL RANGED attacks or counter MELEE with BATTO SWORD DRAWING.",
   "tags" : [ "DEFENSIVE", "NON_INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -1282,7 +1282,7 @@
 }, {
   "id" : "000029",
   "name" : "Sidestep",
-  "description" : "Shift off the attack line with a quick step, giving a moderate chance to evade melee attacks.",
+  "description" : "Gain a 60% chance to DODGE MELEE attacks for 8 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -1325,7 +1325,7 @@
 }, {
   "id" : "000030",
   "name" : "Weapon Parry",
-  "description" : "Meet an incoming attack with a weapon during a brief window, negating it and staggering the attacker.",
+  "description" : "PARRY POTENCY 1 ATTACKS for 3 AP ticks and STAGGER non-GUARD BREAK attackers for 2 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -1369,7 +1369,7 @@
 }, {
   "id" : "000031",
   "name" : "Evasive Dash",
-  "description" : "Burst laterally at high speed, giving a strong chance to evade ranged attacks during the dash.",
+  "description" : "Gain a 75% chance to DODGE RANGED attacks for 10 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,

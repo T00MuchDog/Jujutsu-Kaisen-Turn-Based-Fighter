@@ -5,8 +5,12 @@ import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.ui.MiraclesMeter;
+import com.jjktbf.graphics.ui.text.KeywordPopupPosition;
+import com.jjktbf.graphics.ui.text.KeywordTextLayout;
 import com.jjktbf.model.character.coded.CodedAbilityState;
 import com.jjktbf.model.character.coded.MiraclesAbility;
 import com.jjktbf.model.combat.ActionSegment;
@@ -246,7 +250,47 @@ public class PlanningPanel {
         ui.palette.draw(batch, paletteBounds.x, paletteBounds.y, paletteBounds.width, paletteBounds.height);
         for (MoveCardView card : cards) card.draw(batch, titleFont, statFont, ui, ceCost(card.getMove()));
         drawDragAvatar(batch, font);
+        drawKeywordTooltip(batch, font, titleFont);
         batch.end();
+    }
+
+    private void drawKeywordTooltip(Batch batch, BitmapFont font, BitmapFont titleFont) {
+        if (hoveredCard < 0 || hoveredCard >= cards.size() || draggedMove() != null) return;
+        MoveCardView.KeywordHover hover = cards.get(hoveredCard).keywordAt(dragMouseX, dragMouseY);
+        if (hover == null) return;
+
+        float popupWidth = Math.max(1f, Math.min(320f, screenWidth - 20f));
+        float padding = 12f;
+        float contentWidth = Math.max(1f, popupWidth - padding * 2f);
+        GlyphLayout heading = new GlyphLayout(
+            titleFont,
+            hover.text(),
+            KeywordTextLayout.KEYWORD_ORANGE,
+            contentWidth,
+            Align.left,
+            true);
+        GlyphLayout description = new GlyphLayout(
+            font,
+            hover.entry().description(),
+            BattleUiAssets.TEXT,
+            contentWidth,
+            Align.left,
+            true);
+        float popupHeight = padding * 2f + heading.height + 6f + description.height;
+        KeywordPopupPosition.Position position = KeywordPopupPosition.place(
+            hover.bounds().x,
+            hover.bounds().y,
+            hover.bounds().width,
+            hover.bounds().height,
+            popupWidth,
+            popupHeight,
+            screenWidth,
+            screenHeight);
+
+        ui.cardOver.draw(batch, position.x(), position.y(), popupWidth, popupHeight);
+        float textTop = position.y() + popupHeight - padding;
+        titleFont.draw(batch, heading, position.x() + padding, textTop);
+        font.draw(batch, description, position.x() + padding, textTop - heading.height - 6f);
     }
 
     private void drawHeader(Batch batch, BitmapFont font, BitmapFont titleFont) {
