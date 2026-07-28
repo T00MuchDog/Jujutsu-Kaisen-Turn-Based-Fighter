@@ -99,7 +99,7 @@
   "id" : "000005",
   "name" : "Miwa Kasumi",
   "description" : "A diligent swordswoman without an innate cursed technique. Miwa combines disciplined sword combat with New Shadow Style, holding Simple Domain until an opponent commits to an attack.",
-  "spriteAsset" : "assets/sprites/characters/haruta_frontsprite.png",
+  "spriteAsset" : "assets/sprites/characters/miwa_frontsprite.png",
   "hasWeapon" : true,
   "vitality" : 50,
   "strength" : 40,

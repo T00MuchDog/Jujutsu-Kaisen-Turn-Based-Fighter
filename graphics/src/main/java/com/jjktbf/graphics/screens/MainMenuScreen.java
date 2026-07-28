@@ -10,18 +10,31 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Cell;
+import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
+import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.FocusListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.audio.AudioChannel;
+import com.jjktbf.graphics.audio.AudioSettings;
+import com.jjktbf.graphics.audio.SoundCue;
+import com.jjktbf.graphics.ui.ContentSizedDialog;
 import com.jjktbf.graphics.ui.HoverScrollStage;
+import com.jjktbf.graphics.ui.editor.HoverTextField;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.IntConsumer;
 
 /**
  * Main menu screen, using the same framed command palette as battle planning.
@@ -53,6 +66,9 @@ public class MainMenuScreen implements Screen {
     private boolean disposed;
     private Table commands;
     private Cell<?> commandsCell;
+    private ImageButton settingsButton;
+    private Cell<ImageButton> settingsButtonCell;
+    private Dialog settingsDialog;
 
     public MainMenuScreen(JJKGame game, AssetLoader assets) {
         this.game   = game;
@@ -76,7 +92,12 @@ public class MainMenuScreen implements Screen {
         Label title = new Label("JJK TURN BASED FIGHTER", assets.editorSkin, "title");
         title.setAlignment(Align.left);
         header.add(title).left();
-        root.add(header).growX().padBottom(18).row();
+        root.add(header).growX().padBottom(10).row();
+
+        // This pointer-only control must never participate in arrow-key navigation.
+        settingsButton = makeSettingsButton();
+        settingsButtonCell = root.add(settingsButton).left().size(46).padBottom(8);
+        root.row();
 
         commands = new Table(assets.editorSkin);
         commands.setBackground(assets.editorSkin.getDrawable("battle-palette"));
@@ -106,21 +127,31 @@ public class MainMenuScreen implements Screen {
         // Capture movement before child widgets so a mouse move always leaves keyboard mode.
         stage.addCaptureListener(new InputListener() {
             @Override public boolean mouseMoved(InputEvent event, float x, float y) {
+                if (isSettingsOpen()) return false;
                 enterCursorMode(event.getStageX(), event.getStageY());
                 return false;
             }
 
             @Override public boolean keyDown(InputEvent event, int keycode) {
+                if (isSettingsOpen()) {
+                    if (keycode == Input.Keys.ESCAPE || keycode == Input.Keys.BACK) {
+                        game.audio().play(SoundCue.UI_BACK);
+                        closeSettings();
+                        event.cancel();
+                        return true;
+                    }
+                    return false;
+                }
                 if (keycode == Input.Keys.UP) moveSelection(-1);
                 else if (keycode == Input.Keys.DOWN) moveSelection(1);
                 else if (keycode == Input.Keys.ENTER) activateSelection();
-                else if (keycode == Input.Keys.NUM_1) game.showCharacterSelect();
-                else if (keycode == Input.Keys.NUM_2) game.showMoveEditor();
-                else if (keycode == Input.Keys.NUM_3) game.showCharacterEditor();
-                else if (keycode == Input.Keys.NUM_4) game.showAbilityEditor();
-                else if (keycode == Input.Keys.NUM_5) game.showTechniqueEditor();
+                else if (keycode == Input.Keys.NUM_1) activateShortcut(game::showCharacterSelect);
+                else if (keycode == Input.Keys.NUM_2) activateShortcut(game::showMoveEditor);
+                else if (keycode == Input.Keys.NUM_3) activateShortcut(game::showCharacterEditor);
+                else if (keycode == Input.Keys.NUM_4) activateShortcut(game::showAbilityEditor);
+                else if (keycode == Input.Keys.NUM_5) activateShortcut(game::showTechniqueEditor);
                 else if (keycode == Input.Keys.NUM_6) Gdx.app.exit();
-                else if (keycode == Input.Keys.NUM_7) game.showMultiplayerMenu();
+                else if (keycode == Input.Keys.NUM_7) activateShortcut(game::showMultiplayerMenu);
                 else if (keycode == Input.Keys.ESCAPE || keycode == Input.Keys.Q) Gdx.app.exit();
                 else return false;
                 return true;
@@ -150,17 +181,27 @@ public class MainMenuScreen implements Screen {
     }
 
     private void enterCursorMode(float stageX, float stageY) {
+        int previousHighlight = switch (navigationMode) {
+            case CURSOR -> hoveredButtonIndex;
+            case KEYBOARD -> selectedButtonIndex;
+            case NONE -> -1;
+        };
         navigationMode = NavigationMode.CURSOR;
         selectedButtonIndex = -1;
         hoveredButtonIndex = findButtonAt(stageX, stageY);
         if (hoveredButtonIndex >= 0) lastHighlightedButtonIndex = hoveredButtonIndex;
         updateHighlights();
+        if (hoveredButtonIndex >= 0 && hoveredButtonIndex != previousHighlight) {
+            game.audio().play(SoundCue.UI_NAVIGATE);
+        }
     }
 
     private void selectKeyboardButton(int index) {
+        boolean changed = selectedButtonIndex != index;
         selectedButtonIndex = index;
         lastHighlightedButtonIndex = index;
         updateHighlights();
+        if (changed) game.audio().play(SoundCue.UI_NAVIGATE);
     }
 
     private void activateSelection() {
@@ -199,11 +240,184 @@ public class MainMenuScreen implements Screen {
     }
 
     private MenuButton makeButton(String label, Runnable onClick) {
-        MenuButton b = new MenuButton(label, assets.editorSkin, onClick);
+        MenuButton b = new MenuButton(label, assets.editorSkin, () -> {
+            if (!"QUIT".equals(label)) game.audio().play(SoundCue.UI_CONFIRM);
+            onClick.run();
+        });
         b.addListener(new ClickListener() {
             @Override public void clicked(InputEvent e, float x, float y) { b.activate(); }
         });
         return b;
+    }
+
+    private ImageButton makeSettingsButton() {
+        ImageButton.ImageButtonStyle style = new ImageButton.ImageButtonStyle();
+        style.imageUp = assets.editorSkin.getDrawable("settings-icon");
+        style.imageOver = assets.editorSkin.getDrawable("settings-icon-highlighted");
+        style.imageDown = style.imageOver;
+
+        ImageButton button = new ImageButton(style);
+        button.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                game.audio().play(SoundCue.UI_CONFIRM);
+                showSettings();
+            }
+        });
+        return button;
+    }
+
+    private void activateShortcut(Runnable action) {
+        game.audio().play(SoundCue.UI_CONFIRM);
+        action.run();
+    }
+
+    private void showSettings() {
+        if (isSettingsOpen()) return;
+        resetNavigation();
+
+        Skin skin = assets.editorSkin;
+        ContentSizedDialog dialog = new ContentSizedDialog("SETTINGS", skin);
+        dialog.setModal(true);
+        dialog.setMovable(false);
+        dialog.setResizable(false);
+
+        TextButton close = new TextButton("X", closeButtonStyle(skin));
+        close.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                game.audio().play(SoundCue.UI_BACK);
+                closeSettings();
+            }
+        });
+        dialog.getTitleTable().add(close).right().size(30f).padLeft(8f).padRight(2f);
+
+        AudioSettings settings = game.audio().settings();
+        Table content = dialog.getContentTable();
+        content.pad(10f, 16f, 14f, 16f);
+        addVolumeRow(content, "MUSIC", Math.round(settings.musicVolume() * 100f), value -> {
+            AudioSettings current = game.audio().settings();
+            game.audio().previewSettings(
+                current.withChannelVolume(AudioChannel.MUSIC, value / 100f));
+        });
+        int effectsVolume = Math.round(
+            (settings.uiSfxVolume() + settings.battleSfxVolume()) * 50f);
+        addVolumeRow(content, "EFFECTS", effectsVolume, value -> {
+            float volume = value / 100f;
+            AudioSettings current = game.audio().settings();
+            game.audio().previewSettings(
+                current.withChannelVolume(AudioChannel.UI_SFX, volume)
+                    .withChannelVolume(AudioChannel.BATTLE_SFX, volume));
+        });
+
+        settingsDialog = dialog;
+        dialog.show(stage);
+    }
+
+    private void addVolumeRow(
+        Table content,
+        String name,
+        int initialValue,
+        IntConsumer onChange
+    ) {
+        int initial = Math.max(0, Math.min(100, initialValue));
+        Label nameLabel = new Label(name, assets.editorSkin);
+        Label minimum = new Label("0", assets.editorSkin, "small");
+        Label maximum = new Label("100", assets.editorSkin, "small");
+        minimum.setColor(assets.editorSkin.get("text-dim", Color.class));
+        maximum.setColor(assets.editorSkin.get("text-dim", Color.class));
+
+        Slider slider = new Slider(0f, 100f, 1f, false, assets.editorSkin);
+        slider.setValue(initial);
+        TextField valueField = new HoverTextField(String.valueOf(initial), assets.editorSkin);
+        valueField.setTextFieldFilter((field, character) -> Character.isDigit(character));
+        valueField.setMaxLength(3);
+        valueField.setAlignment(Align.center);
+
+        boolean[] syncing = {false};
+        int[] appliedValue = {initial};
+        slider.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                if (syncing[0]) return;
+                int value = Math.round(slider.getValue());
+                valueField.setText(String.valueOf(value));
+                if (value == appliedValue[0]) return;
+                appliedValue[0] = value;
+                onChange.accept(value);
+            }
+        });
+
+        Runnable commitField = () -> {
+            int value = parseVolumePercent(valueField.getText(), Math.round(slider.getValue()));
+            boolean changed = value != appliedValue[0];
+            syncing[0] = true;
+            slider.setValue(value);
+            valueField.setText(String.valueOf(value));
+            syncing[0] = false;
+            if (changed) {
+                appliedValue[0] = value;
+                onChange.accept(value);
+            }
+        };
+        valueField.addListener(new InputListener() {
+            @Override public boolean keyDown(InputEvent event, int keycode) {
+                if (keycode != Input.Keys.ENTER) return false;
+                commitField.run();
+                return true;
+            }
+        });
+        valueField.addListener(new FocusListener() {
+            @Override public void keyboardFocusChanged(
+                FocusEvent event,
+                Actor actor,
+                boolean focused
+            ) {
+                if (!focused) commitField.run();
+            }
+        });
+
+        content.add(nameLabel).colspan(4).left().padTop(6f).padBottom(2f);
+        content.row();
+        content.add(minimum).right().width(20f).padRight(5f);
+        content.add(slider).growX().minWidth(100f).prefWidth(180f).height(32f).padRight(5f);
+        content.add(maximum).left().width(34f).padRight(8f);
+        content.add(valueField).width(58f).height(34f);
+        content.row();
+    }
+
+    private static TextButton.TextButtonStyle closeButtonStyle(Skin skin) {
+        TextButton.TextButtonStyle style = new TextButton.TextButtonStyle(
+            skin.get(TextButton.TextButtonStyle.class));
+        style.up = null;
+        style.down = null;
+        style.over = null;
+        style.fontColor = Color.GRAY;
+        style.downFontColor = Color.DARK_GRAY;
+        style.overFontColor = Color.LIGHT_GRAY;
+        return style;
+    }
+
+    static int parseVolumePercent(String text, int fallback) {
+        int safeFallback = Math.max(0, Math.min(100, fallback));
+        if (text == null || text.isBlank()) return safeFallback;
+        try {
+            return Math.max(0, Math.min(100, Integer.parseInt(text.trim())));
+        } catch (NumberFormatException ignored) {
+            return safeFallback;
+        }
+    }
+
+    private boolean isSettingsOpen() {
+        return settingsDialog != null && settingsDialog.getStage() != null;
+    }
+
+    private void closeSettings() {
+        if (settingsDialog == null) return;
+        stage.cancelTouchFocus();
+        stage.setKeyboardFocus(null);
+        stage.setScrollFocus(null);
+        game.audio().persistSettings();
+        settingsDialog.remove();
+        settingsDialog = null;
+        resetNavigation();
     }
 
     private void layoutMenu(int width, int height) {
@@ -220,6 +434,7 @@ public class MainMenuScreen implements Screen {
             menuButtons.get(i).getLabel().setFontScale(scale / AssetLoader.FONT_OVERSAMPLE);
             menuButtonCells.get(i).height(46f * scale).pad(4f * scale);
         }
+        settingsButtonCell.size(46f * scale);
         root.invalidateHierarchy();
     }
 
@@ -249,7 +464,7 @@ public class MainMenuScreen implements Screen {
     }
     @Override public void pause()  {}
     @Override public void resume() {}
-    @Override public void hide()   {}
+    @Override public void hide()   { closeSettings(); }
 
     @Override
     public void dispose() {
@@ -269,6 +484,7 @@ public class MainMenuScreen implements Screen {
         }
 
         private void activate() {
+            setChecked(false);
             action.run();
         }
 

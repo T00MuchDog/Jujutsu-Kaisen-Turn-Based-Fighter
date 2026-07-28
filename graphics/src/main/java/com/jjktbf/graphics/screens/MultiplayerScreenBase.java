@@ -15,6 +15,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.jjktbf.graphics.AssetLoader;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.HoverScrollStage;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.multiplayer.ApiClientException;
@@ -55,6 +56,7 @@ abstract class MultiplayerScreenBase implements Screen {
                 if (keycode != Input.Keys.ESCAPE && keycode != Input.Keys.BACK) {
                     return false;
                 }
+                game.audio().play(SoundCue.UI_BACK);
                 onBackRequested();
                 event.cancel();
                 return true;
@@ -198,11 +200,19 @@ abstract class MultiplayerScreenBase implements Screen {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 if (!button.isDisabled()) {
+                    game.audio().play(isBackAction(text)
+                        ? SoundCue.UI_BACK : SoundCue.UI_CONFIRM);
                     action.run();
                 }
             }
         });
         return button;
+    }
+
+    private static boolean isBackAction(String text) {
+        if (text == null) return false;
+        String action = text.trim().toUpperCase(java.util.Locale.ROOT);
+        return "BACK".equals(action) || action.startsWith("CANCEL");
     }
 
     protected final void setStatus(Label label, String text, StatusTone tone) {

@@ -2,12 +2,15 @@ package com.jjktbf.graphics;
 
 import com.badlogic.gdx.Game;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.jjktbf.AppPaths;
 import com.jjktbf.controller.BattleController;
+import com.jjktbf.graphics.audio.GameAudio;
+import com.jjktbf.graphics.audio.MusicTrack;
 import com.jjktbf.graphics.multiplayer.ChallengeService;
 import com.jjktbf.graphics.multiplayer.ClientNetworkConfig;
 import com.jjktbf.graphics.multiplayer.GuestAccountService;
@@ -41,7 +44,7 @@ import java.util.List;
 /**
  * Root LibGDX ApplicationListener.
  *
- * Manages screen transitions and owns the single shared AssetLoader.
+ * Manages screen transitions and owns the shared visual and audio assets.
  * All screens receive a reference to this class so they can trigger navigation.
  *
  * Lifecycle:
@@ -80,6 +83,7 @@ public class JJKGame extends Game {
     }
 
     private AssetLoader assets;
+    private GameAudio audio;
 
     // Authoring-mode overlay: a small persistent "AUTHORING" badge drawn in the
     // top-right corner over every screen, so the developer can see at a glance
@@ -129,6 +133,7 @@ public class JJKGame extends Game {
     public void create() {
         assets = new AssetLoader();
         assets.load();
+        audio = new GameAudio();
         if (AppPaths.isAuthoringMode()) {
             overlayBatch = new SpriteBatch();
         }
@@ -177,7 +182,7 @@ public class JJKGame extends Game {
             multiplayerMatchService
         );
 
-        setScreen(mainMenuScreen);
+        showScreen(mainMenuScreen, MusicTrack.MENU);
 
         // Run the launcher's one-shot startup action (e.g. entering native
         // fullscreen on macOS) now that everything — including the GLFW
@@ -215,6 +220,18 @@ public class JJKGame extends Game {
     }
 
     @Override
+    public void pause() {
+        super.pause();
+        if (audio != null) audio.pause();
+    }
+
+    @Override
+    public void resume() {
+        super.resume();
+        if (audio != null) audio.resume();
+    }
+
+    @Override
     public void dispose() {
         if (overlayBatch != null) {
             overlayBatch.dispose();
@@ -244,6 +261,7 @@ public class JJKGame extends Game {
         if (hostChallengeScreen != null) hostChallengeScreen.dispose();
         if (challengeBrowserScreen != null) challengeBrowserScreen.dispose();
         if (multiplayerDisconnectedScreen != null) multiplayerDisconnectedScreen.dispose();
+        if (audio != null) audio.dispose();
         if (assets != null) assets.dispose();
     }
 
@@ -254,34 +272,34 @@ public class JJKGame extends Game {
     public void showMainMenu() {
         mainMenuScreen.dispose();
         mainMenuScreen = new MainMenuScreen(this, assets);
-        setScreen(mainMenuScreen);
+        showScreen(mainMenuScreen, MusicTrack.MENU);
     }
 
     public void showCharacterSelect() {
-        setScreen(characterSelectScreen);
+        showScreen(characterSelectScreen, MusicTrack.MENU);
     }
 
     public void showMultiplayerMenu() {
-        setScreen(multiplayerMenuScreen);
+        showScreen(multiplayerMenuScreen, MusicTrack.MENU);
     }
 
     public void showHostChallenge() {
-        setScreen(hostChallengeScreen);
+        showScreen(hostChallengeScreen, MusicTrack.MENU);
     }
 
     public void showChallengeBrowser() {
-        setScreen(challengeBrowserScreen);
+        showScreen(challengeBrowserScreen, MusicTrack.MENU);
     }
 
     public void showMultiplayerBattle(MatchSetup setup) {
         multiplayerSession.setMatchSetup(setup);
         battleScreen.prepareMultiplayer(setup, multiplayerSession, multiplayerMatchService);
-        setScreen(battleScreen);
+        showScreen(battleScreen, MusicTrack.BATTLE);
     }
 
     public void showMultiplayerDisconnected(String error) {
         MultiplayerSession.Snapshot snapshot = multiplayerSession.snapshot();
-        setScreen(multiplayerDisconnectedScreen);
+        showScreen(multiplayerDisconnectedScreen, MusicTrack.MENU);
         multiplayerDisconnectedScreen.begin(
             snapshot.matchSetup(), snapshot.latestState(), error);
     }
@@ -289,25 +307,35 @@ public class JJKGame extends Game {
     public void showMoveEditor() {
         moveEditorScreen.dispose();
         moveEditorScreen = new MoveEditorScreen(this, assets);
-        setScreen(moveEditorScreen);
+        showScreen(moveEditorScreen, MusicTrack.MENU);
     }
 
     public void showCharacterEditor() {
         characterEditorScreen.dispose();
         characterEditorScreen = new CharacterEditorScreen(this, assets);
-        setScreen(characterEditorScreen);
+        showScreen(characterEditorScreen, MusicTrack.MENU);
     }
 
     public void showAbilityEditor() {
         abilityEditorScreen.dispose();
         abilityEditorScreen = new AbilityEditorScreen(this, assets);
-        setScreen(abilityEditorScreen);
+        showScreen(abilityEditorScreen, MusicTrack.MENU);
     }
 
     public void showTechniqueEditor() {
         techniqueEditorScreen.dispose();
         techniqueEditorScreen = new TechniqueEditorScreen(this, assets);
-        setScreen(techniqueEditorScreen);
+        showScreen(techniqueEditorScreen, MusicTrack.MENU);
+    }
+
+    /** Shared audio entry point for screens and other presentation-layer code. */
+    public GameAudio audio() {
+        return audio;
+    }
+
+    private void showScreen(Screen screen, MusicTrack musicTrack) {
+        setScreen(screen);
+        audio.playMusic(musicTrack);
     }
 
     public void reloadMultiplayerRoster() {
@@ -393,7 +421,7 @@ public class JJKGame extends Game {
         battleScreen.setCombatantSprites(
             assets.characterBattleSprite(playerData.spriteAsset, false, assets.playerSprite),
             assets.characterBattleSprite(cpuData.spriteAsset, true, assets.enemySprite));
-        setScreen(battleScreen);
+        showScreen(battleScreen, MusicTrack.BATTLE);
 
         Thread battleThread = new Thread(() -> {
             try {

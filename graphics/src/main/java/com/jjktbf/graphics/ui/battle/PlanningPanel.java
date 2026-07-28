@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.Align;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.MiraclesMeter;
 import com.jjktbf.graphics.ui.text.KeywordPopupPosition;
 import com.jjktbf.graphics.ui.text.KeywordTextLayout;
@@ -23,6 +24,7 @@ import com.jjktbf.multiplayer.protocol.PlanPlacement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Full-screen round planner with two discrete action timelines and a move-card
@@ -73,6 +75,7 @@ public class PlanningPanel {
     private boolean lockHovered;
     private boolean confirmed;
     private Runnable onConfirm = () -> {};
+    private Consumer<SoundCue> soundPlayer = cue -> {};
 
     public PlanningPanel(BattleCombatant combatant, BattleUiAssets ui, float screenWidth, float screenHeight) {
         this.plan = new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe());
@@ -115,6 +118,10 @@ public class PlanningPanel {
 
     public void setOnConfirm(Runnable onConfirm) {
         this.onConfirm = onConfirm == null ? () -> {} : onConfirm;
+    }
+
+    public void setSoundPlayer(Consumer<SoundCue> soundPlayer) {
+        this.soundPlayer = soundPlayer == null ? cue -> {} : soundPlayer;
     }
 
     public BattlePlan getPlan() { return plan; }
@@ -415,6 +422,7 @@ public class PlanningPanel {
                 if (hit == null || !plan.remove(hit.getSegment())) return false;
                 if (selectedSegment == hit.getSegment()) selectedSegment = null;
                 hoveredSegment = null;
+                soundPlayer.accept(SoundCue.UI_PLAN_REMOVE);
                 return true;
             }
 
@@ -472,6 +480,7 @@ public class PlanningPanel {
                 : droppedOnTimeline && snapValid ? plan.place(move, draggingTick, ceCost(move)) : null;
             if (placed != null) {
                 selectedSegment = placed;
+                soundPlayer.accept(SoundCue.UI_PLAN_PLACE);
             } else if (droppedOnTimeline && draggingSegment != null) {
                 // A cancelled relocation must never destroy an already planned move.
                 selectedSegment = plan.place(draggingSegment.getMove(), originalTick, originalCeCost);

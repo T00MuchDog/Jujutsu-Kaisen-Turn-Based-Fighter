@@ -168,6 +168,17 @@ public final class PixelSkin {
         Drawable scrollKnobV  = patch("scroll-knob-v", SCROLL_KNOB);
         Drawable listSel      = patch("list-sel",   new Color(SELECTION.r, SELECTION.g, SELECTION.b, 0.85f));
         Drawable whitePixel   = patch("white-pixel", Color.WHITE);
+        Texture settingsIconTexture = new Texture(
+            Gdx.files.internal("assets/ui/common/settings_icon.png"));
+        settingsIconTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        ownedTextures.add(settingsIconTexture);
+        Drawable settingsIcon = new TextureRegionDrawable(new TextureRegion(settingsIconTexture));
+        Texture settingsIconHighlightedTexture = new Texture(
+            Gdx.files.internal("assets/ui/common/settings_icon_highlighted.png"));
+        settingsIconHighlightedTexture.setFilter(Texture.TextureFilter.Nearest, Texture.TextureFilter.Nearest);
+        ownedTextures.add(settingsIconHighlightedTexture);
+        Drawable settingsIconHighlighted = new TextureRegionDrawable(
+            new TextureRegion(settingsIconHighlightedTexture));
         Texture pointerTexture = new Texture(
             Gdx.files.internal("assets/ui/common/pointer.png"));
         pointerTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -195,6 +206,8 @@ public final class PixelSkin {
         skin.add("textfield-over", textfieldOver, Drawable.class);
         skin.add("selection",     selection,    Drawable.class);
         skin.add("selection-row", selectionRow, Drawable.class);
+        skin.add("settings-icon", settingsIcon, Drawable.class);
+        skin.add("settings-icon-highlighted", settingsIconHighlighted, Drawable.class);
         skin.add("slider-h",      sliderH,      Drawable.class);
         skin.add("slider-knob",   sliderKnobH,  Drawable.class);
         skin.add("check-on",      checkboxOn,   Drawable.class);

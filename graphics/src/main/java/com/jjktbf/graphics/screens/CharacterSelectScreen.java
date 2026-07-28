@@ -13,6 +13,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Rectangle;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.StatusBar;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 import com.jjktbf.graphics.ui.editor.ScrollAxes;
@@ -169,23 +170,29 @@ public class CharacterSelectScreen implements Screen {
             return;
         }
         if (loadError != null) {
-            if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) game.showMainMenu();
+            if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+                game.audio().play(SoundCue.UI_BACK);
+                game.showMainMenu();
+            }
             return;
         }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.UP)) {
             cursorIndex = (cursorIndex - 1 + characters.size()) % characters.size();
             resetMoveScroll();
+            game.audio().play(SoundCue.UI_NAVIGATE);
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.DOWN)) {
             cursorIndex = (cursorIndex + 1) % characters.size();
             resetMoveScroll();
+            game.audio().play(SoundCue.UI_NAVIGATE);
         }
         if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
             selectRowAt(Gdx.input.getX(), Gdx.graphics.getHeight() - Gdx.input.getY());
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) confirmSelection();
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            game.audio().play(SoundCue.UI_BACK);
             if (phase == Phase.CPU) {
                 phase = Phase.PLAYER;
                 cursorIndex = 0;
@@ -205,11 +212,13 @@ public class CharacterSelectScreen implements Screen {
             } else {
                 cursorIndex = index;
                 resetMoveScroll();
+                game.audio().play(SoundCue.UI_NAVIGATE);
             }
         }
     }
 
     private void confirmSelection() {
+        game.audio().play(SoundCue.UI_CONFIRM);
         if (phase == Phase.PLAYER) {
             playerChoice = characters.get(cursorIndex);
             phase = Phase.CPU;

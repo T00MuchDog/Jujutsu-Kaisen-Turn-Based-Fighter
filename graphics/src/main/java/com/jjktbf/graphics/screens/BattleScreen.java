@@ -13,6 +13,8 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.math.Rectangle;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.audio.BattleAudioRouter;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.multiplayer.MatchWebSocketClient;
 import com.jjktbf.graphics.multiplayer.MultiplayerMatchService;
 import com.jjktbf.graphics.multiplayer.MultiplayerSession;
@@ -406,6 +408,7 @@ public class BattleScreen implements Screen, BattleView {
     private void abortBattle() {
         if (abortRequested) return; // already leaving — don't re-trigger
         abortRequested = true;
+        game.audio().play(SoundCue.UI_BACK);
 
         if (mode == BattleMode.MULTIPLAYER) {
             leaveMultiplayer();
@@ -475,8 +478,11 @@ public class BattleScreen implements Screen, BattleView {
 
             if (Gdx.input.justTouched() && nextRoundHovered) {
                 if (mode == BattleMode.MULTIPLAYER) {
-                    submitReadyNextRound();
+                    if (submitReadyNextRound()) {
+                        game.audio().play(SoundCue.UI_CONFIRM);
+                    }
                 } else {
+                    game.audio().play(SoundCue.UI_CONFIRM);
                     nextRoundConfirmed = true;
                 }
             }
@@ -752,6 +758,7 @@ public class BattleScreen implements Screen, BattleView {
         batch.end();
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            game.audio().play(SoundCue.UI_BACK);
             if (mode == BattleMode.MULTIPLAYER) {
                 leaveMultiplayer();
             } else {
@@ -910,7 +917,11 @@ public class BattleScreen implements Screen, BattleView {
             executionUiActive = true;
             planningPanel = new com.jjktbf.graphics.ui.battle.PlanningPanel(
                 combatant, assets.battleUi, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-            planningPanel.setOnConfirm(() -> { inputConfirmed = true; });
+            planningPanel.setSoundPlayer(game.audio()::play);
+            planningPanel.setOnConfirm(() -> {
+                game.audio().play(SoundCue.UI_PLAN_LOCK);
+                inputConfirmed = true;
+            });
             Gdx.input.setInputProcessor(planningPanel.inputProcessor());
             updatePanels();
             inputConfirmed = false;
@@ -966,6 +977,8 @@ public class BattleScreen implements Screen, BattleView {
 
         for (CombatEvent e : events) {
             if (abortRequested || !isCurrentLocalBattleThread()) return;
+            BattleAudioRouter.cueFor(e)
+                .ifPresent(cue -> postLocal(() -> game.audio().play(cue)));
             if (e.getType() == CombatEvent.Type.MOVE_FIRED) {
                 Move unleashedMove = e.getMove();
                 postLocal(() -> playMoveUnleashAnimation(unleashedMove));
@@ -1049,12 +1062,17 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayBattleOver(BattleCombatant winner, BattleState state) {
         if (!isCurrentLocalBattleThread()) return;
+        SoundCue resultCue = winner == null
+            ? SoundCue.BATTLE_DRAW
+            : winner == state.getPlayerCombatant()
+                ? SoundCue.BATTLE_VICTORY : SoundCue.BATTLE_DEFEAT;
         postLocal(() -> {
             if (winner == null) {
                 battleResult = "DRAW!";
             } else {
                 battleResult = winner.getCharacter().getName() + " WINS!";
             }
+            game.audio().play(resultCue);
             battleOver = true;
         });
     }
@@ -1212,6 +1230,7 @@ public class BattleScreen implements Screen, BattleView {
             Gdx.graphics.getWidth(),
             Gdx.graphics.getHeight()
         );
+        planningPanel.setSoundPlayer(game.audio()::play);
         planningPanel.setOnConfirm(this::submitOnlinePlan);
         Gdx.input.setInputProcessor(planningPanel.inputProcessor());
         onlinePlanningRound = roundNumber;
@@ -1285,6 +1304,7 @@ public class BattleScreen implements Screen, BattleView {
             return;
         }
         onlineCommandPending = true;
+        game.audio().play(SoundCue.UI_PLAN_LOCK);
         addLogLine("Plan locked. Waiting for the opponent.");
     }
 
@@ -1391,6 +1411,7 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     private void applyPlaybackEvent(BattleEventState event) {
+        Move unleashedMove = null;
         Integer value = event.value();
         if (value != null && value > 0 && event.type() == BattleEventType.DAMAGE_DEALT) {
             if (event.targetSide() == multiplayerSetup.playerSide()) {
@@ -1444,9 +1465,10 @@ public class BattleScreen implements Screen, BattleView {
         }
 
         if (event.type() == BattleEventType.MOVE_FIRED && event.moveId() != null) {
-            Move move = findOnlineMove(event.sourceSide(), event.moveId());
-            if (move != null) playMoveUnleashAnimation(move);
+            unleashedMove = findOnlineMove(event.sourceSide(), event.moveId());
+            if (unleashedMove != null) playMoveUnleashAnimation(unleashedMove);
         }
+        BattleAudioRouter.cueFor(event, unleashedMove).ifPresent(game.audio()::play);
         if (event.type() == BattleEventType.RATIO_TRIGGERED) {
             playRatioUnleashAnimation();
         }
@@ -1523,19 +1545,20 @@ public class BattleScreen implements Screen, BattleView {
         nextRoundHovered = false;
     }
 
-    private void submitReadyNextRound() {
+    private boolean submitReadyNextRound() {
         if (multiplayerState == null || onlineCommandPending
             || localReadyForNextRound()
             || multiplayerConnectionState != MultiplayerSession.ConnectionState.CONNECTED) {
-            return;
+            return false;
         }
         MultiplayerMatchService.PlanSubmission submission =
             multiplayerMatchService.readyNextRound();
         if (!submission.sent()) {
             addLogLine(submissionMessage(submission.status()));
-            return;
+            return false;
         }
         onlineCommandPending = true;
+        return true;
     }
 
     private boolean localReadyForNextRound() {
@@ -1543,16 +1566,22 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     private void showMultiplayerResult(MatchState state) {
+        boolean firstResult = !battleOver;
         awaitingNextRound = false;
+        SoundCue resultCue;
         if (state.winnerSide() == null) {
             battleResult = "DRAW!";
+            resultCue = SoundCue.BATTLE_DRAW;
         } else if (state.winnerSide() == multiplayerSetup.playerSide()) {
             battleResult = "VICTORY!";
+            resultCue = SoundCue.BATTLE_VICTORY;
         } else {
             battleResult = "DEFEAT!";
+            resultCue = SoundCue.BATTLE_DEFEAT;
         }
         battleResultReason = state.endReason() == null
             ? "" : state.endReason().replace('_', ' ');
+        if (firstResult) game.audio().play(resultCue);
         battleOver = true;
     }
 

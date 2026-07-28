@@ -81,6 +81,14 @@ Tests cover the original combat rules plus deterministic shared-engine commands,
 serialization, guest authentication, challenge concurrency, match lifecycle,
 client persistence/reconnect behavior, and real HTTP/WebSocket integration.
 
+## Audio
+
+The LibGDX client includes a centralized audio system for menu/battle music, UI
+effects, and battle-scene effects. Registered files are optional, so audio can be
+wired before final assets arrive. Existing drop-in paths, event mappings, mixer
+settings, and the process for adding a new cue are documented in
+**[`AUDIO.md`](AUDIO.md)**.
+
 ---
 
 ## Packaging & Releases

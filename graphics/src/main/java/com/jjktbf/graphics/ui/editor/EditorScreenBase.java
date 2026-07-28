@@ -26,6 +26,7 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.HoverScrollStage;
 import com.jjktbf.graphics.ui.pixel.HoverList;
 
@@ -215,16 +216,28 @@ public abstract class EditorScreenBase<D> implements Screen {
         toolbar.add(newBtn, dupBtn, delBtn, backBtn).right();
 
         newBtn.addListener(new ClickListener() {
-            @Override public void clicked(InputEvent e, float x, float y) { startNew(); }
+            @Override public void clicked(InputEvent e, float x, float y) {
+                game.audio().play(SoundCue.UI_CONFIRM);
+                startNew();
+            }
         });
         dupBtn.addListener(new ClickListener() {
-            @Override public void clicked(InputEvent e, float x, float y) { duplicateCurrent(); }
+            @Override public void clicked(InputEvent e, float x, float y) {
+                game.audio().play(SoundCue.UI_CONFIRM);
+                duplicateCurrent();
+            }
         });
         delBtn.addListener(new ClickListener() {
-            @Override public void clicked(InputEvent e, float x, float y) { deleteCurrent(); }
+            @Override public void clicked(InputEvent e, float x, float y) {
+                game.audio().play(SoundCue.UI_CONFIRM);
+                deleteCurrent();
+            }
         });
         backBtn.addListener(new ClickListener() {
-            @Override public void clicked(InputEvent e, float x, float y) { leaveEditor(); }
+            @Override public void clicked(InputEvent e, float x, float y) {
+                game.audio().play(SoundCue.UI_BACK);
+                leaveEditor();
+            }
         });
 
         root.add(toolbar).growX().row();
@@ -291,11 +304,17 @@ public abstract class EditorScreenBase<D> implements Screen {
 
         saveButton = new TextButton("SAVE", skin, "primary");
         saveButton.addListener(new ClickListener() {
-            @Override public void clicked(InputEvent e, float x, float y) { save(); }
+            @Override public void clicked(InputEvent e, float x, float y) {
+                game.audio().play(SoundCue.UI_CONFIRM);
+                save();
+            }
         });
         cancelButton = new TextButton("CANCEL", skin);
         cancelButton.addListener(new ClickListener() {
-            @Override public void clicked(InputEvent e, float x, float y) { revert(); }
+            @Override public void clicked(InputEvent e, float x, float y) {
+                game.audio().play(SoundCue.UI_BACK);
+                revert();
+            }
         });
         actionBar.add(saveButton, cancelButton).left().padRight(PAD);
 
@@ -336,6 +355,7 @@ public abstract class EditorScreenBase<D> implements Screen {
                 Dialog dialog = topmostDialog();
                 if (dialog != null) {
                     if (keycode == Input.Keys.ESCAPE) {
+                        game.audio().play(SoundCue.UI_BACK);
                         dialog.hide();
                         event.cancel();
                         return true;
@@ -344,11 +364,31 @@ public abstract class EditorScreenBase<D> implements Screen {
                     // editor-level navigation or save shortcuts behind it.
                     return false;
                 }
-                if (keycode == Input.Keys.ESCAPE) { leaveEditor(); event.cancel(); return true; }
+                if (keycode == Input.Keys.ESCAPE) {
+                    game.audio().play(SoundCue.UI_BACK);
+                    leaveEditor();
+                    event.cancel();
+                    return true;
+                }
                 if (stage.getKeyboardFocus() == searchField) return false;
-                if (keycode == Input.Keys.UP)   { nudgeSelection(-1); event.cancel(); return true; }
-                if (keycode == Input.Keys.DOWN) { nudgeSelection(+1); event.cancel(); return true; }
-                if (keycode == Input.Keys.S && Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)) { save(); event.cancel(); return true; }
+                if (keycode == Input.Keys.UP) {
+                    nudgeSelection(-1);
+                    game.audio().play(SoundCue.UI_NAVIGATE);
+                    event.cancel();
+                    return true;
+                }
+                if (keycode == Input.Keys.DOWN) {
+                    nudgeSelection(+1);
+                    game.audio().play(SoundCue.UI_NAVIGATE);
+                    event.cancel();
+                    return true;
+                }
+                if (keycode == Input.Keys.S && Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)) {
+                    game.audio().play(SoundCue.UI_CONFIRM);
+                    save();
+                    event.cancel();
+                    return true;
+                }
                 return false;
             }
 
@@ -698,7 +738,12 @@ public abstract class EditorScreenBase<D> implements Screen {
             new com.badlogic.gdx.scenes.scene2d.ui.Dialog("Confirm Delete", skin) {
                 @Override
                 protected void result(Object object) {
-                    if (Boolean.TRUE.equals(object)) onConfirm.run();
+                    if (Boolean.TRUE.equals(object)) {
+                        game.audio().play(SoundCue.UI_CONFIRM);
+                        onConfirm.run();
+                    } else {
+                        game.audio().play(SoundCue.UI_BACK);
+                    }
                 }
             };
         dlg.text("Delete \"" + what + "\"?\nThis cannot be undone.");
@@ -713,7 +758,12 @@ public abstract class EditorScreenBase<D> implements Screen {
             new com.badlogic.gdx.scenes.scene2d.ui.Dialog("Discard Changes?", skin) {
                 @Override
                 protected void result(Object object) {
-                    if (Boolean.TRUE.equals(object)) onAccept.run();
+                    if (Boolean.TRUE.equals(object)) {
+                        game.audio().play(SoundCue.UI_CONFIRM);
+                        onAccept.run();
+                    } else {
+                        game.audio().play(SoundCue.UI_BACK);
+                    }
                 }
             };
         dlg.text("You have unsaved changes.\nDiscard them?");

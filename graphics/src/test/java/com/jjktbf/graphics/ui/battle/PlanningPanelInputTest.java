@@ -1,11 +1,13 @@
 package com.jjktbf.graphics.ui.battle;
 
 import com.badlogic.gdx.Input.Buttons;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveData;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -57,6 +59,18 @@ class PlanningPanelInputTest {
 
         assertEquals(0, panel.getPlan().offensiveTimeline().getSegments().size());
         assertEquals(0, panel.getPlan().totalApUsed());
+    }
+
+    @Test
+    void successfulCardPlacementEmitsPlannerFeedback() {
+        Move move = move("FEEDBACK", 10);
+        PlanningPanel panel = panel(move, 150);
+        List<SoundCue> cues = new ArrayList<>();
+        panel.setSoundPlayer(cues::add);
+
+        clickCard(panel.inputProcessor());
+
+        assertEquals(List.of(SoundCue.UI_PLAN_PLACE), cues);
     }
 
     private static PlanningPanel panel(Move move, int apBudget) {
