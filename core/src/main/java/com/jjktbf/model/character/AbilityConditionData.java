@@ -7,11 +7,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Recursive predicate used to activate a passive ability.
+ * Recursive predicate used to activate an active ability.
  *
  * <p>{@code ALL} and {@code ANY} nodes contain child predicates. Every other
- * type is a leaf. Missing activation data is treated as {@code ALWAYS}, keeping
- * older ability JSON valid.</p>
+ * type is a leaf. Missing activation data is treated as {@code MANUAL_ACTIVATION},
+ * so it never fires automatically.</p>
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -32,6 +32,10 @@ public class AbilityConditionData {
 
     public static AbilityConditionData always() {
         return AbilityConditionType.ALWAYS.createDefault();
+    }
+
+    public static AbilityConditionData manualActivation() {
+        return AbilityConditionType.MANUAL_ACTIVATION.createDefault();
     }
 
     public static AbilityConditionData all(List<AbilityConditionData> children) {

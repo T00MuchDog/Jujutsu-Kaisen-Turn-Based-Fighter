@@ -24,7 +24,7 @@ import static com.jjktbf.model.character.AbilityEffectParameter.USES;
 import static com.jjktbf.model.character.AbilityEffectParameter.BATTLE_STAT;
 
 /**
- * Mechanical effects that can be composed into a passive ability.
+ * Mechanical effects that can be composed into an ability.
  *
  * <p>Each type owns its editor-facing name, explanation, required parameters,
  * defaults, data cleanup, and validation. The graphics editor consumes this
@@ -552,9 +552,18 @@ public enum AbilityEffectType {
         };
     }
 
-    /** True for effects executed by the passive dispatcher when an ability activates. */
-    public boolean isTriggeredRuntimeEffect() {
+    /** True when an effect needs an active ability condition to run at battle time. */
+    public boolean requiresActivation() {
         return ordinal() >= HEAL_HP.ordinal();
+    }
+
+    /** True for effects resolved while a passive ability is assigned. */
+    public boolean isPassiveOnly() {
+        return switch (this) {
+            case STAT_BONUS_POINTS, GRANT_MOVE, GRANT_ABILITY, FORCE_MOVE,
+                 UNLOCK_TECHNIQUE, AUTO_STATUS_APPLY -> true;
+            default -> false;
+        };
     }
 
     private static void timedDefaults(AbilityEffectData effect) {

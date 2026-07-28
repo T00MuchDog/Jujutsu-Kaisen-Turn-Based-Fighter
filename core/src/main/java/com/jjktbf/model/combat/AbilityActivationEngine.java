@@ -10,14 +10,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Evaluates passive predicate trees and executes their modular effects. */
-public final class PassiveAbilityEngine {
+/** Evaluates active ability conditions and executes their modular effects. */
+public final class AbilityActivationEngine {
 
     private static final int MAX_CHAINED_TRIGGERS = 128;
 
     private final RandomSource rng;
 
-    public PassiveAbilityEngine(RandomSource rng) {
+    public AbilityActivationEngine(RandomSource rng) {
         this.rng = rng;
     }
 
@@ -37,7 +37,8 @@ public final class PassiveAbilityEngine {
                 events, triggers, activatedThisChain);
         }
         if (!triggers.isEmpty()) {
-            System.err.println("[WARN] Passive ability trigger chain exceeded " + MAX_CHAINED_TRIGGERS + " events.");
+            System.err.println("[WARN] Ability activation chain exceeded "
+                + MAX_CHAINED_TRIGGERS + " events.");
         }
         return events;
     }
@@ -54,11 +55,7 @@ public final class PassiveAbilityEngine {
         List<Ability> abilities = owner.getAbilities();
         for (int index = 0; index < abilities.size(); index++) {
             Ability ability = abilities.get(index);
-            if (ability == null || !ability.isPassive() || ability.isCoded()) continue;
-            if (ability.isAlwaysActive() && ability.getEffects().stream()
-                .noneMatch(effect -> safeType(effect).isTriggeredRuntimeEffect())) {
-                continue;
-            }
+            if (ability == null || !ability.isActive() || ability.isCoded()) continue;
 
             String key = abilityKey(ability, index);
             boolean eventOpportunity = hasMatchingEventLeaf(
@@ -89,8 +86,6 @@ public final class PassiveAbilityEngine {
 
             for (AbilityEffectData effect : ability.getEffects()) {
                 if (effect == null || effect.type == null) continue;
-                AbilityEffectType type = safeType(effect);
-                if (ability.isAlwaysActive() && !type.isTriggeredRuntimeEffect()) continue;
                 applyEffect(state, owner, enemy, effect, trigger.tick(), events, followUps);
             }
         }
@@ -104,7 +99,8 @@ public final class PassiveAbilityEngine {
         AbilityTrigger trigger,
         List<AbilityTrigger> history
     ) {
-        if (condition == null || condition.containsAlways()) return true;
+        if (condition == null) return false;
+        if (condition.containsAlways()) return true;
         AbilityConditionType type;
         try { type = AbilityConditionType.fromName(condition.type); }
         catch (IllegalArgumentException ex) { return false; }
@@ -120,6 +116,7 @@ public final class PassiveAbilityEngine {
 
         return switch (type) {
             case ALWAYS -> true;
+            case MANUAL_ACTIVATION -> false;
             case HP_PERCENT_AT_OR_BELOW -> anyActor(condition, owner, enemy,
                 combatant -> ratio(combatant.getCurrentHp(), combatant.getMaxHp()) <= value(condition.percentage));
             case HP_PERCENT_AT_OR_ABOVE -> anyActor(condition, owner, enemy,

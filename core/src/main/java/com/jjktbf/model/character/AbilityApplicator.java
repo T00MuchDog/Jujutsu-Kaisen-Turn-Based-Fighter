@@ -20,7 +20,7 @@ import java.util.Map;
  *   STAT_ADD                             → additive
  *   STAT_MULTIPLY / STAT_DIVIDE          → multiplicative (product of all)
  *
- * Active abilities are represented by their linked move and are not applied here.
+ * Active ability effects are applied when their activation conditions are met.
  *
  * STAT_BONUS_POINTS is editor/creator-only and is silently ignored at runtime.
  */
@@ -44,8 +44,7 @@ public final class AbilityApplicator {
         AbilityFlags flags = new AbilityFlags();
 
         for (Ability ability : abilities == null ? List.<Ability>of() : abilities) {
-            if (ability == null || !ability.isPassive() || !ability.isAlwaysActive()
-                || ability.isCoded()) continue;
+            if (ability == null || !ability.isPassive() || ability.isCoded()) continue;
             for (AbilityEffectData eff : ability.getEffects()) {
                 if (eff == null || eff.type == null) {
                     System.err.println("[WARN] AbilityApplicator: missing ability effect type");
@@ -152,7 +151,7 @@ public final class AbilityApplicator {
                     }
                     case STAT_BONUS_POINTS -> { /* editor/creator-only — no runtime effect */ }
 
-                    // Applied by PassiveAbilityEngine when their activation predicate fires.
+                    // Applied by AbilityActivationEngine when an active condition is met.
                     case HEAL_HP, HEAL_HP_PERCENT, RESTORE_CE, RESTORE_CE_PERCENT,
                          DRAIN_CE, DRAIN_CE_PERCENT, DEAL_DIRECT_DAMAGE, DEAL_MAX_HP_DAMAGE,
                          INSTANT_KILL, APPLY_STATUS, REMOVE_STATUS, CLEAR_STATUSES,

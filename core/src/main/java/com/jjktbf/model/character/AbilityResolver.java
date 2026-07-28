@@ -182,15 +182,7 @@ public final class AbilityResolver {
         Predicate<String> moveExists
     ) {
         boolean changed = false;
-        if (ability.isActive() && ability.isQueued()
-            && ability.activeMoveId != null && !ability.activeMoveId.isBlank()
-            && moveExists.test(ability.activeMoveId)) {
-            changed |= availableMoveIds.add(ability.activeMoveId);
-            changed |= learnedMoveIds.add(ability.activeMoveId);
-            changed |= forcedMoveSources.putIfAbsent(
-                ability.activeMoveId, forcedMoveSource(ability)) == null;
-        }
-        if (!ability.isPassive() || !ability.isAlwaysActive() || ability.effects == null) {
+        if (!ability.isPassive() || ability.effects == null) {
             return changed;
         }
 
@@ -356,7 +348,6 @@ public final class AbilityResolver {
         public int statBonusPoints() {
             return abilities.stream()
                 .filter(AbilityData::isPassive)
-                .filter(AbilityData::isAlwaysActive)
                 .mapToInt(AbilityData::statBonusPoints)
                 .sum();
         }
@@ -364,7 +355,6 @@ public final class AbilityResolver {
         public List<String> lockedMoveTags() {
             return abilities.stream()
                 .filter(AbilityData::isPassive)
-                .filter(AbilityData::isAlwaysActive)
                 .filter(ability -> ability.effects != null)
                 .flatMap(ability -> ability.effects.stream())
                 .filter(java.util.Objects::nonNull)

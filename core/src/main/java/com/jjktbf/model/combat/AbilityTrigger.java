@@ -3,7 +3,7 @@ package com.jjktbf.model.combat;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.StatusEffectType;
 
-/** One semantic battle event against which passive activation predicates are evaluated. */
+/** One semantic battle event against which active ability conditions are evaluated. */
 public record AbilityTrigger(
     Type type,
     BattleCombatant actor,

@@ -435,8 +435,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                     ability.sourceValue = remappedIds.getOrDefault(
                         ability.sourceValue, ability.sourceValue);
                 }
-                ability.activeMoveId = remappedIds.getOrDefault(
-                    ability.activeMoveId, ability.activeMoveId);
                 remapConditionMoves(ability.activationCondition, remappedIds);
                 if (ability.effects == null) continue;
                 ability.effects.stream()
@@ -460,7 +458,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     }
 
     private static String moveReferenceOf(AbilityData ability, String moveId) {
-        if (moveId.equals(ability.activeMoveId)) return "active move";
         if ("MOVE".equalsIgnoreCase(ability.sourceType) && moveId.equals(ability.sourceValue)) {
             return "move source";
         }

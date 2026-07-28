@@ -31,12 +31,6 @@ public class Ability {
     private final boolean activationChanceEnabled;
     private final double activationChance;
 
-    // Active-only
-    private final String activeSubType;   // "QUEUED" | legacy "TRIGGERED" | null
-    private final String activeMoveId;    // nullable
-    private final String triggerCondition;// trigger condition name | null
-    private final int    triggerThreshold;
-
     public Ability(AbilityData data) {
         this.id               = data.id;
         this.name             = data.name;
@@ -73,15 +67,14 @@ public class Ability {
         }
         this.codedAbilityKey  = data.codedAbilityKey;
         this.codedFeature     = data.codedFeature;
-        this.activationCondition = data.activationCondition == null
-            ? AbilityConditionData.always() : data.activationCondition.copy();
-        this.activationChanceEnabled = Boolean.TRUE.equals(data.activationChanceEnabled);
+        this.activationCondition = isActive()
+            ? (data.activationCondition == null
+                ? AbilityConditionData.manualActivation() : data.activationCondition.copy())
+            : null;
+        this.activationChanceEnabled = isActive()
+            && Boolean.TRUE.equals(data.activationChanceEnabled);
         this.activationChance = data.activationChance == null
             ? 1.0 : Math.max(0.0, Math.min(1.0, data.activationChance));
-        this.activeSubType    = data.activeSubType;
-        this.activeMoveId     = data.activeMoveId;
-        this.triggerCondition = data.triggerCondition;
-        this.triggerThreshold = data.triggerThreshold;
     }
 
     // -------------------------------------------------------------------------
@@ -98,10 +91,6 @@ public class Ability {
     public List<AbilityEffectData> getEffects() { return effects; }
     public String getCodedAbilityKey()  { return codedAbilityKey; }
     public String getCodedFeature()     { return codedFeature; }
-    public String getActiveSubType()    { return activeSubType; }
-    public String getActiveMoveId()     { return activeMoveId; }
-    public String getTriggerCondition() { return triggerCondition; }
-    public int    getTriggerThreshold() { return triggerThreshold; }
     public AbilityConditionData getActivationCondition() { return activationCondition; }
     public boolean isActivationChanceEnabled() { return activationChanceEnabled; }
     public double getActivationChance() { return activationChanceEnabled ? activationChance : 1.0; }
@@ -109,7 +98,6 @@ public class Ability {
     public boolean isPassive()  { return "PASSIVE".equalsIgnoreCase(category); }
     public boolean isActive()   { return "ACTIVE".equalsIgnoreCase(category); }
     public boolean isCoded()    { return codedAbilityKey != null && !codedAbilityKey.isBlank(); }
-    public boolean isAlwaysActive() { return activationCondition.containsAlways(); }
 
     /** Total STAT_BONUS_POINTS this ability contributes (for character editor budget). */
     public int statBonusPoints() {

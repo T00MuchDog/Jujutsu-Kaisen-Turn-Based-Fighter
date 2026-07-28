@@ -24,7 +24,7 @@ import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.AbilityTrigger;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.CombatResolver;
-import com.jjktbf.model.combat.PassiveAbilityEngine;
+import com.jjktbf.model.combat.AbilityActivationEngine;
 import com.jjktbf.model.combat.SeededRandomSource;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -82,8 +81,9 @@ class AbilitySystemTest {
     }
 
     @Test
-    void passiveStatsUseSetThenAddThenMultiplyAndActiveEffectsStayInactive() {
+    void passiveStatsAlwaysApplyAndActiveEffectsWaitForActivation() {
         AbilityData passiveData = ability("PASSIVE", "Passive", "P");
+        passiveData.activationCondition = AbilityConditionType.HP_PERCENT_AT_OR_BELOW.createDefault();
         passiveData.effects = List.of(
             statEffect(AbilityEffectType.STAT_ADD, 10, null),
             statEffect(AbilityEffectType.STAT_MULTIPLY, null, 2.0),
@@ -91,8 +91,7 @@ class AbilitySystemTest {
         );
 
         AbilityData activeData = ability("ACTIVE", "Active", "A");
-        activeData.activeSubType = "QUEUED";
-        activeData.activeMoveId = "ACTIVE_MOVE";
+        activeData.activationCondition = AbilityConditionData.manualActivation();
         activeData.effects = List.of(statEffect(AbilityEffectType.STAT_ADD, 500, null));
 
         CharacterStats base = new CharacterStats.Builder().strength(80).build();
@@ -220,62 +219,17 @@ class AbilitySystemTest {
     }
 
     @Test
-    void queuedActiveMoveBypassesNormalLearningRequirements() {
-        Move restricted = new Move.Builder("ACTIVE_MOVE")
-            .name("Active Move")
-            .category(MoveCategory.INNATE_TECHNIQUE)
-            .requiredTechniqueId("Missing Technique")
-            .prerequisites(java.util.Map.of(
-                "strength", 300,
-                "cursedTechniqueMastery", 300))
-            .basePower(10)
-            .apCost(10)
-            .unleashPoint(1)
-            .build();
-        AbilityData activeData = ability("ACTIVE", "Move-backed Active", "ACTIVE");
-        activeData.activeSubType = "QUEUED";
-        activeData.activeMoveId = restricted.getId();
+    void activeAbilitiesDoNotInjectOrForceMoves() {
+        AbilityData activeData = ability("ACTIVE", "Conditional Active", "ACTIVE");
+        activeData.activationCondition = AbilityConditionData.manualActivation();
+        activeData.effects = List.of(AbilityEffectType.HEAL_HP.createDefault());
 
-        assertDoesNotThrow(() -> new SorcererCharacter(
+        Character character = new SorcererCharacter(
             "C", "Character", new CharacterStats.Builder().strength(80).build(),
-            null, List.of(restricted), List.of(new Ability(activeData))));
-    }
+            null, List.of(), List.of(new Ability(activeData)));
 
-    @Test
-    void characterDataAddsTheMoveLinkedByAnAcquiredActiveAbility() {
-        Move activeMove = new Move.Builder("SOURCE_ID")
-            .name("Active Move")
-            .category(MoveCategory.PHYSICAL)
-            .prerequisites(java.util.Map.of("strength", 300))
-            .basePower(10)
-            .apCost(10)
-            .unleashPoint(1)
-            .build();
-        com.jjktbf.model.move.MoveRepository moveRepository =
-            new com.jjktbf.model.move.MoveRepository("data/test-ability-moves");
-        com.jjktbf.model.move.MoveData moveData =
-            com.jjktbf.model.move.MoveData.fromMove(activeMove);
-        moveRepository.add(moveData);
-
-        AbilityData activeData = ability("ACTIVE", "Move-backed Active", null);
-        activeData.activeSubType = "QUEUED";
-        activeData.activeMoveId = moveData.id;
-        com.jjktbf.model.character.AbilityRepository abilityRepository =
-            new com.jjktbf.model.character.AbilityRepository("data/test-active-abilities");
-        abilityRepository.add(activeData);
-
-        com.jjktbf.model.character.CharacterData characterData =
-            new com.jjktbf.model.character.CharacterData();
-        characterData.id = "CHARACTER";
-        characterData.name = "Character";
-        characterData.strength = 80;
-        characterData.moveIds = List.of();
-        characterData.abilityIds = List.of(activeData.id);
-
-        Character character = characterData.toCharacter(moveRepository, abilityRepository);
-
-        assertEquals(List.of(moveData.id),
-            character.getKnownMoves().stream().map(Move::getId).toList());
+        assertTrue(character.getKnownMoves().isEmpty());
+        assertTrue(character.getForcedMoveIds().isEmpty());
     }
 
     @Test
@@ -404,10 +358,9 @@ class AbilitySystemTest {
     }
 
     @Test
-    void repositoryAwareResolutionIgnoresMissingMoveReferences() {
+    void repositoryAwareResolutionIgnoresMissingMoveSources() {
         AbilityData active = ability("ACTIVE", "Broken Active", "ACTIVE");
-        active.activeSubType = "QUEUED";
-        active.activeMoveId = "MISSING";
+        active.activationCondition = AbilityConditionData.manualActivation();
 
         AbilityData moveSourced = ability("PASSIVE", "Move Source", "MOVE_SOURCE");
         moveSourced.sourceType = "MOVE";
@@ -437,10 +390,12 @@ class AbilitySystemTest {
         assertFalse(json.contains("\"active\""));
         assertFalse(json.contains("\"queued\""));
         assertFalse(json.contains("\"triggered\""));
+        assertFalse(json.contains("\"activeMoveId\""));
+        assertFalse(json.contains("\"activeSubType\""));
     }
 
     @Test
-    void bundledAbilitiesContainValidPassiveEffects() throws IOException {
+    void bundledAbilitiesContainValidEffects() throws IOException {
         Path path = List.of(
                 Path.of("data", "abilities", "all_abilities.json"),
                 Path.of("..", "data", "abilities", "all_abilities.json"))
@@ -454,7 +409,6 @@ class AbilitySystemTest {
         assertFalse(abilities.isEmpty());
         for (AbilityData ability : abilities) {
             assertTrue(ability.isPassive() || ability.isActive(), ability.name);
-            if (ability.isActive()) continue;
             if (ability.isCoded()) {
                 assertTrue(CodedAbilityRegistry.supportsAbility(
                     ability.codedAbilityKey, ability.codedFeature), ability.name);
@@ -462,6 +416,9 @@ class AbilitySystemTest {
                 continue;
             }
             assertFalse(ability.effects == null || ability.effects.isEmpty(), ability.name);
+            if (ability.isActive()) {
+                assertNull(AbilityConditionType.validationError(ability.activationCondition), ability.name);
+            }
             for (AbilityEffectData effect : ability.effects) {
                 AbilityEffectType type = AbilityEffectType.fromName(effect.type);
                 assertNull(type.validationError(effect), ability.name + ": " + type.name());
@@ -484,8 +441,31 @@ class AbilitySystemTest {
 
         AbilityConditionData invalid = AbilityConditionData.any(List.of(
             AbilityConditionData.always(), moveUsed));
-        assertEquals("Always active cannot be combined with another condition.",
+        assertEquals("At battle start cannot be combined with another condition.",
             AbilityConditionType.validationError(invalid));
+    }
+
+    @Test
+    void manualActivationIsValidButDoesNotFireAutomatically() {
+        AbilityConditionData manual = AbilityConditionType.MANUAL_ACTIVATION.createDefault();
+        assertNull(AbilityConditionType.validationError(manual));
+
+        AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
+        heal.intValue = 20;
+        AbilityData data = ability("ACTIVE", "Manual", "MANUAL");
+        data.activationCondition = manual;
+        data.effects = List.of(heal);
+
+        BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
+        BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
+        owner.applyDamage(50);
+        int before = owner.getCurrentHp();
+        AbilityActivationEngine engine = new AbilityActivationEngine(
+            new SeededRandomSource(new FixedRandom()));
+
+        assertTrue(engine.process(new BattleState(owner, enemy),
+            AbilityTrigger.simple(AbilityTrigger.Type.BATTLE_START)).isEmpty());
+        assertEquals(before, owner.getCurrentHp());
     }
 
     @Test
@@ -497,7 +477,7 @@ class AbilitySystemTest {
         AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
         heal.intValue = 20;
 
-        AbilityData data = ability("PASSIVE", "Sequence", "SEQUENCE");
+        AbilityData data = ability("ACTIVE", "Sequence", "SEQUENCE");
         data.activationCondition = AbilityConditionData.all(List.of(usedMove, hit));
         data.effects = List.of(heal);
 
@@ -506,7 +486,7 @@ class AbilitySystemTest {
         owner.applyDamage(50);
         int damagedHp = owner.getCurrentHp();
         BattleState state = new BattleState(owner, enemy);
-        PassiveAbilityEngine engine = new PassiveAbilityEngine(new SeededRandomSource(new FixedRandom()));
+        AbilityActivationEngine engine = new AbilityActivationEngine(new SeededRandomSource(new FixedRandom()));
 
         assertTrue(engine.process(state, AbilityTrigger.move(
             AbilityTrigger.Type.MOVE_USED, owner, enemy, attack, 1)).isEmpty());
@@ -529,14 +509,14 @@ class AbilitySystemTest {
         AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
         heal.intValue = 10;
 
-        AbilityData threshold = ability("PASSIVE", "Threshold", "THRESHOLD");
+        AbilityData threshold = ability("ACTIVE", "Threshold", "THRESHOLD");
         threshold.activationCondition = hp;
         threshold.effects = List.of(heal);
 
         BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(threshold)));
         BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
         BattleState state = new BattleState(owner, enemy);
-        PassiveAbilityEngine engine = new PassiveAbilityEngine(new SeededRandomSource(new FixedRandom()));
+        AbilityActivationEngine engine = new AbilityActivationEngine(new SeededRandomSource(new FixedRandom()));
         owner.applyDamage(owner.getMaxHp() / 2);
         int before = owner.getCurrentHp();
 
@@ -545,7 +525,7 @@ class AbilitySystemTest {
         engine.process(state, AbilityTrigger.tick(1));
         assertEquals(before + 10, owner.getCurrentHp(), "A continuously true threshold must not fire every tick");
 
-        AbilityData impossibleChance = ability("PASSIVE", "No proc", "NO_PROC");
+        AbilityData impossibleChance = ability("ACTIVE", "No proc", "NO_PROC");
         impossibleChance.activationCondition = AbilityConditionType.ATTACK_HIT.createDefault();
         impossibleChance.activationChanceEnabled = true;
         impossibleChance.activationChance = 0.0;
@@ -574,7 +554,7 @@ class AbilitySystemTest {
         lock.target = "SELF";
         lock.durationRounds = 1;
 
-        AbilityData data = ability("PASSIVE", "Battle setup", "SETUP");
+        AbilityData data = ability("ACTIVE", "Battle setup", "SETUP");
         data.activationCondition = AbilityConditionData.always();
         data.effects = List.of(immunity, shield, ap, lock);
         BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
@@ -622,7 +602,7 @@ class AbilitySystemTest {
         AbilityEffectData remove = AbilityEffectType.REMOVE_STATUS.createDefault();
         remove.stringValue = StatusEffectType.STRENGTH_INCREASE.name();
         remove.target = AbilityEffectTarget.SELF.name();
-        AbilityData data = ability("PASSIVE", "Remove tick effect", "REMOVE_TICK_EFFECT");
+        AbilityData data = ability("ACTIVE", "Remove tick effect", "REMOVE_TICK_EFFECT");
         data.activationCondition = firstTick;
         data.effects = List.of(remove);
         BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
@@ -647,7 +627,7 @@ class AbilitySystemTest {
         resolution.phase = BattleState.Phase.RESOLUTION.name();
         AbilityEffectData kill = AbilityEffectType.INSTANT_KILL.createDefault();
         kill.target = AbilityEffectTarget.ENEMY.name();
-        AbilityData data = ability("PASSIVE", "Resolution kill", "RESOLUTION_KILL");
+        AbilityData data = ability("ACTIVE", "Resolution kill", "RESOLUTION_KILL");
         data.activationCondition = resolution;
         data.effects = List.of(kill);
         BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
@@ -672,7 +652,7 @@ class AbilitySystemTest {
         AbilityEffectData effect = AbilityEffectType.TEMP_STAT_ADD.createDefault();
         effect.durationRounds = 0;
         effect.durationTicks = 0;
-        AbilityData data = ability("PASSIVE", "Invalid duration", "INVALID_DURATION");
+        AbilityData data = ability("ACTIVE", "Invalid duration", "INVALID_DURATION");
         data.effects = List.of(effect);
 
         org.junit.jupiter.api.Assertions.assertThrows(
@@ -687,14 +667,14 @@ class AbilitySystemTest {
         applyStatus.stringValue = StatusEffectType.STRENGTH_DECREASE.name();
         applyStatus.target = "SELF";
 
-        AbilityData data = ability("PASSIVE", "Status loop", "STATUS_LOOP");
+        AbilityData data = ability("ACTIVE", "Status loop", "STATUS_LOOP");
         data.activationCondition = statusApplied;
         data.effects = List.of(applyStatus);
         BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
         BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
         BattleState state = new BattleState(owner, enemy);
 
-        List<CombatEvent> events = new PassiveAbilityEngine(
+        List<CombatEvent> events = new AbilityActivationEngine(
             new SeededRandomSource(new FixedRandom())).process(
                 state,
                 AbilityTrigger.status(AbilityTrigger.Type.STATUS_APPLIED,
@@ -713,7 +693,7 @@ class AbilitySystemTest {
         missingStatus.statusType = "POISON";
         AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
         heal.intValue = 10;
-        AbilityData data = ability("PASSIVE", "Removed status predicate", "REMOVED_STATUS");
+        AbilityData data = ability("ACTIVE", "Removed status predicate", "REMOVED_STATUS");
         data.activationCondition = missingStatus;
         data.effects = List.of(heal);
         BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
@@ -721,7 +701,7 @@ class AbilitySystemTest {
         owner.applyDamage(20);
         int before = owner.getCurrentHp();
 
-        new PassiveAbilityEngine(new SeededRandomSource(new FixedRandom())).process(
+        new AbilityActivationEngine(new SeededRandomSource(new FixedRandom())).process(
             new BattleState(owner, enemy),
             AbilityTrigger.simple(AbilityTrigger.Type.ROUND_START));
 
@@ -734,7 +714,7 @@ class AbilitySystemTest {
         hasFocus.statusType = "FOCUS";
         AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
         heal.intValue = 10;
-        AbilityData predicateData = ability("PASSIVE", "Legacy focus predicate", "LEGACY_HAS_FOCUS");
+        AbilityData predicateData = ability("ACTIVE", "Legacy focus predicate", "LEGACY_HAS_FOCUS");
         predicateData.activationCondition = hasFocus;
         predicateData.effects = List.of(heal);
         BattleCombatant predicateOwner = combatant(
@@ -745,7 +725,7 @@ class AbilitySystemTest {
             StatusEffectType.ACCURACY_DECREASE, 1, 10.0));
         int predicateHp = predicateOwner.getCurrentHp();
 
-        new PassiveAbilityEngine(new SeededRandomSource(new FixedRandom())).process(
+        new AbilityActivationEngine(new SeededRandomSource(new FixedRandom())).process(
             new BattleState(predicateOwner, predicateEnemy),
             AbilityTrigger.simple(AbilityTrigger.Type.ROUND_START));
 
@@ -753,7 +733,7 @@ class AbilitySystemTest {
 
         AbilityConditionData focusApplied = AbilityConditionType.STATUS_APPLIED.createDefault();
         focusApplied.statusType = "FOCUS";
-        AbilityData eventData = ability("PASSIVE", "Legacy focus event", "LEGACY_FOCUS_EVENT");
+        AbilityData eventData = ability("ACTIVE", "Legacy focus event", "LEGACY_FOCUS_EVENT");
         eventData.activationCondition = focusApplied;
         eventData.effects = List.of(heal.copy());
         BattleCombatant eventOwner = combatant(
@@ -762,7 +742,7 @@ class AbilitySystemTest {
         eventOwner.applyDamage(20);
         int eventHp = eventOwner.getCurrentHp();
 
-        new PassiveAbilityEngine(new SeededRandomSource(new FixedRandom())).process(
+        new AbilityActivationEngine(new SeededRandomSource(new FixedRandom())).process(
             new BattleState(eventOwner, eventEnemy),
             AbilityTrigger.status(AbilityTrigger.Type.STATUS_APPLIED,
                 eventOwner, StatusEffectType.ACCURACY_DECREASE, 1));
@@ -775,7 +755,7 @@ class AbilitySystemTest {
         AbilityEffectData removeFocus = AbilityEffectType.REMOVE_STATUS.createDefault();
         removeFocus.stringValue = "FOCUS";
         removeFocus.target = AbilityEffectTarget.SELF.name();
-        AbilityData data = ability("PASSIVE", "Remove legacy focus", "REMOVE_LEGACY_FOCUS");
+        AbilityData data = ability("ACTIVE", "Remove legacy focus", "REMOVE_LEGACY_FOCUS");
         data.activationCondition = AbilityConditionData.always();
         data.effects = List.of(removeFocus);
         BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
@@ -785,7 +765,7 @@ class AbilitySystemTest {
         owner.addStatusEffect(new com.jjktbf.model.move.StatusEffect(
             StatusEffectType.ACCURACY_DECREASE, 1, 5.0));
 
-        List<CombatEvent> events = new PassiveAbilityEngine(
+        List<CombatEvent> events = new AbilityActivationEngine(
             new SeededRandomSource(new FixedRandom())).process(
                 new BattleState(owner, enemy),
                 AbilityTrigger.simple(AbilityTrigger.Type.ROUND_START));
@@ -798,10 +778,10 @@ class AbilitySystemTest {
     }
 
     @Test
-    void passiveInstantKillEndsTheBattleBeforePlanningContinues() {
+    void activeInstantKillEndsTheBattleBeforePlanningContinues() {
         AbilityEffectData kill = AbilityEffectType.INSTANT_KILL.createDefault();
         kill.target = "ENEMY";
-        AbilityData data = ability("PASSIVE", "Opening kill", "OPENING_KILL");
+        AbilityData data = ability("ACTIVE", "Opening kill", "OPENING_KILL");
         data.activationCondition = AbilityConditionData.always();
         data.effects = List.of(kill);
         BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
@@ -822,7 +802,7 @@ class AbilitySystemTest {
         lock.target = "SELF";
         lock.moveTag = "CURSED_ENERGY";
         lock.durationRounds = 1;
-        AbilityData data = ability("PASSIVE", "Seal after hit", "SEAL_AFTER_HIT");
+        AbilityData data = ability("ACTIVE", "Seal after hit", "SEAL_AFTER_HIT");
         data.activationCondition = hit;
         data.effects = List.of(lock);
 
@@ -831,7 +811,7 @@ class AbilitySystemTest {
         BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
         BattleState state = new BattleState(owner, enemy);
         state.transitionTo(BattleState.Phase.RESOLUTION);
-        PassiveAbilityEngine engine = new PassiveAbilityEngine(new SeededRandomSource(new FixedRandom()));
+        AbilityActivationEngine engine = new AbilityActivationEngine(new SeededRandomSource(new FixedRandom()));
         engine.process(state, AbilityTrigger.move(
             AbilityTrigger.Type.ATTACK_HIT, owner, enemy, attack, 1));
         assertTrue(owner.getAbilityFlags().lockedMoveTags.contains("CURSED_ENERGY"));
@@ -861,7 +841,7 @@ class AbilitySystemTest {
         receivesFocus.statusType = StatusEffectType.ACCURACY_INCREASE.name();
         AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
         heal.intValue = 10;
-        AbilityData reaction = ability("PASSIVE", "Focus reaction", "FOCUS_REACTION");
+        AbilityData reaction = ability("ACTIVE", "Focus reaction", "FOCUS_REACTION");
         reaction.activationCondition = receivesFocus;
         reaction.effects = List.of(heal);
 
@@ -892,7 +872,7 @@ class AbilitySystemTest {
         removed.statusType = StatusEffectType.MAX_HP_DECREASE.name();
         AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
         heal.intValue = 200;
-        AbilityData reaction = ability("PASSIVE", "Heal on max HP expiry", "HEAL_ON_MAX_EXPIRY");
+        AbilityData reaction = ability("ACTIVE", "Heal on max HP expiry", "HEAL_ON_MAX_EXPIRY");
         reaction.activationCondition = removed;
         reaction.effects = List.of(heal);
 
@@ -917,7 +897,7 @@ class AbilitySystemTest {
     @Test
     void guaranteedAbilityActivationDoesNotShiftCombatRandomness() {
         AbilityEffectData shield = AbilityEffectType.DAMAGE_SHIELD.createDefault();
-        AbilityData data = ability("PASSIVE", "Guaranteed", "GUARANTEED");
+        AbilityData data = ability("ACTIVE", "Guaranteed", "GUARANTEED");
         data.activationCondition = AbilityConditionData.always();
         data.effects = List.of(shield);
         BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
@@ -934,7 +914,7 @@ class AbilitySystemTest {
         AbilityConditionData blackFlash = AbilityConditionType.BLACK_FLASH_HIT.createDefault();
         AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
         heal.intValue = 10;
-        AbilityData reaction = ability("PASSIVE", "Black Flash heal", "BF_HEAL");
+        AbilityData reaction = ability("ACTIVE", "Black Flash heal", "BF_HEAL");
         reaction.activationCondition = blackFlash;
         reaction.effects = List.of(heal);
 
@@ -988,7 +968,7 @@ class AbilitySystemTest {
         focused.statusType = StatusEffectType.ACCURACY_INCREASE.name();
         AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
         heal.intValue = 10;
-        AbilityData data = ability("PASSIVE", "Round end focus", "ROUND_END_FOCUS");
+        AbilityData data = ability("ACTIVE", "Round end focus", "ROUND_END_FOCUS");
         data.activationCondition = AbilityConditionData.all(List.of(roundEnd, focused));
         data.effects = List.of(heal);
 
@@ -1015,7 +995,7 @@ class AbilitySystemTest {
         applyEvasionDecrease.target = "SELF";
         applyEvasionDecrease.stringValue = StatusEffectType.EVASION_DECREASE.name();
         applyEvasionDecrease.durationRounds = 1;
-        AbilityData data = ability("PASSIVE", "Expiry reaction", "EXPIRY_REACTION");
+        AbilityData data = ability("ACTIVE", "Expiry reaction", "EXPIRY_REACTION");
         data.activationCondition = focusRemoved;
         data.effects = List.of(applyEvasionDecrease);
         BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));

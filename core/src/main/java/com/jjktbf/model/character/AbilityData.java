@@ -75,41 +75,14 @@ public class AbilityData {
     /** Feature enabled on {@link #codedAbilityKey}; interpreted only by compiled code. */
     public String codedFeature;
 
-    /** Recursive activation predicate for passive abilities. Null means ALWAYS. */
+    /** Recursive activation predicate for active abilities. Null means MANUAL_ACTIVATION. */
     public AbilityConditionData activationCondition;
 
-    /** Whether to roll {@link #activationChance} whenever the predicate becomes true. */
+    /** Whether to roll {@link #activationChance} whenever an active condition becomes true. */
     public Boolean activationChanceEnabled;
 
     /** Activation probability as a fraction in [0, 1]. Null means 1.0. */
     public Double activationChance;
-
-    // ── Active-only fields ────────────────────────────────────────────────────
-
-    /**
-     * Sub-type for ACTIVE abilities. The editor creates "QUEUED" abilities,
-     * represented by a linked move. Older "TRIGGERED" data remains readable.
-     */
-    public String activeSubType;
-
-    /**
-     * For QUEUED actives: the move ID that represents this active ability.
-     * The active IS a move — created in the move editor, referenced here.
-     */
-    public String activeMoveId;
-
-    /**
-     * Legacy trigger metadata retained for existing data. New active abilities
-     * are move-backed and do not populate this field.
-     */
-    public String triggerCondition;
-
-    /**
-     * Numeric threshold for trigger conditions that need one
-     * (e.g. ON_HP_BELOW → 30 means "fires when HP is below 30%").
-     * Zero for conditions with no threshold.
-     */
-    public int triggerThreshold;
 
     /**
      * Legacy technique mastery threshold. New technique progression is authored
@@ -122,16 +95,10 @@ public class AbilityData {
 
     @JsonIgnore public boolean isPassive()  { return "PASSIVE".equalsIgnoreCase(category); }
     @JsonIgnore public boolean isActive()   { return "ACTIVE".equalsIgnoreCase(category); }
-    @JsonIgnore public boolean isQueued()   { return "QUEUED".equalsIgnoreCase(activeSubType); }
-    @JsonIgnore public boolean isTriggered(){ return "TRIGGERED".equalsIgnoreCase(activeSubType); }
     @JsonIgnore public boolean isCoded()    { return codedAbilityKey != null && !codedAbilityKey.isBlank(); }
 
-    @JsonIgnore public boolean isAlwaysActive() {
-        return activationCondition == null || activationCondition.containsAlways();
-    }
-
     @JsonIgnore public double effectiveActivationChance() {
-        if (!Boolean.TRUE.equals(activationChanceEnabled)) return 1.0;
+        if (!isActive() || !Boolean.TRUE.equals(activationChanceEnabled)) return 1.0;
         return activationChance == null ? 1.0 : Math.max(0.0, Math.min(1.0, activationChance));
     }
 

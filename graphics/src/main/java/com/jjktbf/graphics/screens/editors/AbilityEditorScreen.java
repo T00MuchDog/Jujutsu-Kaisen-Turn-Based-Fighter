@@ -1,6 +1,5 @@
 package com.jjktbf.graphics.screens.editors;
 
-import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
@@ -42,7 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-/** Graphical CRUD editor for passive abilities and move-backed active abilities. */
+/** Graphical CRUD editor for always-on passive and conditionally activated abilities. */
 public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
 
     private static final String SELECT_MOVE = "[select a move]";
@@ -54,10 +53,8 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
     private final TechniqueRepository techniqueRepo;
 
     private Container<Actor> sourceValueContainer;
-    private Container<Actor> activeSubContainer;
     private Container<Actor> effectsContainer;
     private Container<Actor> activationContainer;
-    private Label modeHint;
 
     public AbilityEditorScreen(JJKGame game, AssetLoader assets) {
         super(game, assets);
@@ -77,10 +74,6 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         ability.category = CategoryEnum.PASSIVE.name();
         ability.sourceType = SourceTypeEnum.CHARACTER.name();
         ability.effects = new ArrayList<>();
-        ability.activationCondition = AbilityConditionData.always();
-        ability.activationChanceEnabled = false;
-        ability.activationChance = 1.0;
-        ability.triggerThreshold = 0;
         ability.masteryThreshold = 0;
         return ability;
     }
@@ -110,13 +103,9 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                 .map(AbilityEffectData::copy)
                 .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         draft.activationCondition = stored.activationCondition == null
-            ? AbilityConditionData.always() : stored.activationCondition.copy();
+            ? null : stored.activationCondition.copy();
         draft.activationChanceEnabled = Boolean.TRUE.equals(stored.activationChanceEnabled);
         draft.activationChance = stored.activationChance == null ? 1.0 : stored.activationChance;
-        draft.activeSubType = stored.activeSubType;
-        draft.activeMoveId = stored.activeMoveId;
-        draft.triggerCondition = stored.triggerCondition;
-        draft.triggerThreshold = stored.triggerThreshold;
         draft.masteryThreshold = stored.masteryThreshold;
         return draft;
     }
@@ -232,25 +221,20 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             return "Coded abilities are defined in source and cannot be edited here.";
         }
 
-        if (ability.isActive()) {
-            String moveError = validateMoveReference(
-                ability.activeMoveId, "Choose the move that represents this active ability.");
-            if (moveError != null) return moveError;
-            return null;
-        }
-
         if (ability.effects == null || ability.effects.isEmpty()) {
-            return "A passive ability needs at least one effect.";
+            return "An ability needs at least one effect.";
         }
-        String conditionError = AbilityConditionType.validationError(ability.activationCondition);
-        if (conditionError != null) return conditionError;
-        if (Boolean.TRUE.equals(ability.activationChanceEnabled)
-            && (ability.activationChance == null || !Double.isFinite(ability.activationChance)
-                || ability.activationChance < 0 || ability.activationChance > 1)) {
-            return "Activation chance must be between 0% and 100%.";
+        if (ability.isActive()) {
+            String conditionError = AbilityConditionType.validationError(ability.activationCondition);
+            if (conditionError != null) return conditionError;
+            if (Boolean.TRUE.equals(ability.activationChanceEnabled)
+                && (ability.activationChance == null || !Double.isFinite(ability.activationChance)
+                    || ability.activationChance < 0 || ability.activationChance > 1)) {
+                return "Activation chance must be between 0% and 100%.";
+            }
+            String conditionMoveError = validateConditionMoves(ability.activationCondition);
+            if (conditionMoveError != null) return conditionMoveError;
         }
-        String conditionMoveError = validateConditionMoves(ability.activationCondition);
-        if (conditionMoveError != null) return conditionMoveError;
         for (int i = 0; i < ability.effects.size(); i++) {
             AbilityEffectData effect = ability.effects.get(i);
             AbilityEffectType type;
@@ -263,18 +247,13 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             if (effectError != null) {
                 return "Effect " + (i + 1) + " (" + type.displayName() + "): " + effectError;
             }
-            if (!ability.isAlwaysActive()
-                && (type == AbilityEffectType.GRANT_MOVE
-                    || type == AbilityEffectType.GRANT_ABILITY
-                    || type == AbilityEffectType.FORCE_MOVE
-                    || type == AbilityEffectType.UNLOCK_TECHNIQUE
-                    || type == AbilityEffectType.STAT_BONUS_POINTS
-                    || type == AbilityEffectType.LOCK_MOVE_TAG)) {
-                return "Effect " + (i + 1)
-                    + " changes character acquisition and must use Always active.";
+            if (ability.isPassive() && type.requiresActivation()) {
+                return "Effect " + (i + 1) + " (" + type.displayName()
+                    + ") needs an activation condition and can only be used by an active ability.";
             }
-            if (!ability.isAlwaysActive() && type == AbilityEffectType.AUTO_STATUS_APPLY) {
-                return "Use Apply status for a conditional ability; automatic status timing is only for Always active.";
+            if (ability.isActive() && type.isPassiveOnly()) {
+                return "Effect " + (i + 1) + " (" + type.displayName()
+                    + ") only applies while a passive ability is assigned.";
             }
             if (type == AbilityEffectType.GRANT_MOVE
                 || type == AbilityEffectType.FORCE_MOVE) {
@@ -382,20 +361,8 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         }
 
         if (ability.isActive()) {
-            ability.activeSubType = "QUEUED";
-            ability.triggerCondition = null;
-            ability.triggerThreshold = 0;
-            ability.effects = new ArrayList<>();
-            ability.activationCondition = null;
-            ability.activationChanceEnabled = null;
-            ability.activationChance = null;
-        } else {
-            ability.activeSubType = null;
-            ability.activeMoveId = null;
-            ability.triggerCondition = null;
-            ability.triggerThreshold = 0;
             if (ability.activationCondition == null) {
-                ability.activationCondition = AbilityConditionData.always();
+                ability.activationCondition = AbilityConditionData.manualActivation();
             }
             if (ability.activationCondition.containsAlways()) {
                 ability.activationCondition = AbilityConditionData.always();
@@ -406,9 +373,13 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                 ability.activationChanceEnabled = null;
                 ability.activationChance = null;
             }
-            for (AbilityEffectData effect : ability.effects) {
-                AbilityEffectType.fromName(effect.type).clearUnusedFields(effect);
-            }
+        } else {
+            ability.activationCondition = null;
+            ability.activationChanceEnabled = null;
+            ability.activationChance = null;
+        }
+        for (AbilityEffectData effect : ability.effects) {
+            AbilityEffectType.fromName(effect.type).clearUnusedFields(effect);
         }
     }
 
@@ -511,6 +482,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
 
     @Override
     protected Actor buildDetailForm(AbilityData ability) {
+        activationContainer = null;
         if (ability.isCoded()) {
             Table form = formRoot();
             Table coded = formSection(form, "CODED ABILITY");
@@ -536,13 +508,13 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             CategoryEnum.class, ability.category, false,
             value -> {
                 ability.category = value;
-                if (ability.isActive()) {
-                    ability.activeSubType = "QUEUED";
-                    ability.triggerCondition = null;
-                    ability.triggerThreshold = 0;
-                }
-                refreshConditionalSections(ability);
+                initialiseCategoryDefaults(ability);
+                markDirty();
+                rebuildDetail();
             }, skin))).growX().row();
+        if (ability.isPassive()) {
+            category.add(formHint("Passive abilities are always active while assigned.")).growX().row();
+        }
 
         Table source = formSection(form, "SOURCE");
         source.add(labelledRow("Available from", new EnumSelectBox<>(
@@ -556,24 +528,17 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         sourceValueContainer.setActor(buildSourceValue(ability));
         source.add(sourceValueContainer).growX().row();
 
-        Table active = formSection(form, "ACTIVE SETTINGS");
-        activeSubContainer = new Container<>();
-        activeSubContainer.setActor(buildActiveSettings(ability));
-        active.add(activeSubContainer).growX().row();
-        modeHint = new Label(modeHintText(ability), skin, "small");
-        modeHint.setColor(skin.get("text-dim", Color.class));
-        modeHint.setWrap(true);
-        active.add(modeHint).growX().row();
-
         Table effects = formSection(form, "EFFECTS");
         effectsContainer = new Container<>();
         effectsContainer.setActor(buildEffects(ability));
         effects.add(effectsContainer).growX().row();
 
-        Table activation = formSection(form, "PASSIVE ACTIVATION");
-        activationContainer = new Container<>();
-        activationContainer.setActor(buildActivation(ability));
-        activation.add(activationContainer).growX().row();
+        if (ability.isActive()) {
+            Table activation = formSection(form, "ACTIVATION CONDITIONS");
+            activationContainer = new Container<>();
+            activationContainer.setActor(buildActivation(ability));
+            activation.add(activationContainer).growX().row();
+        }
 
         return form;
     }
@@ -638,25 +603,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         return table;
     }
 
-    private Actor buildActiveSettings(AbilityData ability) {
-        Table table = new Table(skin);
-        table.defaults().left().pad(4).growX();
-        if (!ability.isActive()) {
-            table.add(formHint("Passive abilities are always on and use the Effects section.")).row();
-            return table;
-        }
-
-        SelectBox<String> move = moveSelect(ability.activeMoveId,
-            value -> ability.activeMoveId = idFromLabel(value));
-        table.add(labelledRow("Ability move", move)).growX().row();
-        table.add(formHint("The linked move contains the active ability's power, cost, and statuses.")).row();
-        return table;
-    }
-
     private Actor buildEffects(AbilityData ability) {
-        if (!ability.isPassive()) {
-            return formHint("Active mechanics are configured on the linked move, so no passive effects apply.");
-        }
         if (ability.effects == null) ability.effects = new ArrayList<>();
         return new EffectListEditor(
             ability.effects,
@@ -669,11 +616,8 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
     }
 
     private Actor buildActivation(AbilityData ability) {
-        if (!ability.isPassive()) {
-            return formHint("Active abilities are activated by choosing their linked move.");
-        }
         if (ability.activationCondition == null) {
-            ability.activationCondition = AbilityConditionData.always();
+            ability.activationCondition = AbilityConditionData.manualActivation();
         }
         Table table = new Table(skin);
         table.defaults().left().pad(4).growX();
@@ -706,23 +650,18 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             moveRepo.getAll(),
             this::markDirty,
             skin)).colspan(2).growX().row();
-        table.add(formHint("AND/OR groups may be nested. Always active replaces every other condition.")).colspan(2).row();
+        table.add(formHint(
+            "AND/OR groups may be nested. At battle start cannot be combined with another condition. "
+                + "Manual activation does not trigger automatically yet."))
+            .colspan(2).row();
         return table;
-    }
-
-    private String modeHintText(AbilityData ability) {
-        return ability.isActive()
-            ? "When assigned, the linked move is forced into LEARNED and bypasses normal learning rules."
-            : "Only passive effects are applied continuously in combat.";
     }
 
     private void refreshConditionalSections(AbilityData ability) {
         markDirty();
         if (sourceValueContainer != null) sourceValueContainer.setActor(buildSourceValue(ability));
-        if (activeSubContainer != null) activeSubContainer.setActor(buildActiveSettings(ability));
         if (effectsContainer != null) effectsContainer.setActor(buildEffects(ability));
         if (activationContainer != null) activationContainer.setActor(buildActivation(ability));
-        if (modeHint != null) modeHint.setText(modeHintText(ability));
     }
 
     private static void initialiseSourceDefaults(AbilityData ability) {
@@ -731,6 +670,19 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         ability.sourceValue = source == SourceTypeEnum.STAT_THRESHOLD
             ? new AbilityResolver.StatRequirement(StatKey.VITALITY, 80).expression()
             : null;
+    }
+
+    private static void initialiseCategoryDefaults(AbilityData ability) {
+        if (ability.isActive()) {
+            if (ability.activationCondition == null) {
+                ability.activationCondition = AbilityConditionData.manualActivation();
+            }
+            if (ability.activationChance == null) ability.activationChance = 1.0;
+            return;
+        }
+        ability.activationCondition = null;
+        ability.activationChanceEnabled = null;
+        ability.activationChance = null;
     }
 
     private SelectBox<String> moveSelect(String currentId, Consumer<String> onChange) {

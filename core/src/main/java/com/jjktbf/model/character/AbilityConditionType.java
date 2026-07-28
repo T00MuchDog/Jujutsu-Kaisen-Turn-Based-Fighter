@@ -10,11 +10,12 @@ import java.util.Set;
 
 import static com.jjktbf.model.character.AbilityConditionParameter.*;
 
-/** Authoritative metadata and validation for passive activation predicates. */
+/** Authoritative metadata and validation for active ability conditions. */
 public enum AbilityConditionType {
     ALL("All conditions (AND)", "Every child condition must be true."),
     ANY("Any condition (OR)", "At least one child condition must be true."),
-    ALWAYS("Always active", "Activates at battle start. It cannot be combined with another condition."),
+    ALWAYS("At battle start", "Activates at battle start. It cannot be combined with another condition."),
+    MANUAL_ACTIVATION("Manual activation", "Reserved for player-triggered activation. It does not activate automatically yet."),
 
     HP_PERCENT_AT_OR_BELOW("HP at or below %", "The selected combatant's HP reaches or falls below this percentage.", ACTOR, PERCENTAGE),
     HP_PERCENT_AT_OR_ABOVE("HP at or above %", "The selected combatant's HP reaches or rises above this percentage.", ACTOR, PERCENTAGE),
@@ -116,7 +117,7 @@ public enum AbilityConditionType {
     public static String validationError(AbilityConditionData root) {
         if (root == null) return null;
         if (root.containsAlways() && !ALWAYS.name().equalsIgnoreCase(root.type)) {
-            return "Always active cannot be combined with another condition.";
+            return "At battle start cannot be combined with another condition.";
         }
         return validationError(root, "Condition");
     }

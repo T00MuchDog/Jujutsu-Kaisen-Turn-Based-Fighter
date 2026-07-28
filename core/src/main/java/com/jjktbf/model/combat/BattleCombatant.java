@@ -60,12 +60,12 @@ public class BattleCombatant {
     private final List<Ability> abilities;
     private final CodedAbilities codedAbilities;
 
-    /** Conditional and timed effects added by the passive ability dispatcher. */
+    /** Conditional and timed effects added by active ability activation. */
     private final List<RuntimeAbilityEffect> runtimeAbilityEffects = new ArrayList<>();
     private final Map<String, Boolean> abilityConditionState = new HashMap<>();
     private final Map<String, List<AbilityTrigger>> abilityTriggerHistory = new HashMap<>();
-    private boolean passiveFightStartProcessed;
-    private int lastPassiveRoundStartRound;
+    private boolean abilityFightStartProcessed;
+    private int lastAbilityRoundStartRound;
 
     // --- Mutable battle state ---
     private int currentHp;
@@ -138,8 +138,8 @@ public class BattleCombatant {
         this.consecutiveBfsHits   = 0;
         this.bfsExpiresAfterRound = -1;
         this.timeline             = null;
-        this.passiveFightStartProcessed = false;
-        this.lastPassiveRoundStartRound = 0;
+        this.abilityFightStartProcessed = false;
+        this.lastAbilityRoundStartRound = 0;
     }
 
     // -------------------------------------------------------------------------
@@ -616,15 +616,15 @@ public class BattleCombatant {
         abilityTriggerHistory.remove(key);
     }
 
-    public boolean beginPassiveFightStart() {
-        if (passiveFightStartProcessed) return false;
-        passiveFightStartProcessed = true;
+    public boolean beginAbilityFightStart() {
+        if (abilityFightStartProcessed) return false;
+        abilityFightStartProcessed = true;
         return true;
     }
 
-    public boolean beginPassiveRoundStart(int roundNumber) {
-        if (roundNumber <= lastPassiveRoundStartRound) return false;
-        lastPassiveRoundStartRound = roundNumber;
+    public boolean beginAbilityRoundStart(int roundNumber) {
+        if (roundNumber <= lastAbilityRoundStartRound) return false;
+        lastAbilityRoundStartRound = roundNumber;
         return true;
     }
 

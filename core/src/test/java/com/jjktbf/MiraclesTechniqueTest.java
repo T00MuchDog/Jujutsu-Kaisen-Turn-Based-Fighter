@@ -14,7 +14,7 @@ import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.CombatResolver;
-import com.jjktbf.model.combat.PassiveAbilityEngine;
+import com.jjktbf.model.combat.AbilityActivationEngine;
 import com.jjktbf.model.combat.SeededRandomSource;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
@@ -66,7 +66,7 @@ class MiraclesTechniqueTest {
         BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
         BattleState state = new BattleState(owner, enemy);
         new CombatResolver(new FixedRandom()).processRoundStart(state);
-        PassiveAbilityEngine engine = new PassiveAbilityEngine(new SeededRandomSource(new FixedRandom()));
+        AbilityActivationEngine engine = new AbilityActivationEngine(new SeededRandomSource(new FixedRandom()));
         Move attack = attack("ATTACK");
 
         owner.receiveDamage(owner.getCurrentHp());

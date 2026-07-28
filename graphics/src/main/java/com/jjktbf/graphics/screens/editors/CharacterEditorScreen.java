@@ -547,7 +547,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private String treeActivationError(CharacterData character, SkillTreeNodeData node) {
         if (SkillTreeNodeData.MOVE.equalsIgnoreCase(node.contentType)) {
             if (resolvedAbilities(character).forcedMoveIds().contains(node.contentId)) {
-                return "This move is already forced by an active ability.";
+                return "This move is already forced by a passive ability.";
             }
             MoveData move = moveRepo.findById(node.contentId).orElse(null);
             return move == null ? "This move no longer exists."

@@ -561,12 +561,12 @@ class HeadlessBattleSessionTest {
     }
 
     @Test
-    void roundEndPassiveKnockoutEndsAuthoritativeSession() {
+    void roundEndActiveKnockoutEndsAuthoritativeSession() {
         Move attack = physicalAttack("ROUND_END_ATTACK", 1, true);
         AbilityData ability = new AbilityData();
         ability.id = "ROUND_END_KILL";
         ability.name = "Round End Kill";
-        ability.category = "PASSIVE";
+        ability.category = "ACTIVE";
         ability.sourceType = "CHARACTER";
         ability.activationCondition = AbilityConditionType.PHASE_REACHED.createDefault();
         ability.activationCondition.phase = "ROUND_END";

@@ -37,11 +37,11 @@ import java.util.*;
 public class CombatResolver {
 
     private final RandomSource rng;
-    private final PassiveAbilityEngine passiveAbilities;
+    private final AbilityActivationEngine abilityActivations;
 
     public CombatResolver(RandomSource rng) {
         this.rng = rng;
-        this.passiveAbilities = new PassiveAbilityEngine(rng);
+        this.abilityActivations = new AbilityActivationEngine(rng);
     }
 
     /** Compatibility constructor for callers that still supply {@link Random}. */
@@ -73,19 +73,19 @@ public class CombatResolver {
         // those mutations before any BATTLE_START ability can change the same values.
         appendAutomaticStatusEvents(state, events);
         if (finishBattleIfNeeded(state, events, 0)) return events;
-        boolean battleStart = state.getPlayerCombatant().beginPassiveFightStart()
-            | state.getEnemyCombatant().beginPassiveFightStart();
+        boolean battleStart = state.getPlayerCombatant().beginAbilityFightStart()
+            | state.getEnemyCombatant().beginAbilityFightStart();
         if (battleStart) {
-            events.addAll(passiveAbilities.process(
+            events.addAll(abilityActivations.process(
                 state, AbilityTrigger.simple(AbilityTrigger.Type.BATTLE_START)));
             if (finishBattleIfNeeded(state, events, 0)) return events;
         }
-        boolean roundStart = state.getPlayerCombatant().beginPassiveRoundStart(state.getRoundNumber())
-            | state.getEnemyCombatant().beginPassiveRoundStart(state.getRoundNumber());
+        boolean roundStart = state.getPlayerCombatant().beginAbilityRoundStart(state.getRoundNumber())
+            | state.getEnemyCombatant().beginAbilityRoundStart(state.getRoundNumber());
         if (roundStart) {
-            events.addAll(passiveAbilities.process(state, AbilityTrigger.simple(AbilityTrigger.Type.ROUND_START)));
+            events.addAll(abilityActivations.process(state, AbilityTrigger.simple(AbilityTrigger.Type.ROUND_START)));
             if (finishBattleIfNeeded(state, events, 0)) return events;
-            events.addAll(passiveAbilities.process(state, AbilityTrigger.phase(BattleState.Phase.PLANNING)));
+            events.addAll(abilityActivations.process(state, AbilityTrigger.phase(BattleState.Phase.PLANNING)));
             if (finishBattleIfNeeded(state, events, 0)) return events;
         }
         drainRoundAbilityCost(state, state.getPlayerCombatant(), state.getRoundNumber(), events);
@@ -182,7 +182,7 @@ public class CombatResolver {
         c.roundCostsProcessed = true;
         c.activeBlocks.clear();
 
-        events.addAll(passiveAbilities.process(state, AbilityTrigger.phase(BattleState.Phase.RESOLUTION)));
+        events.addAll(abilityActivations.process(state, AbilityTrigger.phase(BattleState.Phase.RESOLUTION)));
         if (finishBattleIfNeeded(state, events, 0)) {
             c.roundCostsProcessed = false;
             return events;
@@ -215,7 +215,7 @@ public class CombatResolver {
 
         state.advanceTick();
 
-        events.addAll(passiveAbilities.process(state, AbilityTrigger.tick(tick)));
+        events.addAll(abilityActivations.process(state, AbilityTrigger.tick(tick)));
         if (finishBattleIfNeeded(state, events, tick)) return events;
 
         // STAGGER is a character status, not a move tag. It acts before any
@@ -311,7 +311,7 @@ public class CombatResolver {
                         .message(StatusEffectMessages.expiryMessage(
                             combatant.getCharacter().getName(), expired.getType()))
                         .build());
-                    events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
+                    events.addAll(abilityActivations.process(state, AbilityTrigger.status(
                         AbilityTrigger.Type.STATUS_REMOVED, combatant, expired.getType(), tick)));
                     if (finishBattleIfNeeded(state, events, tick)) break expiryEvents;
                 }
@@ -381,7 +381,7 @@ public class CombatResolver {
                     .message(combatant.getCharacter().getName() + " uses " + drained
                              + " CE for " + segment.getMove().getName())
                     .build());
-                events.addAll(passiveAbilities.process(state, AbilityTrigger.amount(
+                events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
                     AbilityTrigger.Type.CE_SPENT, combatant, null, drained, tick)));
                 if (finishBattleIfNeeded(state, events, tick)) return;
 
@@ -412,7 +412,7 @@ public class CombatResolver {
             .message(combatant.getCharacter().getName() + " spends " + drained + " CE on passive abilities.")
             .build());
         if (drained > 0) {
-            events.addAll(passiveAbilities.process(state, AbilityTrigger.amount(
+            events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
                 AbilityTrigger.Type.CE_SPENT, combatant, null, drained, 0)));
         }
         if (!combatant.hasAnyCe()) {
@@ -557,7 +557,7 @@ public class CombatResolver {
                 .message(reactor.getCharacter().getName() + " uses " + drained
                     + " CE for " + reactionMove.getName())
                 .build());
-            events.addAll(passiveAbilities.process(state, AbilityTrigger.amount(
+            events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
                 AbilityTrigger.Type.CE_SPENT, reactor, null, drained, tick)));
             if (finishBattleIfNeeded(state, events, tick)) return;
             if (!reactor.hasAnyCe()) {
@@ -601,7 +601,7 @@ public class CombatResolver {
             .tick(tick)
             .message(attacker.getCharacter().getName() + " unleashes " + move.getName() + "!")
             .build());
-        events.addAll(passiveAbilities.process(state, AbilityTrigger.move(
+        events.addAll(abilityActivations.process(state, AbilityTrigger.move(
             AbilityTrigger.Type.MOVE_USED, attacker, defender, move, tick)));
         if (finishBattleIfNeeded(state, events, tick)) return;
 
@@ -635,7 +635,7 @@ public class CombatResolver {
                 .tick(tick)
                 .message(move.getName() + " missed " + defender.getCharacter().getName() + "!")
                 .build());
-            events.addAll(passiveAbilities.process(state, AbilityTrigger.move(
+            events.addAll(abilityActivations.process(state, AbilityTrigger.move(
                 AbilityTrigger.Type.ATTACK_MISSED, attacker, defender, move, tick)));
             finishBattleIfNeeded(state, events, tick);
 
@@ -648,7 +648,7 @@ public class CombatResolver {
                 .build());
             applyDefenseEffects(state, defender, attacker, move,
                 move.getOnDodgeEffects(), tick, events);
-            events.addAll(passiveAbilities.process(state, AbilityTrigger.move(
+            events.addAll(abilityActivations.process(state, AbilityTrigger.move(
                 AbilityTrigger.Type.ATTACK_MISSED, attacker, defender, move, tick)));
             finishBattleIfNeeded(state, events, tick);
 
@@ -676,7 +676,7 @@ public class CombatResolver {
             }
             applyDefenseEffects(state, defender, attacker, move,
                 move.getOnParryEffects(), tick, events);
-            events.addAll(passiveAbilities.process(state, AbilityTrigger.move(
+            events.addAll(abilityActivations.process(state, AbilityTrigger.move(
                 AbilityTrigger.Type.MOVE_BLOCKED, attacker, defender, move, tick)));
             finishBattleIfNeeded(state, events, tick);
 
@@ -688,7 +688,7 @@ public class CombatResolver {
                 .build());
             applyDefenseEffects(state, defender, attacker, move,
                 move.getOnBlockEffects(), tick, events);
-            events.addAll(passiveAbilities.process(state, AbilityTrigger.move(
+            events.addAll(abilityActivations.process(state, AbilityTrigger.move(
                 AbilityTrigger.Type.MOVE_BLOCKED, attacker, defender, move, tick)));
             finishBattleIfNeeded(state, events, tick);
 
@@ -722,10 +722,10 @@ public class CombatResolver {
                         + " hits " + defender.getCharacter().getName()
                         + " for " + appliedDamage + " damage!")
                 .build());
-            events.addAll(passiveAbilities.process(state, AbilityTrigger.move(
+            events.addAll(abilityActivations.process(state, AbilityTrigger.move(
                 AbilityTrigger.Type.ATTACK_HIT, attacker, defender, move, tick)));
             if (appliedDamage > 0) {
-                events.addAll(passiveAbilities.process(state, AbilityTrigger.amount(
+                events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
                     AbilityTrigger.Type.DAMAGE, attacker, defender, appliedDamage, tick)));
             }
             // Black Flash
@@ -749,10 +749,10 @@ public class CombatResolver {
                     .tick(tick)
                     .message(attacker.getCharacter().getName() + " recovered " + ceRestored + " CE!")
                     .build());
-                events.addAll(passiveAbilities.process(state, AbilityTrigger.move(
+                events.addAll(abilityActivations.process(state, AbilityTrigger.move(
                     AbilityTrigger.Type.BLACK_FLASH, attacker, defender, move, tick)));
                 if (ceRestored > 0) {
-                    events.addAll(passiveAbilities.process(state, AbilityTrigger.amount(
+                    events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
                         AbilityTrigger.Type.CE_RESTORED, attacker, null, ceRestored, tick)));
                 }
             }
@@ -1018,7 +1018,7 @@ public class CombatResolver {
                 .build());
             appendResourceMaximumEvents(
                 attacker, defender, previousMaxHp, previousMaxCe, tick, events);
-            events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
+            events.addAll(abilityActivations.process(state, AbilityTrigger.status(
                 AbilityTrigger.Type.STATUS_APPLIED, defender, effect.getType(), tick)));
         }
     }
@@ -1052,7 +1052,7 @@ public class CombatResolver {
                 .build());
             appendResourceMaximumEvents(
                 combatant, combatant, previousMaxHp, previousMaxCe, tick, events);
-            events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
+            events.addAll(abilityActivations.process(state, AbilityTrigger.status(
                 AbilityTrigger.Type.STATUS_APPLIED, combatant, effect.getType(), tick)));
         }
     }
@@ -1091,7 +1091,7 @@ public class CombatResolver {
                 .build());
             appendResourceMaximumEvents(
                 defender, defender, previousMaxHp, previousMaxCe, tick, events);
-            events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
+            events.addAll(abilityActivations.process(state, AbilityTrigger.status(
                 AbilityTrigger.Type.STATUS_APPLIED, defender, effect.getType(), tick)));
         }
     }
@@ -1125,7 +1125,7 @@ public class CombatResolver {
                 appendResourceMaximumEvents(
                     attacker, target, previousMaxHp, previousMaxCe, tick, events);
                 try {
-                    events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
+                    events.addAll(abilityActivations.process(state, AbilityTrigger.status(
                         AbilityTrigger.Type.STATUS_APPLIED,
                         target,
                         StatusEffectType.fromName(
@@ -1155,7 +1155,7 @@ public class CombatResolver {
         Set<BattleCombatant> hpClamped = Collections.newSetFromMap(new IdentityHashMap<>());
         Set<BattleCombatant> ceClamped = Collections.newSetFromMap(new IdentityHashMap<>());
 
-        events.addAll(passiveAbilities.process(
+        events.addAll(abilityActivations.process(
             state, AbilityTrigger.phase(BattleState.Phase.ROUND_END)));
         if (finishBattleIfNeeded(state, events, 0)) return events;
 
@@ -1196,7 +1196,7 @@ public class CombatResolver {
                         .message(StatusEffectMessages.expiryMessage(
                             combatant.getCharacter().getName(), expired.getType()))
                         .build());
-                    events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
+                    events.addAll(abilityActivations.process(state, AbilityTrigger.status(
                         AbilityTrigger.Type.STATUS_REMOVED, combatant, expired.getType(), 0)));
                     if (finishBattleIfNeeded(state, events, 0)) {
                         battleEnded = true;
@@ -1261,7 +1261,7 @@ public class CombatResolver {
                 application.source(), application.target(),
                 application.previousMaxHp(), application.previousMaxCe(),
                 application.resultingMaxHp(), application.resultingMaxCe(), 0, events);
-            events.addAll(passiveAbilities.process(state, AbilityTrigger.status(
+            events.addAll(abilityActivations.process(state, AbilityTrigger.status(
                 AbilityTrigger.Type.STATUS_APPLIED,
                 application.target(),
                 application.status(),
