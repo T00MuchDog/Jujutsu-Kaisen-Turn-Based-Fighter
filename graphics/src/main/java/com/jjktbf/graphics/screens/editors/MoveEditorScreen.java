@@ -16,6 +16,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.FocusListener;
 import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.ContentSizedDialog;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
@@ -574,7 +575,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             ensureTechniqueStatPrerequisites(d, tags);
             synchronizeWeaponRequirement(d);
             refreshCategorySections(d);
-        }, skin);
+        }, game.audio()::play, skin);
         // Sync the draft's tags with the picker's coupling-enforced initial set
         // (e.g. a technique tag implies CURSED_ENERGY). suppressDirty is on
         // during build, so this won't mark the record dirty on load.
@@ -595,6 +596,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         hasCeCostCb.setChecked(Boolean.TRUE.equals(d.hasCeCost));
         hasCeCostCb.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
+                game.audio().play(SoundCue.UI_TOGGLE);
                 d.hasCeCost = hasCeCostCb.isChecked();
                 refreshConditionalFields(d);
             }
@@ -641,6 +643,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         freeCb.setChecked(d.isFreeMove);
         freeCb.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
+                game.audio().play(SoundCue.UI_TOGGLE);
                 d.isFreeMove = freeCb.isChecked();
                 markDirty();
             }
@@ -651,6 +654,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         grantedCb.setChecked(d.mustBeGranted);
         grantedCb.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
+                game.audio().play(SoundCue.UI_TOGGLE);
                 d.mustBeGranted = grantedCb.isChecked();
                 markDirty();
             }
@@ -667,6 +671,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         weaponRequiredCheckbox.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
                 if (weaponRequiredCheckbox.isDisabled()) return;
+                game.audio().play(SoundCue.UI_TOGGLE);
                 d.weaponRequired = weaponRequiredCheckbox.isChecked();
                 markDirty();
             }
@@ -701,6 +706,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             neverMissCb.setChecked(d.neverMiss);
             neverMissCb.addListener(new ChangeListener() {
                 @Override public void changed(ChangeEvent event, Actor actor) {
+                    game.audio().play(SoundCue.UI_TOGGLE);
                     d.neverMiss = neverMissCb.isChecked();
                     refreshConditionalFields(d);
                 }
@@ -897,6 +903,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             cb.setChecked(selected.contains(tag.name()));
             cb.addListener(new ChangeListener() {
                 @Override public void changed(ChangeEvent event, Actor actor) {
+                    game.audio().play(SoundCue.UI_TOGGLE);
                     Set<String> cur = new LinkedHashSet<>(
                         d.blockAffectedTags == null ? List.of() : d.blockAffectedTags);
                     if (cb.isChecked()) cur.add(tag.name());
@@ -1065,12 +1072,14 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 TextButton editBtn = new TextButton("Edit", skin);
                 editBtn.addListener(new ChangeListener() {
                     @Override public void changed(ChangeEvent event, Actor actor) {
+                        game.audio().play(SoundCue.UI_CONFIRM);
                         showEffectEditor(eff, updated -> list.set(idx, updated));
                     }
                 });
                 TextButton rmBtn = new TextButton("X", skin);
                 rmBtn.addListener(new ChangeListener() {
                     @Override public void changed(ChangeEvent event, Actor actor) {
+                        game.audio().play(SoundCue.UI_DELETE);
                         list.remove(idx);
                         markDirty();
                         rebuildDetail();
@@ -1085,6 +1094,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         TextButton addBtn = new TextButton("+ Add effect", skin);
         addBtn.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
+                game.audio().play(SoundCue.UI_CONFIRM);
                 MoveData.StatusEffectData eff = new MoveData.StatusEffectData();
                 eff.type = StatusEffectType.STRENGTH_INCREASE.name();
                 eff.durationRounds = 1;
@@ -1107,9 +1117,12 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 @Override
                 protected void result(Object object) {
                     if (Boolean.TRUE.equals(object)) {
+                        game.audio().play(SoundCue.UI_CONFIRM);
                         commit.accept(eff);
                         markDirty();
                         rebuildDetail();
+                    } else {
+                        game.audio().play(SoundCue.UI_BACK);
                     }
                 }
             };
@@ -1145,6 +1158,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
         toggleBtn.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
+                game.audio().play(SoundCue.UI_TOGGLE);
                 boolean nowCoded = !eff.isCoded();
                 if (nowCoded) {
                     if (eff.codedAbilityKey == null || eff.codedAbilityKey.isBlank()) {

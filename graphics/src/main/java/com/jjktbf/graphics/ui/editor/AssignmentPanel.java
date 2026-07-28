@@ -14,11 +14,13 @@ import com.badlogic.gdx.scenes.scene2d.ui.VerticalGroup;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.DragAndDrop;
 import com.badlogic.gdx.utils.Align;
+import com.jjktbf.graphics.audio.SoundCue;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -70,6 +72,7 @@ public class AssignmentPanel extends Table {
 
     private final Skin skin;
     private final Controller controller;
+    private final Consumer<SoundCue> soundPlayer;
     private final DragAndDrop dnd = new DragAndDrop();
 
     private final VerticalGroup availableCol;
@@ -77,10 +80,15 @@ public class AssignmentPanel extends Table {
     private final Label budgetLabel;
     private final Label hintLabel;
 
-    public AssignmentPanel(Controller controller, Skin skin) {
+    public AssignmentPanel(
+        Controller controller,
+        Consumer<SoundCue> soundPlayer,
+        Skin skin
+    ) {
         super(skin);
         this.skin = skin;
         this.controller = controller;
+        this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
         defaults().pad(4);
 
         // Title + budget summary
@@ -132,7 +140,11 @@ public class AssignmentPanel extends Table {
             public void drop(DragAndDrop.Source source, DragAndDrop.Payload payload,
                              float x, float y, int pointer) {
                 String id = idOf(payload);
-                if (id != null) { controller.onUnassign(id); refresh(); }
+                if (id != null) {
+                    controller.onUnassign(id);
+                    AssignmentPanel.this.soundPlayer.accept(SoundCue.UI_DROP);
+                    refresh();
+                }
             }
         });
         dnd.addTarget(new DragAndDrop.Target(assignedScroll) {
@@ -146,7 +158,11 @@ public class AssignmentPanel extends Table {
             public void drop(DragAndDrop.Source source, DragAndDrop.Payload payload,
                              float x, float y, int pointer) {
                 String id = idOf(payload);
-                if (id != null) { controller.onAssign(id); refresh(); }
+                if (id != null) {
+                    controller.onAssign(id);
+                    AssignmentPanel.this.soundPlayer.accept(SoundCue.UI_DROP);
+                    refresh();
+                }
             }
         });
 
@@ -219,10 +235,14 @@ public class AssignmentPanel extends Table {
                 if ("available".equals(side)) {
                     if (controller.canAssign(item.id)) {
                         controller.onAssign(item.id);
+                        soundPlayer.accept(SoundCue.UI_CONFIRM);
                         refresh();
+                    } else {
+                        soundPlayer.accept(SoundCue.UI_DENIED);
                     }
                 } else {
                     controller.onUnassign(item.id);
+                    soundPlayer.accept(SoundCue.UI_DELETE);
                     refresh();
                 }
             }
@@ -232,6 +252,7 @@ public class AssignmentPanel extends Table {
         dnd.addSource(new DragAndDrop.Source(row) {
             @Override
             public DragAndDrop.Payload dragStart(InputEvent event, float x, float y, int pointer) {
+                soundPlayer.accept(SoundCue.UI_PICKUP);
                 DragAndDrop.Payload p = new DragAndDrop.Payload();
                 p.setObject(new String[]{ side, item.id });
                 // Drag avatar: a small label
@@ -239,6 +260,18 @@ public class AssignmentPanel extends Table {
                 dragLbl.setColor(skin.get("white", com.badlogic.gdx.graphics.Color.class));
                 p.setDragActor(dragLbl);
                 return p;
+            }
+
+            @Override
+            public void dragStop(
+                InputEvent event,
+                float x,
+                float y,
+                int pointer,
+                DragAndDrop.Payload payload,
+                DragAndDrop.Target target
+            ) {
+                if (target == null) soundPlayer.accept(SoundCue.UI_DENIED);
             }
         });
 

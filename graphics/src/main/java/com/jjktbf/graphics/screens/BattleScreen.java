@@ -254,7 +254,9 @@ public class BattleScreen implements Screen, BattleView {
     private PlayerState onlineEnemy;
     private Map<String, Move> onlineMoves = Map.of();
     private int onlinePlanningRound = -1;
+    private int soundedOnlineRound = -1;
     private final Set<String> loggedOnlineEventIds = new HashSet<>();
+    private final Set<String> soundedOnlineEventIds = new HashSet<>();
     private boolean onlineCommandPending;
     private boolean preserveMultiplayerSession;
     private long multiplayerRun;
@@ -362,7 +364,9 @@ public class BattleScreen implements Screen, BattleView {
         playbackTickElapsedMs = 0f;
         playbackComplete = false;
         onlinePlanningRound = -1;
+        soundedOnlineRound = -1;
         loggedOnlineEventIds.clear();
+        soundedOnlineEventIds.clear();
         onlineCommandPending = false;
         preserveMultiplayerSession = false;
         multiplayerState = null;
@@ -482,6 +486,8 @@ public class BattleScreen implements Screen, BattleView {
                 if (mode == BattleMode.MULTIPLAYER) {
                     if (submitReadyNextRound()) {
                         game.audio().play(SoundCue.UI_CONFIRM);
+                    } else {
+                        game.audio().play(SoundCue.UI_DENIED);
                     }
                 } else {
                     game.audio().play(SoundCue.UI_CONFIRM);
@@ -887,6 +893,7 @@ public class BattleScreen implements Screen, BattleView {
     public void displayRoundStart(BattleState state) {
         if (!isCurrentLocalBattleThread()) return;
         postLocal(() -> {
+            game.audio().play(SoundCue.BATTLE_ROUND_START);
             renderPlayer = state.getPlayerCombatant();
             renderEnemy  = state.getEnemyCombatant();
             syncLocalHpFromModel();
@@ -1161,6 +1168,10 @@ public class BattleScreen implements Screen, BattleView {
         initPanels();
 
         if (state.phase() == BattlePhase.PLANNING && !isTerminal(state.status())) {
+            if (soundedOnlineRound != state.roundNumber()) {
+                soundedOnlineRound = state.roundNumber();
+                game.audio().play(SoundCue.BATTLE_ROUND_START);
+            }
             awaitingNextRound = false;
             nextRoundHovered = false;
             resolvingTicks = false;
@@ -1296,12 +1307,14 @@ public class BattleScreen implements Screen, BattleView {
     private void submitOnlinePlan() {
         if (!canSubmitOnlinePlan() || planningPanel == null) {
             if (planningPanel != null) planningPanel.unlock();
+            game.audio().play(SoundCue.UI_DENIED);
             return;
         }
         MultiplayerMatchService.PlanSubmission submission =
             multiplayerMatchService.submitPlan(planningPanel.getPlacements());
         if (!submission.sent()) {
             planningPanel.unlock();
+            game.audio().play(SoundCue.UI_DENIED);
             addLogLine(submissionMessage(submission.status()));
             return;
         }
@@ -1470,7 +1483,9 @@ public class BattleScreen implements Screen, BattleView {
             unleashedMove = findOnlineMove(event.sourceSide(), event.moveId());
             if (unleashedMove != null) playMoveUnleashAnimation(unleashedMove);
         }
-        BattleAudioRouter.cueFor(event, unleashedMove).ifPresent(game.audio()::play);
+        if (event.eventId() == null || soundedOnlineEventIds.add(event.eventId())) {
+            BattleAudioRouter.cueFor(event, unleashedMove).ifPresent(game.audio()::play);
+        }
         if (event.type() == BattleEventType.RATIO_TRIGGERED) {
             playRatioUnleashAnimation();
         }
@@ -1482,6 +1497,9 @@ public class BattleScreen implements Screen, BattleView {
 
     private void logOnlineEvents(List<BattleEventState> events) {
         for (BattleEventState event : events) {
+            if (event.eventId() == null || soundedOnlineEventIds.add(event.eventId())) {
+                BattleAudioRouter.cueFor(event, null).ifPresent(game.audio()::play);
+            }
             if (event.message() != null && !event.message().isBlank()
                 && (event.eventId() == null || loggedOnlineEventIds.add(event.eventId()))) {
                 queueLogLine(event.message());

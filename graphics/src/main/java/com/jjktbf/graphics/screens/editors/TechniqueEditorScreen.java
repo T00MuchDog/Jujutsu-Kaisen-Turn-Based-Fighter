@@ -180,6 +180,7 @@ public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData>
             this::markDirty,
             message -> setStatus(message, false),
             null,
+            game.audio()::play,
             skin);
         ScrollPane scroll = new AxisLockedScrollPane(canvas, skin);
         scroll.setFadeScrollBars(false);

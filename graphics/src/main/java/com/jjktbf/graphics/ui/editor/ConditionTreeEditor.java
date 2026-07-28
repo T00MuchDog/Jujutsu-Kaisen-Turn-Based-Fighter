@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.*;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.ContentSizedDialog;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.model.character.*;
@@ -15,6 +16,7 @@ import com.jjktbf.model.move.StatusEffectType;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 /** Recursive AND/OR predicate editor used by the ability editor. */
 public class ConditionTreeEditor extends Table {
@@ -24,6 +26,7 @@ public class ConditionTreeEditor extends Table {
     private final AbilityConditionData root;
     private final List<MoveData> moves;
     private final Runnable onDirty;
+    private final Consumer<SoundCue> soundPlayer;
     private final Skin skin;
     private final Container<Actor> treeContainer = new Container<>();
 
@@ -31,12 +34,14 @@ public class ConditionTreeEditor extends Table {
         AbilityConditionData root,
         List<MoveData> moves,
         Runnable onDirty,
+        Consumer<SoundCue> soundPlayer,
         Skin skin
     ) {
         super(skin);
         this.root = root;
         this.moves = moves == null ? List.of() : moves;
         this.onDirty = onDirty;
+        this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
         this.skin = skin;
         treeContainer.fill(true, false);
         add(treeContainer).growX().row();
@@ -65,6 +70,7 @@ public class ConditionTreeEditor extends Table {
         if (type.isGroup()) {
             TextButton addCondition = button("+ Condition", () -> {
                 node.children.add(AbilityConditionType.HP_PERCENT_AT_OR_BELOW.createDefault());
+                soundPlayer.accept(SoundCue.UI_CONFIRM);
                 changed();
             });
             TextButton addAnd = button("+ AND", () -> addGroup(node, AbilityConditionType.ALL));
@@ -72,6 +78,7 @@ public class ConditionTreeEditor extends Table {
             TextButton toggle = button(type == AbilityConditionType.ALL ? "Use OR" : "Use AND", () -> {
                 node.type = type == AbilityConditionType.ALL
                     ? AbilityConditionType.ANY.name() : AbilityConditionType.ALL.name();
+                soundPlayer.accept(SoundCue.UI_TOGGLE);
                 changed();
             });
             table.add(addCondition);
@@ -79,7 +86,10 @@ public class ConditionTreeEditor extends Table {
             table.add(addOr);
             table.add(toggle);
         } else {
-            table.add(button("Edit", () -> openLeafEditor(node))).padLeft(3);
+            table.add(button("Edit", () -> {
+                soundPlayer.accept(SoundCue.UI_CONFIRM);
+                openLeafEditor(node);
+            })).padLeft(3);
             if (type != AbilityConditionType.ALWAYS) {
                 table.add(button("AND", () -> wrapNode(node, parent, childIndex, AbilityConditionType.ALL)));
                 table.add(button("OR", () -> wrapNode(node, parent, childIndex, AbilityConditionType.ANY)));
@@ -96,11 +106,13 @@ public class ConditionTreeEditor extends Table {
                         ? AbilityConditionData.always()
                         : AbilityConditionType.HP_PERCENT_AT_OR_BELOW.createDefault());
                 }
+                soundPlayer.accept(SoundCue.UI_DELETE);
                 changed();
             }));
         } else {
             table.add(button("Reset", () -> {
                 root.copyFrom(AbilityConditionData.always());
+                soundPlayer.accept(SoundCue.UI_DELETE);
                 changed();
             }));
         }
@@ -117,6 +129,7 @@ public class ConditionTreeEditor extends Table {
         AbilityConditionData group = type.createDefault();
         group.children.add(AbilityConditionType.HP_PERCENT_AT_OR_BELOW.createDefault());
         parent.children.add(group);
+        soundPlayer.accept(SoundCue.UI_CONFIRM);
         changed();
     }
 
@@ -131,6 +144,7 @@ public class ConditionTreeEditor extends Table {
         group.children.add(AbilityConditionType.HP_PERCENT_AT_OR_BELOW.createDefault());
         if (parent == null) root.copyFrom(group);
         else parent.children.set(childIndex, group);
+        soundPlayer.accept(SoundCue.UI_CONFIRM);
         changed();
     }
 
@@ -182,19 +196,25 @@ public class ConditionTreeEditor extends Table {
             String validation = AbilityConditionType.validationError(working);
             if (validation != null) {
                 error.setText(validation);
+                soundPlayer.accept(SoundCue.UI_DENIED);
                 return;
             }
             if (selected == AbilityConditionType.MOVE_USED
                 && moves.stream().noneMatch(move -> java.util.Objects.equals(move.id, working.moveId))) {
                 error.setText("Choose a move that still exists.");
+                soundPlayer.accept(SoundCue.UI_DENIED);
                 return;
             }
             if (selected == AbilityConditionType.ALWAYS) root.copyFrom(working);
             else original.copyFrom(working);
+            soundPlayer.accept(SoundCue.UI_CONFIRM);
             dialog.hide();
             changed();
         });
-        TextButton cancel = button("Cancel", dialog::hide);
+        TextButton cancel = button("Cancel", () -> {
+            soundPlayer.accept(SoundCue.UI_BACK);
+            dialog.hide();
+        });
         dialog.getButtonTable().add(done).pad(4);
         dialog.getButtonTable().add(cancel).pad(4);
         dialog.show(getStage());

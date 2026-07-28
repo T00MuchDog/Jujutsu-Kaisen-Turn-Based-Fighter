@@ -53,12 +53,15 @@ class PlanningPanelInputTest {
         Move move = move("REMOVE", 10);
         PlanningPanel panel = panel(move, 150);
         assertNotNull(panel.getPlan().place(move, 1, 0));
+        List<SoundCue> cues = new ArrayList<>();
+        panel.setSoundPlayer(cues::add);
 
         PlanningPanel.PlanningInputProcessor input = panel.inputProcessor();
         assertTrue(input.touchDown(160, HEIGHT - 580, 0, Buttons.RIGHT));
 
         assertEquals(0, panel.getPlan().offensiveTimeline().getSegments().size());
         assertEquals(0, panel.getPlan().totalApUsed());
+        assertEquals(List.of(SoundCue.UI_PLAN_REMOVE), cues);
     }
 
     @Test
@@ -71,6 +74,43 @@ class PlanningPanelInputTest {
         clickCard(panel.inputProcessor());
 
         assertEquals(List.of(SoundCue.UI_PLAN_PLACE), cues);
+    }
+
+    @Test
+    void dragStartsOnlyAfterThresholdAndThenEmitsPickupBeforePlacement() {
+        Move move = move("DRAG", 10);
+        PlanningPanel panel = panel(move, 150);
+        List<SoundCue> cues = new ArrayList<>();
+        panel.setSoundPlayer(cues::add);
+        PlanningPanel.PlanningInputProcessor input = panel.inputProcessor();
+
+        input.touchDown(50, HEIGHT - 50, 0, Buttons.LEFT);
+        input.touchDragged(52, HEIGHT - 52, 0);
+        input.touchUp(52, HEIGHT - 52, 0, Buttons.LEFT);
+        assertEquals(List.of(SoundCue.UI_PLAN_PLACE), cues);
+
+        cues.clear();
+        input.touchDown(50, HEIGHT - 50, 0, Buttons.LEFT);
+        input.touchDragged(300, HEIGHT - 580, 0);
+        input.touchUp(300, HEIGHT - 580, 0, Buttons.LEFT);
+        assertEquals(List.of(SoundCue.UI_PICKUP, SoundCue.UI_PLAN_PLACE), cues);
+    }
+
+    @Test
+    void clickingExistingSegmentSelectsItWithoutMovingOrSounding() {
+        Move move = move("SELECT", 10);
+        PlanningPanel panel = panel(move, 150);
+        ActionSegment original = panel.getPlan().place(move, 1, 0);
+        assertNotNull(original);
+        List<SoundCue> cues = new ArrayList<>();
+        panel.setSoundPlayer(cues::add);
+        PlanningPanel.PlanningInputProcessor input = panel.inputProcessor();
+
+        input.touchDown(160, HEIGHT - 580, 0, Buttons.LEFT);
+        input.touchUp(160, HEIGHT - 580, 0, Buttons.LEFT);
+
+        assertEquals(List.of(original), panel.getPlan().offensiveTimeline().getSegments());
+        assertTrue(cues.isEmpty());
     }
 
     private static PlanningPanel panel(Move move, int apBudget) {

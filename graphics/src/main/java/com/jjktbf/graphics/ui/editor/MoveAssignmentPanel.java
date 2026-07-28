@@ -14,12 +14,14 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.DragAndDrop;
 import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.AssetLoader;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.model.move.MovePool;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /** Four-column move selector grouped by assignment state and move pool. */
 public class MoveAssignmentPanel extends Table {
@@ -84,12 +86,18 @@ public class MoveAssignmentPanel extends Table {
 
     private final Skin skin;
     private final Controller controller;
+    private final Consumer<SoundCue> soundPlayer;
     private final DragAndDrop dragAndDrop = new DragAndDrop();
     private final Map<ColumnKey, MoveColumn> columns = new java.util.LinkedHashMap<>();
 
-    public MoveAssignmentPanel(Controller controller, Skin skin) {
+    public MoveAssignmentPanel(
+        Controller controller,
+        Consumer<SoundCue> soundPlayer,
+        Skin skin
+    ) {
         super(skin);
         this.controller = controller;
+        this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
         this.skin = skin;
         top();
         defaults().top();
@@ -238,10 +246,15 @@ public class MoveAssignmentPanel extends Table {
         card.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
                 if (column.side == Side.AVAILABLE) {
-                    if (!controller.canLearn(item.id)) return;
+                    if (!controller.canLearn(item.id)) {
+                        soundPlayer.accept(SoundCue.UI_DENIED);
+                        return;
+                    }
                     controller.onLearn(item.id);
+                    soundPlayer.accept(SoundCue.UI_CONFIRM);
                 } else {
                     controller.onForget(item.id);
+                    soundPlayer.accept(SoundCue.UI_DELETE);
                 }
                 refresh();
             }
@@ -250,6 +263,7 @@ public class MoveAssignmentPanel extends Table {
             @Override public DragAndDrop.Payload dragStart(
                 InputEvent event, float x, float y, int pointer
             ) {
+                soundPlayer.accept(SoundCue.UI_PICKUP);
                 DragAndDrop.Payload payload = new DragAndDrop.Payload();
                 payload.setObject(new String[] {
                     column.side.name(), column.pool.name(), item.id
@@ -258,6 +272,17 @@ public class MoveAssignmentPanel extends Table {
                 dragLabel.setColor(skin.get("white", Color.class));
                 payload.setDragActor(dragLabel);
                 return payload;
+            }
+
+            @Override public void dragStop(
+                InputEvent event,
+                float x,
+                float y,
+                int pointer,
+                DragAndDrop.Payload payload,
+                DragAndDrop.Target target
+            ) {
+                if (target == null) soundPlayer.accept(SoundCue.UI_DENIED);
             }
         };
         dragAndDrop.addSource(dragSource);
@@ -292,6 +317,7 @@ public class MoveAssignmentPanel extends Table {
                 if (id == null) return;
                 if (column.side == Side.LEARNED) controller.onLearn(id);
                 else controller.onForget(id);
+                soundPlayer.accept(SoundCue.UI_DROP);
                 refresh();
             }
         });

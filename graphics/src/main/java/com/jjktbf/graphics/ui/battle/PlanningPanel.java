@@ -35,6 +35,7 @@ public class PlanningPanel {
 
     private static final float MARGIN = 34f;
     private static final float CARD_GAP = 10f;
+    private static final float DRAG_THRESHOLD = 5f;
 
     private final BattlePlan plan;
     private final List<Move> knownMoves = new ArrayList<>();
@@ -66,6 +67,11 @@ public class PlanningPanel {
     private int draggingTick;
     private boolean snapValid;
     private boolean clickingMoveCard;
+    private boolean dragSoundPlayed;
+    private ActionSegment pressedSegment;
+    private BattlePlan.Board pressedBoard;
+    private float pressMouseX;
+    private float pressMouseY;
     private float dragMouseX;
     private float dragMouseY;
 
@@ -153,8 +159,11 @@ public class PlanningPanel {
         draggingMove = null;
         draggingSegment = null;
         draggingBoard = null;
+        pressedSegment = null;
+        pressedBoard = null;
         snapValid = false;
         clickingMoveCard = false;
+        dragSoundPlayed = false;
     }
 
     public PlanningInputProcessor inputProcessor() {
@@ -427,6 +436,10 @@ public class PlanningPanel {
             }
 
             if (button != Buttons.LEFT) return false;
+            pressedSegment = null;
+            pressedBoard = null;
+            pressMouseX = dragMouseX;
+            pressMouseY = dragMouseY;
 
             if (lockInBounds.contains(dragMouseX, dragMouseY)) {
                 confirmed = true;
@@ -442,6 +455,7 @@ public class PlanningPanel {
                     draggingSegment = null;
                     draggingBoard = BattlePlan.boardFor(draggingMove);
                     clickingMoveCard = true;
+                    dragSoundPlayed = false;
                     updateSnap();
                     return true;
                 }
@@ -450,7 +464,8 @@ public class PlanningPanel {
             ActionSegmentView hit = hitSegment();
             if (hit != null) {
                 selectedSegment = hit.getSegment();
-                startMoveDrag(hit.getSegment(), BattlePlan.boardFor(hit.getMove()));
+                pressedSegment = hit.getSegment();
+                pressedBoard = BattlePlan.boardFor(hit.getMove());
                 return true;
             }
 
@@ -460,8 +475,23 @@ public class PlanningPanel {
 
         @Override
         public boolean touchDragged(int screenX, int screenY, int pointer) {
-            if (confirmed || draggedMove() == null) return false;
+            if (confirmed || (draggedMove() == null && pressedSegment == null)) return false;
             updatePointer(screenX, screenY);
+            float deltaX = dragMouseX - pressMouseX;
+            float deltaY = dragMouseY - pressMouseY;
+            if (!dragSoundPlayed
+                && deltaX * deltaX + deltaY * deltaY < DRAG_THRESHOLD * DRAG_THRESHOLD) {
+                return true;
+            }
+            if (pressedSegment != null) {
+                startMoveDrag(pressedSegment, pressedBoard);
+                pressedSegment = null;
+                pressedBoard = null;
+            }
+            if (!dragSoundPlayed) {
+                soundPlayer.accept(SoundCue.UI_PICKUP);
+                dragSoundPlayed = true;
+            }
             clickingMoveCard = false;
             updateSnap();
             return true;
@@ -469,8 +499,14 @@ public class PlanningPanel {
 
         @Override
         public boolean touchUp(int screenX, int screenY, int pointer, int button) {
-            if (confirmed || button != Buttons.LEFT || draggedMove() == null) return false;
+            if (confirmed || button != Buttons.LEFT) return false;
             updatePointer(screenX, screenY);
+            if (pressedSegment != null) {
+                pressedSegment = null;
+                pressedBoard = null;
+                return true;
+            }
+            if (draggedMove() == null) return false;
             updateSnap();
 
             Move move = draggedMove();
@@ -484,8 +520,13 @@ public class PlanningPanel {
             } else if (droppedOnTimeline && draggingSegment != null) {
                 // A cancelled relocation must never destroy an already planned move.
                 selectedSegment = plan.place(draggingSegment.getMove(), originalTick, originalCeCost);
+                soundPlayer.accept(SoundCue.UI_DENIED);
             } else if (!droppedOnTimeline) {
                 selectedSegment = null;
+                soundPlayer.accept(draggingSegment == null
+                    ? SoundCue.UI_DENIED : SoundCue.UI_PLAN_REMOVE);
+            } else {
+                soundPlayer.accept(SoundCue.UI_DENIED);
             }
             clearDrag();
             return true;
@@ -505,6 +546,7 @@ public class PlanningPanel {
             draggingSegment = segment;
             draggingMove = null;
             draggingBoard = board;
+            dragSoundPlayed = false;
             updateSnap();
         }
 
@@ -512,8 +554,11 @@ public class PlanningPanel {
             draggingMove = null;
             draggingSegment = null;
             draggingBoard = null;
+            pressedSegment = null;
+            pressedBoard = null;
             snapValid = false;
             clickingMoveCard = false;
+            dragSoundPlayed = false;
             updateHover();
         }
 

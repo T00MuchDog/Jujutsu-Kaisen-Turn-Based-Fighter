@@ -195,13 +195,21 @@ abstract class MultiplayerScreenBase implements Screen {
     }
 
     protected final TextButton button(String text, String style, Runnable action) {
+        return button(text, style, isBackAction(text) ? SoundCue.UI_BACK : SoundCue.UI_CONFIRM, action);
+    }
+
+    protected final TextButton button(
+        String text,
+        String style,
+        SoundCue cue,
+        Runnable action
+    ) {
         TextButton button = new TextButton(text, assets.editorSkin, style);
         button.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 if (!button.isDisabled()) {
-                    game.audio().play(isBackAction(text)
-                        ? SoundCue.UI_BACK : SoundCue.UI_CONFIRM);
+                    game.audio().play(cue);
                     action.run();
                 }
             }

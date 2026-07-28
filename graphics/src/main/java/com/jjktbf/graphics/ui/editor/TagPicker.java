@@ -8,6 +8,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.model.move.MoveTag;
 
 import java.util.LinkedHashMap;
@@ -55,6 +56,7 @@ public class TagPicker extends Table {
 
     private final Set<MoveTag> selected = new LinkedHashSet<>();
     private final Consumer<Set<MoveTag>> onChange;
+    private final Consumer<SoundCue> soundPlayer;
     private final Skin skin;
 
     /** Per-tag checkbox, so the lock logic can toggle individual ones. */
@@ -66,10 +68,16 @@ public class TagPicker extends Table {
      */
     private final Map<MoveTag, Drawable[]> normalDrawables = new LinkedHashMap<>();
 
-    public TagPicker(Set<MoveTag> initial, Consumer<Set<MoveTag>> onChange, Skin skin) {
+    public TagPicker(
+        Set<MoveTag> initial,
+        Consumer<Set<MoveTag>> onChange,
+        Consumer<SoundCue> soundPlayer,
+        Skin skin
+    ) {
         super(skin);
         this.skin = skin;
         this.onChange = onChange;
+        this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
         if (initial != null) this.selected.addAll(initial);
 
         // No internal "Tags" heading — the form section strip already names it.
@@ -85,6 +93,7 @@ public class TagPicker extends Table {
             int col = 0;
             for (MoveTag tag : section.getValue()) {
                 CheckBox cb = new CheckBox(pretty(tag.name()), skin);
+                cb.setProgrammaticChangeEvents(false);
                 cb.setChecked(selected.contains(tag));
                 checkboxes.put(tag, cb);
                 cb.addListener(new ChangeListener() {
@@ -94,6 +103,7 @@ public class TagPicker extends Table {
                         enforceCoupling();
                         enforceRangeRule();
                         applyLocks();
+                        TagPicker.this.soundPlayer.accept(SoundCue.UI_TOGGLE);
                         if (onChange != null) onChange.accept(new LinkedHashSet<>(selected));
                     }
                 });

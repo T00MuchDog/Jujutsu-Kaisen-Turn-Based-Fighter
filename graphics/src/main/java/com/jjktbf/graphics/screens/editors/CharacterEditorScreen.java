@@ -17,6 +17,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.graphics.ui.editor.AxisLockedScrollPane;
 import com.jjktbf.graphics.ui.editor.AssignmentPanel;
@@ -363,6 +364,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         pointBuyToggle = new CheckBox(" Point-Buy mode", skin);
         pointBuyToggle.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
+                game.audio().play(SoundCue.UI_TOGGLE);
                 if (pointBuyToggle.isChecked()) {
                     applyPointBuy(cd);
                 }
@@ -432,6 +434,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         hasWeaponToggle.setChecked(cd.hasWeapon);
         hasWeaponToggle.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
+                game.audio().play(SoundCue.UI_TOGGLE);
                 cd.hasWeapon = hasWeaponToggle.isChecked();
                 rebuildMoveAssignment(cd);
                 markDirty();
@@ -513,6 +516,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 () -> onTreeSelectionChanged(character, displayedNames),
                 message -> setStatus(message, false),
                 node -> treeActivationError(character, node),
+                game.audio()::play,
                 skin);
             ScrollPane scroll = new AxisLockedScrollPane(canvas, skin);
             scroll.setFadeScrollBars(false);
@@ -860,7 +864,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             @Override public int learnedLimit(MovePool pool) {
                 return SlotBudgetEnforcer.slotBudgetFor(cd.toCombatStats(), pool);
             }
-        }, skin);
+        }, game.audio()::play, skin);
     }
 
     /** Collect the {@link MovePool} of every assigned non-free move. */
@@ -1040,7 +1044,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             @Override public String budgetSummary() {
                 return "Only available abilities can be assigned.";
             }
-        }, skin);
+        }, game.audio()::play, skin);
     }
 
     private AbilityResolver.Result resolvedAbilities(CharacterData cd) {

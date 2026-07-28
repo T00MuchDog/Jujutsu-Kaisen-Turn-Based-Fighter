@@ -22,6 +22,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.FocusListener;
 import com.badlogic.gdx.utils.Align;
+import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
@@ -69,6 +70,7 @@ public class MainMenuScreen implements Screen {
     private ImageButton settingsButton;
     private Cell<ImageButton> settingsButtonCell;
     private Dialog settingsDialog;
+    private boolean exitPending;
 
     public MainMenuScreen(JJKGame game, AssetLoader assets) {
         this.game   = game;
@@ -112,7 +114,7 @@ public class MainMenuScreen implements Screen {
         MenuButton charEd    = makeButton("CHARACTER EDITOR", game::showCharacterEditor);
         MenuButton abilityEd = makeButton("ABILITY EDITOR", game::showAbilityEditor);
         MenuButton techEd    = makeButton("TECHNIQUE EDITOR", game::showTechniqueEditor);
-        MenuButton quit      = makeButton("QUIT", () -> Gdx.app.exit());
+        MenuButton quit      = makeButton("QUIT", this::exitApplication);
 
         for (MenuButton button : new MenuButton[]{
             singlePlayer, multiplayer, charEd, moveEd, abilityEd, techEd, quit
@@ -150,9 +152,9 @@ public class MainMenuScreen implements Screen {
                 else if (keycode == Input.Keys.NUM_3) activateShortcut(game::showCharacterEditor);
                 else if (keycode == Input.Keys.NUM_4) activateShortcut(game::showAbilityEditor);
                 else if (keycode == Input.Keys.NUM_5) activateShortcut(game::showTechniqueEditor);
-                else if (keycode == Input.Keys.NUM_6) Gdx.app.exit();
+                else if (keycode == Input.Keys.NUM_6) exitApplication();
                 else if (keycode == Input.Keys.NUM_7) activateShortcut(game::showMultiplayerMenu);
-                else if (keycode == Input.Keys.ESCAPE || keycode == Input.Keys.Q) Gdx.app.exit();
+                else if (keycode == Input.Keys.ESCAPE || keycode == Input.Keys.Q) exitApplication();
                 else return false;
                 return true;
             }
@@ -181,19 +183,11 @@ public class MainMenuScreen implements Screen {
     }
 
     private void enterCursorMode(float stageX, float stageY) {
-        int previousHighlight = switch (navigationMode) {
-            case CURSOR -> hoveredButtonIndex;
-            case KEYBOARD -> selectedButtonIndex;
-            case NONE -> -1;
-        };
         navigationMode = NavigationMode.CURSOR;
         selectedButtonIndex = -1;
         hoveredButtonIndex = findButtonAt(stageX, stageY);
         if (hoveredButtonIndex >= 0) lastHighlightedButtonIndex = hoveredButtonIndex;
         updateHighlights();
-        if (hoveredButtonIndex >= 0 && hoveredButtonIndex != previousHighlight) {
-            game.audio().play(SoundCue.UI_NAVIGATE);
-        }
     }
 
     private void selectKeyboardButton(int index) {
@@ -269,6 +263,17 @@ public class MainMenuScreen implements Screen {
     private void activateShortcut(Runnable action) {
         game.audio().play(SoundCue.UI_CONFIRM);
         action.run();
+    }
+
+    private void exitApplication() {
+        if (exitPending) return;
+        exitPending = true;
+        game.audio().play(SoundCue.UI_BACK);
+        Timer.schedule(new Timer.Task() {
+            @Override public void run() {
+                Gdx.app.exit();
+            }
+        }, 0.16f);
     }
 
     private void showSettings() {

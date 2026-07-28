@@ -6,6 +6,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.editor.AxisLockedScrollPane;
 import com.jjktbf.graphics.multiplayer.ChallengeService;
 import com.jjktbf.graphics.multiplayer.GuestAccountService;
@@ -83,7 +84,7 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
 
         requestActions = new Table(assets.editorSkin);
         acceptButton = button("YES", "primary", this::acceptRequest);
-        rejectButton = button("NO", "default", this::rejectRequest);
+        rejectButton = button("NO", "default", SoundCue.UI_BACK, this::rejectRequest);
         requestActions.add(acceptButton).growX().height(46f).pad(4f);
         requestActions.add(rejectButton).growX().height(46f).pad(4f);
         requestActions.setVisible(false);

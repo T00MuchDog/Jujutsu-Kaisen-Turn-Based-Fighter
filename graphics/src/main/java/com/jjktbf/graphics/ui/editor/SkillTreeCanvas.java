@@ -19,6 +19,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.ui.WidgetGroup;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.ContentSizedDialog;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.graphics.ui.text.KeywordLabel;
@@ -58,6 +59,7 @@ public class SkillTreeCanvas extends WidgetGroup {
     private final Runnable onChanged;
     private final Consumer<String> onStatus;
     private final Function<SkillTreeNodeData, String> activationError;
+    private final Consumer<SoundCue> soundPlayer;
     private final Skin skin;
     private final Map<String, MoveData> movesById = new LinkedHashMap<>();
     private final Map<String, AbilityData> abilitiesById = new LinkedHashMap<>();
@@ -80,6 +82,7 @@ public class SkillTreeCanvas extends WidgetGroup {
         Runnable onChanged,
         Consumer<String> onStatus,
         Function<SkillTreeNodeData, String> activationError,
+        Consumer<SoundCue> soundPlayer,
         Skin skin
     ) {
         this.technique = Objects.requireNonNull(technique);
@@ -88,6 +91,7 @@ public class SkillTreeCanvas extends WidgetGroup {
         this.onChanged = onChanged == null ? () -> { } : onChanged;
         this.onStatus = onStatus == null ? ignored -> { } : onStatus;
         this.activationError = activationError == null ? ignored -> null : activationError;
+        this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
         this.skin = Objects.requireNonNull(skin);
         this.background = skin.getDrawable("battle-palette");
         this.connector = skin.getDrawable("white-pixel");
@@ -144,6 +148,15 @@ public class SkillTreeCanvas extends WidgetGroup {
         hideContextMenu();
         keywordTooltip.hide();
         return super.remove();
+    }
+
+    @Override
+    protected void setStage(Stage stage) {
+        if (stage == null) {
+            hideContextMenu();
+            keywordTooltip.hide();
+        }
+        super.setStage(stage);
     }
 
     private void rebuildNodes() {
@@ -242,7 +255,10 @@ public class SkillTreeCanvas extends WidgetGroup {
     }
 
     private void removeConnection(AttachedConnection connection) {
-        connection.target.prerequisites.removeIf(requirement -> requirement == connection.requirement);
+        boolean removed = connection.target.prerequisites.removeIf(
+            requirement -> requirement == connection.requirement);
+        if (!removed) return;
+        soundPlayer.accept(SoundCue.UI_DELETE);
         onStatus.accept("Removed connection from " + contentName(connection.source)
             + " to " + contentName(connection.target) + ".");
         onChanged.run();
@@ -258,16 +274,19 @@ public class SkillTreeCanvas extends WidgetGroup {
             List<String> unmet = TechniqueSkillTree.unmetPrerequisites(technique, node, character);
             if (!unmet.isEmpty()) {
                 onStatus.accept(String.join("; ", unmet));
+                soundPlayer.accept(SoundCue.UI_DENIED);
                 return;
             }
             String conflict = activationError.apply(node);
             if (conflict != null) {
                 onStatus.accept(conflict);
+                soundPlayer.accept(SoundCue.UI_DENIED);
                 return;
             }
             TechniqueSkillTree.setActive(node, character, true);
             onStatus.accept(contentName(node) + " activated.");
         }
+        soundPlayer.accept(SoundCue.UI_TOGGLE);
         refreshVisualStates();
         onChanged.run();
     }
@@ -289,6 +308,7 @@ public class SkillTreeCanvas extends WidgetGroup {
         existing.attached = true;
         onStatus.accept("Attached " + contentName(attachingSource) + " to " + contentName(target) + ".");
         attachingSource = null;
+        soundPlayer.accept(SoundCue.UI_DROP);
         onChanged.run();
     }
 
@@ -314,6 +334,7 @@ public class SkillTreeCanvas extends WidgetGroup {
             @Override public void changed(ChangeEvent event, Actor actor) {
                 attachingSource = node;
                 hideContextMenu();
+                soundPlayer.accept(SoundCue.UI_PICKUP);
                 onStatus.accept("Click the node that should require " + contentName(node) + ".");
             }
         });
@@ -333,11 +354,15 @@ public class SkillTreeCanvas extends WidgetGroup {
                 Math.max(0f, stage.getHeight() - menu.getHeight())));
         stage.addActor(menu);
         contextMenu = menu;
+        soundPlayer.accept(SoundCue.UI_CONFIRM);
 
         dismissContextMenuListener = new InputListener() {
             @Override public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
                 if (contextMenu != null && !contextMenu.isAscendantOf(event.getTarget())) {
                     hideContextMenu();
+                    soundPlayer.accept(SoundCue.UI_BACK);
+                    event.cancel();
+                    return true;
                 }
                 return false;
             }
@@ -374,8 +399,16 @@ public class SkillTreeCanvas extends WidgetGroup {
             }
         });
         dialog.getContentTable().add(add).left().pad(6f).row();
-        dialog.button("Close");
+        TextButton close = new TextButton("Close", skin);
+        close.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                soundPlayer.accept(SoundCue.UI_BACK);
+                dialog.hide();
+            }
+        });
+        dialog.getButtonTable().add(close).pad(4f);
         dialog.show(getStage());
+        soundPlayer.accept(SoundCue.UI_CONFIRM);
     }
 
     private Actor prerequisiteList(SkillTreeNodeData node, Runnable refresh) {
@@ -402,6 +435,7 @@ public class SkillTreeCanvas extends WidgetGroup {
             remove.addListener(new ChangeListener() {
                 @Override public void changed(ChangeEvent event, Actor actor) {
                     node.prerequisites.remove(requirementIndex);
+                    soundPlayer.accept(SoundCue.UI_DELETE);
                     refresh.run();
                     onChanged.run();
                 }
@@ -452,10 +486,12 @@ public class SkillTreeCanvas extends WidgetGroup {
                 String validation = validatePrerequisite(working);
                 if (validation != null) {
                     error.setText(validation);
+                    soundPlayer.accept(SoundCue.UI_DENIED);
                     return;
                 }
                 if (adding) node.prerequisites.add(working.copy());
                 else node.prerequisites.set(index, working.copy());
+                soundPlayer.accept(SoundCue.UI_CONFIRM);
                 dialog.hide();
                 refreshManager.run();
                 onChanged.run();
@@ -463,11 +499,15 @@ public class SkillTreeCanvas extends WidgetGroup {
         });
         TextButton cancel = new TextButton("Cancel", skin);
         cancel.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) { dialog.hide(); }
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                soundPlayer.accept(SoundCue.UI_BACK);
+                dialog.hide();
+            }
         });
         dialog.getButtonTable().add(done).pad(4f);
         dialog.getButtonTable().add(cancel).pad(4f);
         dialog.show(getStage());
+        soundPlayer.accept(SoundCue.UI_CONFIRM);
     }
 
     private Actor prerequisiteFields(SkillTreePrerequisiteData requirement) {
@@ -678,8 +718,11 @@ public class SkillTreeCanvas extends WidgetGroup {
                     if (!editable) return;
                     float deltaX = event.getStageX() - downStageX;
                     float deltaY = event.getStageY() - downStageY;
-                    if (!dragged && Math.abs(deltaX) + Math.abs(deltaY) < DRAG_THRESHOLD) return;
-                    dragged = true;
+                    if (!dragged) {
+                        if (Math.abs(deltaX) + Math.abs(deltaY) < DRAG_THRESHOLD) return;
+                        dragged = true;
+                        soundPlayer.accept(SoundCue.UI_PICKUP);
+                    }
                     node.x = MathUtils.clamp(startX + deltaX, 0f,
                         Math.max(0f, SkillTreeCanvas.this.getPrefWidth() - NODE_WIDTH));
                     node.y = MathUtils.clamp(startY + deltaY, 0f, VIEW_HEIGHT - NODE_HEIGHT);
@@ -694,6 +737,7 @@ public class SkillTreeCanvas extends WidgetGroup {
                         recalculateWidth();
                         setWidth(preferredWidth);
                         invalidateHierarchy();
+                        soundPlayer.accept(SoundCue.UI_DROP);
                         onChanged.run();
                     } else if (editable && attachingSource != null) {
                         attachTo(node);

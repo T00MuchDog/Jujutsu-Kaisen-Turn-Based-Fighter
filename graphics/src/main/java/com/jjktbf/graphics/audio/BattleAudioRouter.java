@@ -25,9 +25,23 @@ public final class BattleAudioRouter {
             case MOVE_BLOCKED, MOVE_BLOCK_REDUCED -> Optional.of(SoundCue.BATTLE_BLOCK);
             case MOVE_DODGED -> Optional.of(SoundCue.BATTLE_DODGE);
             case MOVE_PARRIED -> Optional.of(SoundCue.BATTLE_PARRY);
+            case MOVE_STUNNED -> Optional.of(SoundCue.BATTLE_STUN);
             case DAMAGE_DEALT -> Optional.of(SoundCue.BATTLE_HIT);
+            case DAMAGE_IGNORED -> Optional.of(SoundCue.BATTLE_DAMAGE_IGNORED);
+            case HP_RESTORED -> positiveCue(event.getIntValue(), SoundCue.BATTLE_HEAL);
+            case MAX_HP_CHANGED, MAX_CE_CHANGED -> Optional.empty();
             case BLACK_FLASH -> Optional.of(SoundCue.BATTLE_BLACK_FLASH);
-            default -> Optional.empty();
+            case CE_DRAINED -> event.getMove() == null
+                ? positiveCue(event.getIntValue(), SoundCue.BATTLE_CE_DRAIN) : Optional.empty();
+            case CE_RESTORED -> positiveCue(event.getIntValue(), SoundCue.BATTLE_CE_RESTORE);
+            case CE_DEPLETED -> event.getMove() == null
+                ? Optional.empty() : Optional.of(SoundCue.BATTLE_STUN);
+            case STATUS_APPLIED -> Optional.of(SoundCue.BATTLE_STATUS_APPLY);
+            case STATUS_EXPIRED, BFS_EXPIRED -> Optional.of(SoundCue.BATTLE_STATUS_EXPIRE);
+            case ABILITY_ACTIVATED -> Optional.of(SoundCue.BATTLE_ABILITY);
+            case RATIO_TRIGGERED -> Optional.of(SoundCue.BATTLE_RATIO);
+            case ROUND_END -> Optional.of(SoundCue.BATTLE_ROUND_END);
+            case BATTLE_OVER -> Optional.empty();
         };
     }
 
@@ -37,10 +51,28 @@ public final class BattleAudioRouter {
             case MOVE_FIRED -> cueForMove(move);
             case MOVE_MISSED -> Optional.of(SoundCue.BATTLE_MISS);
             case MOVE_BLOCKED, MOVE_BLOCK_REDUCED -> Optional.of(SoundCue.BATTLE_BLOCK);
+            case MOVE_STUNNED -> Optional.of(SoundCue.BATTLE_STUN);
             case DAMAGE_DEALT -> Optional.of(SoundCue.BATTLE_HIT);
+            case DAMAGE_IGNORED -> Optional.of(SoundCue.BATTLE_DAMAGE_IGNORED);
+            case HP_RESTORED -> positiveCue(event.value(), SoundCue.BATTLE_HEAL);
+            case MAX_HP_CHANGED, MAX_CE_CHANGED -> Optional.empty();
             case BLACK_FLASH -> Optional.of(SoundCue.BATTLE_BLACK_FLASH);
-            default -> Optional.empty();
+            case CE_DRAINED -> event.moveId() == null
+                ? positiveCue(event.value(), SoundCue.BATTLE_CE_DRAIN) : Optional.empty();
+            case CE_RESTORED -> positiveCue(event.value(), SoundCue.BATTLE_CE_RESTORE);
+            case CE_DEPLETED -> event.moveId() == null
+                ? Optional.empty() : Optional.of(SoundCue.BATTLE_STUN);
+            case STATUS_APPLIED, BFS_ENTERED -> Optional.of(SoundCue.BATTLE_STATUS_APPLY);
+            case STATUS_EXPIRED, BFS_EXPIRED -> Optional.of(SoundCue.BATTLE_STATUS_EXPIRE);
+            case ABILITY_ACTIVATED -> Optional.of(SoundCue.BATTLE_ABILITY);
+            case RATIO_TRIGGERED -> Optional.of(SoundCue.BATTLE_RATIO);
+            case ROUND_END -> Optional.of(SoundCue.BATTLE_ROUND_END);
+            case MOVE_STARTED, ROUND_START, BATTLE_OVER -> Optional.empty();
         };
+    }
+
+    private static Optional<SoundCue> positiveCue(Integer value, SoundCue cue) {
+        return value != null && value > 0 ? Optional.of(cue) : Optional.empty();
     }
 
     public static Optional<SoundCue> cueForMove(Move move) {

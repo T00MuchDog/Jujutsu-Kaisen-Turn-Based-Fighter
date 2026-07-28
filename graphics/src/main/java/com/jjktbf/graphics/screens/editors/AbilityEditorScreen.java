@@ -10,6 +10,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
 import com.jjktbf.graphics.ui.editor.EffectListEditor;
@@ -612,6 +613,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             techniqueRepo.getAll(),
             this::markDirty,
             this::rebuildDetail,
+            game.audio()::play,
             skin);
     }
 
@@ -630,6 +632,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         chance.setDisabled(!enabled.isChecked());
         enabled.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
+                game.audio().play(SoundCue.UI_TOGGLE);
                 ability.activationChanceEnabled = enabled.isChecked();
                 if (ability.activationChance == null) ability.activationChance = 1.0;
                 chance.setDisabled(!enabled.isChecked());
@@ -649,6 +652,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             ability.activationCondition,
             moveRepo.getAll(),
             this::markDirty,
+            game.audio()::play,
             skin)).colspan(2).growX().row();
         table.add(formHint(
             "AND/OR groups may be nested. At battle start cannot be combined with another condition. "

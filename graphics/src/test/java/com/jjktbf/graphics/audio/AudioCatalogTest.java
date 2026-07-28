@@ -7,6 +7,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AudioCatalogTest {
@@ -23,6 +24,14 @@ class AudioCatalogTest {
             assertTrue(cue.assetPath().startsWith("assets/audio/sfx/"));
             assertNotEquals(AudioChannel.MUSIC, cue.channel());
             assertTrue(cue.gain() >= 0f && cue.gain() <= 1f);
+        }
+    }
+
+    @Test
+    void everyRegisteredSoundEffectIsPackaged() {
+        ClassLoader loader = AudioCatalogTest.class.getClassLoader();
+        for (SoundCue cue : SoundCue.values()) {
+            assertNotNull(loader.getResource(cue.assetPath()), cue.assetPath());
         }
     }
 

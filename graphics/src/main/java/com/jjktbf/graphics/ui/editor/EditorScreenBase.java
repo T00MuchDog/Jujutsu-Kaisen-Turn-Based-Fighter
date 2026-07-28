@@ -121,6 +121,8 @@ public abstract class EditorScreenBase<D> implements Screen {
 
     /** Record IDs in the current filtered/sorted master-list order. */
     private final List<String> visibleRecordIds = new ArrayList<>();
+    /** Suppresses record-open audio for keyboard and programmatic list changes. */
+    private boolean suppressRecordSelectionSound;
 
     // =========================================================================
     // Construction
@@ -223,13 +225,13 @@ public abstract class EditorScreenBase<D> implements Screen {
         });
         dupBtn.addListener(new ClickListener() {
             @Override public void clicked(InputEvent e, float x, float y) {
-                game.audio().play(SoundCue.UI_CONFIRM);
+                game.audio().play(selectedIndex < 0 ? SoundCue.UI_DENIED : SoundCue.UI_CONFIRM);
                 duplicateCurrent();
             }
         });
         delBtn.addListener(new ClickListener() {
             @Override public void clicked(InputEvent e, float x, float y) {
-                game.audio().play(SoundCue.UI_CONFIRM);
+                game.audio().play(selectedIndex < 0 ? SoundCue.UI_DENIED : SoundCue.UI_CONFIRM);
                 deleteCurrent();
             }
         });
@@ -305,7 +307,6 @@ public abstract class EditorScreenBase<D> implements Screen {
         saveButton = new TextButton("SAVE", skin, "primary");
         saveButton.addListener(new ClickListener() {
             @Override public void clicked(InputEvent e, float x, float y) {
-                game.audio().play(SoundCue.UI_CONFIRM);
                 save();
             }
         });
@@ -340,7 +341,6 @@ public abstract class EditorScreenBase<D> implements Screen {
                 }
             }
         });
-
         // Arrow-key navigation of the list (with focus), plus global hotkeys.
         //
         // Registered as a CAPTURE listener so it runs before LibGDX's stock
@@ -370,21 +370,19 @@ public abstract class EditorScreenBase<D> implements Screen {
                     event.cancel();
                     return true;
                 }
-                if (stage.getKeyboardFocus() == searchField) return false;
+                Actor keyboardFocus = stage.getKeyboardFocus();
+                if (keyboardFocus != null && keyboardFocus != masterList) return false;
                 if (keycode == Input.Keys.UP) {
-                    nudgeSelection(-1);
-                    game.audio().play(SoundCue.UI_NAVIGATE);
+                    if (nudgeSelection(-1)) game.audio().play(SoundCue.UI_NAVIGATE);
                     event.cancel();
                     return true;
                 }
                 if (keycode == Input.Keys.DOWN) {
-                    nudgeSelection(+1);
-                    game.audio().play(SoundCue.UI_NAVIGATE);
+                    if (nudgeSelection(+1)) game.audio().play(SoundCue.UI_NAVIGATE);
                     event.cancel();
                     return true;
                 }
                 if (keycode == Input.Keys.S && Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)) {
-                    game.audio().play(SoundCue.UI_CONFIRM);
                     save();
                     event.cancel();
                     return true;
@@ -503,18 +501,29 @@ public abstract class EditorScreenBase<D> implements Screen {
             String.CASE_INSENSITIVE_ORDER.compare(listLabel(a), listLabel(b)));
         visibleRecordIds.clear();
         visibleRecords.forEach(record -> visibleRecordIds.add(idOf(record)));
-        masterList.setItems(visibleRecords.stream()
-            .map(this::listLabel).toArray(String[]::new));
+        suppressRecordSelectionSound = true;
+        try {
+            masterList.setItems(visibleRecords.stream()
+                .map(this::listLabel).toArray(String[]::new));
+        } finally {
+            suppressRecordSelectionSound = false;
+        }
     }
 
     /** Move the master-list selection by delta, scrolling as needed. */
-    private void nudgeSelection(int delta) {
+    private boolean nudgeSelection(int delta) {
         int itemCount = masterList.getItems().size;
-        if (itemCount == 0) return;
+        if (itemCount == 0) return false;
         int current = masterList.getSelectedIndex();
         int idx = current < 0 ? (delta > 0 ? 0 : itemCount - 1)
                               : Math.floorMod(current + delta, itemCount);
-        masterList.setSelectedIndex(idx);
+        suppressRecordSelectionSound = true;
+        try {
+            masterList.setSelectedIndex(idx);
+        } finally {
+            suppressRecordSelectionSound = false;
+        }
+        return idx != current;
     }
 
     // =========================================================================
@@ -524,11 +533,19 @@ public abstract class EditorScreenBase<D> implements Screen {
     /** Load record at idx into a fresh draft and rebuild the detail form. */
     protected void selectRecord(int idx) {
         if (idx < 0 || idx >= records.size()) return;
-        if (dirty && !confirmDiscard(() -> doSelect(idx))) return;
-        doSelect(idx);
+        if (dirty) {
+            if (!suppressRecordSelectionSound) game.audio().play(SoundCue.UI_CONFIRM);
+            confirmDiscard(() -> doSelect(idx, false));
+            return;
+        }
+        doSelect(idx, !suppressRecordSelectionSound);
     }
 
     private void doSelect(int idx) {
+        doSelect(idx, false);
+    }
+
+    private void doSelect(int idx, boolean playSound) {
         selectedIndex = idx;
         draft = draftFromRecord(records.get(idx));
         suppressDirty = true;
@@ -536,6 +553,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         suppressDirty = false;
         clearDirty();
         setStatus("", false);
+        if (playSound) game.audio().play(SoundCue.UI_CONFIRM);
     }
 
     /** Begin editing a brand-new record. */
@@ -591,6 +609,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         confirmDelete(listLabel(stored), () -> {
             ValidationResult r = delete(id);
             if (r.isOk()) {
+                game.audio().play(SoundCue.UI_DELETE);
                 try {
                     reloadRecords();
                     refreshMasterList();
@@ -603,6 +622,7 @@ public abstract class EditorScreenBase<D> implements Screen {
                     setStatus("Reload after delete failed: " + e.getMessage(), true);
                 }
             } else {
+                game.audio().play(SoundCue.UI_DENIED);
                 setStatus(r.getMessage(), true);
             }
         });
@@ -640,7 +660,10 @@ public abstract class EditorScreenBase<D> implements Screen {
     // =========================================================================
 
     protected void save() {
-        if (draft == null) return;
+        if (draft == null) {
+            game.audio().play(SoundCue.UI_DENIED);
+            return;
+        }
         ValidationResult r;
         try {
             r = validateAndSave(draft);
@@ -665,8 +688,13 @@ public abstract class EditorScreenBase<D> implements Screen {
                         selectedIndex = i;
                         savedIndex = i;
                         int visibleIndex = visibleRecordIds.indexOf(idOf(records.get(i)));
-                        if (visibleIndex >= 0) masterList.setSelectedIndex(visibleIndex);
-                        else masterList.getSelection().clear();
+                        suppressRecordSelectionSound = true;
+                        try {
+                            if (visibleIndex >= 0) masterList.setSelectedIndex(visibleIndex);
+                            else masterList.getSelection().clear();
+                        } finally {
+                            suppressRecordSelectionSound = false;
+                        }
                         break;
                     }
                 }
@@ -677,11 +705,14 @@ public abstract class EditorScreenBase<D> implements Screen {
                 rebuildDetail();
                 suppressDirty = false;
                 setStatus(r.getMessage(), false);
+                game.audio().play(SoundCue.UI_CONFIRM);
             } catch (IOException e) {
                 setStatus("Saved but reload failed: " + e.getMessage(), true);
+                game.audio().play(SoundCue.UI_CONFIRM);
             }
         } else {
             setStatus(r.getMessage(), true);
+            game.audio().play(SoundCue.UI_DENIED);
         }
     }
 
@@ -739,7 +770,6 @@ public abstract class EditorScreenBase<D> implements Screen {
                 @Override
                 protected void result(Object object) {
                     if (Boolean.TRUE.equals(object)) {
-                        game.audio().play(SoundCue.UI_CONFIRM);
                         onConfirm.run();
                     } else {
                         game.audio().play(SoundCue.UI_BACK);

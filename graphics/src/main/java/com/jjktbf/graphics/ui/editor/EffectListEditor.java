@@ -10,6 +10,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.ContentSizedDialog;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.model.character.AbilityData;
@@ -27,6 +28,7 @@ import com.jjktbf.model.technique.InnateTechniqueData;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /** Effect list and effect-specific modal editor used by the ability editor. */
 public class EffectListEditor extends Table {
@@ -46,6 +48,7 @@ public class EffectListEditor extends Table {
     private final List<InnateTechniqueData> techniques;
     private final Runnable onDirty;
     private final Runnable requestRebuild;
+    private final Consumer<SoundCue> soundPlayer;
     private final Container<Actor> listContainer;
 
     public EffectListEditor(
@@ -55,6 +58,7 @@ public class EffectListEditor extends Table {
         List<InnateTechniqueData> techniques,
         Runnable onDirty,
         Runnable requestRebuild,
+        Consumer<SoundCue> soundPlayer,
         Skin skin
     ) {
         super(skin);
@@ -65,6 +69,7 @@ public class EffectListEditor extends Table {
         this.techniques = techniques == null ? List.of() : techniques;
         this.onDirty = onDirty;
         this.requestRebuild = requestRebuild;
+        this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
 
         listContainer = new Container<>();
         listContainer.fill(true, false);
@@ -73,6 +78,7 @@ public class EffectListEditor extends Table {
         TextButton addButton = new TextButton("+ Add effect", skin);
         addButton.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
+                EffectListEditor.this.soundPlayer.accept(SoundCue.UI_CONFIRM);
                 openEditor(-1);
             }
         });
@@ -97,6 +103,7 @@ public class EffectListEditor extends Table {
                 TextButton edit = new TextButton("Edit", skin);
                 edit.addListener(new ChangeListener() {
                     @Override public void changed(ChangeEvent event, Actor actor) {
+                        soundPlayer.accept(SoundCue.UI_CONFIRM);
                         openEditor(index);
                     }
                 });
@@ -104,6 +111,7 @@ public class EffectListEditor extends Table {
                 remove.addListener(new ChangeListener() {
                     @Override public void changed(ChangeEvent event, Actor actor) {
                         effects.remove(index);
+                        soundPlayer.accept(SoundCue.UI_DELETE);
                         dirtyAndRebuild();
                     }
                 });
@@ -169,28 +177,33 @@ public class EffectListEditor extends Table {
                 String validationError = selected.validationError(working);
                 if (validationError != null) {
                     error.setText(validationError);
+                    soundPlayer.accept(SoundCue.UI_DENIED);
                     return;
                 }
                 if ((selected == AbilityEffectType.GRANT_MOVE
                     || selected == AbilityEffectType.FORCE_MOVE)
                     && moves.stream().noneMatch(move -> working.moveId.equals(move.id))) {
                     error.setText("Choose a move that still exists.");
+                    soundPlayer.accept(SoundCue.UI_DENIED);
                     return;
                 }
                 if (selected == AbilityEffectType.GRANT_ABILITY
                     && abilities.stream().noneMatch(ability ->
                         working.abilityId.equals(ability.id))) {
                     error.setText("Choose an ability that still exists.");
+                    soundPlayer.accept(SoundCue.UI_DENIED);
                     return;
                 }
                 if (selected == AbilityEffectType.UNLOCK_TECHNIQUE
                     && techniques.stream().noneMatch(technique ->
                         working.stringValue.equalsIgnoreCase(technique.name))) {
                     error.setText("Choose a technique that still exists.");
+                    soundPlayer.accept(SoundCue.UI_DENIED);
                     return;
                 }
                 if (adding) effects.add(working.copy());
                 else effects.set(index, working.copy());
+                soundPlayer.accept(SoundCue.UI_CONFIRM);
                 dialog.hide();
                 dirtyAndRebuild();
             }
@@ -198,6 +211,7 @@ public class EffectListEditor extends Table {
         TextButton cancel = new TextButton("Cancel", skin);
         cancel.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
+                soundPlayer.accept(SoundCue.UI_BACK);
                 dialog.hide();
             }
         });
