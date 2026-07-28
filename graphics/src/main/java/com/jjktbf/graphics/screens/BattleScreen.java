@@ -118,6 +118,8 @@ public class BattleScreen implements Screen, BattleView {
      */
     private static final float LOG_SCROLL_STEP_ROWS    = 1f;
     private static final float COMBATANT_HUD_SCALE     = 1.25f;
+    /** Set to true when debugging timeline playback. */
+    private static final boolean SHOW_TICK_COUNTER      = false;
 
     private final JJKGame     game;
     private final AssetLoader assets;
@@ -536,7 +538,7 @@ public class BattleScreen implements Screen, BattleView {
         }
         drawLog(sw, sh);
         drawNextRoundButton();
-        drawTickCounter(sw, sh);
+        if (SHOW_TICK_COUNTER) drawTickCounter(sw, sh);
         drawMoveUnleashAnimation(sw, sh);
         batch.end();
 

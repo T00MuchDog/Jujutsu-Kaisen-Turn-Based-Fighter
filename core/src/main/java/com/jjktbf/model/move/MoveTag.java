@@ -103,6 +103,12 @@ public enum MoveTag {
      */
     RANGED,
 
+    /**
+     * Area-of-effect targeting modifier. Moves without this tag are single-target.
+     * This does not affect range, damage calculation, or move category.
+     */
+    AOE,
+
     /** Sword or sword-like weapon modifier used by move-scoped abilities. */
     SWORD,
 

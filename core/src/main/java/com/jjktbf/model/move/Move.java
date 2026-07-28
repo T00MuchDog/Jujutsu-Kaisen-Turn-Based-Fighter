@@ -371,6 +371,19 @@ public class Move {
     }
 
     /**
+     * Whether this move targets an area rather than one combatant. Moves without
+     * {@link MoveTag#AOE} are single-target by default.
+     */
+    public boolean isAoe() {
+        return tags.contains(MoveTag.AOE);
+    }
+
+    /** Whether this move targets exactly one combatant. */
+    public boolean isSingleTarget() {
+        return !isAoe();
+    }
+
+    /**
      * Block-tag coverage check.
      *
      * <p>A block with {@code blockAffectedTags} fires against this incoming move

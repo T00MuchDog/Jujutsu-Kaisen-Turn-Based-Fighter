@@ -30,7 +30,7 @@ import java.util.function.Consumer;
  *   <li><b>CATEGORY</b> — Attack, Defensive, Utility</li>
  *   <li><b>TYPE</b> — Physical, Cursed Energy, Innate Technique,
  *       Non-Innate Technique</li>
- *   <li><b>RANGE</b> — Melee, Ranged (attack subcategories only)</li>
+ *   <li><b>RANGE</b> — Melee, Ranged, AOE</li>
  *   <li><b>TAGS</b> — Stun, Guard Break, Heavy</li>
  * </ol>
  *
@@ -258,7 +258,7 @@ public class TagPicker extends Table {
         sections.put("TYPE", List.of(
             MoveTag.PHYSICAL, MoveTag.CURSED_ENERGY,
             MoveTag.INNATE_TECHNIQUE, MoveTag.NON_INNATE_TECHNIQUE));
-        sections.put("RANGE", List.of(MoveTag.MELEE, MoveTag.RANGED));
+        sections.put("RANGE", List.of(MoveTag.MELEE, MoveTag.RANGED, MoveTag.AOE));
         sections.put("TAGS", List.of(
             MoveTag.SWORD, MoveTag.STUN, MoveTag.GUARD_BREAK, MoveTag.HEAVY));
         return sections;
