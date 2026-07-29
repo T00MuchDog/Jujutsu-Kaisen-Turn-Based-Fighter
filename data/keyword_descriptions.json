@@ -370,5 +370,41 @@
   {
     "term": "Earnest Swordswoman",
     "description": "A character ability that increases the Base Power of Sword moves."
+  },
+  {
+    "term": "POISON",
+    "description": "A round-duration status template whose magnitude represents damage per round."
+  },
+  {
+    "term": "RCT",
+    "description": "Reverse Cursed Technique, which converts cursed energy into healing energy."
+  },
+  {
+    "term": "SOUL",
+    "description": "A marker for attacks and effects capable of interacting directly with a soul."
+  },
+  {
+    "term": "VESSEL",
+    "description": "A body inhabited by another soul or incarnated being."
+  },
+  {
+    "term": "Divergent Fist",
+    "description": "A two-hit reinforcement attack with a physical impact followed by delayed cursed energy."
+  },
+  {
+    "term": "Vessel of Sukuna",
+    "description": "A character ability that grants access to the traits associated with containing Sukuna."
+  },
+  {
+    "term": "Freak of Nature",
+    "description": "A character ability that raises the allocation minimum of physical stats."
+  },
+  {
+    "term": "Immune to Poisons",
+    "description": "A character ability that marks its bearer as immune to Poison."
+  },
+  {
+    "term": "Visualise the Soul",
+    "description": "A character ability that marks physical melee attacks as soul-aware."
   }
 ]

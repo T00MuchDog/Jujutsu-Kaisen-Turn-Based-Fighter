@@ -132,6 +132,15 @@ public class AbilityEffectData {
         return e;
     }
 
+    /** Constrains character allocation without changing effective combat stats. */
+    public static AbilityEffectData statAllocationMinimum(String stat, int minimum) {
+        AbilityEffectData e = new AbilityEffectData();
+        e.type = AbilityEffectType.STAT_ALLOCATION_MINIMUM.name();
+        e.stat = stat;
+        e.intValue = minimum;
+        return e;
+    }
+
     public static AbilityEffectData ceCostToMinimum(String moveTag) {
         AbilityEffectData e = new AbilityEffectData();
         e.type    = AbilityEffectType.CE_COST_TO_MINIMUM.name();

@@ -189,6 +189,13 @@ public final class ContentCatalog {
                 "available ability", definition.id);
             AbilityResolver.Result resolved = AbilityResolver.resolve(
                 definition, abilityDefinitions, movesById::containsKey, techniqueDefinitions);
+            try {
+                definition.validateStatAllocationMinimums(resolved);
+            } catch (IllegalArgumentException exception) {
+                throw invalid(CHARACTERS_RESOURCE,
+                    "character " + definition.id + " violates an ability allocation minimum: "
+                        + exception.getMessage(), exception);
+            }
             if (definition.abilityIds != null) {
                 for (String abilityId : definition.abilityIds) {
                     if (!resolved.containsAbility(abilityId)) {

@@ -56,6 +56,8 @@ class BattleAudioRouterTest {
             Map.entry(BattleEventType.MOVE_MISSED, SoundCue.BATTLE_MISS),
             Map.entry(BattleEventType.MOVE_BLOCKED, SoundCue.BATTLE_BLOCK),
             Map.entry(BattleEventType.MOVE_BLOCK_REDUCED, SoundCue.BATTLE_BLOCK),
+            Map.entry(BattleEventType.MOVE_DODGED, SoundCue.BATTLE_DODGE),
+            Map.entry(BattleEventType.MOVE_PARRIED, SoundCue.BATTLE_PARRY),
             Map.entry(BattleEventType.MOVE_STUNNED, SoundCue.BATTLE_STUN),
             Map.entry(BattleEventType.DAMAGE_DEALT, SoundCue.BATTLE_HIT),
             Map.entry(BattleEventType.DAMAGE_IGNORED, SoundCue.BATTLE_DAMAGE_IGNORED),

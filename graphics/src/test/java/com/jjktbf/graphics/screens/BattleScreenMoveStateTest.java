@@ -3,8 +3,10 @@ package com.jjktbf.graphics.screens;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
+import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.multiplayer.protocol.ActionSegmentState;
 import com.jjktbf.multiplayer.protocol.ActionSegmentStatus;
+import com.jjktbf.multiplayer.protocol.HitComponentState;
 import com.jjktbf.multiplayer.protocol.MoveState;
 import com.jjktbf.multiplayer.protocol.PlanBoard;
 import org.junit.jupiter.api.Test;
@@ -39,6 +41,59 @@ class BattleScreenMoveStateTest {
     }
 
     @Test
+    void rawTechniqueTagsRetainDisplayPrerequisitesAcrossMoveRoles() {
+        Move utility = BattleScreen.toDisplayMove(moveState(
+            MoveCategory.UTILITY,
+            List.of("UTILITY", "CURSED_ENERGY", "INNATE_TECHNIQUE"),
+            PlanBoard.DEFENSIVE
+        ));
+
+        assertEquals(0, utility.getPrerequisites().get("cursedTechniqueMastery"));
+        assertEquals("ONLINE_DISPLAY", utility.getRequiredTechniqueId());
+    }
+
+    @Test
+    void orderedHitComponentsSurviveDisplayReconstruction() {
+        Move move = BattleScreen.toDisplayMove(moveState(
+            MoveCategory.PHYSICAL_CURSED_ENERGY,
+            List.of("PHYSICAL", "CURSED_ENERGY", "ATTACK", "STUN"),
+            PlanBoard.OFFENSIVE,
+            999,
+            List.of(
+                new HitComponentState(
+                    40, "PHYSICAL", List.of("PHYSICAL"), 0, false, true),
+                new HitComponentState(
+                    25, "CURSED_ENERGY", List.of("CURSED_ENERGY"), 4, true, false))
+        ));
+
+        assertEquals(65, move.getBasePower());
+        assertEquals(2, move.getHitComponents().size());
+        assertEquals(MoveCategory.PHYSICAL, move.getHitComponents().get(0).getCategory());
+        assertEquals(MoveCategory.CURSED_ENERGY,
+            move.getHitComponents().get(1).getCategory());
+        assertEquals(4, move.getHitComponents().get(1).getDelayTicks());
+        assertTrue(move.getHitComponents().get(1).requiresPreviousConnection());
+        assertFalse(move.getHitComponents().get(1).isAvoidable());
+        assertTrue(move.getTags().contains(MoveTag.STUN));
+    }
+
+    @Test
+    void absentHitComponentsUseLegacyBasePower() {
+        Move move = BattleScreen.toDisplayMove(moveState(
+            MoveCategory.PHYSICAL,
+            List.of("PHYSICAL", "ATTACK"),
+            PlanBoard.OFFENSIVE,
+            37,
+            List.of()
+        ));
+
+        assertEquals(37, move.getBasePower());
+        assertEquals(1, move.getHitComponents().size());
+        assertEquals(37, move.getHitComponents().get(0).getBasePower());
+        assertEquals(0, move.getHitComponents().get(0).getDelayTicks());
+    }
+
+    @Test
     void actionTicksSkipGapsAndStunnedSegments() {
         List<ActionSegmentState> segments = List.of(
             actionSegment("FIRST", 1, 2, ActionSegmentStatus.RESOLVED),
@@ -49,10 +104,30 @@ class BattleScreenMoveStateTest {
         assertEquals(List.of(1, 2, 8), BattleScreen.actionTicks(segments));
     }
 
+    @Test
+    void actionTicksIncludeDelayedImpactsAfterApOccupancy() {
+        ActionSegmentState delayed = new ActionSegmentState(
+            "DELAYED", "DELAYED", "Delayed", PlanBoard.OFFENSIVE,
+            1, 3, 1, 3, 0, ActionSegmentStatus.RESOLVED, 6);
+
+        assertEquals(List.of(1, 2, 3, 4, 5, 6),
+            BattleScreen.actionTicks(List.of(delayed)));
+    }
+
     private static MoveState moveState(
         MoveCategory category,
         List<String> tags,
         PlanBoard board
+    ) {
+        return moveState(category, tags, board, 0, List.of());
+    }
+
+    private static MoveState moveState(
+        MoveCategory category,
+        List<String> tags,
+        PlanBoard board,
+        int basePower,
+        List<HitComponentState> hitComponents
     ) {
         return new MoveState(
             "MOVE",
@@ -61,7 +136,8 @@ class BattleScreenMoveStateTest {
             category.name(),
             tags,
             board,
-            0,
+            basePower,
+            hitComponents,
             1.0,
             true,
             5,

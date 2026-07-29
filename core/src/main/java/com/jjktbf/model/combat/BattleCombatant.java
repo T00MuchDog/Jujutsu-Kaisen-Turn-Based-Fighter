@@ -318,18 +318,27 @@ public class BattleCombatant {
         return Math.max(0.0, Math.min(1.0, chance));
     }
 
+    public boolean isPoisonImmune() {
+        return getAbilityFlags().poisonImmune;
+    }
+
+    public boolean hasSoulAwareAttacks() {
+        return getAbilityFlags().soulAwareAttacks;
+    }
+
     // -------------------------------------------------------------------------
     // Status effects
     // -------------------------------------------------------------------------
 
-    public void addStatusEffect(StatusEffect effect) {
-        if (effect == null) return;
+    public boolean addStatusEffect(StatusEffect effect) {
+        if (effect == null || rejectsStatus(effect)) return false;
         activeEffects.add(effect);
         clampPoolsToMaximums();
+        return true;
     }
 
-    public void addStatusEffect(StatusEffect effect, BattleState.Phase phase) {
-        if (effect == null) return;
+    public boolean addStatusEffect(StatusEffect effect, BattleState.Phase phase) {
+        if (effect == null || rejectsStatus(effect)) return false;
         int rounds = effect.getDurationRounds();
         int ticks = effect.getDurationTicks();
         if (rounds > 0) {
@@ -341,6 +350,7 @@ public class BattleCombatant {
         activeEffects.add(new StatusEffect(
             effect.getType(), rounds, ticks, effect.getMagnitude()));
         clampPoolsToMaximums();
+        return true;
     }
 
     /** Convert a validated AUTO_STATUS_APPLY descriptor into a live status. */
@@ -359,13 +369,15 @@ public class BattleCombatant {
             double magnitude = StatusEffectType.normalizeStoredMagnitude(
                 effect.stringValue, storedMagnitude);
             StatusEffect status = new StatusEffect(type, rounds, ticks, magnitude);
-            if (phase == null) addStatusEffect(status);
-            else addStatusEffect(status, phase);
-            return true;
+            return phase == null ? addStatusEffect(status) : addStatusEffect(status, phase);
         } catch (IllegalArgumentException ex) {
             System.err.println("[WARN] Invalid automatic status: " + effect.stringValue);
             return false;
         }
+    }
+
+    private boolean rejectsStatus(StatusEffect effect) {
+        return effect.getType() == StatusEffectType.POISON && isPoisonImmune();
     }
 
     private static boolean affectsNextPlanning(StatusEffectType type) {

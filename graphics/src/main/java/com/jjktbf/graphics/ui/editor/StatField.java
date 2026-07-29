@@ -44,11 +44,13 @@ public class StatField extends Table {
     private static final float VALUE_FIELD_WIDTH = 56f;
     private static final float TIER_MARKER_WIDTH = 2f;
 
-    private final int min;
+    private final int rangeMin;
     private final int max;
+    private int effectiveMin;
 
     private final TextField valueField;
     private final Slider slider;
+    private final Label minLabel;
     private final IntConsumer onChange;
     private final Runnable onEdited;
     private boolean suppress = false;
@@ -65,7 +67,8 @@ public class StatField extends Table {
     public StatField(String name, int initial, int min, int max,
                       IntConsumer onChange, Runnable onEdited, boolean disabled, Skin skin) {
         super(skin);
-        this.min      = min;
+        this.rangeMin = min;
+        this.effectiveMin = min;
         this.max      = max;
         this.onChange = onChange;
         this.onEdited = onEdited;
@@ -73,7 +76,7 @@ public class StatField extends Table {
         // Fixed minimum label width keeps every slider's left edge aligned when
         // several StatFields stack vertically in the stats section.
         Label nameLabel = new Label(name, skin);
-        Label minLabel = new Label(String.valueOf(min), skin, "small");
+        minLabel = new Label(String.valueOf(min), skin, "small");
         minLabel.setAlignment(Align.right);
         minLabel.setColor(skin.get("text-dim", Color.class));
         Label maxLabel = new Label(String.valueOf(max), skin, "small");
@@ -127,7 +130,12 @@ public class StatField extends Table {
             @Override public void changed(ChangeEvent event, Actor actor) {
                 if (suppress) return;
                 onEdited.run();
-                int v = (int) slider.getValue();
+                int v = clamp((int) slider.getValue());
+                if ((int) slider.getValue() != v) {
+                    suppress = true;
+                    slider.setValue(v);
+                    suppress = false;
+                }
                 valueField.setText(String.valueOf(v));
                 onChange.accept(v);
             }
@@ -197,6 +205,15 @@ public class StatField extends Table {
         valueField.setDisabled(!editable);
     }
 
+    /** Change the allocation floor without rescaling the slider's tier axis. */
+    public void setEffectiveMinimum(int minimum) {
+        effectiveMin = Math.max(rangeMin, Math.min(max, minimum));
+        minLabel.setText(String.valueOf(effectiveMin));
+        if ((int) slider.getValue() < effectiveMin) {
+            setValueProgrammatic(effectiveMin);
+        }
+    }
+
     /** Adjust the stat by whole slider ticks when it is editable. */
     public boolean adjustBy(int ticks) {
         if (slider.isDisabled()) return false;
@@ -213,11 +230,11 @@ public class StatField extends Table {
         return valueField == actor;
     }
 
-    public int getMin() { return min; }
+    public int getMin() { return effectiveMin; }
     public int getMax() { return max; }
 
     private int clamp(int v) {
-        return Math.max(min, Math.min(max, v));
+        return Math.max(effectiveMin, Math.min(max, v));
     }
 
     /** Header row whose tier scale uses the exact same horizontal geometry as every stat slider. */

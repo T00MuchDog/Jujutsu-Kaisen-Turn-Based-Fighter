@@ -38,6 +38,7 @@ import com.jjktbf.model.character.coded.RatioAbility;
 import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.DodgeScope;
+import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveRepository;
 import com.jjktbf.model.move.MoveTag;
@@ -63,6 +64,12 @@ import java.util.function.Consumer;
  * uses), so any rule the runtime enforces is enforced here too.
  */
 public class MoveEditorScreen extends EditorScreenBase<MoveData> {
+
+    private static final List<MoveTag> COMPONENT_DAMAGE_TAGS = List.of(
+        MoveTag.PHYSICAL,
+        MoveTag.CURSED_ENERGY,
+        MoveTag.INNATE_TECHNIQUE,
+        MoveTag.NON_INNATE_TECHNIQUE);
 
     private final MoveRepository repo;
 
@@ -130,13 +137,14 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     }
 
     /** Field-by-field deep copy of a MoveData (lists/maps are cloned). */
-    private static MoveData deepCopy(MoveData s) {
+    static MoveData deepCopy(MoveData s) {
         MoveData d = new MoveData();
         d.id                    = s.id;
         d.name                  = s.name;
         d.description           = s.description;
         d.tags                  = s.tags != null ? new ArrayList<>(s.tags) : null;
         d.basePower             = s.basePower;
+        d.hitComponents         = copyHitComponents(s.hitComponents);
         d.baseAccuracy          = s.baseAccuracy;
         d.neverMiss             = s.neverMiss;
         d.stun                  = s.stun;
@@ -182,6 +190,28 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         d.isFreeMove            = s.isFreeMove;
         d.mustBeGranted         = s.mustBeGranted;
         return d;
+    }
+
+    private static List<MoveData.HitComponentData> copyHitComponents(
+        List<MoveData.HitComponentData> source
+    ) {
+        if (source == null) return null;
+        return source.stream()
+            .filter(java.util.Objects::nonNull)
+            .map(MoveEditorScreen::copyHitComponent)
+            .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+    }
+
+    private static MoveData.HitComponentData copyHitComponent(
+        MoveData.HitComponentData source
+    ) {
+        MoveData.HitComponentData copy = new MoveData.HitComponentData();
+        copy.basePower = source.basePower;
+        copy.tags = source.tags == null ? null : new ArrayList<>(source.tags);
+        copy.delayTicks = source.delayTicks;
+        copy.requiresPreviousConnection = source.requiresPreviousConnection;
+        copy.avoidable = source.avoidable;
+        return copy;
     }
 
     /** Deep-copy an effect list into a mutable ArrayList (null → empty ArrayList). */
@@ -251,10 +281,16 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             StatusEffectType type = StatusEffectType.fromName(effect.type, effect.magnitude);
             String summary = type.requiresTickDuration()
                 ? statusLabel(effect.type, effect.magnitude) + " | AP ticks=" + effect.durationTicks
+                : type.requiresRoundDuration()
+                    ? statusLabel(effect.type, effect.magnitude)
+                        + " | rounds=" + effect.durationRounds
                 : statusLabel(effect.type, effect.magnitude)
                     + " | rounds=" + effect.durationRounds
                     + " | ticks=" + effect.durationTicks;
-            return type.usesMagnitude() ? summary + " | amount=" + effect.magnitude : summary;
+            return type.usesMagnitude()
+                ? summary + (type.requiresRoundDuration() ? " | damage/round=" : " | amount=")
+                    + effect.magnitude
+                : summary;
         } catch (IllegalArgumentException ignored) {
             return statusLabel(effect.type, effect.magnitude)
                 + " | rounds=" + effect.durationRounds
@@ -547,6 +583,10 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         powerFieldsContainer = null;
         weaponRequiredCheckbox = null;
 
+        if (d.hitComponents != null && hasTag(d, MoveTag.ATTACK)) {
+            synchronizeParentDamageTags(d);
+        }
+
         Table form = formRoot();
 
         // ── Identity ───────────────────────────────────────────────────────────
@@ -566,7 +606,11 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             }
         }
         TagPicker tagPicker = new TagPicker(initialTags, tags -> {
-            d.tags = tags.stream().map(MoveTag::name).toList();
+            d.tags = tags.stream().map(MoveTag::name)
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+            if (d.hitComponents != null && tags.contains(MoveTag.ATTACK)) {
+                synchronizeParentDamageTags(d);
+            }
             // STUN/GUARD_BREAK/HEAVY are modifier tags backed by dedicated flags (not
             // part of any MoveCategory), so keep them in sync with the tag selection.
             d.stun = tags.contains(MoveTag.STUN);
@@ -574,17 +618,27 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             d.heavy = tags.contains(MoveTag.HEAVY);
             ensureTechniqueStatPrerequisites(d, tags);
             synchronizeWeaponRequirement(d);
-            refreshCategorySections(d);
+            if (d.hitComponents != null) rebuildDetail();
+            else refreshCategorySections(d);
         }, game.audio()::play, skin);
         // Sync the draft's tags with the picker's coupling-enforced initial set
         // (e.g. a technique tag implies CURSED_ENERGY). suppressDirty is on
         // during build, so this won't mark the record dirty on load.
-        d.tags = tagPicker.getSelected().stream().map(MoveTag::name).toList();
+        d.tags = tagPicker.getSelected().stream().map(MoveTag::name)
+            .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        if (d.hitComponents != null && hasTag(d, MoveTag.ATTACK)) {
+            synchronizeParentDamageTags(d);
+            tagPicker.disableTags(MoveTag.TYPE_TAGS);
+        }
         d.stun = tagPicker.getSelected().contains(MoveTag.STUN);
         d.guardBreak = tagPicker.getSelected().contains(MoveTag.GUARD_BREAK);
         d.heavy = tagPicker.getSelected().contains(MoveTag.HEAVY);
         synchronizeWeaponRequirement(d);
         tagsSection.add(tagPicker).growX().row();
+        if (d.hitComponents != null && hasTag(d, MoveTag.ATTACK)) {
+            tagsSection.add(formHint(
+                "Damage types are controlled by the hit components below.")).row();
+        }
 
         // ── Cost ───────────────────────────────────────────────────────────────
         Table cost = formSection(form, "COST");
@@ -744,8 +798,36 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     private Actor buildPowerFields(MoveData d) {
         Table t = new Table(skin);
         t.defaults().left().pad(4);
-        t.add(labelledIntField("Base Power", d.basePower, 0, 99999,
-                v -> { d.basePower = v; })).growX().row();
+        Label combinedPower = null;
+        if (d.hitComponents == null) {
+            t.add(labelledIntField("Combined Base Power", d.basePower, 0, 99999,
+                    v -> { d.basePower = v; })).growX().row();
+        } else {
+            combinedPower = new Label(String.valueOf(combinedBasePower(d)), skin);
+            t.add(labelledRow("Combined Base Power", combinedPower)).growX().row();
+            t.add(formHint(hitCountLabel(d.hitComponents.size())
+                + "; combined power is derived from the components below.")).row();
+        }
+
+        t.add(new Label("HIT COMPONENTS", skin, "small")).padTop(8f).left().row();
+        if (d.hitComponents == null) {
+            t.add(formHint(
+                "Legacy single hit: Base Power and the move's damage type remain authoritative."))
+                .row();
+            TextButton enableComponents = new TextButton("Use hit components", skin);
+            enableComponents.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    game.audio().play(SoundCue.UI_CONFIRM);
+                    enableHitComponentEditing(d);
+                    markDirty();
+                    rebuildDetail();
+                }
+            });
+            t.add(enableComponents).padTop(4f).left().row();
+        } else {
+            t.add(buildHitComponentsEditor(d, combinedPower)).growX().row();
+        }
+
         // Potency gates which defensive moves can stop this attack (1–5).
         t.add(labelledIntField("Potency (1–5)", d.potency, 1, 5,
                 v -> { d.potency = v; })).growX().row();
@@ -758,6 +840,296 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         t.add(labelledIntField("Base Accuracy %", acc, 1, 100,
                 v -> { d.baseAccuracy = v / 100.0; })).growX().row();
         return t;
+    }
+
+    private Actor buildHitComponentsEditor(MoveData d, Label combinedPower) {
+        Table editor = new Table(skin);
+        editor.defaults().left().pad(3f);
+
+        for (int i = 0; i < d.hitComponents.size(); i++) {
+            int index = i;
+            MoveData.HitComponentData component = d.hitComponents.get(index);
+            Table card = new Table(skin);
+            card.setBackground(skin.getDrawable("battle-card"));
+            card.defaults().left().pad(3f);
+            card.pad(6f);
+
+            Table header = new Table(skin);
+            header.add(new Label("Hit " + (index + 1), skin, "small")).left().growX();
+
+            TextButton up = new TextButton("Up", skin);
+            up.setDisabled(index == 0);
+            up.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    if (up.isDisabled()) return;
+                    game.audio().play(SoundCue.UI_TOGGLE);
+                    java.util.Collections.swap(d.hitComponents, index, index - 1);
+                    normalizeHitComponentDependencies(d);
+                    markDirty();
+                    rebuildDetail();
+                }
+            });
+            header.add(up).padLeft(4f);
+
+            TextButton down = new TextButton("Down", skin);
+            down.setDisabled(index == d.hitComponents.size() - 1);
+            down.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    if (down.isDisabled()) return;
+                    game.audio().play(SoundCue.UI_TOGGLE);
+                    java.util.Collections.swap(d.hitComponents, index, index + 1);
+                    normalizeHitComponentDependencies(d);
+                    markDirty();
+                    rebuildDetail();
+                }
+            });
+            header.add(down).padLeft(4f);
+
+            TextButton remove = new TextButton("X", skin);
+            remove.setDisabled(d.hitComponents.size() == 1);
+            remove.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    if (remove.isDisabled()) return;
+                    game.audio().play(SoundCue.UI_DELETE);
+                    d.hitComponents.remove(index);
+                    normalizeHitComponentDependencies(d);
+                    synchronizeParentDamageTags(d);
+                    synchronizeCombinedBasePower(d);
+                    markDirty();
+                    rebuildDetail();
+                }
+            });
+            header.add(remove).padLeft(4f);
+            card.add(header).growX().row();
+
+            card.add(labelledIntField("Base Power", component.basePower, 1, 99999,
+                value -> {
+                    component.basePower = value;
+                    synchronizeCombinedBasePower(d);
+                    combinedPower.setText(String.valueOf(d.basePower));
+                })).growX().row();
+            card.add(new Label("Damage Types", skin)).padTop(3f).row();
+            card.add(buildHitComponentTagToggles(d, component)).growX().row();
+            int minimumDelay = component.requiresPreviousConnection && index > 0
+                ? d.hitComponents.get(index - 1).delayTicks : 0;
+            card.add(labelledIntField("Delay Offset (AP ticks)", component.delayTicks,
+                minimumDelay, 99999,
+                value -> { component.delayTicks = value; })).growX().row();
+
+            CheckBox requiresPrevious = new CheckBox(" Requires previous hit to connect", skin);
+            if (index == 0) component.requiresPreviousConnection = false;
+            requiresPrevious.setChecked(component.requiresPreviousConnection);
+            requiresPrevious.setDisabled(index == 0);
+            requiresPrevious.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    if (requiresPrevious.isDisabled()) return;
+                    game.audio().play(SoundCue.UI_TOGGLE);
+                    component.requiresPreviousConnection = requiresPrevious.isChecked();
+                    if (component.requiresPreviousConnection && index > 0) {
+                        component.delayTicks = Math.max(component.delayTicks,
+                            d.hitComponents.get(index - 1).delayTicks);
+                    }
+                    markDirty();
+                    rebuildDetail();
+                }
+            });
+            card.add(requiresPrevious).left().row();
+
+            CheckBox avoidable = new CheckBox(" Avoidable by dodge or parry", skin);
+            avoidable.setChecked(component.avoidable);
+            avoidable.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    game.audio().play(SoundCue.UI_TOGGLE);
+                    component.avoidable = avoidable.isChecked();
+                    markDirty();
+                }
+            });
+            card.add(avoidable).left().row();
+            editor.add(card).growX().padBottom(5f).row();
+        }
+
+        TextButton add = new TextButton("+ Add hit component", skin);
+        add.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                game.audio().play(SoundCue.UI_CONFIRM);
+                addHitComponent(d);
+                markDirty();
+                rebuildDetail();
+            }
+        });
+        editor.add(add).padTop(2f).left().row();
+        return editor;
+    }
+
+    private Actor buildHitComponentTagToggles(
+        MoveData move,
+        MoveData.HitComponentData component
+    ) {
+        Table toggles = new Table(skin);
+        toggles.defaults().left().pad(3f);
+        Set<String> selected = COMPONENT_DAMAGE_TAGS.stream()
+            .map(MoveTag::name)
+            .filter(tag -> component.tags != null && component.tags.contains(tag))
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        removeImpliedCursedEnergy(selected);
+        component.tags = orderedComponentTags(selected);
+        Map<MoveTag, CheckBox> checkBoxes = new LinkedHashMap<>();
+
+        int column = 0;
+        for (MoveTag tag : COMPONENT_DAMAGE_TAGS) {
+            CheckBox checkBox = new CheckBox(pretty(tag.name()), skin);
+            checkBox.setProgrammaticChangeEvents(false);
+            checkBox.setChecked(selected.contains(tag.name()));
+            checkBoxes.put(tag, checkBox);
+            checkBox.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    if (checkBox.isChecked()) {
+                        selected.add(tag.name());
+                        removeImpliedCursedEnergy(selected);
+                    } else if (selected.size() > 1) {
+                        selected.remove(tag.name());
+                    } else {
+                        checkBox.setChecked(true);
+                        game.audio().play(SoundCue.UI_DENIED);
+                        return;
+                    }
+                    checkBoxes.forEach((candidate, box) ->
+                        box.setChecked(selected.contains(candidate.name())));
+                    component.tags = orderedComponentTags(selected);
+                    synchronizeParentDamageTags(move);
+                    game.audio().play(SoundCue.UI_TOGGLE);
+                    markDirty();
+                    rebuildDetail();
+                }
+            });
+            toggles.add(checkBox).left();
+            if (++column == 2) {
+                toggles.row();
+                column = 0;
+            }
+        }
+        return toggles;
+    }
+
+    static void enableHitComponentEditing(MoveData move) {
+        if (move.hitComponents != null) return;
+        MoveData.HitComponentData component = new MoveData.HitComponentData();
+        component.basePower = move.basePower;
+        component.tags = defaultComponentTags(move);
+        component.delayTicks = 0;
+        component.requiresPreviousConnection = false;
+        component.avoidable = true;
+        move.hitComponents = new ArrayList<>(List.of(component));
+        synchronizeParentDamageTags(move);
+        synchronizeCombinedBasePower(move);
+    }
+
+    static void addHitComponent(MoveData move) {
+        if (move.hitComponents == null) {
+            enableHitComponentEditing(move);
+            return;
+        }
+        MoveData.HitComponentData component = new MoveData.HitComponentData();
+        component.basePower = 1;
+        if (move.hitComponents.isEmpty()) {
+            component.tags = defaultComponentTags(move);
+        } else {
+            MoveData.HitComponentData previous = move.hitComponents.get(
+                move.hitComponents.size() - 1);
+            component.tags = editableComponentTags(previous.tags);
+            if (component.tags.isEmpty()) component.tags = defaultComponentTags(move);
+            component.delayTicks = previous.delayTicks;
+        }
+        component.requiresPreviousConnection = false;
+        component.avoidable = true;
+        move.hitComponents.add(component);
+        normalizeHitComponentDependencies(move);
+        synchronizeParentDamageTags(move);
+        synchronizeCombinedBasePower(move);
+    }
+
+    static int combinedBasePower(MoveData move) {
+        if (move.hitComponents == null) return move.basePower;
+        long total = 0L;
+        for (MoveData.HitComponentData component : move.hitComponents) {
+            if (component != null) total += component.basePower;
+        }
+        return Math.toIntExact(total);
+    }
+
+    private static void synchronizeCombinedBasePower(MoveData move) {
+        if (move.hitComponents != null) move.basePower = combinedBasePower(move);
+    }
+
+    private static void normalizeHitComponentDependencies(MoveData move) {
+        if (move.hitComponents == null || move.hitComponents.isEmpty()) return;
+        move.hitComponents.get(0).requiresPreviousConnection = false;
+        for (int index = 1; index < move.hitComponents.size(); index++) {
+            MoveData.HitComponentData component = move.hitComponents.get(index);
+            if (component.requiresPreviousConnection) {
+                component.delayTicks = Math.max(component.delayTicks,
+                    move.hitComponents.get(index - 1).delayTicks);
+            }
+        }
+    }
+
+    private static void synchronizeParentDamageTags(MoveData move) {
+        if (move.tags == null || move.hitComponents == null) return;
+        move.tags = new ArrayList<>(move.tags);
+        move.tags.removeIf(tag -> {
+            try { return MoveTag.TYPE_TAGS.contains(MoveTag.valueOf(tag)); }
+            catch (IllegalArgumentException ignored) { return false; }
+        });
+        LinkedHashSet<String> damageTags = new LinkedHashSet<>();
+        for (MoveData.HitComponentData component : move.hitComponents) {
+            if (component == null || component.tags == null) continue;
+            component.tags = editableComponentTags(component.tags);
+            damageTags.addAll(component.tags);
+        }
+        move.tags.addAll(damageTags);
+        if (damageTags.contains(MoveTag.INNATE_TECHNIQUE.name())
+            || damageTags.contains(MoveTag.NON_INNATE_TECHNIQUE.name())) {
+            if (!move.tags.contains(MoveTag.CURSED_ENERGY.name())) {
+                move.tags.add(MoveTag.CURSED_ENERGY.name());
+            }
+        }
+    }
+
+    private static ArrayList<String> defaultComponentTags(MoveData move) {
+        MoveCategory category = move.derivedCategory();
+        ArrayList<String> tags = new ArrayList<>();
+        for (MoveTag tag : COMPONENT_DAMAGE_TAGS) {
+            if (category.getTags().contains(tag)) tags.add(tag.name());
+        }
+        if (tags.isEmpty()) tags.add(MoveTag.PHYSICAL.name());
+        return tags;
+    }
+
+    private static ArrayList<String> editableComponentTags(List<String> tags) {
+        LinkedHashSet<String> selected = COMPONENT_DAMAGE_TAGS.stream()
+            .map(MoveTag::name)
+            .filter(tag -> tags != null && tags.contains(tag))
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        removeImpliedCursedEnergy(selected);
+        return orderedComponentTags(selected);
+    }
+
+    private static ArrayList<String> orderedComponentTags(Set<String> selected) {
+        return COMPONENT_DAMAGE_TAGS.stream()
+            .map(MoveTag::name)
+            .filter(selected::contains)
+            .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+    }
+
+    private static void removeImpliedCursedEnergy(Set<String> tags) {
+        if (tags.contains(MoveTag.INNATE_TECHNIQUE.name())
+            || tags.contains(MoveTag.NON_INNATE_TECHNIQUE.name())) {
+            tags.remove(MoveTag.CURSED_ENERGY.name());
+        }
+    }
+
+    private static String hitCountLabel(int count) {
+        return count + (count == 1 ? " hit" : " hits");
     }
 
     private Actor buildCeMinMax(MoveData d) {
@@ -1199,6 +1571,11 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                         eff.durationRounds = 0;
                         if (eff.durationTicks <= 0) eff.durationTicks = 1;
                         eff.magnitude = 0.0;
+                    } else if (matched.requiresRoundDuration()) {
+                        if (eff.durationRounds == 0 || eff.durationRounds < -1) {
+                            eff.durationRounds = 1;
+                        }
+                        eff.durationTicks = 0;
                     }
                     applyMode[0].run();
                 }
@@ -1279,6 +1656,13 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             return fields;
         }
 
+        if (type.requiresRoundDuration()) {
+            effect.durationTicks = 0;
+            if (effect.durationRounds == 0 || effect.durationRounds < -1) {
+                effect.durationRounds = 1;
+            }
+        }
+
         TextField roundsField = new HoverTextField(String.valueOf(effect.durationRounds), skin);
         roundsField.setTextFieldFilter((tf, c) -> Character.isDigit(c) || c == '-');
         roundsField.addListener(new ChangeListener() {
@@ -1290,16 +1674,18 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         fields.add(new Label("Duration rounds (-1 = permanent)", skin)).padRight(8);
         fields.add(roundsField).growX().row();
 
-        TextField ticksField = new HoverTextField(String.valueOf(effect.durationTicks), skin);
-        ticksField.setTextFieldFilter((tf, c) -> Character.isDigit(c));
-        ticksField.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
-                try { effect.durationTicks = Integer.parseInt(ticksField.getText()); }
-                catch (NumberFormatException ignored) { }
-            }
-        });
-        fields.add(new Label("Duration ticks", skin)).padRight(8);
-        fields.add(ticksField).growX().row();
+        if (!type.requiresRoundDuration()) {
+            TextField ticksField = new HoverTextField(String.valueOf(effect.durationTicks), skin);
+            ticksField.setTextFieldFilter((tf, c) -> Character.isDigit(c));
+            ticksField.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    try { effect.durationTicks = Integer.parseInt(ticksField.getText()); }
+                    catch (NumberFormatException ignored) { }
+                }
+            });
+            fields.add(new Label("Duration ticks", skin)).padRight(8);
+            fields.add(ticksField).growX().row();
+        }
 
         TextField magnitudeField = new HoverTextField(String.valueOf(effect.magnitude), skin);
         magnitudeField.setTextFieldFilter((tf, c) -> Character.isDigit(c) || c == '-' || c == '.');
@@ -1309,7 +1695,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 catch (NumberFormatException ignored) { }
             }
         });
-        fields.add(new Label("Amount (+/- flat points)", skin)).padRight(8);
+        fields.add(new Label(type.requiresRoundDuration()
+            ? "Damage per round" : "Amount (+/- flat points)", skin)).padRight(8);
         fields.add(magnitudeField).growX().row();
         return fields;
     }
@@ -1479,7 +1866,11 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
     static MoveData normalizedCopyForSave(MoveData draft) {
         MoveData copy = deepCopy(draft);
+        if (copy.hitComponents != null && hasTag(copy, MoveTag.ATTACK)) {
+            synchronizeParentDamageTags(copy);
+        }
         discardInactiveCategoryDetails(copy);
+        synchronizeCombinedBasePower(copy);
         if (weaponRequirementIsLocked(copy)) copy.weaponRequired = true;
         return copy;
     }
@@ -1487,6 +1878,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     private static void discardInactiveCategoryDetails(MoveData d) {
         if (!hasTag(d, MoveTag.ATTACK)) {
             d.basePower = 0;
+            d.hitComponents = new ArrayList<>();
             d.baseAccuracy = 1.0;
             d.neverMiss = false;
             d.onHitEffects = new ArrayList<>();

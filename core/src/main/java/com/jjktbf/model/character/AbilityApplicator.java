@@ -149,7 +149,11 @@ public final class AbilityApplicator {
                         // already in the character's knownMoves list, and UNLOCK_TECHNIQUE
                         // has no combat-time stat or slot side effects.
                     }
-                    case STAT_BONUS_POINTS -> { /* editor/creator-only — no runtime effect */ }
+                    case STAT_ALLOCATION_MINIMUM, STAT_BONUS_POINTS -> {
+                        /* editor/creator-only — no runtime effect */
+                    }
+                    case POISON_IMMUNITY -> flags.poisonImmune = true;
+                    case SOUL_AWARE_ATTACKS -> flags.soulAwareAttacks = true;
 
                     // Applied by AbilityActivationEngine when an active condition is met.
                     case HEAL_HP, HEAL_HP_PERCENT, RESTORE_CE, RESTORE_CE_PERCENT,
@@ -318,6 +322,10 @@ public final class AbilityApplicator {
         // AP bar
         public int     apBarBonus         = 0;
 
+        // Marker/template mechanics
+        public boolean poisonImmune       = false;
+        public boolean soulAwareAttacks   = false;
+
         // Moves
         public final java.util.List<String>            grantedMoveIds    = new java.util.ArrayList<>();
         public final java.util.List<String>            forcedMoveIds     = new java.util.ArrayList<>();
@@ -381,6 +389,8 @@ public final class AbilityApplicator {
                 case FORCE_MOVE -> { if (effect.moveId != null) forcedMoveIds.add(effect.moveId); }
                 case LOCK_MOVE_TAG -> { if (effect.moveTag != null) lockedMoveTags.add(effect.moveTag); }
                 case AUTO_STATUS_APPLY -> autoStatusEffects.add(effect);
+                case POISON_IMMUNITY -> poisonImmune = true;
+                case SOUL_AWARE_ATTACKS -> soulAwareAttacks = true;
                 default -> { }
             }
         }
@@ -399,6 +409,8 @@ public final class AbilityApplicator {
             copy.defenseMultiplier = defenseMultiplier;
             copy.bfChanceBonus = bfChanceBonus;
             copy.apBarBonus = apBarBonus;
+            copy.poisonImmune = poisonImmune;
+            copy.soulAwareAttacks = soulAwareAttacks;
             copy.ceCostToMinimumEffects.addAll(ceCostToMinimumEffects);
             copy.ceCostMultiplierEffects.addAll(ceCostMultiplierEffects);
             copy.accuracyAddEffects.addAll(accuracyAddEffects);

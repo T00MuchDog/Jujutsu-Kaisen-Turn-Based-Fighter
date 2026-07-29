@@ -690,7 +690,7 @@ class AbilitySystemTest {
     void removedNegativeStatusPredicateDoesNotBecomeUnconditional() {
         AbilityConditionData missingStatus =
             AbilityConditionType.DOES_NOT_HAVE_STATUS.createDefault();
-        missingStatus.statusType = "POISON";
+        missingStatus.statusType = "REMOVED_STATUS";
         AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
         heal.intValue = 10;
         AbilityData data = ability("ACTIVE", "Removed status predicate", "REMOVED_STATUS");

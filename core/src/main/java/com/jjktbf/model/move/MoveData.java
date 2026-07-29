@@ -36,6 +36,8 @@ public class MoveData {
     public List<String> tags;
 
     public int     basePower;
+    /** Null in legacy data; when present, this ordered list is authoritative. */
+    public List<HitComponentData> hitComponents;
     public double  baseAccuracy   = 1.0;
     public boolean neverMiss      = false;
 
@@ -130,6 +132,51 @@ public class MoveData {
 
     /** Cannot be assigned directly; an ability must add this move to the character. */
     public boolean mustBeGranted = false;
+
+    // -------------------------------------------------------------------------
+    // Hit component sub-DTO
+    // -------------------------------------------------------------------------
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class HitComponentData {
+        public int basePower;
+        /** Damage-type MoveTag names only; range and modifiers stay on the move. */
+        public List<String> tags;
+        /** Nonnegative offset from the parent move's unleash/fire tick. */
+        public int delayTicks = 0;
+        public boolean requiresPreviousConnection = false;
+        public boolean avoidable = true;
+
+        public HitComponent toHitComponent() {
+            EnumSet<MoveTag> parsed = EnumSet.noneOf(MoveTag.class);
+            if (tags != null) {
+                for (String tag : tags) {
+                    if (tag == null || tag.isBlank()) continue;
+                    MoveTag parsedTag;
+                    try {
+                        parsedTag = MoveTag.valueOf(tag.trim().toUpperCase());
+                    } catch (IllegalArgumentException exception) {
+                        throw new IllegalArgumentException(
+                            "Unknown hit-component tag: " + tag, exception);
+                    }
+                    parsed.add(parsedTag);
+                }
+            }
+            return new HitComponent(
+                basePower, parsed, delayTicks, requiresPreviousConnection, avoidable);
+        }
+
+        public static HitComponentData fromHitComponent(HitComponent component) {
+            HitComponentData data = new HitComponentData();
+            data.basePower = component.getBasePower();
+            data.tags = component.getTags().stream().map(MoveTag::name).toList();
+            data.delayTicks = component.getDelayTicks();
+            data.requiresPreviousConnection = component.requiresPreviousConnection();
+            data.avoidable = component.isAvoidable();
+            return data;
+        }
+    }
 
     // -------------------------------------------------------------------------
     // Status effect sub-DTO
@@ -303,6 +350,12 @@ public class MoveData {
             .mustBeGranted(mustBeGranted);
 
         if (!rawTags.isEmpty()) b.tags(rawTags);
+        if (hitComponents != null) {
+            b.hitComponents(hitComponents.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(HitComponentData::toHitComponent)
+                .toList());
+        }
         if (prerequisites != null)  b.prerequisites(prerequisites);
         if (onHitEffects  != null)  b.onHitEffects(toStatusEffects(onHitEffects));
         if (selfEffects   != null)  b.selfEffects(toStatusEffects(selfEffects));
@@ -424,6 +477,14 @@ public class MoveData {
         d.tags = tagList;
 
         d.basePower           = move.getBasePower();
+        // Zero-power legacy attacks expose a synthetic fallback component at
+        // runtime. Keep those in the legacy shape instead of serializing an
+        // explicit component that new authoring validation correctly rejects.
+        if (move.getBasePower() > 0) {
+            d.hitComponents = move.getHitComponents().stream()
+                .map(HitComponentData::fromHitComponent)
+                .toList();
+        }
         d.baseAccuracy        = move.getBaseAccuracy();
         d.neverMiss           = move.isNeverMiss();
         d.stun                = move.isStun();

@@ -56,13 +56,11 @@ public class Move {
      */
     private final MovePool pool;
 
-    /**
-     * Base power of the move.
-     * This raw number is scaled by the attacker's Power (from PowerCalculator)
-     * and reduced by the defender's Defense inside DamageCalculator.
-     * 0 for non-damaging moves.
-     */
-    private final int basePower;
+    /** Ordered damage instances emitted at offsets from this move's unleash tick. */
+    private final List<HitComponent> hitComponents;
+
+    /** Combined component power retained for legacy callers and compact UI summaries. */
+    private final int totalBasePower;
 
     /**
      * Base accuracy as a fraction [0.0, 1.0].
@@ -230,7 +228,8 @@ public class Move {
         this.category            = b.category;
         this.tags                = immutableTags(b.tags, b.category);
         this.pool                = b.pool != null ? b.pool : MovePool.fromCategory(b.category);
-        this.basePower           = b.basePower;
+        this.hitComponents       = buildHitComponents(b);
+        this.totalBasePower      = totalBasePower(hitComponents);
         this.baseAccuracy        = b.baseAccuracy;
         this.neverMiss           = b.neverMiss;
         this.stun                = b.stun;
@@ -272,6 +271,25 @@ public class Move {
         return Collections.unmodifiableSet(copy);
     }
 
+    private static List<HitComponent> buildHitComponents(Builder builder) {
+        if (builder.hitComponentsExplicit) {
+            return List.copyOf(builder.hitComponents);
+        }
+        if (builder.category == MoveCategory.UTILITY || builder.category == MoveCategory.DEFENSIVE) {
+            return List.of();
+        }
+        return List.of(new HitComponent(builder.basePower, builder.category, 0));
+    }
+
+    private static int totalBasePower(List<HitComponent> components) {
+        long total = 0;
+        for (HitComponent component : components) total += component.getBasePower();
+        if (total > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("combined component basePower exceeds integer range");
+        }
+        return (int) total;
+    }
+
     // -------------------------------------------------------------------------
     // Accessors
     // -------------------------------------------------------------------------
@@ -282,7 +300,12 @@ public class Move {
     public MoveCategory getCategory()             { return category; }
     public Set<MoveTag> getTags()                 { return tags; }
     public MovePool getPool()                     { return pool; }
-    public int getBasePower()                     { return basePower; }
+    public int getBasePower()                     { return totalBasePower; }
+    public int getTotalBasePower()                { return totalBasePower; }
+    public List<HitComponent> getHitComponents()  { return hitComponents; }
+    public int getMaxHitDelayTicks() {
+        return hitComponents.stream().mapToInt(HitComponent::getDelayTicks).max().orElse(0);
+    }
     public double getBaseAccuracy()               { return baseAccuracy; }
     public boolean isNeverMiss()                  { return neverMiss; }
     public boolean isStun()                       { return stun; }
@@ -316,7 +339,7 @@ public class Move {
     public boolean mustBeGranted()                 { return mustBeGranted; }
 
     public boolean isBlackFlashEligible() {
-        return category.isBlackFlashEligible();
+        return hitComponents.stream().anyMatch(HitComponent::isBlackFlashEligible);
     }
 
     public boolean hasTag(String tagName) {
@@ -324,7 +347,7 @@ public class Move {
         String normalized = tagName.trim().toUpperCase();
         if ("ATTACK".equals(normalized)) {
             return tags.contains(MoveTag.ATTACK)
-                || basePower > 0 && category != MoveCategory.DEFENSIVE && category != MoveCategory.UTILITY;
+                || !hitComponents.isEmpty();
         }
         if ("STUN".equals(normalized)) return stun;
         if ("GUARD_BREAK".equals(normalized)) return guardBreak;
@@ -424,6 +447,12 @@ public class Move {
      * @return true if this attack is fully covered by the block's tag set
      */
     public boolean coveredByBlockTags(List<String> blockTags) {
+        HitComponent component = hitComponents.isEmpty() ? null : hitComponents.get(0);
+        return coveredByBlockTags(blockTags, component);
+    }
+
+    /** Component-aware block coverage; range continues to come from the parent move. */
+    public boolean coveredByBlockTags(List<String> blockTags, HitComponent component) {
         if (blockTags == null || blockTags.isEmpty()) return true;
         // Normalise the block's tags once for cheap contains() checks.
         java.util.Set<String> covered = new java.util.HashSet<>();
@@ -449,7 +478,8 @@ public class Move {
         }
         if (!blockDeclaresDamageTag) return true;
 
-        for (MoveTag attackTag : category.getTags()) {
+        Set<MoveTag> damageTags = component == null ? category.getTags() : component.getTags();
+        for (MoveTag attackTag : damageTags) {
             if (!covered.contains(attackTag.name())) return false;
         }
         return true;
@@ -567,7 +597,8 @@ public class Move {
 
     @Override
     public String toString() {
-        return String.format("Move{%s [%s] AP=%d unleash=%d CE=%d}", name, category, apCost, unleashPoint, baseCeCost);
+        return String.format("Move{%s [%s] hits=%d AP=%d unleash=%d CE=%d}",
+            name, category, hitComponents.size(), apCost, unleashPoint, baseCeCost);
     }
 
     // -------------------------------------------------------------------------
@@ -582,6 +613,8 @@ public class Move {
         private Set<MoveTag> tags;
         private MovePool pool;
         private int basePower                = 0;
+        private List<HitComponent> hitComponents = List.of();
+        private boolean hitComponentsExplicit = false;
         private double baseAccuracy          = 1.0;
         private boolean neverMiss            = false;
         private boolean stun                 = false;
@@ -622,6 +655,11 @@ public class Move {
         public Builder tags(Set<MoveTag> v)                { this.tags = v == null ? null : Set.copyOf(v); return this; }
         public Builder pool(MovePool v)                    { this.pool = v; return this; }
         public Builder basePower(int v)                    { this.basePower = v; return this; }
+        public Builder hitComponents(List<HitComponent> v) {
+            this.hitComponents = v == null ? List.of() : List.copyOf(v);
+            this.hitComponentsExplicit = true;
+            return this;
+        }
         public Builder baseAccuracy(double v)              { this.baseAccuracy = v; return this; }
         public Builder neverMiss(boolean v)                { this.neverMiss = v; return this; }
         public Builder stun(boolean v)                     { this.stun = v; return this; }
@@ -658,6 +696,8 @@ public class Move {
             if (id == null || id.isBlank()) throw new IllegalStateException("Move id is required");
             if (unleashPoint < 1 || unleashPoint > apCost)
                 throw new IllegalStateException("unleashPoint must be in [1, apCost]");
+
+            validateHitComponents();
 
             // Potency lives on attack and defensive moves (gates which defences
             // stop which attacks). Utility moves don't participate, so clamp to 1.
@@ -700,6 +740,47 @@ public class Move {
             }
 
             return new Move(this);
+        }
+
+        private void validateHitComponents() {
+            if (!hitComponentsExplicit) return;
+            boolean damaging = category != MoveCategory.UTILITY
+                && category != MoveCategory.DEFENSIVE;
+            if (!damaging && !hitComponents.isEmpty()) {
+                throw new IllegalStateException(
+                    "Only attacking moves may define hit components (name='" + name + "')");
+            }
+            if (damaging && hitComponents.isEmpty()) {
+                throw new IllegalStateException(
+                    "Attacking moves must define at least one hit component (name='" + name + "')");
+            }
+            if (!damaging) return;
+
+            EnumSet<MoveTag> componentTags = EnumSet.noneOf(MoveTag.class);
+            for (int index = 0; index < hitComponents.size(); index++) {
+                HitComponent component = hitComponents.get(index);
+                if (component == null || component.getBasePower() <= 0) {
+                    throw new IllegalStateException(
+                        "Hit components must have positive Base Power (name='" + name + "')");
+                }
+                if (index == 0 && component.requiresPreviousConnection()) {
+                    throw new IllegalStateException(
+                        "The first hit component cannot require a previous connection (name='"
+                            + name + "')");
+                }
+                if (index > 0 && component.requiresPreviousConnection()
+                    && component.getDelayTicks() < hitComponents.get(index - 1).getDelayTicks()) {
+                    throw new IllegalStateException(
+                        "A dependent hit cannot occur before its prerequisite (name='"
+                            + name + "')");
+                }
+                componentTags.addAll(component.getTags());
+            }
+            if (!componentTags.equals(category.getTags())) {
+                throw new IllegalStateException(
+                    "Move damage tags must match the union of its hit-component tags (name='"
+                        + name + "')");
+            }
         }
 
         /**

@@ -246,11 +246,10 @@ public final class AbilityActivationEngine {
                         effect.durationTicks == null ? 0 : effect.durationTicks,
                         StatusEffectType.normalizeStoredMagnitude(
                             effect.stringValue, effect.magnitude == null ? 0.0 : effect.magnitude));
-                    if (extendStatusForCurrentPhase(state)) {
-                        target.addStatusEffect(applied, state.getCurrentPhase());
-                    } else {
-                        target.addStatusEffect(applied);
-                    }
+                    boolean accepted = extendStatusForCurrentPhase(state)
+                        ? target.addStatusEffect(applied, state.getCurrentPhase())
+                        : target.addStatusEffect(applied);
+                    if (!accepted) continue;
                     events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                         .source(owner).target(target).tick(tick)
                         .message(target.getCharacter().getName() + " receives "
@@ -336,7 +335,9 @@ public final class AbilityActivationEngine {
                         AbilityTrigger.Type.STATUS_APPLIED, target, status, tick));
                 }
             }
-            case STAT_BONUS_POINTS, GRANT_MOVE, GRANT_ABILITY, FORCE_MOVE,
+            case STAT_ALLOCATION_MINIMUM, STAT_BONUS_POINTS,
+                 POISON_IMMUNITY, SOUL_AWARE_ATTACKS,
+                 GRANT_MOVE, GRANT_ABILITY, FORCE_MOVE,
                  UNLOCK_TECHNIQUE -> { }
         }
     }

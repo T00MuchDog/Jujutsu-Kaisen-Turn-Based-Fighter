@@ -49,6 +49,21 @@ class MoveCardViewTest {
         assertEquals(new Color(0.850f, 0.380f, 0.190f, 1f), MoveCardView.typeColorFor(move));
     }
 
+    @Test
+    void multiHitPowerLabelUsesCombinedPowerAndHitCount() {
+        MoveData data = new MoveData();
+        data.id = "MULTI_HIT_CARD";
+        data.name = "Multi Hit Card";
+        data.tags = List.of("ATTACK", "PHYSICAL", "CURSED_ENERGY");
+        data.apCost = 10;
+        data.unleashPoint = 1;
+        data.hitComponents = List.of(
+            component(40, "PHYSICAL"),
+            component(35, "CURSED_ENERGY"));
+
+        assertEquals("PWR 75 | 2 HITS", MoveCardView.powerLabel(data.toMove()));
+    }
+
     private static Move moveWithTags(String... tags) {
         MoveData data = new MoveData();
         data.id = "CARD_TAG_TEST";
@@ -60,5 +75,12 @@ class MoveCardViewTest {
             data.prerequisites = java.util.Map.of("jujutsuSkill", 0);
         }
         return data.toMove();
+    }
+
+    private static MoveData.HitComponentData component(int power, String tag) {
+        MoveData.HitComponentData component = new MoveData.HitComponentData();
+        component.basePower = power;
+        component.tags = List.of(tag);
+        return component;
     }
 }

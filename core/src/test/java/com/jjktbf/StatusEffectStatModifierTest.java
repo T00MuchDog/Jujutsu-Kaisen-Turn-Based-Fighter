@@ -273,7 +273,7 @@ class StatusEffectStatModifierTest {
         data.selfEffects = new ArrayList<>();
         data.selfEffects.add(effect("FOCUS", 0.10));
         data.selfEffects.add(effect("CE_OUTPUT_UP", 15.0));
-        data.selfEffects.add(effect("POISON", 5.0));
+        data.selfEffects.add(effect("REMOVED_ONE_OFF", 5.0));
 
         Move move = data.toMove();
 
@@ -305,8 +305,8 @@ class StatusEffectStatModifierTest {
     void legacyAndMissingReferencesRemainExplicitForEditors() {
         assertEquals("Legacy FOCUS (either direction)",
             StatusEffectType.referenceDisplayName("FOCUS"));
-        assertEquals("Missing status: POISON",
-            StatusEffectType.referenceDisplayName("POISON"));
+        assertEquals("Missing status: REMOVED_ONE_OFF",
+            StatusEffectType.referenceDisplayName("REMOVED_ONE_OFF"));
     }
 
     @Test

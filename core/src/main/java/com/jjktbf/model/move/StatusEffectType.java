@@ -58,7 +58,10 @@ public enum StatusEffectType {
      * A tick-only control status. While active, it stuns the affected combatant's
      * currently active action segments without changing any stat.
      */
-    STAGGER("Stagger", 0);
+    STAGGER("Stagger", 0),
+
+    /** Round-duration poison template. Magnitude is flat damage per round. */
+    POISON("Poison", 1);
 
     private final String displayName;
     private final StatKey baseStat;
@@ -108,12 +111,17 @@ public enum StatusEffectType {
 
     /** Whether this status uses the descriptor's magnitude field. */
     public boolean usesMagnitude() {
-        return isStatModifier();
+        return isStatModifier() || this == POISON;
     }
 
     /** Whether this status must be configured exclusively in AP ticks. */
     public boolean requiresTickDuration() {
         return this == STAGGER;
+    }
+
+    /** Whether this status rejects AP-tick durations. */
+    public boolean requiresRoundDuration() {
+        return this == POISON;
     }
 
     public double signedMagnitude(double magnitude) {

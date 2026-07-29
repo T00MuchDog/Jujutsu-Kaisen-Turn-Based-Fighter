@@ -98,4 +98,85 @@
     "doubleValue" : 1.1
   } ],
   "masteryThreshold" : 0
+}, {
+  "id" : "000008",
+  "name" : "Vessel of Sukuna",
+  "flavourText" : "A body capable of containing the King of Curses bears qualities beyond those of an ordinary vessel.",
+  "mechanicText" : "Grant access to FREAK OF NATURE, IMMUNE TO POISONS, and VESSEL.",
+  "category" : "PASSIVE",
+  "sourceType" : "CHARACTER",
+  "effects" : [ {
+    "type" : "GRANT_ABILITY",
+    "abilityId" : "000009"
+  }, {
+    "type" : "GRANT_ABILITY",
+    "abilityId" : "000010"
+  }, {
+    "type" : "GRANT_ABILITY",
+    "abilityId" : "000011"
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000009",
+  "name" : "Freak of Nature",
+  "flavourText" : "An extraordinary body possesses physical ability far beyond normal human limits.",
+  "mechanicText" : "Set the minimum allocation of VITALITY, STRENGTH, DURABILITY, and SPEED to 60.",
+  "category" : "PASSIVE",
+  "sourceType" : "ABILITY",
+  "sourceValue" : "000008",
+  "effects" : [ {
+    "type" : "STAT_ALLOCATION_MINIMUM",
+    "stat" : "vitality",
+    "intValue" : 60
+  }, {
+    "type" : "STAT_ALLOCATION_MINIMUM",
+    "stat" : "strength",
+    "intValue" : 60
+  }, {
+    "type" : "STAT_ALLOCATION_MINIMUM",
+    "stat" : "durability",
+    "intValue" : 60
+  }, {
+    "type" : "STAT_ALLOCATION_MINIMUM",
+    "stat" : "speed",
+    "intValue" : 60
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000010",
+  "name" : "Immune to Poisons",
+  "flavourText" : "Toxins are neutralised before they can corrupt the body.",
+  "mechanicText" : "Become immune to POISON.",
+  "category" : "PASSIVE",
+  "sourceType" : "ABILITY",
+  "sourceValue" : "000008",
+  "effects" : [ {
+    "type" : "POISON_IMMUNITY"
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000011",
+  "name" : "Vessel",
+  "flavourText" : "Two souls inhabit one body while preserving the boundary between them.",
+  "mechanicText" : "Grant access to VISUALISE THE SOUL.",
+  "category" : "PASSIVE",
+  "sourceType" : "ABILITY",
+  "sourceValue" : "000008",
+  "effects" : [ {
+    "type" : "GRANT_ABILITY",
+    "abilityId" : "000012"
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000012",
+  "name" : "Visualise the Soul",
+  "flavourText" : "Awareness of the soul's shape allows a blow or healing energy to reach it directly.",
+  "mechanicText" : "PHYSICAL MELEE attacks can strike the SOUL. RCT can heal the user's SOUL.",
+  "category" : "PASSIVE",
+  "sourceType" : "ABILITY",
+  "sourceValue" : "000011",
+  "effects" : [ {
+    "type" : "SOUL_AWARE_ATTACKS"
+  } ],
+  "masteryThreshold" : 0
 } ]

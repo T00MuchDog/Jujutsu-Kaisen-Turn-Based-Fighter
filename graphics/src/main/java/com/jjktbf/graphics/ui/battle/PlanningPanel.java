@@ -401,22 +401,32 @@ public class PlanningPanel {
     }
 
     /** Returns the first AP tick at or to the right of {@code startTick} that fits the move. */
-    private int firstAvailableTick(BattlePlan.Board board, int startTick, int apCost) {
+    private int firstAvailableTick(BattlePlan.Board board, int startTick, Move move) {
         TimelineBar bar = barFor(board);
-        int lastStart = bar.getDotCount() - apCost + 1;
+        int lastStart = lastStartTick(move, bar.getDotCount());
         for (int tick = startTick; tick <= lastStart; tick++) {
-            if (plan.boardTimeline(board).isRangeFree(tick, tick + apCost - 1)) return tick;
+            if (plan.boardTimeline(board).isRangeFree(
+                tick, tick + move.getApCost() - 1)) return tick;
         }
         return -1;
     }
 
     /** Returns the nearest AP tick at or to the left of {@code startTick} that fits the move. */
-    private int lastAvailableTick(BattlePlan.Board board, int startTick, int apCost) {
-        int lastStart = barFor(board).getDotCount() - apCost + 1;
+    private int lastAvailableTick(BattlePlan.Board board, int startTick, Move move) {
+        int lastStart = lastStartTick(move, barFor(board).getDotCount());
         for (int tick = Math.min(startTick, lastStart); tick >= 1; tick--) {
-            if (plan.boardTimeline(board).isRangeFree(tick, tick + apCost - 1)) return tick;
+            if (plan.boardTimeline(board).isRangeFree(
+                tick, tick + move.getApCost() - 1)) return tick;
         }
         return -1;
+    }
+
+    static int lastStartTick(Move move, int gridLength) {
+        long occupancyLastStart = (long) gridLength - move.getApCost() + 1L;
+        long impactLastStart = (long) gridLength - move.getUnleashPoint() + 1L
+            - move.getMaxHitDelayTicks();
+        long lastStart = Math.min(occupancyLastStart, impactLastStart);
+        return lastStart < 1L ? 0 : (int) Math.min(Integer.MAX_VALUE, lastStart);
     }
 
     public class PlanningInputProcessor extends InputAdapter {
@@ -582,12 +592,12 @@ public class PlanningPanel {
             int requestedTick = bar.tickAtX(dragMouseX);
             int requestedEnd = requestedTick + move.getApCost() - 1;
             int availableTick;
-            if (requestedEnd <= bar.getDotCount()
+            if (requestedTick <= lastStartTick(move, bar.getDotCount())
                 && plan.boardTimeline(draggingBoard).isRangeFree(requestedTick, requestedEnd)) {
                 availableTick = requestedTick;
             } else {
-                int leftTick = lastAvailableTick(draggingBoard, requestedTick, move.getApCost());
-                int rightTick = firstAvailableTick(draggingBoard, requestedTick, move.getApCost());
+                int leftTick = lastAvailableTick(draggingBoard, requestedTick, move);
+                int rightTick = firstAvailableTick(draggingBoard, requestedTick, move);
                 if (leftTick < 0) {
                     availableTick = rightTick;
                 } else if (rightTick < 0) {

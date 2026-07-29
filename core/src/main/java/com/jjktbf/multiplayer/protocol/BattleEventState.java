@@ -18,8 +18,31 @@ public record BattleEventState(
     String targetCharacterName,
     String moveId,
     String moveName,
+    Integer componentIndex,
     Integer value,
     CodedAbilityState codedAbilityState,
     String message
 ) {
+    /** Source-compatible constructor for events without a component index. */
+    public BattleEventState(
+        String eventId,
+        BattleEventType type,
+        int roundNumber,
+        int tick,
+        PlayerSide sourceSide,
+        String sourceCharacterId,
+        String sourceCharacterName,
+        PlayerSide targetSide,
+        String targetCharacterId,
+        String targetCharacterName,
+        String moveId,
+        String moveName,
+        Integer value,
+        CodedAbilityState codedAbilityState,
+        String message
+    ) {
+        this(eventId, type, roundNumber, tick, sourceSide, sourceCharacterId,
+            sourceCharacterName, targetSide, targetCharacterId, targetCharacterName,
+            moveId, moveName, null, value, codedAbilityState, message);
+    }
 }

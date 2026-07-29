@@ -127,7 +127,9 @@ public class CombatResolver {
         int maxTick;
         int actionMaxTick;
         int gridLimit;
+        long nextLaunchSequence;
         boolean roundCostsProcessed;
+        final NavigableMap<Integer, List<PendingComponent>> pendingComponents = new TreeMap<>();
         /**
          * Block segments currently inside their defensive AP window, keyed by
          * identity and mapped to their owning combatant. Carried tick to tick so
@@ -180,6 +182,8 @@ public class CombatResolver {
             enemyTimeline == null ? 0 : enemyTimeline.getGridLength());
         if (c.gridLimit == 0) c.gridLimit = BattlePlan.GRID_LENGTH;
         c.roundCostsProcessed = true;
+        c.nextLaunchSequence = 0;
+        c.pendingComponents.clear();
         c.activeBlocks.clear();
 
         events.addAll(abilityActivations.process(state, AbilityTrigger.phase(BattleState.Phase.RESOLUTION)));
@@ -228,6 +232,14 @@ public class CombatResolver {
         if (finishBattleIfNeeded(state, events, tick)) return events;
         drainCeForStartingSegments(state, enemy,  tick, events);
         if (finishBattleIfNeeded(state, events, tick)) return events;
+
+        // Impacts committed by earlier launches resolve before anything new is
+        // unleashed on this tick. They remain valid even if the source segment
+        // was subsequently stunned.
+        resolvePendingComponentsAtTick(state, player, enemy, tick, events);
+        if (finishBattleIfNeeded(state, events, tick)) return events;
+        applyActiveStaggers(player, tick, events);
+        applyActiveStaggers(enemy, tick, events);
 
         // --- Collect all moves firing this tick ---
         List<FiringEntry> firing = collectFiringMoves(player, enemy, tick);
@@ -429,6 +441,29 @@ public class CombatResolver {
 
     private record FiringEntry(ActionSegment segment, BattleCombatant attacker, BattleCombatant defender) {}
 
+    private static final class MoveExecution {
+        private final FiringEntry entry;
+        private final boolean forceFullBlock;
+        private final int launchTick;
+        private final long launchSequence;
+        private final boolean[] connected;
+
+        private MoveExecution(
+            FiringEntry entry,
+            boolean forceFullBlock,
+            int launchTick,
+            long launchSequence
+        ) {
+            this.entry = entry;
+            this.forceFullBlock = forceFullBlock;
+            this.launchTick = launchTick;
+            this.launchSequence = launchSequence;
+            this.connected = new boolean[entry.segment.getMove().getHitComponents().size()];
+        }
+    }
+
+    private record PendingComponent(MoveExecution execution, int componentIndex) {}
+
     private record TieBreak(double randomKey, int insertionOrder) {}
 
     private List<FiringEntry> collectFiringMoves(BattleCombatant player, BattleCombatant enemy, int tick) {
@@ -533,6 +568,9 @@ public class CombatResolver {
         int tick,
         List<CombatEvent> events
     ) {
+        if ((long) tick + reactionMove.getMaxHitDelayTicks() > cursor.get().gridLimit) {
+            return;
+        }
         if (reactor.consumeMoveCancellation()) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
                 .target(reactor).move(reactionMove).tick(tick)
@@ -619,55 +657,116 @@ public class CombatResolver {
         }
 
         // --- Non-damaging utility moves ---
-        if (move.getCategory() == MoveCategory.UTILITY) {
+        if (move.getHitComponents().isEmpty()) {
             return;
         }
 
-        // --- Damaging moves ---
+        MoveExecution execution = new MoveExecution(
+            entry, forceFullBlock, tick, cursor.get().nextLaunchSequence++);
+        scheduleComponents(execution);
+        resolvePendingComponentsAtTick(state, player, enemy, tick, events);
+    }
+
+    private void scheduleComponents(MoveExecution execution) {
+        ResolutionCursor c = cursor.get();
+        List<HitComponent> components = execution.entry.segment.getMove().getHitComponents();
+        for (int index = 0; index < components.size(); index++) {
+            int impactTick = Math.addExact(
+                execution.launchTick, components.get(index).getDelayTicks());
+            c.pendingComponents.computeIfAbsent(impactTick, ignored -> new ArrayList<>())
+                .add(new PendingComponent(execution, index));
+            c.actionMaxTick = Math.max(c.actionMaxTick, impactTick);
+            c.maxTick = Math.max(c.maxTick, impactTick);
+        }
+    }
+
+    private void resolvePendingComponentsAtTick(
+        BattleState state,
+        BattleCombatant player,
+        BattleCombatant enemy,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        List<PendingComponent> pending = cursor.get().pendingComponents.remove(tick);
+        if (pending == null) return;
+        pending.sort(Comparator
+            .comparingLong((PendingComponent value) -> value.execution.launchSequence)
+            .thenComparingInt(PendingComponent::componentIndex));
+
+        for (PendingComponent value : pending) {
+            if (state.isBattleOver()) return;
+            MoveExecution execution = value.execution;
+            int componentIndex = value.componentIndex;
+            HitComponent component = execution.entry.segment.getMove()
+                .getHitComponents().get(componentIndex);
+            if (component.requiresPreviousConnection()
+                && (componentIndex == 0 || !execution.connected[componentIndex - 1])) {
+                continue;
+            }
+            execution.connected[componentIndex] = resolveHitComponent(
+                execution, component, componentIndex, state, tick, events);
+            if (finishBattleIfNeeded(state, events, tick)) return;
+            applyActiveStaggers(player, tick, events);
+            applyActiveStaggers(enemy, tick, events);
+            if (finishBattleIfNeeded(state, events, tick)) return;
+        }
+    }
+
+    /** Resolve one impact. HIT and full BLOCK are the two connecting outcomes. */
+    private boolean resolveHitComponent(
+        MoveExecution execution,
+        HitComponent component,
+        int componentIndex,
+        BattleState state,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        Move move = execution.entry.segment.getMove();
+        BattleCombatant attacker = execution.entry.attacker;
+        BattleCombatant defender = execution.entry.defender;
         DamageCalculator.DamageResult result = DamageCalculator.resolve(
-            attacker, defender, move, tick, rng, state.getRoundNumber(), forceFullBlock
-        );
+            attacker, defender, move, component, tick, rng,
+            state.getRoundNumber(), execution.forceFullBlock,
+            execution.launchTick < tick);
         events.addAll(result.getCodedEvents());
 
         if (result.isMiss()) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_MISSED)
-                .source(attacker).target(defender).move(move)
+                .source(attacker).target(defender).move(move).componentIndex(componentIndex)
                 .tick(tick)
                 .message(move.getName() + " missed " + defender.getCharacter().getName() + "!")
                 .build());
             events.addAll(abilityActivations.process(state, AbilityTrigger.move(
                 AbilityTrigger.Type.ATTACK_MISSED, attacker, defender, move, tick)));
-            finishBattleIfNeeded(state, events, tick);
+            return false;
+        }
 
-        } else if (result.isDodged()) {
-            // Dodge: no damage. Distinct message from a plain miss.
+        if (result.isDodged()) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_DODGED)
-                .source(attacker).target(defender).move(move)
+                .source(attacker).target(defender).move(move).componentIndex(componentIndex)
                 .tick(tick)
                 .message(defender.getCharacter().getName() + " dodged " + move.getName() + "!")
                 .build());
             applyDefenseEffects(state, defender, attacker, move,
-                move.getOnDodgeEffects(), tick, events);
+                move.getOnDodgeEffects(), componentIndex, tick, events);
             events.addAll(abilityActivations.process(state, AbilityTrigger.move(
                 AbilityTrigger.Type.ATTACK_MISSED, attacker, defender, move, tick)));
-            finishBattleIfNeeded(state, events, tick);
+            return false;
+        }
 
-        } else if (result.isParried()) {
-            // Parry: no damage; the attacker may be staggered (if non-GUARD_BREAK).
+        if (result.isParried()) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_PARRIED)
-                .source(attacker).target(defender).move(move)
+                .source(attacker).target(defender).move(move).componentIndex(componentIndex)
                 .tick(tick)
                 .message(defender.getCharacter().getName() + " parried " + move.getName() + "!")
                 .build());
             if (result.staggersAttacker()) {
-                // STAGGER is a tick-duration stun applied to the attacker's
-                // charging segments. Mirrors the on-hit STAGGER application path.
                 attacker.addStatusEffect(
                     new StatusEffect(StatusEffectType.STAGGER, 0,
                                      result.getParryStaggerTicks(), 0.0),
                     state.getCurrentPhase());
                 events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
-                    .source(defender).target(attacker).move(move)
+                    .source(defender).target(attacker).move(move).componentIndex(componentIndex)
                     .tick(tick)
                     .message(attacker.getCharacter().getName()
                              + " is staggered by the parry!")
@@ -675,106 +774,91 @@ public class CombatResolver {
                 stunActiveSegments(attacker, tick, false);
             }
             applyDefenseEffects(state, defender, attacker, move,
-                move.getOnParryEffects(), tick, events);
+                move.getOnParryEffects(), componentIndex, tick, events);
             events.addAll(abilityActivations.process(state, AbilityTrigger.move(
                 AbilityTrigger.Type.MOVE_BLOCKED, attacker, defender, move, tick)));
-            finishBattleIfNeeded(state, events, tick);
+            return false;
+        }
 
-        } else if (result.isBlocked()) {
+        if (result.isBlocked()) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_BLOCKED)
-                .source(attacker).target(defender).move(move)
+                .source(attacker).target(defender).move(move).componentIndex(componentIndex)
                 .tick(tick)
                 .message(defender.getCharacter().getName() + " blocked " + move.getName() + "!")
                 .build());
             applyDefenseEffects(state, defender, attacker, move,
-                move.getOnBlockEffects(), tick, events);
+                move.getOnBlockEffects(), componentIndex, tick, events);
             events.addAll(abilityActivations.process(state, AbilityTrigger.move(
                 AbilityTrigger.Type.MOVE_BLOCKED, attacker, defender, move, tick)));
-            finishBattleIfNeeded(state, events, tick);
+            return true;
+        }
 
-        } else {
-            // Hit — check whether a block softened it.
-            // GUARD_BREAK moves ignore blocking defensive moves entirely.
-            boolean wasBlocked = !result.bypassedBlock()
-                && defender.getTimeline() != null
-                && defender.getTimeline().activeBlockAt(tick, move) != null;
+        boolean wasBlocked = !result.bypassedBlock() && result.getDefenseSegment() != null;
+        int appliedDamage = defender.receiveDamage(result.getFinalDamage());
+        events.addAll(defender.getCodedAbilities().drainPendingEvents(tick));
 
-            int appliedDamage = defender.receiveDamage(result.getFinalDamage());
-            events.addAll(defender.getCodedAbilities().drainPendingEvents(tick));
-
-            if (wasBlocked) {
-                events.add(CombatEvent.of(CombatEvent.Type.MOVE_BLOCK_REDUCED)
-                    .source(attacker).target(defender).move(move)
-                    .tick(tick)
-                    .message(defender.getCharacter().getName()
-                             + " blocked " + move.getName() + "! (damage reduced)")
-                    .build());
-            }
-
-            events.add(CombatEvent.of(appliedDamage == 0
-                    ? CombatEvent.Type.DAMAGE_IGNORED : CombatEvent.Type.DAMAGE_DEALT)
-                .source(attacker).target(defender).move(move)
-                .intValue(appliedDamage)
+        if (wasBlocked) {
+            events.add(CombatEvent.of(CombatEvent.Type.MOVE_BLOCK_REDUCED)
+                .source(attacker).target(defender).move(move).componentIndex(componentIndex)
                 .tick(tick)
-                .message(appliedDamage == 0
-                    ? defender.getCharacter().getName() + " ignores all damage from " + move.getName() + "!"
-                    : attacker.getCharacter().getName() + "'s " + move.getName()
-                        + " hits " + defender.getCharacter().getName()
-                        + " for " + appliedDamage + " damage!")
+                .message(defender.getCharacter().getName()
+                         + " blocked " + move.getName() + "! (damage reduced)")
+                .build());
+        }
+
+        events.add(CombatEvent.of(appliedDamage == 0
+                ? CombatEvent.Type.DAMAGE_IGNORED : CombatEvent.Type.DAMAGE_DEALT)
+            .source(attacker).target(defender).move(move).componentIndex(componentIndex)
+            .intValue(appliedDamage)
+            .tick(tick)
+            .message(appliedDamage == 0
+                ? defender.getCharacter().getName() + " ignores all damage from " + move.getName() + "!"
+                : attacker.getCharacter().getName() + "'s " + move.getName()
+                    + " hits " + defender.getCharacter().getName()
+                    + " for " + appliedDamage + " damage!")
+            .build());
+        events.addAll(abilityActivations.process(state, AbilityTrigger.move(
+            AbilityTrigger.Type.ATTACK_HIT, attacker, defender, move, tick)));
+        if (appliedDamage > 0) {
+            events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
+                AbilityTrigger.Type.DAMAGE, attacker, defender, appliedDamage, tick)));
+        }
+
+        if (result.isBlackFlash()) {
+            int requestedCe = (int) Math.round(
+                attacker.getMaxCursedEnergy() * CombatStats.BF_CE_RESTORE_FRACTION);
+            int ceRestored = attacker.restoreCe(requestedCe);
+            boolean wasInBfs = attacker.isInBlackFlashState();
+            attacker.enterBlackFlashState(state.getRoundNumber());
+            if (wasInBfs) attacker.recordBfsHit();
+
+            events.add(CombatEvent.of(CombatEvent.Type.BLACK_FLASH)
+                .source(attacker).target(defender).move(move).componentIndex(componentIndex)
+                .intValue(result.getFinalDamage())
+                .tick(tick)
+                .message("*** BLACK FLASH! *** " + attacker.getCharacter().getName()
+                         + " lands a Black Flash! +" + ceRestored + " CE restored!")
+                .build());
+            events.add(CombatEvent.of(CombatEvent.Type.CE_RESTORED)
+                .source(attacker).intValue(ceRestored).componentIndex(componentIndex)
+                .tick(tick)
+                .message(attacker.getCharacter().getName() + " recovered " + ceRestored + " CE!")
                 .build());
             events.addAll(abilityActivations.process(state, AbilityTrigger.move(
-                AbilityTrigger.Type.ATTACK_HIT, attacker, defender, move, tick)));
-            if (appliedDamage > 0) {
+                AbilityTrigger.Type.BLACK_FLASH, attacker, defender, move, tick)));
+            if (ceRestored > 0) {
                 events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
-                    AbilityTrigger.Type.DAMAGE, attacker, defender, appliedDamage, tick)));
-            }
-            // Black Flash
-            if (result.isBlackFlash()) {
-                int requestedCe = (int) Math.round(
-                    attacker.getMaxCursedEnergy() * CombatStats.BF_CE_RESTORE_FRACTION);
-                int ceRestored = attacker.restoreCe(requestedCe);
-                boolean wasInBfs = attacker.isInBlackFlashState();
-                attacker.enterBlackFlashState(state.getRoundNumber());
-                if (wasInBfs) attacker.recordBfsHit();
-
-                events.add(CombatEvent.of(CombatEvent.Type.BLACK_FLASH)
-                    .source(attacker).target(defender).move(move)
-                    .intValue(result.getFinalDamage())
-                    .tick(tick)
-                    .message("*** BLACK FLASH! *** " + attacker.getCharacter().getName()
-                             + " lands a Black Flash! +" + ceRestored + " CE restored!")
-                    .build());
-                events.add(CombatEvent.of(CombatEvent.Type.CE_RESTORED)
-                    .source(attacker).intValue(ceRestored)
-                    .tick(tick)
-                    .message(attacker.getCharacter().getName() + " recovered " + ceRestored + " CE!")
-                    .build());
-                events.addAll(abilityActivations.process(state, AbilityTrigger.move(
-                    AbilityTrigger.Type.BLACK_FLASH, attacker, defender, move, tick)));
-                if (ceRestored > 0) {
-                    events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
-                        AbilityTrigger.Type.CE_RESTORED, attacker, null, ceRestored, tick)));
-                }
-            }
-
-            // A lethal hit still completes its intrinsic Black Flash effects.
-            // Stop before applying statuses/interrupts to a defeated target.
-            if (finishBattleIfNeeded(state, events, tick)) return;
-
-            // On-hit status effects
-            applyOnHitEffects(state, attacker, defender, move, tick, events);
-            applyAbilityOnHitEffects(state, attacker, defender, move, tick, events);
-            if (finishBattleIfNeeded(state, events, tick)) return;
-
-            // Stun tag: stun the defender's action segment(s) on the current tick.
-            // Segments that already fired this tick are unaffected (the loop passed
-            // them); segments queued later this tick are skipped at the firing loop's
-            // isStunned() check, so they don't fire — emerging as "<defender> was
-            // stunned and could not move."
-            if (move.isStun()) {
-                resolveStunTag(defender, tick, events);
+                    AbilityTrigger.Type.CE_RESTORED, attacker, null, ceRestored, tick)));
             }
         }
+
+        if (finishBattleIfNeeded(state, events, tick)) return true;
+        applyOnHitEffects(state, attacker, defender, move, componentIndex, tick, events);
+        applyAbilityOnHitEffects(
+            state, attacker, defender, move, componentIndex, tick, events);
+        if (finishBattleIfNeeded(state, events, tick)) return true;
+        if (move.isStun()) resolveStunTag(defender, move, componentIndex, tick, events);
+        return true;
     }
 
     // -------------------------------------------------------------------------
@@ -803,12 +887,16 @@ public class CombatResolver {
      */
     private void resolveStunTag(
         BattleCombatant   defender,
+        Move              move,
+        int               componentIndex,
         int               tick,
         List<CombatEvent> events
     ) {
         if (stunActiveSegments(defender, tick, true)) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
                 .target(defender)
+                .move(move)
+                .componentIndex(componentIndex)
                 .tick(tick)
                 .message(defender.getCharacter().getName()
                          + " was stunned and could not move.")
@@ -995,6 +1083,7 @@ public class CombatResolver {
         BattleCombatant attacker,
         BattleCombatant defender,
         Move            move,
+        int             componentIndex,
         int             tick,
         List<CombatEvent> events
     ) {
@@ -1009,9 +1098,10 @@ public class CombatResolver {
             }
             int previousMaxHp = defender.getMaxHp();
             int previousMaxCe = defender.getMaxCursedEnergy();
-            defender.addStatusEffect(effect, state.getCurrentPhase());
+            if (!defender.addStatusEffect(effect, state.getCurrentPhase())) continue;
             events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                 .source(attacker).target(defender).move(move)
+                .componentIndex(componentIndex)
                 .tick(tick)
                 .message(defender.getCharacter().getName()
                          + " receives " + effect.getType().displayName() + "!")
@@ -1043,7 +1133,7 @@ public class CombatResolver {
             }
             int previousMaxHp = combatant.getMaxHp();
             int previousMaxCe = combatant.getMaxCursedEnergy();
-            combatant.addStatusEffect(effect, state.getCurrentPhase());
+            if (!combatant.addStatusEffect(effect, state.getCurrentPhase())) continue;
             events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                 .source(combatant).move(move)
                 .tick(tick)
@@ -1070,6 +1160,7 @@ public class CombatResolver {
         BattleCombatant attacker,
         Move move,
         List<StatusEffect> effects,
+        int componentIndex,
         int tick,
         List<CombatEvent> events
     ) {
@@ -1082,9 +1173,10 @@ public class CombatResolver {
             }
             int previousMaxHp = defender.getMaxHp();
             int previousMaxCe = defender.getMaxCursedEnergy();
-            defender.addStatusEffect(effect, state.getCurrentPhase());
+            if (!defender.addStatusEffect(effect, state.getCurrentPhase())) continue;
             events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                 .source(defender).move(move)
+                .componentIndex(componentIndex)
                 .tick(tick)
                 .message(defender.getCharacter().getName()
                          + " gains " + effect.getType().displayName() + "!")
@@ -1101,6 +1193,7 @@ public class CombatResolver {
         BattleCombatant attacker,
         BattleCombatant defender,
         Move move,
+        int componentIndex,
         int tick,
         List<CombatEvent> events
     ) {
@@ -1115,6 +1208,7 @@ public class CombatResolver {
                 if (!target.addAutomaticStatusEffect(effect, state.getCurrentPhase())) continue;
                 events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                     .source(attacker).target(target).move(move)
+                    .componentIndex(componentIndex)
                     .tick(tick)
                     .message(target.getCharacter().getName()
                         + " receives " + StatusEffectType.fromName(
@@ -1232,12 +1326,16 @@ public class CombatResolver {
         return events;
     }
 
-    private static boolean finishBattleIfNeeded(
+    private boolean finishBattleIfNeeded(
         BattleState state,
         List<CombatEvent> events,
         int tick
     ) {
         if (!state.checkAndResolveBattleOver()) return false;
+        ResolutionCursor c = cursor.get();
+        c.pendingComponents.clear();
+        c.maxTick = c.tick;
+        c.roundCostsProcessed = false;
         if (events.stream().noneMatch(event -> event.getType() == CombatEvent.Type.BATTLE_OVER)) {
             String message = state.getWinner() == null
                 ? "The battle ends in a draw!"

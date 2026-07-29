@@ -32,6 +32,7 @@ import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.combat.CombatEvent;
+import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveTag;
@@ -42,6 +43,7 @@ import com.jjktbf.multiplayer.protocol.ActionSegmentState;
 import com.jjktbf.multiplayer.protocol.ActionSegmentStatus;
 import com.jjktbf.multiplayer.protocol.CharacterState;
 import com.jjktbf.multiplayer.protocol.ErrorResponse;
+import com.jjktbf.multiplayer.protocol.HitComponentState;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
 import com.jjktbf.multiplayer.protocol.MatchState;
 import com.jjktbf.multiplayer.protocol.MatchStatus;
@@ -1311,10 +1313,14 @@ public class BattleScreen implements Screen, BattleView {
             }
         }
         Map<String, Integer> prerequisites = new HashMap<>();
-        if (category.getTags().contains(MoveTag.INNATE_TECHNIQUE)) {
+        boolean innateTechnique = tags.contains(MoveTag.INNATE_TECHNIQUE)
+            || category.getTags().contains(MoveTag.INNATE_TECHNIQUE);
+        boolean nonInnateTechnique = tags.contains(MoveTag.NON_INNATE_TECHNIQUE)
+            || category.getTags().contains(MoveTag.NON_INNATE_TECHNIQUE);
+        if (innateTechnique) {
             prerequisites.put("cursedTechniqueMastery", 0);
         }
-        if (category.getTags().contains(MoveTag.NON_INNATE_TECHNIQUE)) {
+        if (nonInnateTechnique) {
             prerequisites.put("jujutsuSkill", 0);
         }
 
@@ -1337,10 +1343,35 @@ public class BattleScreen implements Screen, BattleView {
             .maxCeCost(state.maxCeCost())
             .prerequisites(prerequisites)
             .freeMove(true);
-        if (category.getTags().contains(MoveTag.INNATE_TECHNIQUE)) {
+        if (!state.hitComponents().isEmpty()) {
+            builder.hitComponents(state.hitComponents().stream()
+                .map(BattleScreen::toDisplayHitComponent)
+                .toList());
+        }
+        if (innateTechnique) {
             builder.requiredTechniqueId("ONLINE_DISPLAY");
         }
         return builder.build();
+    }
+
+    private static HitComponent toDisplayHitComponent(HitComponentState state) {
+        EnumSet<MoveTag> tags = EnumSet.noneOf(MoveTag.class);
+        for (String tagName : state.tags()) {
+            try {
+                MoveTag tag = MoveTag.valueOf(tagName);
+                if (MoveTag.TYPE_TAGS.contains(tag)) tags.add(tag);
+            } catch (IllegalArgumentException ignored) {
+                // Unknown future damage tags can fall back to the wire category.
+            }
+        }
+        if (!tags.isEmpty()) {
+            return new HitComponent(
+                state.basePower(), tags, state.delayTicks(),
+                state.requiresPreviousConnection(), state.avoidable());
+        }
+        return new HitComponent(
+            state.basePower(), MoveCategory.valueOf(state.category()), state.delayTicks(),
+            state.requiresPreviousConnection(), state.avoidable());
     }
 
     private void submitOnlinePlan() {
@@ -1726,7 +1757,9 @@ public class BattleScreen implements Screen, BattleView {
         Set<Integer> ticks = new TreeSet<>();
         for (ActionSegmentState segment : segments) {
             if (segment == null || segment.status() == ActionSegmentStatus.STUNNED) continue;
-            for (int tick = Math.max(1, segment.startTick()); tick <= segment.endTick(); tick++) {
+            int playbackEnd = Math.max(segment.endTick(),
+                segment.resolvedTick() == null ? segment.endTick() : segment.resolvedTick());
+            for (int tick = Math.max(1, segment.startTick()); tick <= playbackEnd; tick++) {
                 ticks.add(tick);
             }
         }

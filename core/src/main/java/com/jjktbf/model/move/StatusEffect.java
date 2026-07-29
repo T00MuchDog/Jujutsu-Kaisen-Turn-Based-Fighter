@@ -120,6 +120,11 @@ public class StatusEffect {
             codedAbilityKey, codedAction, codedTarget, codedStackCount);
     }
 
+    /** Create a round-duration poison descriptor for future poison resolution. */
+    public static StatusEffect poison(int rounds, double damagePerRound) {
+        return new StatusEffect(StatusEffectType.POISON, rounds, 0, damagePerRound);
+    }
+
     public static void validateDuration(int rounds, int ticks) {
         boolean permanent = rounds == -1 && ticks == 0;
         boolean timed = rounds >= 0 && rounds < Integer.MAX_VALUE
@@ -136,6 +141,11 @@ public class StatusEffect {
         if (type != null && type.requiresTickDuration() && (rounds != 0 || ticks <= 0)) {
             throw new IllegalArgumentException(type.displayName()
                 + " must last for at least one AP tick and cannot use round duration");
+        }
+        if (type != null && type.requiresRoundDuration()
+            && ((rounds <= 0 && rounds != -1) || ticks != 0)) {
+            throw new IllegalArgumentException(type.displayName()
+                + " must use a positive round duration or be permanent");
         }
     }
 

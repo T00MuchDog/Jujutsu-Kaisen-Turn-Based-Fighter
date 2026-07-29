@@ -7,6 +7,8 @@ public enum BattleEventType {
     MOVE_MISSED,
     MOVE_BLOCKED,
     MOVE_BLOCK_REDUCED,
+    MOVE_DODGED,
+    MOVE_PARRIED,
     MOVE_STUNNED,
     DAMAGE_DEALT,
     DAMAGE_IGNORED,

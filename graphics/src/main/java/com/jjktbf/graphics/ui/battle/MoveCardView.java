@@ -210,7 +210,7 @@ public class MoveCardView {
         statFont.setColor(ink);
         drawStatColumn(batch, statFont, textX, y + 55f + extraActionBarHeight,
             y + 35f + extraActionBarHeight,
-            accuracyLabel(), move.getBasePower() > 0 ? "PWR " + move.getBasePower() : null);
+            accuracyLabel(), powerLabel(move));
         if (move.hasCeCost()) {
             drawCeCostBar(batch, statFont, ui, x + w - 48f, y + 24f + extraActionBarHeight,
                 actualCeCost);
@@ -221,6 +221,14 @@ public class MoveCardView {
         return move.isNeverMiss()
             ? "ACC N/A"
             : "ACC " + (int) Math.round(move.getBaseAccuracy() * 100d) + "%";
+    }
+
+    static String powerLabel(Move move) {
+        if (move == null) return null;
+        int hitCount = move.getHitComponents().size();
+        if (move.getBasePower() <= 0 && hitCount <= 1) return null;
+        return "PWR " + move.getBasePower()
+            + (hitCount > 1 ? " | " + hitCount + " HITS" : "");
     }
 
     /** Draws the AP duration dots and returns the height added by any extra rows. */

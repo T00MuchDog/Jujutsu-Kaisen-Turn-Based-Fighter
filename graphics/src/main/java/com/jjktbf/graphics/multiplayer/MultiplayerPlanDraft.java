@@ -79,7 +79,7 @@ public final class MultiplayerPlanDraft {
             return new AddResult(AddStatus.INSUFFICIENT_CE, null);
         }
 
-        int lastStart = BattlePlan.GRID_LENGTH - move.apCost() + 1;
+        int lastStart = lastStartTick(move);
         for (int startTick = 1; startTick <= lastStart; startTick++) {
             int endTick = startTick + move.apCost() - 1;
             if (rangeFree(move.board(), startTick, endTick)) {
@@ -99,7 +99,7 @@ public final class MultiplayerPlanDraft {
             || ceUsed + move.effectiveCeCost() > ceBudget) {
             return false;
         }
-        int lastStart = BattlePlan.GRID_LENGTH - move.apCost() + 1;
+        int lastStart = lastStartTick(move);
         for (int startTick = 1; startTick <= lastStart; startTick++) {
             if (rangeFree(move.board(), startTick, startTick + move.apCost() - 1)) {
                 return true;
@@ -178,6 +178,22 @@ public final class MultiplayerPlanDraft {
             && move.board() != null
             && move.apCost() >= 1
             && move.apCost() <= BattlePlan.GRID_LENGTH
+            && move.unleashPoint() >= 1
+            && move.unleashPoint() <= move.apCost()
+            && move.hitComponents().stream().allMatch(component ->
+                component.basePower() >= 0 && component.delayTicks() >= 0)
             && move.effectiveCeCost() >= 0;
+    }
+
+    static int lastStartTick(MoveState move) {
+        long occupancyLastStart = (long) BattlePlan.GRID_LENGTH - move.apCost() + 1L;
+        int maxDelay = move.hitComponents().stream()
+            .mapToInt(component -> component.delayTicks())
+            .max()
+            .orElse(0);
+        long impactLastStart = (long) BattlePlan.GRID_LENGTH - move.unleashPoint() + 1L
+            - maxDelay;
+        long lastStart = Math.min(occupancyLastStart, impactLastStart);
+        return lastStart < 1L ? 0 : (int) lastStart;
     }
 }

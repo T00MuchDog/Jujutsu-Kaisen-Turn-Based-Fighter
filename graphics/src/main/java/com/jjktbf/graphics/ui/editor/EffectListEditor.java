@@ -228,11 +228,12 @@ public class EffectListEditor extends Table {
         Table fields = new Table(skin);
         fields.defaults().pad(4).left().growX();
         boolean tickOnlyStatus = isTickOnlyStatus(effect, type);
+        boolean roundOnlyStatus = isRoundOnlyStatus(effect, type);
         TextField durationField = type.uses(AbilityEffectParameter.DURATION)
             && !tickOnlyStatus
             ? integerField(effect.durationRounds) : null;
         TextField durationTicksField = type.uses(AbilityEffectParameter.DURATION)
-            ? nonNegativeIntegerField(effect.durationTicks) : null;
+            && !roundOnlyStatus ? nonNegativeIntegerField(effect.durationTicks) : null;
 
         if (type.uses(AbilityEffectParameter.STAT)) {
             SelectBox<String> statBox = new DynamicSelectBox<>(skin);
@@ -357,6 +358,12 @@ public class EffectListEditor extends Table {
                             effect.durationTicks = 1;
                         }
                         effect.magnitude = 0.0;
+                    } else if (status.requiresRoundDuration()) {
+                        if (effect.durationRounds == null || effect.durationRounds == 0
+                            || effect.durationRounds < -1) {
+                            effect.durationRounds = 1;
+                        }
+                        effect.durationTicks = 0;
                     }
                     refreshFields.run();
                 }
@@ -416,6 +423,14 @@ public class EffectListEditor extends Table {
                     }
                 });
                 addRow(fields, "Stagger duration (AP ticks)", durationTicksField);
+            } else if (roundOnlyStatus) {
+                effect.durationTicks = 0;
+                durationField.addListener(new ChangeListener() {
+                    @Override public void changed(ChangeEvent event, Actor actor) {
+                        effect.durationRounds = parseInteger(durationField.getText());
+                    }
+                });
+                addRow(fields, "Duration rounds (-1 = permanent)", durationField);
             } else {
                 durationField.addListener(new ChangeListener() {
                     @Override public void changed(ChangeEvent event, Actor actor) {
@@ -439,7 +454,7 @@ public class EffectListEditor extends Table {
                     effect.magnitude = parseDouble(magnitude.getText());
                 }
             });
-            addRow(fields, "Amount (flat points)", magnitude);
+            addRow(fields, roundOnlyStatus ? "Damage per round" : "Amount (flat points)", magnitude);
         }
 
         if (type.uses(AbilityEffectParameter.USES)) {
@@ -568,6 +583,15 @@ public class EffectListEditor extends Table {
         if (!type.uses(AbilityEffectParameter.STATUS_TYPE)) return false;
         try {
             return StatusEffectType.fromName(effect.stringValue).requiresTickDuration();
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isRoundOnlyStatus(AbilityEffectData effect, AbilityEffectType type) {
+        if (!type.uses(AbilityEffectParameter.STATUS_TYPE)) return false;
+        try {
+            return StatusEffectType.fromName(effect.stringValue).requiresRoundDuration();
         } catch (IllegalArgumentException ignored) {
             return false;
         }
@@ -744,6 +768,7 @@ public class EffectListEditor extends Table {
         return switch (type) {
             case STAT_ADD -> "Amount (+/-)";
             case STAT_SET_VALUE -> "Exact value";
+            case STAT_ALLOCATION_MINIMUM -> "Minimum allocation";
             case STAT_BONUS_POINTS -> "Point-budget change";
             case MOVE_ACCURACY_ADD, OPPONENT_ACCURACY_ADD -> "Accuracy points (+/-)";
             case MODIFY_AP_BAR -> "AP change (+/-)";

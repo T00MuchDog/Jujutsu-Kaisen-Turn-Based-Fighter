@@ -348,6 +348,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                     statFields[StatKey.CURSED_TECHNIQUE_MASTERY.ordinal()]
                         .setValueProgrammatic(0);
                 }
+                refreshAllocationMinimums(cd, true);
                 refreshBaseStatTotalLabel(cd);
                 refreshDerivedPreview(cd);
                 refreshBudgetLabel(cd);
@@ -399,12 +400,17 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
         statFields = new StatField[STAT_ORDER.length];
         boolean hasTechnique = cd.innateTechniqueName != null;
+        Map<StatKey, Integer> allocationMinimums =
+            resolvedAbilities(cd).statAllocationMinimums();
         for (int i = 0; i < STAT_ORDER.length; i++) {
             StatKey sk = STAT_ORDER[i];
             int statIndex = i;
-            int val = sk.get(cd);
             boolean locked = (sk == StatKey.CURSED_TECHNIQUE_MASTERY && !hasTechnique);
             int fieldMinimum = sk == StatKey.CURSED_TECHNIQUE_MASTERY ? 0 : STAT_MIN;
+            int allocationMinimum = locked ? 0
+                : allocationMinimums.getOrDefault(sk, fieldMinimum);
+            int val = Math.max(sk.get(cd), allocationMinimum);
+            sk.set(cd, val);
             StatField sf = new StatField(sk.label, val, fieldMinimum, STAT_MAX, v -> {
                 lastEditedStatIndex = statIndex;
                 sk.set(cd, v);
@@ -417,6 +423,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 rebuildSkillTree(cd);
                 markDirty();
             }, () -> lastEditedStatIndex = statIndex, locked, skin);
+            sf.setEffectiveMinimum(allocationMinimum);
             statFields[i] = sf;
             stats.add(sf).growX().colspan(2).row();
         }
@@ -668,9 +675,11 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
     /** Apply point-buy mode: reset all stats to baseline, enforce budget. */
     private void applyPointBuy(CharacterData cd) {
+        Map<StatKey, Integer> minimums = resolvedAbilities(cd).statAllocationMinimums();
         for (StatKey sk : STAT_ORDER) {
             int value = sk == StatKey.CURSED_TECHNIQUE_MASTERY
-                && cd.innateTechniqueName == null ? 0 : BASELINE;
+                && cd.innateTechniqueName == null ? 0
+                : Math.max(BASELINE, minimums.getOrDefault(sk, STAT_MIN));
             sk.set(cd, value);
             statFields[sk.ordinal()].setValueProgrammatic(value);
         }
@@ -695,6 +704,32 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (statFields == null) return;
         boolean locked = (draft != null && draft.innateTechniqueName == null);
         statFields[StatKey.CURSED_TECHNIQUE_MASTERY.ordinal()].setEditable(!locked);
+    }
+
+    /** Refresh ability-provided editor floors, optionally raising invalid allocations. */
+    private void refreshAllocationMinimums(CharacterData cd, boolean raiseValues) {
+        Map<StatKey, Integer> minimums = resolvedAbilities(cd).statAllocationMinimums();
+        for (StatKey stat : STAT_ORDER) {
+            boolean lockedCtm = stat == StatKey.CURSED_TECHNIQUE_MASTERY
+                && cd.innateTechniqueName == null;
+            int floor = lockedCtm ? 0 : minimums.getOrDefault(stat, STAT_MIN);
+            if (raiseValues && stat.get(cd) < floor) stat.set(cd, floor);
+            if (statFields != null) {
+                statFields[stat.ordinal()].setEffectiveMinimum(floor);
+                if (raiseValues) statFields[stat.ordinal()].setValueProgrammatic(stat.get(cd));
+            }
+        }
+    }
+
+    private void raiseAllocationsToMinimums(CharacterData cd) {
+        Map<StatKey, Integer> minimums = resolvedAbilities(cd).statAllocationMinimums();
+        for (Map.Entry<StatKey, Integer> entry : minimums.entrySet()) {
+            if (entry.getKey() == StatKey.CURSED_TECHNIQUE_MASTERY
+                && cd.innateTechniqueName == null) continue;
+            if (entry.getKey().get(cd) < entry.getValue()) {
+                entry.getKey().set(cd, entry.getValue());
+            }
+        }
     }
 
     private void refreshBudgetLabel(CharacterData cd) {
@@ -1023,7 +1058,9 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             @Override public void onAssign(String id) {
                 if (cd.abilityIds == null) cd.abilityIds = new ArrayList<>();
                 if (!cd.abilityIds.contains(id)) cd.abilityIds.add(id);
+                refreshAllocationMinimums(cd, true);
                 markDirty();
+                refreshBaseStatTotalLabel(cd);
                 refreshDerivedPreview(cd);
                 refreshBudgetLabel(cd);
                 rebuildMoveAssignment(cd);
@@ -1033,6 +1070,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
             @Override public void onUnassign(String id) {
                 if (cd.abilityIds != null) cd.abilityIds.remove(id);
+                refreshAllocationMinimums(cd, false);
                 markDirty();
                 refreshDerivedPreview(cd);
                 refreshBudgetLabel(cd);
@@ -1073,6 +1111,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (probe.abilityIds == null) probe.abilityIds = new ArrayList<>();
         if (!probe.abilityIds.contains(abilityId)) probe.abilityIds.add(abilityId);
         try {
+            raiseAllocationsToMinimums(probe);
             probe.toCharacter(moveRepo, abilityRepo, techniqueRepo);
             return null;
         } catch (Exception ex) {

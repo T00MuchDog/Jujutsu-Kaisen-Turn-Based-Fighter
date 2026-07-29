@@ -47,6 +47,11 @@ public class ActionSegment {
     public int     getStartTick()     { return startTick; }
     public int     getEndTick()       { return startTick + move.getApCost() - 1; }
     public int     getFireTick()      { return fireTick; }
+    public int     getComponentImpactTick(int componentIndex) {
+        return fireTick + move.getHitComponents().get(componentIndex).getDelayTicks();
+    }
+    public int     getFinalImpactTick() { return fireTick + move.getMaxHitDelayTicks(); }
+    public int     getResolutionEndTick() { return Math.max(getEndTick(), getFinalImpactTick()); }
     public int     getActualCeCost()  { return actualCeCost; }
     public boolean isStunned()        { return stunned; }
     public boolean isInstant()        { return move.getUnleashPoint() == 1; }

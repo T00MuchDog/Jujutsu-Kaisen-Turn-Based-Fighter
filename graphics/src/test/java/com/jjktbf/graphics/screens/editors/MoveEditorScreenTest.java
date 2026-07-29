@@ -13,10 +13,100 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MoveEditorScreenTest {
+
+    @Test
+    void saveCopyDeepCopiesAndPreservesAuthoritativeHitComponents() {
+        MoveData draft = attackWithHitComponents();
+        draft.basePower = 999;
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(draft);
+
+        assertEquals(70, saved.basePower);
+        assertEquals(2, saved.hitComponents.size());
+        assertEquals(List.of(MoveTag.CURSED_ENERGY.name()),
+            saved.hitComponents.get(1).tags);
+        assertEquals(4, saved.hitComponents.get(1).delayTicks);
+        assertTrue(saved.hitComponents.get(1).requiresPreviousConnection);
+        assertFalse(saved.hitComponents.get(1).avoidable);
+        assertNotSame(draft.hitComponents, saved.hitComponents);
+        assertNotSame(draft.hitComponents.get(1), saved.hitComponents.get(1));
+        assertNotSame(draft.hitComponents.get(1).tags, saved.hitComponents.get(1).tags);
+
+        saved.hitComponents.get(1).tags.add(MoveTag.PHYSICAL.name());
+        assertEquals(List.of(MoveTag.CURSED_ENERGY.name()),
+            draft.hitComponents.get(1).tags);
+        assertEquals(999, draft.basePower);
+    }
+
+    @Test
+    void saveCopyDerivesParentDamageTagsFromComponents() {
+        MoveData draft = attackWithHitComponents();
+        draft.id = "COMPONENT_TAGS";
+        draft.apCost = 5;
+        draft.unleashPoint = 1;
+        draft.tags.remove(MoveTag.CURSED_ENERGY.name());
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(draft);
+
+        assertTrue(saved.tags.contains(MoveTag.PHYSICAL.name()));
+        assertTrue(saved.tags.contains(MoveTag.CURSED_ENERGY.name()));
+        assertEquals(70, saved.toMove().getBasePower());
+    }
+
+    @Test
+    void saveCopyKeepsLegacyAttacksUnmigrated() {
+        MoveData draft = new MoveData();
+        draft.tags = new ArrayList<>(List.of(
+            MoveTag.ATTACK.name(), MoveTag.PHYSICAL.name()));
+        draft.basePower = 45;
+        draft.hitComponents = null;
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(draft);
+
+        assertEquals(45, saved.basePower);
+        assertNull(saved.hitComponents);
+    }
+
+    @Test
+    void nonAttackSaveNormalizationClearsHitComponents() {
+        MoveData draft = attackWithHitComponents();
+        draft.tags = new ArrayList<>(List.of(MoveTag.UTILITY.name()));
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(draft);
+
+        assertEquals(0, saved.basePower);
+        assertTrue(saved.hitComponents.isEmpty());
+        assertEquals(2, draft.hitComponents.size());
+    }
+
+    @Test
+    void enablingComponentEditingSeedsTheEquivalentLegacyHit() {
+        MoveData draft = new MoveData();
+        draft.tags = List.of(
+            MoveTag.ATTACK.name(),
+            MoveTag.CURSED_ENERGY.name(),
+            MoveTag.INNATE_TECHNIQUE.name());
+        draft.basePower = 55;
+
+        MoveEditorScreen.enableHitComponentEditing(draft);
+
+        assertEquals(1, draft.hitComponents.size());
+        assertEquals(55, draft.hitComponents.get(0).basePower);
+        assertEquals(List.of(MoveTag.INNATE_TECHNIQUE.name()),
+            draft.hitComponents.get(0).tags);
+        assertEquals(55, MoveEditorScreen.combinedBasePower(draft));
+
+        MoveEditorScreen.addHitComponent(draft);
+        assertEquals(2, draft.hitComponents.size());
+        assertEquals(List.of(MoveTag.INNATE_TECHNIQUE.name()),
+            draft.hitComponents.get(1).tags);
+        assertNotSame(draft.hitComponents.get(0).tags, draft.hitComponents.get(1).tags);
+    }
 
     @Test
     void retaggingBeforeSaveRestoresTheExistingSectionDetails() {
@@ -99,7 +189,7 @@ class MoveEditorScreenTest {
         MoveData draft = moveWithAllSectionDetails();
         draft.selfEffects.clear();
         draft.selfEffects.add(effect("FOCUS", 0.10));
-        draft.selfEffects.add(effect("POISON", 5.0));
+        draft.selfEffects.add(effect("REMOVED_EFFECT", 5.0));
 
         MoveData saved = MoveEditorScreen.normalizedCopyForSave(draft);
 
@@ -225,6 +315,29 @@ class MoveEditorScreenTest {
         data.selfEffects = new ArrayList<>(List.of(
             effect(StatusEffectType.ACCURACY_INCREASE)));
         data.selfEffects.get(0).durationTicks = 5;
+        return data;
+    }
+
+    private static MoveData attackWithHitComponents() {
+        MoveData data = new MoveData();
+        data.tags = new ArrayList<>(List.of(
+            MoveTag.ATTACK.name(),
+            MoveTag.PHYSICAL.name(),
+            MoveTag.CURSED_ENERGY.name()));
+        data.hitComponents = new ArrayList<>();
+
+        MoveData.HitComponentData first = new MoveData.HitComponentData();
+        first.basePower = 40;
+        first.tags = new ArrayList<>(List.of(MoveTag.PHYSICAL.name()));
+        data.hitComponents.add(first);
+
+        MoveData.HitComponentData second = new MoveData.HitComponentData();
+        second.basePower = 30;
+        second.tags = new ArrayList<>(List.of(MoveTag.CURSED_ENERGY.name()));
+        second.delayTicks = 4;
+        second.requiresPreviousConnection = true;
+        second.avoidable = false;
+        data.hitComponents.add(second);
         return data;
     }
 

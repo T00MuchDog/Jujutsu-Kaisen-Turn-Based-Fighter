@@ -29,19 +29,20 @@
   "selfEffects" : [ ],
   "isFreeMove" : true,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000001",
   "name" : "Basic Block",
   "description" : "Raise a 50% BLOCK against pure PHYSICAL ATTACKS with POTENCY 1 for 10 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
+  "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
@@ -55,7 +56,7 @@
   "maxCeCost" : 0,
   "defenseType" : "BLOCK",
   "blockStyle" : "PERCENTAGE",
-  "blockDuration" : 0,
+  "blockDuration" : 12,
   "blockAffectedTags" : [ "PHYSICAL" ],
   "blockDamageReduction" : 50,
   "blockFlatReduction" : 0,
@@ -64,13 +65,16 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "isFreeMove" : true,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000002",
   "name" : "Jab",
@@ -107,11 +111,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000003",
   "name" : "Elbow Strike",
@@ -148,11 +152,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000004",
   "name" : "Body Blow",
@@ -189,11 +193,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000005",
   "name" : "Sweeping Kick",
@@ -230,11 +234,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000006",
   "name" : "Knee Strike",
@@ -272,11 +276,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000007",
   "name" : "Overhand Punch",
@@ -290,8 +294,8 @@
   "heavy" : true,
   "potency" : 1,
   "weaponRequired" : false,
-  "apCost" : 23,
-  "unleashPoint" : 23,
+  "apCost" : 22,
+  "unleashPoint" : 18,
   "baseCeCost" : 0,
   "hasCeCost" : false,
   "minCeCost" : 0,
@@ -306,6 +310,9 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "strength" : 55,
     "speed" : 0,
@@ -313,11 +320,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000008",
   "name" : "Reinforced Jab",
@@ -358,11 +365,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000009",
   "name" : "Reinforced Elbow",
@@ -402,11 +409,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000010",
   "name" : "Reinforced Knee",
@@ -447,11 +454,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000011",
   "name" : "Cursed Energy Burst",
@@ -489,11 +496,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000012",
   "name" : "Cursed Energy Blast",
@@ -507,8 +514,8 @@
   "heavy" : true,
   "potency" : 2,
   "weaponRequired" : false,
-  "apCost" : 21,
-  "unleashPoint" : 21,
+  "apCost" : 20,
+  "unleashPoint" : 18,
   "baseCeCost" : 45,
   "hasCeCost" : true,
   "minCeCost" : 25,
@@ -534,25 +541,26 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000013",
   "name" : "Deflection",
   "description" : "Raise a 100% BLOCK against MELEE ATTACKS with POTENCY 1 for 5 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
+  "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
   "weaponRequired" : false,
-  "apCost" : 7,
+  "apCost" : 8,
   "unleashPoint" : 1,
   "baseCeCost" : 0,
   "hasCeCost" : false,
@@ -569,6 +577,9 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "vitality" : 0,
     "durability" : 0,
@@ -577,25 +588,26 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000014",
   "name" : "Reinforced Deflection",
   "description" : "Spend CE to raise a 100% BLOCK against MELEE ATTACKS with POTENCY 1 for 5 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL", "CURSED_ENERGY" ],
   "basePower" : 0,
+  "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
   "weaponRequired" : false,
-  "apCost" : 7,
+  "apCost" : 8,
   "unleashPoint" : 1,
   "baseCeCost" : 20,
   "hasCeCost" : true,
@@ -612,6 +624,9 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "vitality" : 0,
     "durability" : 0,
@@ -624,11 +639,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000015",
   "name" : "Cross Guard",
@@ -667,11 +682,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000016",
   "name" : "Reinforced Cross Guard",
@@ -713,17 +728,18 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000017",
   "name" : "Braced Guard",
   "description" : "After setup, raise a 90% BLOCK against pure PHYSICAL ATTACKS with POTENCY 1 for 20 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL", "HEAVY" ],
   "basePower" : 0,
+  "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
   "stun" : false,
@@ -731,7 +747,7 @@
   "heavy" : true,
   "potency" : 1,
   "weaponRequired" : false,
-  "apCost" : 22,
+  "apCost" : 20,
   "unleashPoint" : 6,
   "baseCeCost" : 0,
   "hasCeCost" : false,
@@ -759,17 +775,18 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000018",
   "name" : "Reinforced Braced Guard",
   "description" : "After setup, spend CE to raise a 90% BLOCK against POTENCY 1 ATTACKS for 20 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL", "CURSED_ENERGY", "HEAVY" ],
   "basePower" : 0,
+  "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
   "stun" : false,
@@ -777,7 +794,7 @@
   "heavy" : true,
   "potency" : 1,
   "weaponRequired" : false,
-  "apCost" : 22,
+  "apCost" : 20,
   "unleashPoint" : 6,
   "baseCeCost" : 28,
   "hasCeCost" : true,
@@ -807,11 +824,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000019",
   "name" : "Reinforced Basic Block",
@@ -852,17 +869,18 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000020",
   "name" : "Cursed Energy Focus",
   "description" : "Gain 10 ACCURACY for 2 rounds.",
   "tags" : [ "UTILITY", "CURSED_ENERGY" ],
   "basePower" : 0,
+  "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
   "stun" : false,
@@ -891,6 +909,9 @@
     "durationTicks" : 0,
     "magnitude" : 10.0
   } ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "jujutsuSkill" : 45,
     "cursedEnergyOutput" : 25,
@@ -899,11 +920,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000021",
   "name" : "Cursed Energy Surge",
@@ -946,17 +967,18 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000022",
   "name" : "Miracle Creation",
   "description" : "With MIRACLE RESERVOIR, create 1 MIRACLE, up to 6.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
+  "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
   "stun" : false,
@@ -964,8 +986,8 @@
   "heavy" : false,
   "potency" : 1,
   "weaponRequired" : false,
-  "apCost" : 13,
-  "unleashPoint" : 13,
+  "apCost" : 20,
+  "unleashPoint" : 10,
   "baseCeCost" : 60,
   "hasCeCost" : true,
   "minCeCost" : 40,
@@ -986,6 +1008,9 @@
     "codedAbilityKey" : "MIRACLES",
     "codedAction" : "CREATE"
   } ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 0,
     "cursedEnergyOutput" : 60,
@@ -996,11 +1021,11 @@
   "requiredTechniqueId" : "Miracles",
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000023",
   "name" : "Sword Slash",
@@ -1015,7 +1040,7 @@
   "potency" : 1,
   "weaponRequired" : true,
   "apCost" : 12,
-  "unleashPoint" : 3,
+  "unleashPoint" : 4,
   "baseCeCost" : 0,
   "hasCeCost" : false,
   "minCeCost" : 0,
@@ -1040,11 +1065,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000024",
   "name" : "Sword Throw",
@@ -1059,7 +1084,7 @@
   "potency" : 1,
   "weaponRequired" : true,
   "apCost" : 14,
-  "unleashPoint" : 6,
+  "unleashPoint" : 8,
   "baseCeCost" : 0,
   "hasCeCost" : false,
   "minCeCost" : 0,
@@ -1084,11 +1109,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000025",
   "name" : "Ratio Mark",
@@ -1136,11 +1161,11 @@
   "requiredTechniqueId" : "Ratio",
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000026",
   "name" : "Ratio Strike",
@@ -1155,7 +1180,7 @@
   "potency" : 1,
   "weaponRequired" : false,
   "apCost" : 16,
-  "unleashPoint" : 9,
+  "unleashPoint" : 10,
   "baseCeCost" : 24,
   "hasCeCost" : true,
   "minCeCost" : 12,
@@ -1177,6 +1202,9 @@
     "codedTarget" : "APPLY_TO_MOVE"
   } ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 40,
     "combatAbility" : 50
@@ -1184,11 +1212,11 @@
   "requiredTechniqueId" : "Ratio",
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000027",
   "name" : "Batto Sword Drawing",
@@ -1231,17 +1259,18 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000028",
   "name" : "Simple Domain",
   "description" : "Consume this stance on the next MELEE or RANGED ATTACK to BLOCK PHYSICAL RANGED attacks or counter MELEE with BATTO SWORD DRAWING.",
   "tags" : [ "DEFENSIVE", "NON_INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
+  "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
   "stun" : false,
@@ -1250,7 +1279,7 @@
   "potency" : 1,
   "weaponRequired" : false,
   "apCost" : 10,
-  "unleashPoint" : 6,
+  "unleashPoint" : 2,
   "baseCeCost" : 28,
   "hasCeCost" : true,
   "minCeCost" : 15,
@@ -1272,6 +1301,9 @@
     "codedAction" : "ACTIVATE_SIMPLE_DOMAIN",
     "codedTarget" : "000027"
   } ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "jujutsuSkill" : 70,
     "cursedEnergyOutput" : 40,
@@ -1280,25 +1312,26 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000029",
   "name" : "Sidestep",
   "description" : "Gain a 60% chance to DODGE MELEE attacks for 8 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
+  "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
   "weaponRequired" : false,
-  "apCost" : 7,
+  "apCost" : 8,
   "unleashPoint" : 1,
   "baseCeCost" : 0,
   "hasCeCost" : false,
@@ -1323,17 +1356,18 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : true,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000030",
   "name" : "Weapon Parry",
   "description" : "PARRY POTENCY 1 ATTACKS for 3 AP ticks and STAGGER non-GUARD BREAK attackers for 2 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
+  "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
   "stun" : false,
@@ -1354,7 +1388,7 @@
   "blockFlatReduction" : 0,
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
-  "parryStaggerTicks" : 2,
+  "parryStaggerTicks" : 3,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
   "onBlockEffects" : [ ],
@@ -1362,31 +1396,32 @@
   "onDodgeEffects" : [ ],
   "prerequisites" : {
     "speed" : 50,
-    "combatAbility" : 55,
-    "strength" : 20
+    "strength" : 20,
+    "combatAbility" : 70
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : true,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000031",
   "name" : "Evasive Dash",
   "description" : "Gain a 75% chance to DODGE RANGED attacks for 10 AP ticks.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
+  "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
   "weaponRequired" : false,
   "apCost" : 9,
-  "unleashPoint" : 1,
+  "unleashPoint" : 2,
   "baseCeCost" : 0,
   "hasCeCost" : false,
   "minCeCost" : 0,
@@ -1410,9 +1445,70 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : true,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
+}, {
+  "id" : "000032",
+  "name" : "Divergent Fist",
+  "description" : "Perform a weak PHYSICAL hit followed by a delayed, stronger CURSED ENERGY hit.",
+  "tags" : [ "ATTACK", "MELEE", "PHYSICAL", "CURSED_ENERGY" ],
+  "basePower" : 32,
+  "hitComponents" : [ {
+    "basePower" : 12,
+    "tags" : [ "PHYSICAL" ],
+    "delayTicks" : 0,
+    "requiresPreviousConnection" : false,
+    "avoidable" : true
+  }, {
+    "basePower" : 20,
+    "tags" : [ "CURSED_ENERGY" ],
+    "delayTicks" : 2,
+    "requiresPreviousConnection" : true,
+    "avoidable" : false
+  } ],
+  "baseAccuracy" : 0.94,
+  "neverMiss" : false,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 16,
+  "unleashPoint" : 4,
+  "baseCeCost" : 12,
+  "hasCeCost" : true,
+  "minCeCost" : 6,
+  "maxCeCost" : 22,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "prerequisites" : {
+    "strength" : 0,
+    "combatAbility" : 50,
+    "speed" : 0,
+    "jujutsuSkill" : 10,
+    "cursedEnergyReserves" : 20,
+    "cursedEnergyEfficiency" : 30,
+    "cursedEnergyOutput" : 20
+  },
+  "isFreeMove" : false,
+  "mustBeGranted" : false,
+  "parry" : false,
+  "dodge" : false,
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 } ]

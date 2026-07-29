@@ -6,6 +6,7 @@ import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffect;
 
@@ -75,6 +76,7 @@ public final class RatioAbility implements CodedAbilityRuntime {
         BattleCombatant attacker,
         BattleCombatant defender,
         Move move,
+        HitComponent component,
         int tick,
         RandomSource rng
     ) {
@@ -87,7 +89,7 @@ public final class RatioAbility implements CodedAbilityRuntime {
         boolean stackRatio = consumedStack && rng.nextDouble() < STACK_TRIGGER_CHANCE;
 
         boolean reinforcementRatio = false;
-        if (features.contains(REINFORCEMENT_RATIO) && isReinforcement(move)) {
+        if (features.contains(REINFORCEMENT_RATIO) && isReinforcement(component)) {
             reinforcementRatio = rng.nextDouble() < REINFORCEMENT_TRIGGER_CHANCE;
         }
 
@@ -183,9 +185,10 @@ public final class RatioAbility implements CodedAbilityRuntime {
             && APPLY_TO_MOVE.equalsIgnoreCase(effect.getCodedTarget()));
     }
 
-    private static boolean isReinforcement(Move move) {
-        return move.getTags().contains(MoveTag.PHYSICAL)
-            && move.getTags().contains(MoveTag.CURSED_ENERGY);
+    private static boolean isReinforcement(HitComponent component) {
+        return component != null
+            && component.getTags().contains(MoveTag.PHYSICAL)
+            && component.getTags().contains(MoveTag.CURSED_ENERGY);
     }
 
     private CombatEvent event(int tick, BattleCombatant target, String message) {

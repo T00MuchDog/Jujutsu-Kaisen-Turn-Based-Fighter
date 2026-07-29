@@ -22,6 +22,7 @@ import com.jjktbf.multiplayer.protocol.CharacterState;
 import com.jjktbf.multiplayer.protocol.CommandResult;
 import com.jjktbf.multiplayer.protocol.CommandType;
 import com.jjktbf.multiplayer.protocol.ErrorResponse;
+import com.jjktbf.multiplayer.protocol.HitComponentState;
 import com.jjktbf.multiplayer.protocol.MatchState;
 import com.jjktbf.multiplayer.protocol.MatchStatus;
 import com.jjktbf.multiplayer.protocol.MoveState;
@@ -354,12 +355,15 @@ public final class HeadlessBattleSession {
 
             int ceCost = participant.combatant.computeMoveCeCost(move);
             long endTick = (long) placement.startTick() + move.getApCost() - 1L;
+            long fireTick = (long) placement.startTick() + move.getUnleashPoint() - 1L;
+            long finalImpactTick = fireTick + move.getMaxHitDelayTicks();
             if (move.getApCost() < 1
                 || move.getUnleashPoint() < 1
                 || move.getUnleashPoint() > move.getApCost()
                 || ceCost < 0
                 || placement.startTick() < 1
-                || endTick > BattlePlan.GRID_LENGTH) {
+                || endTick > BattlePlan.GRID_LENGTH
+                || finalImpactTick > BattlePlan.GRID_LENGTH) {
                 return rejectPlacement(
                     commandId,
                     INVALID_PLACEMENT,
@@ -789,9 +793,12 @@ public final class HeadlessBattleSession {
                     segment.status = ActionSegmentStatus.STUNNED;
                     segment.resolvedTick = findStunTick(participant, segment, events)
                         .orElse(wireCurrentTick);
-                } else if (wireCurrentTick >= execution.getFireTick()) {
+                } else if (battleState.isBattleOver() && execution.hasFired()) {
                     segment.status = ActionSegmentStatus.RESOLVED;
-                    segment.resolvedTick = execution.getFireTick();
+                    segment.resolvedTick = wireCurrentTick;
+                } else if (wireCurrentTick >= execution.getFinalImpactTick()) {
+                    segment.status = ActionSegmentStatus.RESOLVED;
+                    segment.resolvedTick = execution.getFinalImpactTick();
                 } else if (wireCurrentTick >= execution.getStartTick()) {
                     segment.status = ActionSegmentStatus.STARTED;
                     segment.resolvedTick = null;
@@ -818,6 +825,10 @@ public final class HeadlessBattleSession {
                 return event.getSource() == participant.combatant;
             })
             .filter(event -> event.getMove() == null
+                || event.getType() == CombatEvent.Type.MOVE_STUNNED
+                    && event.getComponentIndex() != null
+                    && event.getTick() >= segment.plannedSegment.getStartTick()
+                    && event.getTick() <= segment.plannedSegment.getEndTick()
                 || event.getMove().getId().equals(segment.plannedSegment.getMove().getId()))
             .map(CombatEvent::getTick)
             .findFirst();
@@ -913,6 +924,15 @@ public final class HeadlessBattleSession {
             moveTags(move),
             planBoard(BattlePlan.boardFor(move)),
             move.getBasePower(),
+            move.getBasePower() <= 0 ? List.of() : move.getHitComponents().stream()
+                .map(component -> new HitComponentState(
+                    component.getBasePower(),
+                    component.getCategory().name(),
+                    component.getTags().stream().map(MoveTag::name).toList(),
+                    component.getDelayTicks(),
+                    component.requiresPreviousConnection(),
+                    component.isAvoidable()))
+                .toList(),
             move.getBaseAccuracy(),
             move.isNeverMiss(),
             move.getApCost(),
@@ -1006,6 +1026,7 @@ public final class HeadlessBattleSession {
                 target == null ? null : target.combatant.getCharacter().getName(),
                 move == null ? null : move.getId(),
                 move == null ? null : move.getName(),
+                event.getComponentIndex(),
                 eventValue(event),
                 event.getCodedAbilityState(),
                 event.getMessage()

@@ -148,7 +148,7 @@ public class BattleController {
 
     private static boolean hasActiveActionAt(BattleCombatant combatant, int tick) {
         Timeline timeline = combatant.getTimeline();
-        return timeline != null && timeline.hasActiveSegmentAt(tick);
+        return timeline != null && timeline.hasResolutionAt(tick);
     }
 
     // -------------------------------------------------------------------------

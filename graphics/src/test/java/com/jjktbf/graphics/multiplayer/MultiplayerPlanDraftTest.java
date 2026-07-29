@@ -1,6 +1,7 @@
 package com.jjktbf.graphics.multiplayer;
 
 import com.jjktbf.model.combat.BattlePlan;
+import com.jjktbf.multiplayer.protocol.HitComponentState;
 import com.jjktbf.multiplayer.protocol.MoveState;
 import com.jjktbf.multiplayer.protocol.PlanBoard;
 import org.junit.jupiter.api.Test;
@@ -99,6 +100,39 @@ class MultiplayerPlanDraftTest {
         assertEquals(MultiplayerPlanDraft.AddStatus.MOVE_RESTRICTED, result.status());
         assertFalse(draft.canAdd(restricted));
         assertTrue(draft.placements().isEmpty());
+    }
+
+    @Test
+    void finalImpactMustFitInsideTheTimeline() {
+        MultiplayerPlanDraft draft = new MultiplayerPlanDraft();
+        draft.beginRound(1, 200, 20);
+        MoveState delayed = new MoveState(
+            "delayed",
+            "delayed",
+            "Delayed final hit",
+            "PHYSICAL",
+            List.of("ATTACK", "PHYSICAL"),
+            PlanBoard.OFFENSIVE,
+            10,
+            List.of(new HitComponentState(
+                10, "PHYSICAL", List.of("PHYSICAL"), 1, false, true)),
+            1.0,
+            true,
+            BattlePlan.GRID_LENGTH,
+            BattlePlan.GRID_LENGTH,
+            false,
+            0,
+            0,
+            0,
+            0,
+            true,
+            null
+        );
+
+        assertEquals(0, MultiplayerPlanDraft.lastStartTick(delayed));
+        assertEquals(MultiplayerPlanDraft.AddStatus.BOARD_FULL,
+            draft.addFirstFit(delayed).status());
+        assertFalse(draft.canAdd(delayed));
     }
 
     private static MoveState move(String id, PlanBoard board, int apCost, int ceCost) {

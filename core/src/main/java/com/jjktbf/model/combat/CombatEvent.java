@@ -60,6 +60,8 @@ public class CombatEvent {
     private final Move            move;       // relevant move (may be null)
     private final int             intValue;   // damage, CE amount, etc.
     private final int             tick;       // AP tick this event occurred on (0 = system/round events)
+    /** Zero-based hit component index, or null for move-level/system events. */
+    private final Integer         componentIndex;
     /** Optional post-event resource snapshot for a coded ability. */
     private final CodedAbilityState codedAbilityState;
     private final String          message;    // human-readable description
@@ -71,6 +73,7 @@ public class CombatEvent {
         this.move      = b.move;
         this.intValue  = b.intValue;
         this.tick      = b.tick;
+        this.componentIndex = b.componentIndex;
         this.codedAbilityState = b.codedAbilityState;
         this.message   = b.message;
     }
@@ -81,6 +84,7 @@ public class CombatEvent {
     public Move            getMove()     { return move; }
     public int             getIntValue() { return intValue; }
     public int             getTick()     { return tick; }
+    public Integer         getComponentIndex() { return componentIndex; }
     public CodedAbilityState getCodedAbilityState() { return codedAbilityState; }
     public String          getMessage()  { return message; }
 
@@ -102,6 +106,7 @@ public class CombatEvent {
         private Move            move;
         private int             intValue;
         private int             tick;
+        private Integer         componentIndex;
         private CodedAbilityState codedAbilityState;
         private String          message = "";
 
@@ -112,6 +117,7 @@ public class CombatEvent {
         public Builder move(Move v)               { this.move     = v; return this; }
         public Builder intValue(int v)            { this.intValue = v; return this; }
         public Builder tick(int v)                { this.tick     = v; return this; }
+        public Builder componentIndex(Integer v)  { this.componentIndex = v; return this; }
         public Builder codedAbilityState(CodedAbilityState v) {
             this.codedAbilityState = v;
             return this;

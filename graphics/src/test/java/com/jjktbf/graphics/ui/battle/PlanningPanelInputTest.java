@@ -113,6 +113,23 @@ class PlanningPanelInputTest {
         assertTrue(cues.isEmpty());
     }
 
+    @Test
+    void dragPrecheckIncludesTheFinalHitDelay() {
+        MoveData data = new MoveData();
+        data.id = "DELAYED";
+        data.name = "Delayed";
+        data.tags = List.of("ATTACK", "PHYSICAL");
+        data.apCost = 5;
+        data.unleashPoint = 5;
+        MoveData.HitComponentData hit = new MoveData.HitComponentData();
+        hit.basePower = 10;
+        hit.tags = List.of("PHYSICAL");
+        hit.delayTicks = 5;
+        data.hitComponents = List.of(hit);
+
+        assertEquals(1, PlanningPanel.lastStartTick(data.toMove(), 10));
+    }
+
     private static PlanningPanel panel(Move move, int apBudget) {
         return new PlanningPanel(
             List.of(move), Map.of(move.getId(), 0), apBudget, 0,

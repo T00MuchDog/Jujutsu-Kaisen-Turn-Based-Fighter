@@ -54,8 +54,11 @@ public class Timeline {
      *         (out of bounds or overlapping).
      */
     public ActionSegment placeAt(Move move, int startTick, int actualCeCost) {
-        int endTick = startTick + move.getApCost() - 1;
-        if (startTick < 1 || endTick > gridLength) return null;
+        long endTickLong = (long) startTick + move.getApCost() - 1L;
+        long fireTick = (long) startTick + move.getUnleashPoint() - 1L;
+        long finalImpactTick = fireTick + move.getMaxHitDelayTicks();
+        if (startTick < 1 || endTickLong > gridLength || finalImpactTick > gridLength) return null;
+        int endTick = (int) endTickLong;
         if (!isRangeFree(startTick, endTick)) return null;
         ActionSegment segment = new ActionSegment(move, startTick, actualCeCost);
         segments.add(segment);
@@ -136,6 +139,17 @@ public class Timeline {
         return false;
     }
 
+    /** True while a segment occupies AP or still has a committed impact pending. */
+    public boolean hasResolutionAt(int tick) {
+        for (ActionSegment segment : segments) {
+            if (segment.isStunned() && !segment.hasFired()) continue;
+            if (tick >= segment.getStartTick() && tick <= segment.getResolutionEndTick()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Find the active defense segment of the requested {@code type} whose window
      * covers {@code tick} and which applies to {@code incomingMove}. Returns the
@@ -157,12 +171,38 @@ public class Timeline {
      */
     public ActionSegment activeDefenseAt(int tick, Move incomingMove,
                                          com.jjktbf.model.move.DefenseType type) {
+        com.jjktbf.model.move.HitComponent component = incomingMove == null
+            || incomingMove.getHitComponents().isEmpty()
+            ? null : incomingMove.getHitComponents().get(0);
+        return activeDefenseAt(tick, incomingMove, component, type, false);
+    }
+
+    /** Component-aware defense query; damage coverage uses the component's type. */
+    public ActionSegment activeDefenseAt(
+        int tick,
+        Move incomingMove,
+        com.jjktbf.model.move.HitComponent component,
+        com.jjktbf.model.move.DefenseType type
+    ) {
+        return activeDefenseAt(tick, incomingMove, component, type, false);
+    }
+
+    /** Component-aware defense query that can exclude defenses not yet unleashed. */
+    public ActionSegment activeDefenseAt(
+        int tick,
+        Move incomingMove,
+        com.jjktbf.model.move.HitComponent component,
+        com.jjktbf.model.move.DefenseType type,
+        boolean requireFired
+    ) {
         for (ActionSegment s : segments) {
             Move move = s.getMove();
-            if (s.isStunned() || move.getDefenseType() != type) continue;
+            if (s.isStunned() || (requireFired && !s.hasFired())
+                || move.getDefenseType() != type) continue;
             if (incomingMove != null) {
                 if (type == com.jjktbf.model.move.DefenseType.BLOCK
-                        && !incomingMove.coveredByBlockTags(move.getBlockAffectedTags())) continue;
+                        && !incomingMove.coveredByBlockTags(
+                            move.getBlockAffectedTags(), component)) continue;
                 if (type == com.jjktbf.model.move.DefenseType.DODGE
                         && !move.dodgeAppliesTo(incomingMove)) continue;
                 // PARRY: no tag/scope filter — any attack is parryable.
@@ -207,6 +247,15 @@ public class Timeline {
     /** Legacy alias kept for callers that query any blocking defense. */
     public ActionSegment activeBlockAt(int tick, Move incomingMove) {
         return activeDefenseAt(tick, incomingMove, com.jjktbf.model.move.DefenseType.BLOCK);
+    }
+
+    public ActionSegment activeBlockAt(
+        int tick,
+        Move incomingMove,
+        com.jjktbf.model.move.HitComponent component
+    ) {
+        return activeDefenseAt(
+            tick, incomingMove, component, com.jjktbf.model.move.DefenseType.BLOCK);
     }
 
     // -------------------------------------------------------------------------

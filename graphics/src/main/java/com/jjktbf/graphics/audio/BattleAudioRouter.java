@@ -51,6 +51,8 @@ public final class BattleAudioRouter {
             case MOVE_FIRED -> cueForMove(move);
             case MOVE_MISSED -> Optional.of(SoundCue.BATTLE_MISS);
             case MOVE_BLOCKED, MOVE_BLOCK_REDUCED -> Optional.of(SoundCue.BATTLE_BLOCK);
+            case MOVE_DODGED -> Optional.of(SoundCue.BATTLE_DODGE);
+            case MOVE_PARRIED -> Optional.of(SoundCue.BATTLE_PARRY);
             case MOVE_STUNNED -> Optional.of(SoundCue.BATTLE_STUN);
             case DAMAGE_DEALT -> Optional.of(SoundCue.BATTLE_HIT);
             case DAMAGE_IGNORED -> Optional.of(SoundCue.BATTLE_DAMAGE_IGNORED);

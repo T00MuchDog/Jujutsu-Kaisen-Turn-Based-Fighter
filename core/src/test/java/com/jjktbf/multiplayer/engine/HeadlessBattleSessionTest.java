@@ -9,6 +9,7 @@ import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
+import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveTag;
@@ -448,6 +449,70 @@ class HeadlessBattleSessionTest {
 
         assertTrue(move.tags().contains(MoveTag.PHYSICAL.name()));
         assertTrue(move.tags().contains(MoveTag.DEFENSIVE.name()));
+    }
+
+    @Test
+    void moveSnapshotsKeepLegacyZeroPowerAttacksInLegacyShape() {
+        Move zeroPower = new Move.Builder("ZERO_POWER")
+            .name("Zero Power")
+            .category(MoveCategory.PHYSICAL)
+            .basePower(0)
+            .build();
+
+        var move = session(1601L, zeroPower, zeroPower).snapshot()
+            .player(PlayerSide.PLAYER_ONE).orElseThrow()
+            .character().knownMoves().get(0);
+
+        assertEquals(0, move.basePower());
+        assertTrue(move.hitComponents().isEmpty());
+    }
+
+    @Test
+    void authoritativeSessionSerializesAndResolvesDelayedComponents() {
+        Move multiHit = new Move.Builder("MULTI_HIT")
+            .name("Multi Hit")
+            .description("Two authoritative impacts.")
+            .category(MoveCategory.PHYSICAL_CURSED_ENERGY)
+            .hitComponents(List.of(
+                new HitComponent(1, MoveCategory.PHYSICAL, 0),
+                new HitComponent(
+                    1, Set.of(MoveTag.CURSED_ENERGY), 4, true, false)))
+            .neverMiss(true)
+            .apCost(2)
+            .unleashPoint(1)
+            .freeMove(true)
+            .build();
+        Move harmless = physicalAttack("HARMLESS_MULTI_TARGET", 1, true);
+        HeadlessBattleSession session = session(161L, multiHit, harmless);
+
+        var snapshotMove = session.snapshot().player(PlayerSide.PLAYER_ONE).orElseThrow()
+            .character().knownMoves().get(0);
+        assertEquals(2, snapshotMove.hitComponents().size());
+        assertEquals(4, snapshotMove.hitComponents().get(1).delayTicks());
+        assertFalse(snapshotMove.hitComponents().get(1).avoidable());
+
+        assertTrue(session.applyCommand(
+            "player-1",
+            command(session, "multi-plan", new PlanPlacement(multiHit.getId(), 1)))
+            .accepted());
+        CommandResult result = session.applyCommand(
+            "player-2",
+            ActionCommand.submitPlan(
+                "multi-empty", "match-1", session.getStateVersion(), List.of()));
+
+        assertTrue(result.accepted());
+        assertEquals(List.of(0, 1), result.events().stream()
+            .filter(event -> event.type() == BattleEventType.DAMAGE_DEALT)
+            .filter(event -> multiHit.getId().equals(event.moveId()))
+            .map(event -> event.componentIndex())
+            .toList());
+        assertEquals(List.of(1, 5), result.events().stream()
+            .filter(event -> event.type() == BattleEventType.DAMAGE_DEALT)
+            .filter(event -> multiHit.getId().equals(event.moveId()))
+            .map(event -> event.tick())
+            .toList());
+        assertEquals(5, result.state().player(PlayerSide.PLAYER_ONE).orElseThrow()
+            .character().plan().resolvedSegments().get(0).resolvedTick());
     }
 
     @Test

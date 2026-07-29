@@ -204,8 +204,12 @@ are the Move/MoveData field names.
     pool                  MovePool (Combat Arts vs Jujutsu Arts; see §7).
 
   Combat numbers
-    basePower             Raw damage number. 0 for non-attacking moves. Scaled by
-                          Power, reduced by block, divided by Defense.
+    basePower             Combined raw damage number across every hit component.
+                          0 for non-attacking moves.
+    hitComponents         Ordered damage instances. Each stores basePower, its own
+                          damage-type tags, a delayTicks offset from unleash,
+                          requiresPreviousConnection, and avoidable. Legacy moves
+                          without this list synthesize one component from basePower.
     baseAccuracy          Fraction [0.0, 1.0] — inherent accuracy before ACC/EVA.
                           1.0 = 100% (still subject to the hit roll).
     neverMiss             If true, the move bypasses the hit roll and always hits.
@@ -277,7 +281,7 @@ are the Move/MoveData field names.
     heavy       boolean  → Move.isHeavy()      → HEAVY tag
 
   Other accessors worth knowing:
-    isBlackFlashEligible()  delegates to the move's category.
+    isBlackFlashEligible()  true when any individual hit component is eligible.
     isMelee() / isRanged()  derived from the presence of the MELEE/RANGED tags.
     isDefensive()           derived from category == DEFENSIVE.
     isBlock() / isParry() / isDodge()  derived from defenseType.
@@ -330,7 +334,12 @@ tag names below.
 
   WEAPON TAG:
     SWORD                 Sword / sword-like weapon modifier used by move-scoped
-                          abilities (e.g. Earnest Swordswoman). Modifier tag.
+                           abilities (e.g. Earnest Swordswoman). Modifier tag.
+
+  MARKER TAG:
+    SOUL                  Marks attacks and effects that can interact directly
+                          with a soul. It does not alter category, Power, pool,
+                          block coverage, or Black Flash eligibility.
 
   MODIFIER FLAGS (also backed by a dedicated boolean on Move):
     STUN                  On a successful offensive hit, the defender's action
@@ -352,9 +361,9 @@ tag names below.
                           The "heavy beats stun" half of the stun ↔ heavy
                           interaction. Backed by Move.isHeavy().
 
-  Black Flash eligibility rule (class javadoc, also enforced by MoveCategory):
-    a move must contain PHYSICAL AND at least one of {CURSED_ENERGY,
-    INNATE_TECHNIQUE, NON_INNATE_TECHNIQUE}.
+  Black Flash eligibility rule (evaluated per hit component): a component must
+    contain PHYSICAL AND at least one of {CURSED_ENERGY, INNATE_TECHNIQUE,
+    NON_INNATE_TECHNIQUE}.
 
 ================================================================================
   6. MOVE CATEGORIES  (MoveCategory.java)
@@ -724,7 +733,7 @@ CHARACTER-SOURCE ABILITY
   An ability whose sourceType is CHARACTER. It is available to every character;
   CHARACTER does not mean character-exclusive. Only assigned abilities are active.
 
-ABILITY EFFECT TYPES  (49 enum constants; grouped as in source).
+ABILITY EFFECT TYPES  (52 enum constants; grouped as in source).
   Each type owns its editor display name, description, required parameters, and
   defaults. Effects with ordinal ≥ HEAL_HP are TRIGGERED RUNTIME EFFECTS: applied
   by the passive dispatcher on activation, not at construction.
@@ -735,7 +744,12 @@ ABILITY EFFECT TYPES  (49 enum constants; grouped as in source).
     STAT_DIVIDE         Divide stat (after additive)      (STAT, DECIMAL)
     STAT_SET_VALUE      Set stat to an exact value        (STAT, INTEGER)
     STAT_SET_MIN        Set stat to 0 (display N/A)       (STAT)
+    STAT_ALLOCATION_MINIMUM  Set editor allocation floor  (STAT, INTEGER)
     STAT_BONUS_POINTS   Change point-buy budget (editor)  (INTEGER)
+
+  Marker templates:
+    POISON_IMMUNITY     Mark the character as poison-immune
+    SOUL_AWARE_ATTACKS  Mark the character's attacks as soul-aware
 
   CE cost modifiers (move-scoped):
     CE_COST_TO_MINIMUM  Force matching moves to min CE cost      (MOVE_SCOPE)
@@ -911,7 +925,11 @@ Non-stat control status:
     the affected character's active, not-yet-fired action segments. This is a
     character status, not the STUN move tag, so HEAVY does not resist it.
 
-Total: 17 stat pairs plus STAGGER = 35 constants.
+  POISON
+    Must use rounds > 0 with 0 ticks, or be permanent. Magnitude stores flat
+    damage per round for future poison resolution.
+
+Total: 17 stat pairs plus STAGGER and POISON = 36 constants.
 
 Legacy aliases (StatusEffectType.fromName resolves these; "signed" names can mean
 either direction depending on the stored magnitude's sign):
@@ -934,7 +952,7 @@ Immutable records emitted by CombatResolver and consumed by the View layer (the
 Observer bridge — the core never calls the view directly). These are the
 canonical names for what happened on a given tick (tick = 0 for system/round
 events). Each event carries source, target, move, intValue, tick, an optional
-CodedAbilityState snapshot, and a human-readable message.
+hit-component index, an optional CodedAbilityState snapshot, and a message.
 
   Move execution:
     MOVE_FIRED          move unleashed — attack resolved
@@ -1047,6 +1065,8 @@ CHARACTER EDITOR  (CharacterEditorScreen)
   Point-buy math: budget = base + resolvedAbilities(cd).statBonusPoints() (a
   STAT_BONUS_POINTS ability extends the budget); pointsSpent sums (stat − 80)
   across stats, skipping CTM when the character has no technique.
+  STAT_ALLOCATION_MINIMUM effects raise individual slider floors and save-time
+  validation without changing battle-time stats or blocking temporary debuffs.
 
 ABILITY EDITOR  (AbilityEditorScreen)
   Creates/edits abilities; saves data/abilities/all_abilities.json. Category
@@ -1081,7 +1101,7 @@ TECHNIQUE EDITOR  (TechniqueEditorScreen)
 This section summarises the content currently shipped in data/; counts and names
 reflect HEAD at the time of writing. See the JSON files for full detail.
 
-  MOVES — 29 moves (data/moves/all_moves.json), ids 000000–000028.
+  MOVES — 33 moves (data/moves/all_moves.json), ids 000000–000032.
     Free moves:            000000 Basic Strike, 000001 Basic Block.
     Must-be-granted:       000028 Simple Domain.
     STUN-tagged (4):       000002 Jab, 000005 Sweeping Kick, 000008 Reinforced
@@ -1093,11 +1113,12 @@ reflect HEAD at the time of writing. See the JSON files for full detail.
     INNATE_TECHNIQUE moves:000022 Miracle Creation (Miracles),
                            000025 Ratio Mark, 000026 Ratio Strike (Ratio).
     NON_INNATE_TECHNIQUE:  000028 Simple Domain.
+    Multi-hit:              000032 Divergent Fist (PHYSICAL then delayed CE).
     Notable: 000028 Simple Domain is a NON_INNATE_TECHNIQUE defensive move with
              a coded self-effect NEW_SHADOW_STYLE/ACTIVATE_SIMPLE_DOMAIN.
 
-  ABILITIES — 8 abilities (data/abilities/all_abilities.json), ids 000000–000007.
-    All PASSIVE. Coded abilities (read-only in editor):
+  ABILITIES — 13 abilities (data/abilities/all_abilities.json), ids 000000–000012.
+    Coded abilities (read-only in editor; passive or automatically triggered):
       000001 Miracle Reservoir        MIRACLES/RESERVOIR
       000002 Fateful Reprieve         MIRACLES/FATEFUL_REPRIEVE
       000003 Fortune Reclaimed        MIRACLES/FORTUNE_RECLAIMED
@@ -1107,16 +1128,23 @@ reflect HEAD at the time of writing. See the JSON files for full detail.
       000000 Iron Constitution        STAT_ADD durability +15 (CHARACTER)
       000005 New Shadow Style         GRANT_MOVE 000027 + GRANT_MOVE 000028 (CHARACTER)
       000007 Earnest Swordswoman      MOVE_BASE_POWER_MULTIPLY ×1.10 on SWORD (CHARACTER)
+      000008 Vessel of Sukuna         grants abilities 000009–000011
+      000009 Freak of Nature          physical allocation floors at 60
+      000010 Immune to Poisons        POISON_IMMUNITY marker
+      000011 Vessel                   grants ability 000012
+      000012 Visualise the Soul       SOUL_AWARE_ATTACKS marker
 
-  CHARACTERS — 6 characters (data/characters/all_characters.json), ids 000000–000005.
+  CHARACTERS — 7 characters (data/characters/all_characters.json), ids 000000–000006.
     000000 Ren Kurogane     (no innate technique)
     000001 Mina Ishikawa    (no innate technique; ability: Iron Constitution)
     000002 Sora Aizawa      (no innate technique)
     000003 Haruta Shigemo   innate: Miracles  (abilities: Miracles trio)
     000004 Shigechi Urata   innate: Ratio     (ability: Ratio Reinforcement)
     000005 Miwa Kasumi      (no innate technique; abilities: New Shadow Style,
-                             Simple Domain Binding Vow, Earnest Swordswoman;
-                             includes move 000028 Simple Domain)
+                              Simple Domain Binding Vow, Earnest Swordswoman;
+                              includes move 000028 Simple Domain)
+    000006 Yuji Itadori (Vs. Mahito) (no innate technique; includes move 000032
+                              Divergent Fist and abilities 000008–000012)
     Characters without an innate technique have cursedTechniqueMastery = 0.
 
   TECHNIQUES — 2 techniques (data/techniques/all_techniques.json), ids 000000–000001.

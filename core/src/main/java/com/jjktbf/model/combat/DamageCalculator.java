@@ -3,6 +3,7 @@ package com.jjktbf.model.combat;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.CombatStats;
 import com.jjktbf.model.character.coded.CodedHitModifiers;
+import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
 
@@ -68,7 +69,8 @@ public final class DamageCalculator {
         RandomSource    rng,
         int             currentRound
     ) {
-        return resolve(attacker, defender, move, currentTick, rng, currentRound, false);
+        return resolve(attacker, defender, move, firstComponent(move),
+            currentTick, rng, currentRound, false);
     }
 
     public static DamageResult resolve(
@@ -80,6 +82,51 @@ public final class DamageCalculator {
         int             currentRound,
         boolean         forceFullBlock
     ) {
+        return resolve(attacker, defender, move, firstComponent(move),
+            currentTick, rng, currentRound, forceFullBlock);
+    }
+
+    public static DamageResult resolve(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move            move,
+        HitComponent    component,
+        int             currentTick,
+        RandomSource    rng,
+        int             currentRound
+    ) {
+        return resolve(attacker, defender, move, component,
+            currentTick, rng, currentRound, false);
+    }
+
+    /** Resolve one authored hit component while inheriting move-level behavior. */
+    public static DamageResult resolve(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move            move,
+        HitComponent    component,
+        int             currentTick,
+        RandomSource    rng,
+        int             currentRound,
+        boolean         forceFullBlock
+    ) {
+        return resolve(attacker, defender, move, component, currentTick, rng,
+            currentRound, forceFullBlock, false);
+    }
+
+    /** Resolve one component with optional exclusion of defenses not yet unleashed. */
+    public static DamageResult resolve(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move            move,
+        HitComponent    component,
+        int             currentTick,
+        RandomSource    rng,
+        int             currentRound,
+        boolean         forceFullBlock,
+        boolean         requireFiredDefense
+    ) {
+        if (component == null) throw new IllegalArgumentException("hit component is required");
         // Use ability-modified stats for all calculations
         CharacterStats acs = attacker.getEffectiveStats();
 
@@ -88,62 +135,67 @@ public final class DamageCalculator {
         // --- 0. Dodge roll (chance-based, no potency gate) ---
         // A live DODGE defense reacts to a scope-matching incoming attack with a
         // dodgeChance% probability of avoiding it entirely. (Future AOE bypasses.)
-        if (defTimeline != null) {
+        if (component.isAvoidable() && defTimeline != null) {
             ActionSegment dodgeSeg = defTimeline.activeDefenseAt(
-                currentTick, move, com.jjktbf.model.move.DefenseType.DODGE);
+                currentTick, move, component, com.jjktbf.model.move.DefenseType.DODGE,
+                requireFiredDefense);
             if (dodgeSeg != null) {
                 int chance = Math.max(0, Math.min(100, dodgeSeg.getMove().getDodgeChance()));
                 if (chance >= 100 || rng.nextDouble() < chance / 100.0) {
-                    return DamageResult.dodged(move, dodgeSeg, List.of());
+                    return DamageResult.dodged(move, component, dodgeSeg, List.of());
                 }
             }
         }
 
         // --- 1. Hit roll ---
-        boolean hit;
-        if (defender.consumeGuaranteedDodge()) {
-            hit = false;
-        } else if (move.isNeverMiss() || attacker.consumeGuaranteedHit()) {
-            hit = true;
-        } else {
-            double modifiedAccuracy = (attacker.getAccuracy()
-                + attacker.getAbilityFlags().accuracyBonusFor(move)
-                + defender.getAbilityFlags().opponentAccuracyBonusFor(move))
-                * attacker.getAbilityFlags().accuracyMultiplierFor(move)
-                * defender.getAbilityFlags().opponentAccuracyMultiplierFor(move);
-            int attackerAccuracy = (int) Math.round(Math.max(0, modifiedAccuracy));
-            double hitChance = CombatStats.computeHitChance(
-                attackerAccuracy,
-                defender.getEvasion(),
-                move.getBaseAccuracy()
-            );
-            hit = rng.nextDouble() < hitChance;
-        }
+        if (component.isAvoidable()) {
+            boolean hit;
+            if (defender.consumeGuaranteedDodge()) {
+                hit = false;
+            } else if (move.isNeverMiss() || attacker.consumeGuaranteedHit()) {
+                hit = true;
+            } else {
+                double modifiedAccuracy = (attacker.getAccuracy()
+                    + attacker.getAbilityFlags().accuracyBonusFor(move)
+                    + defender.getAbilityFlags().opponentAccuracyBonusFor(move))
+                    * attacker.getAbilityFlags().accuracyMultiplierFor(move)
+                    * defender.getAbilityFlags().opponentAccuracyMultiplierFor(move);
+                int attackerAccuracy = (int) Math.round(Math.max(0, modifiedAccuracy));
+                double hitChance = CombatStats.computeHitChance(
+                    attackerAccuracy,
+                    defender.getEvasion(),
+                    move.getBaseAccuracy()
+                );
+                hit = rng.nextDouble() < hitChance;
+            }
 
-        if (!hit) {
-            return DamageResult.miss(move);
+            if (!hit) {
+                return DamageResult.miss(move, component);
+            }
         }
 
         // Compiled techniques can react to a direct connection before block and
         // defense are calculated. Misses never reach this hook.
         CodedHitModifiers codedModifiers = attacker.getCodedAbilities().onAttackConnected(
-            attacker, defender, move, currentTick, rng);
+            attacker, defender, move, component, currentTick, rng);
 
         // --- 1b. Parry check (potency-gated; GUARD_BREAK does NOT bypass parry) ---
         // A parry negates the hit entirely. If the parry would stagger the attacker
         // (non-GUARD_BREAK, parryStaggerTicks > 0), the resolver applies the stagger.
-        if (defTimeline != null) {
+        if (component.isAvoidable() && defTimeline != null) {
             ActionSegment parrySeg = defTimeline.activeDefenseAt(
-                currentTick, move, com.jjktbf.model.move.DefenseType.PARRY);
+                currentTick, move, component, com.jjktbf.model.move.DefenseType.PARRY,
+                requireFiredDefense);
             if (parrySeg != null && parrySeg.getMove().getPotency() >= move.getPotency()) {
                 boolean stagger = parrySeg.getMove().parryStaggersAttacker(move);
                 int staggerTicks = stagger ? parrySeg.getMove().getParryStaggerTicks() : 0;
-                return DamageResult.parried(move, parrySeg, staggerTicks, codedModifiers.events());
+                return DamageResult.parried(
+                    move, component, parrySeg, staggerTicks, codedModifiers.events());
             }
         }
 
         if (forceFullBlock && !move.isGuardBreak()) {
-            return DamageResult.blocked(move, codedModifiers.events());
+            return DamageResult.blocked(move, component, null, codedModifiers.events());
         }
         boolean bypassBlock = move.isGuardBreak() || codedModifiers.bypassBlock();
 
@@ -154,7 +206,8 @@ public final class DamageCalculator {
         ActionSegment activeBlockSegment = null;
         if (!bypassBlock && defTimeline != null) {
             ActionSegment blk = defTimeline.activeDefenseAt(
-                currentTick, move, com.jjktbf.model.move.DefenseType.BLOCK);
+                currentTick, move, component, com.jjktbf.model.move.DefenseType.BLOCK,
+                requireFiredDefense);
             if (blk != null && blk.getMove().getPotency() >= move.getPotency()) {
                 activeBlockSegment = blk;
             }
@@ -165,21 +218,22 @@ public final class DamageCalculator {
         // physical moves are weaker than CE/technique moves at equal base power.
         // The multiplier applies to the raw PowerCalculator output before
         // POWER battle-stat modifiers, so ability Power buffs compose on top.
-        double power = PowerCalculator.compute(move.getCategory(), acs);
-        if (move.getCategory() == MoveCategory.PHYSICAL) {
+        double power = PowerCalculator.compute(component.getCategory(), acs);
+        if (component.getCategory() == MoveCategory.PHYSICAL) {
             power *= CombatStats.PHYSICAL_POWER_MULTIPLIER;
         }
         power = Math.max(0.0, attacker.modifyBattleStat(
             com.jjktbf.model.character.BattleStatKey.POWER, power));
 
         // --- 4. Apply defensive block before Defense ---
-        double attackValue = move.getBasePower()
+        double attackValue = component.getBasePower()
             * attacker.getAbilityFlags().basePowerMultiplierFor(move)
             * power;
         if (activeBlockSegment != null) {
             attackValue = activeBlockSegment.getMove().applyBlockTo(attackValue);
             if (attackValue == 0) {
-                return DamageResult.blocked(move, codedModifiers.events()); // full block
+                return DamageResult.blocked(
+                    move, component, activeBlockSegment, codedModifiers.events());
             }
         }
 
@@ -202,7 +256,7 @@ public final class DamageCalculator {
         boolean blackFlash = false;
         int finalDamage    = rawDamage;
 
-        if (move.isBlackFlashEligible()) {
+        if (component.isBlackFlashEligible()) {
             double bfChance = attacker.getCurrentBfChance();
             blackFlash = attacker.consumeGuaranteedBlackFlash() || rng.nextDouble() < bfChance;
 
@@ -212,8 +266,15 @@ public final class DamageCalculator {
             }
         }
 
-        return DamageResult.hit(move, finalDamage, rawDamage, blackFlash,
-            bypassBlock, codedModifiers.events());
+        return DamageResult.hit(move, component, finalDamage, rawDamage, blackFlash,
+            bypassBlock, codedModifiers.events(), activeBlockSegment);
+    }
+
+    private static HitComponent firstComponent(Move move) {
+        if (move == null || move.getHitComponents().isEmpty()) {
+            throw new IllegalArgumentException("damaging move must have at least one hit component");
+        }
+        return move.getHitComponents().get(0);
     }
 
     /**
@@ -248,6 +309,7 @@ public final class DamageCalculator {
 
         private final Outcome outcome;
         private final Move    move;
+        private final HitComponent component;
         private final int     finalDamage;
         private final int     rawDamage;       // before BF multiplier
         private final boolean blackFlash;
@@ -261,6 +323,7 @@ public final class DamageCalculator {
         private DamageResult(
             Outcome outcome,
             Move move,
+            HitComponent component,
             int finalDamage,
             int rawDamage,
             boolean blackFlash,
@@ -271,6 +334,7 @@ public final class DamageCalculator {
         ) {
             this.outcome     = outcome;
             this.move        = move;
+            this.component   = component;
             this.finalDamage = finalDamage;
             this.rawDamage   = rawDamage;
             this.blackFlash  = blackFlash;
@@ -281,22 +345,52 @@ public final class DamageCalculator {
         }
 
         public static DamageResult miss(Move move) {
-            return new DamageResult(Outcome.MISS, move, 0, 0, false, false, List.of(), null, 0);
+            return miss(move, firstComponent(move));
+        }
+        public static DamageResult miss(Move move, HitComponent component) {
+            return new DamageResult(
+                Outcome.MISS, move, component, 0, 0, false, false, List.of(), null, 0);
         }
         public static DamageResult blocked(Move move, List<CombatEvent> codedEvents) {
+            return blocked(move, firstComponent(move), null, codedEvents);
+        }
+        public static DamageResult blocked(
+            Move move,
+            HitComponent component,
+            ActionSegment defenseSegment,
+            List<CombatEvent> codedEvents
+        ) {
             return new DamageResult(
-                Outcome.BLOCKED, move, 0, 0, false, false, codedEvents, null, 0);
+                Outcome.BLOCKED, move, component, 0, 0, false, false,
+                codedEvents, defenseSegment, 0);
         }
         /** Dodge outcome — the defender avoided the attack entirely. */
         public static DamageResult dodged(Move move, ActionSegment dodgeSegment,
-                                          List<CombatEvent> codedEvents) {
-            return new DamageResult(Outcome.DODGED, move, 0, 0, false, false,
+                                           List<CombatEvent> codedEvents) {
+            return dodged(move, firstComponent(move), dodgeSegment, codedEvents);
+        }
+        public static DamageResult dodged(
+            Move move,
+            HitComponent component,
+            ActionSegment dodgeSegment,
+            List<CombatEvent> codedEvents
+        ) {
+            return new DamageResult(Outcome.DODGED, move, component, 0, 0, false, false,
                 codedEvents, dodgeSegment, 0);
         }
         /** Parry outcome — the defender negated the attack; {@code staggerTicks} stagger the attacker. */
         public static DamageResult parried(Move move, ActionSegment parrySegment,
-                                           int staggerTicks, List<CombatEvent> codedEvents) {
-            return new DamageResult(Outcome.PARRIED, move, 0, 0, false, false,
+                                            int staggerTicks, List<CombatEvent> codedEvents) {
+            return parried(move, firstComponent(move), parrySegment, staggerTicks, codedEvents);
+        }
+        public static DamageResult parried(
+            Move move,
+            HitComponent component,
+            ActionSegment parrySegment,
+            int staggerTicks,
+            List<CombatEvent> codedEvents
+        ) {
+            return new DamageResult(Outcome.PARRIED, move, component, 0, 0, false, false,
                 codedEvents, parrySegment, staggerTicks);
         }
         public static DamageResult hit(Move move, int finalDmg, int rawDmg, boolean bf) {
@@ -310,12 +404,26 @@ public final class DamageCalculator {
             boolean bypassedBlock,
             List<CombatEvent> codedEvents
         ) {
-            return new DamageResult(Outcome.HIT, move, finalDmg, rawDmg, bf,
-                bypassedBlock, codedEvents, null, 0);
+            return hit(move, firstComponent(move), finalDmg, rawDmg, bf,
+                bypassedBlock, codedEvents, null);
+        }
+        public static DamageResult hit(
+            Move move,
+            HitComponent component,
+            int finalDmg,
+            int rawDmg,
+            boolean bf,
+            boolean bypassedBlock,
+            List<CombatEvent> codedEvents,
+            ActionSegment defenseSegment
+        ) {
+            return new DamageResult(Outcome.HIT, move, component, finalDmg, rawDmg, bf,
+                bypassedBlock, codedEvents, defenseSegment, 0);
         }
 
         public Outcome getOutcome()     { return outcome; }
         public Move    getMove()        { return move; }
+        public HitComponent getComponent() { return component; }
         public int     getFinalDamage() { return finalDamage; }
         public int     getRawDamage()   { return rawDamage; }
         public boolean isBlackFlash()   { return blackFlash; }

@@ -6,6 +6,7 @@ import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.StatusEffect;
 
 import java.util.List;
@@ -59,6 +60,18 @@ public interface CodedAbilityRuntime {
         RandomSource rng
     ) {
         return CodedHitModifiers.none();
+    }
+
+    /** Component-aware hook used by multi-hit moves. */
+    default CodedHitModifiers onAttackConnected(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move move,
+        HitComponent component,
+        int tick,
+        RandomSource rng
+    ) {
+        return onAttackConnected(attacker, defender, move, tick, rng);
     }
 
     /** React immediately before an incoming planned move is marked as fired. */

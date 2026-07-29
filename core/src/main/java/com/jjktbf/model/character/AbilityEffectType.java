@@ -52,10 +52,21 @@ public enum AbilityEffectType {
         "Remove stat",
         "Sets one stat to 0, displayed as N/A.",
         STAT),
+    STAT_ALLOCATION_MINIMUM(
+        "Set allocation minimum",
+        "Sets the minimum value assignable to one base stat without affecting battle-time stat changes.",
+        STAT, INTEGER),
     STAT_BONUS_POINTS(
         "Change point budget",
         "Changes the character editor's point-buy budget.",
         INTEGER),
+
+    POISON_IMMUNITY(
+        "Poison immunity",
+        "Marks the character as immune to poison effects."),
+    SOUL_AWARE_ATTACKS(
+        "Soul-aware attacks",
+        "Marks the character's attacks as capable of interacting with souls."),
 
     CE_COST_TO_MINIMUM(
         "Minimum CE costs",
@@ -310,6 +321,7 @@ public enum AbilityEffectType {
             case STAT_MULTIPLY -> effect.doubleValue = 1.10;
             case STAT_DIVIDE -> effect.doubleValue = 2.0;
             case STAT_SET_VALUE -> effect.intValue = CharacterStats.BASELINE;
+            case STAT_ALLOCATION_MINIMUM -> effect.intValue = CharacterStats.BASELINE;
             case STAT_BONUS_POINTS -> effect.intValue = 10;
             case CE_COST_MULTIPLY, MOVE_ACCURACY_MULTIPLY,
                  OPPONENT_ACCURACY_MULTIPLY, DAMAGE_MULTIPLY, MOVE_BASE_POWER_MULTIPLY,
@@ -502,6 +514,8 @@ public enum AbilityEffectType {
             } catch (IllegalArgumentException ignored) {
                 return status != null && status.requiresTickDuration()
                     ? "Stagger must use 0 rounds and at least 1 AP tick."
+                    : status != null && status.requiresRoundDuration()
+                        ? "Poison must use a positive round duration or be permanent, with 0 AP ticks."
                     : "Use -1 rounds and 0 ticks for permanent, or enter at least one round or tick.";
             }
             if (AbilityEffectTiming.ROUND_START.name().equals(effect.timing)
@@ -526,6 +540,11 @@ public enum AbilityEffectType {
                  MOVE_ACCURACY_ADD, OPPONENT_ACCURACY_ADD,
                   MODIFY_AP_BAR, TEMP_STAT_ADD -> effect.intValue == 0 ? "Enter a non-zero amount." : null;
             case STAT_SET_VALUE, TEMP_STAT_SET_VALUE -> effect.intValue < 0 ? "Stat value cannot be negative." : null;
+            case STAT_ALLOCATION_MINIMUM ->
+                effect.intValue < CharacterStats.MIN_STAT || effect.intValue > CharacterStats.MAX_STAT
+                    ? "Allocation minimum must be between " + CharacterStats.MIN_STAT
+                        + " and " + CharacterStats.MAX_STAT + "."
+                    : null;
             case STAT_MULTIPLY, CE_COST_MULTIPLY, MOVE_ACCURACY_MULTIPLY,
                   OPPONENT_ACCURACY_MULTIPLY, DAMAGE_MULTIPLY, MOVE_BASE_POWER_MULTIPLY,
                   MODIFY_DEFENSE,
@@ -560,7 +579,9 @@ public enum AbilityEffectType {
     /** True for effects resolved while a passive ability is assigned. */
     public boolean isPassiveOnly() {
         return switch (this) {
-            case STAT_BONUS_POINTS, GRANT_MOVE, GRANT_ABILITY, FORCE_MOVE,
+            case STAT_ALLOCATION_MINIMUM, STAT_BONUS_POINTS,
+                 POISON_IMMUNITY, SOUL_AWARE_ATTACKS,
+                 GRANT_MOVE, GRANT_ABILITY, FORCE_MOVE,
                  UNLOCK_TECHNIQUE, AUTO_STATUS_APPLY -> true;
             default -> false;
         };

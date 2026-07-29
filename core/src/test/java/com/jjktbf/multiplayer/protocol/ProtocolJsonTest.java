@@ -36,6 +36,11 @@ class ProtocolJsonTest {
             .character().currentDefense());
         assertEquals(4, tree.at("/players/0/character/codedAbilities/0/currentValue").intValue());
         assertEquals(205, tree.at("/roundStartCharacterStates/0/currentHp").intValue());
+        assertEquals(2, restored.players().get(0).character()
+            .knownMoves().get(0).hitComponents().size());
+        assertEquals(4, tree.at(
+            "/players/0/character/knownMoves/0/hitComponents/1/delayTicks").intValue());
+        assertEquals(1, restored.recentEvents().get(0).componentIndex());
         assertTrue(restored.players().get(0).readyForNextRound());
         assertThrows(UnsupportedOperationException.class, () -> restored.players().add(null));
         assertThrows(UnsupportedOperationException.class,
@@ -164,6 +169,11 @@ class ProtocolJsonTest {
             List.of("PHYSICAL", "CURSED_ENERGY", "ATTACK"),
             PlanBoard.OFFENSIVE,
             75,
+            List.of(
+                new HitComponentState(
+                    50, "PHYSICAL", List.of("PHYSICAL"), 0, false, true),
+                new HitComponentState(
+                    25, "CURSED_ENERGY", List.of("CURSED_ENERGY"), 4, true, false)),
             0.90,
             false,
             25,
@@ -281,6 +291,7 @@ class ProtocolJsonTest {
             playerTwoCharacter.name(),
             divergentFist.moveId(),
             divergentFist.name(),
+            1,
             39,
             new CodedAbilityState("MIRACLES", "Miracles", 4, 6),
             "Yuji Itadori dealt 39 damage."

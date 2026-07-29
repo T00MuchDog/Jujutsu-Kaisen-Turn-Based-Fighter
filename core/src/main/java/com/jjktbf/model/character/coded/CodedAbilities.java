@@ -6,6 +6,7 @@ import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.StatusEffect;
 
 import java.util.ArrayList;
@@ -61,10 +62,23 @@ public final class CodedAbilities {
         int tick,
         RandomSource rng
     ) {
+        HitComponent component = move == null || move.getHitComponents().isEmpty()
+            ? null : move.getHitComponents().get(0);
+        return onAttackConnected(attacker, defender, move, component, tick, rng);
+    }
+
+    public CodedHitModifiers onAttackConnected(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move move,
+        HitComponent component,
+        int tick,
+        RandomSource rng
+    ) {
         CodedHitModifiers modifiers = CodedHitModifiers.none();
         for (CodedAbilityRuntime runtime : runtimes) {
             modifiers = modifiers.combine(runtime.onAttackConnected(
-                attacker, defender, move, tick, rng));
+                attacker, defender, move, component, tick, rng));
         }
         return modifiers;
     }
