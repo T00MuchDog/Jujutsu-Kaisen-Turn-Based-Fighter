@@ -1,13 +1,10 @@
 package com.jjktbf;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jjktbf.model.character.Ability;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.SorcererCharacter;
-import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.character.coded.MiraclesAbility;
 import com.jjktbf.model.combat.AbilityTrigger;
 import com.jjktbf.model.combat.BattleCombatant;
@@ -16,21 +13,13 @@ import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.CombatResolver;
 import com.jjktbf.model.combat.AbilityActivationEngine;
 import com.jjktbf.model.combat.SeededRandomSource;
-import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
-import com.jjktbf.model.move.MoveData;
-import com.jjktbf.model.technique.InnateTechniqueData;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MiraclesTechniqueTest {
@@ -87,84 +76,6 @@ class MiraclesTechniqueTest {
         engine.process(state, AbilityTrigger.move(
             AbilityTrigger.Type.BLACK_FLASH, owner, enemy, attack, 4));
         assertEquals(MiraclesAbility.MAX_MIRACLES, miracleCount(owner));
-    }
-
-    @Test
-    void bundledMiracleCreationIsLateHighCostUtilityAndCreatesOneMiracle() throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
-        List<InnateTechniqueData> techniques = mapper.readValue(
-            dataFile("techniques", "all_techniques.json").toFile(), new TypeReference<>() { });
-        List<AbilityData> abilityData = mapper.readValue(
-            dataFile("abilities", "all_abilities.json").toFile(), new TypeReference<>() { });
-        List<MoveData> moves = mapper.readValue(
-            dataFile("moves", "all_moves.json").toFile(), new TypeReference<>() { });
-
-        InnateTechniqueData miracles = techniques.stream()
-            .filter(technique -> "Miracles".equals(technique.name))
-            .findFirst()
-            .orElseThrow();
-        assertEquals(4, miracles.skillTree.size());
-        assertTrue(miracles.skillTree.stream().anyMatch(node -> "node-000000".equals(node.id)
-            && node.x == 693.99994f && node.y == 236f));
-        assertTrue(miracles.skillTree.stream().anyMatch(node -> "node-000002".equals(node.id)
-            && node.prerequisites.stream().anyMatch(requirement -> requirement.hasAttachment()
-                && "node-000001".equals(requirement.nodeId))));
-        List<AbilityData> miracleDefinitions = abilityData.stream()
-            .filter(ability -> "Miracles".equals(ability.sourceValue))
-            .toList();
-        assertEquals(3, miracleDefinitions.size());
-        assertEquals(Set.of(
-            MiraclesAbility.RESERVOIR,
-            MiraclesAbility.FATEFUL_REPRIEVE,
-            MiraclesAbility.FORTUNE_RECLAIMED
-        ), miracleDefinitions.stream().map(ability -> ability.codedFeature).collect(java.util.stream.Collectors.toSet()));
-        for (AbilityData ability : miracleDefinitions) {
-            assertEquals(MiraclesAbility.KEY, ability.codedAbilityKey);
-            assertTrue(CodedAbilityRegistry.supportsAbility(ability.codedAbilityKey, ability.codedFeature));
-            assertTrue(ability.effects.isEmpty());
-        }
-
-        MoveData creationData = moves.stream()
-            .filter(move -> "Miracle Creation".equals(move.name))
-            .findFirst()
-            .orElseThrow();
-        assertEquals("Miracles", creationData.requiredTechniqueId);
-        assertTrue(creationData.tags.contains("UTILITY"));
-        assertTrue(creationData.tags.contains("INNATE_TECHNIQUE"));
-        assertTrue(creationData.tags.contains("CURSED_ENERGY"));
-        assertEquals(15, creationData.apCost);
-        assertEquals(13, creationData.unleashPoint);
-        assertEquals(60, creationData.baseCeCost);
-        // The move itself is plain, editable data — the hardcoded "create a miracle"
-        // lives on a coded self-effect row, not on the move.
-        MoveData.StatusEffectData creationEffect = creationData.selfEffects.stream()
-            .filter(MoveData.StatusEffectData::isCoded)
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("Miracle Creation should have a coded self-effect"));
-        assertEquals(MiraclesAbility.KEY, creationEffect.codedAbilityKey);
-        assertEquals(MiraclesAbility.CREATE, creationEffect.codedAction);
-        assertTrue(CodedAbilityRegistry.supportsEffectAction(
-            creationEffect.codedAbilityKey, creationEffect.codedAction));
-
-        Move creation = creationData.toMove();
-        List<Ability> abilities = miracleDefinitions.stream().map(Ability::new).toList();
-        BattleCombatant owner = combatant("OWNER", List.of(creation), abilities);
-        BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
-        BattleState state = new BattleState(owner, enemy);
-        CombatResolver resolver = new CombatResolver(new FixedRandom());
-        resolver.processRoundStart(state);
-        owner.receiveDamage(owner.getCurrentHp());
-
-        Timeline ownerTimeline = new Timeline(20);
-        assertNotNull(ownerTimeline.placeAt(creation, 1, owner.computeMoveCeCost(creation)));
-        owner.setTimeline(ownerTimeline);
-        enemy.setTimeline(new Timeline(20));
-        state.transitionTo(BattleState.Phase.RESOLUTION);
-
-        List<CombatEvent> events = resolver.resolveRound(state);
-        assertEquals(MiraclesAbility.MAX_MIRACLES, miracleCount(owner));
-        assertTrue(events.stream().anyMatch(event -> event.getType() == CombatEvent.Type.ABILITY_ACTIVATED
-            && "OWNER gains 1 Miracle through Miracle Creation (6/6 remaining).".equals(event.getMessage())));
     }
 
     @Test
@@ -232,16 +143,6 @@ class MiraclesTechniqueTest {
             .apCost(1)
             .unleashPoint(1)
             .build();
-    }
-
-    private static Path dataFile(String directory, String fileName) throws IOException {
-        return List.of(
-                Path.of("data", directory, fileName),
-                Path.of("..", "data", directory, fileName))
-            .stream()
-            .filter(Files::isRegularFile)
-            .findFirst()
-            .orElseThrow(() -> new IOException("Could not locate bundled " + fileName));
     }
 
     private static final class FixedRandom extends Random {

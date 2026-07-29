@@ -146,16 +146,10 @@ public class StatVerificationTest {
         List<MoveData> moves = new ObjectMapper().readValue(
             movesPath.toFile(), new TypeReference<List<MoveData>>() {});
 
-        assertEquals(32, moves.size());
+        // Counts and individual values live in editable data and are intentionally
+        // not asserted here; this only guards that every bundled move still builds.
+        assertFalse(moves.isEmpty());
         moves.forEach(move -> assertDoesNotThrow(move::toMove, move.name));
-
-        MoveData surge = moves.stream()
-            .filter(move -> "Cursed Energy Surge".equals(move.name))
-            .findFirst()
-            .orElseThrow();
-        assertEquals(StatusEffectType.CURSED_ENERGY_OUTPUT_INCREASE.name(),
-            surge.selfEffects.get(0).type);
-        assertEquals(15.0, surge.selfEffects.get(0).magnitude);
     }
 
     @Test

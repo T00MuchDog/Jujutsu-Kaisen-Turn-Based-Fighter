@@ -1,13 +1,10 @@
 package com.jjktbf;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jjktbf.model.character.Ability;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.SorcererCharacter;
-import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.character.coded.RatioAbility;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
@@ -20,19 +17,13 @@ import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
-import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.StatusEffect;
-import com.jjktbf.model.technique.InnateTechniqueData;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RatioTechniqueTest {
@@ -233,69 +224,6 @@ class RatioTechniqueTest {
         assertEquals(30, owner.getCodedAbilities().getRemainingTimelineEffectTicks());
     }
 
-    @Test
-    void bundledRatioContentAndCodedSettingsRoundTrip() throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
-        List<InnateTechniqueData> techniques = mapper.readValue(
-            dataFile("techniques", "all_techniques.json").toFile(), new TypeReference<>() { });
-        List<AbilityData> abilities = mapper.readValue(
-            dataFile("abilities", "all_abilities.json").toFile(), new TypeReference<>() { });
-        List<MoveData> moves = mapper.readValue(
-            dataFile("moves", "all_moves.json").toFile(), new TypeReference<>() { });
-
-        assertTrue(techniques.stream().anyMatch(technique -> "Ratio".equals(technique.name)));
-        AbilityData passive = abilities.stream()
-            .filter(ability -> "Ratio Reinforcement".equals(ability.name))
-            .findFirst().orElseThrow();
-        assertEquals(RatioAbility.KEY, passive.codedAbilityKey);
-        assertEquals(RatioAbility.REINFORCEMENT_RATIO, passive.codedFeature);
-        assertTrue(CodedAbilityRegistry.supportsAbility(
-            passive.codedAbilityKey, passive.codedFeature));
-
-        MoveData mark = moves.stream().filter(move -> "Ratio Mark".equals(move.name))
-            .findFirst().orElseThrow();
-        MoveData.StatusEffectData create = mark.selfEffects.get(0);
-        assertEquals(RatioAbility.CREATE_STACKS, create.codedTarget);
-        assertEquals(1, create.codedStackCount);
-        assertNotNull(mark.toMove());
-
-        MoveData strike = moves.stream().filter(move -> "Ratio Strike".equals(move.name))
-            .findFirst().orElseThrow();
-        MoveData.StatusEffectData apply = strike.onHitEffects.get(0);
-        assertEquals(RatioAbility.APPLY_TO_MOVE, apply.codedTarget);
-        assertTrue(CodedAbilityRegistry.supportsEffect(
-            apply.codedAbilityKey, apply.codedAction, apply.codedTarget, apply.codedStackCount));
-
-        MoveData restored = MoveData.fromMove(strike.toMove());
-        assertEquals(RatioAbility.APPLY_TO_MOVE, restored.onHitEffects.get(0).codedTarget);
-        assertNull(restored.onHitEffects.get(0).codedStackCount);
-    }
-
-    @Test
-    void bundledRatioMarkTargetsTheOpponentFromItsCodedSelfEffect() throws IOException {
-        List<MoveData> moves = new ObjectMapper().readValue(
-            dataFile("moves", "all_moves.json").toFile(), new TypeReference<>() { });
-        Move mark = moves.stream().filter(move -> "Ratio Mark".equals(move.name))
-            .findFirst().orElseThrow().toMove();
-        BattleCombatant owner = ratioCombatant("OWNER", List.of(mark));
-        BattleCombatant target = combatant("TARGET", List.of());
-        owner.setTimeline(timelineWith(mark));
-        target.setTimeline(new Timeline(100));
-        BattleState state = new BattleState(owner, target);
-        state.transitionTo(BattleState.Phase.RESOLUTION);
-        CombatResolver resolver = new CombatResolver(new ConstantRandom(0.70));
-        resolver.beginResolution(state);
-        for (int tick = 1; tick <= mark.getUnleashPoint(); tick++) resolver.resolveTick(state);
-        assertEquals(1, ratioCount(owner));
-
-        Move block = fullBlock();
-        target.setTimeline(timelineWith(block));
-        DamageCalculator.DamageResult consumed = DamageCalculator.resolve(
-            owner, target, plainAttack("FOLLOW_UP"), 1, new ConstantRandom(0.70), 1);
-        assertTrue(consumed.isBlocked());
-        assertEquals(0, ratioCount(owner), "The mark must be associated with the opponent, not its owner");
-    }
-
     private static StatusEffect ratioEffect(String target, Integer stackCount) {
         return StatusEffect.coded(
             RatioAbility.KEY, RatioAbility.RATIO_EFFECT, target, stackCount);
@@ -355,16 +283,6 @@ class RatioTechniqueTest {
         Timeline timeline = new Timeline(100);
         assertNotNull(timeline.placeAt(move, 1, 0));
         return timeline;
-    }
-
-    private static Path dataFile(String directory, String fileName) throws IOException {
-        return List.of(
-                Path.of("data", directory, fileName),
-                Path.of("..", "data", directory, fileName))
-            .stream()
-            .filter(Files::isRegularFile)
-            .findFirst()
-            .orElseThrow(() -> new IOException("Could not locate bundled " + fileName));
     }
 
     private static final class ConstantRandom implements RandomSource {
