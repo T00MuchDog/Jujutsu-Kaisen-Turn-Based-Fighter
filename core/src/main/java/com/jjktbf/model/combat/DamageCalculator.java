@@ -155,6 +155,11 @@ public final class DamageCalculator {
             } else if (move.isNeverMiss() || attacker.consumeGuaranteedHit()) {
                 hit = true;
             } else {
+                // Each component may define its own base accuracy; otherwise the
+                // move's base accuracy applies (legacy single-hit behaviour).
+                double componentAccuracy = component.hasOwnAccuracy()
+                    ? component.getBaseAccuracy()
+                    : move.getBaseAccuracy();
                 double modifiedAccuracy = (attacker.getAccuracy()
                     + attacker.getAbilityFlags().accuracyBonusFor(move)
                     + defender.getAbilityFlags().opponentAccuracyBonusFor(move))
@@ -164,7 +169,7 @@ public final class DamageCalculator {
                 double hitChance = CombatStats.computeHitChance(
                     attackerAccuracy,
                     defender.getEvasion(),
-                    move.getBaseAccuracy()
+                    componentAccuracy
                 );
                 hit = rng.nextDouble() < hitChance;
             }

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -56,6 +57,22 @@ class MoveEditorScreenTest {
         assertTrue(saved.tags.contains(MoveTag.PHYSICAL.name()));
         assertTrue(saved.tags.contains(MoveTag.CURSED_ENERGY.name()));
         assertEquals(70, saved.toMove().getBasePower());
+    }
+
+    @Test
+    void moveTypeEditsApplyToEveryHitComponent() {
+        MoveData draft = attackWithHitComponents();
+        draft.id = "COMPONENT_TYPE_EDIT";
+        draft.apCost = 5;
+        draft.unleashPoint = 1;
+
+        MoveEditorScreen.applyMoveDamageTagsToComponents(
+            draft, Set.of(MoveTag.PHYSICAL));
+
+        assertEquals(List.of(MoveTag.PHYSICAL.name()), draft.hitComponents.get(0).tags);
+        assertEquals(List.of(MoveTag.PHYSICAL.name()), draft.hitComponents.get(1).tags);
+        assertEquals(List.of(MoveTag.ATTACK.name(), MoveTag.PHYSICAL.name()), draft.tags);
+        assertEquals(70, draft.toMove().getBasePower());
     }
 
     @Test

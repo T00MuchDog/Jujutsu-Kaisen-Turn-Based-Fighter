@@ -115,7 +115,7 @@ class MultiplayerPlanDraftTest {
             PlanBoard.OFFENSIVE,
             10,
             List.of(new HitComponentState(
-                10, "PHYSICAL", List.of("PHYSICAL"), 1, false, true)),
+                10, "PHYSICAL", List.of("PHYSICAL"), 1, false, true, 1.0)),
             1.0,
             true,
             BattlePlan.GRID_LENGTH,

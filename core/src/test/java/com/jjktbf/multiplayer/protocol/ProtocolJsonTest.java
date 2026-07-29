@@ -171,9 +171,9 @@ class ProtocolJsonTest {
             75,
             List.of(
                 new HitComponentState(
-                    50, "PHYSICAL", List.of("PHYSICAL"), 0, false, true),
+                    50, "PHYSICAL", List.of("PHYSICAL"), 0, false, true, 1.0),
                 new HitComponentState(
-                    25, "CURSED_ENERGY", List.of("CURSED_ENERGY"), 4, true, false)),
+                    25, "CURSED_ENERGY", List.of("CURSED_ENERGY"), 4, true, false, 1.0)),
             0.90,
             false,
             25,

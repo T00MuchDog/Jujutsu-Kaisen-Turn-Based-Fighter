@@ -38,6 +38,7 @@ import com.jjktbf.model.character.coded.RatioAbility;
 import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.DodgeScope;
+import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveRepository;
@@ -46,6 +47,7 @@ import com.jjktbf.model.move.StatusEffectType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -211,12 +213,22 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         copy.delayTicks = source.delayTicks;
         copy.requiresPreviousConnection = source.requiresPreviousConnection;
         copy.avoidable = source.avoidable;
+        copy.baseAccuracy = source.baseAccuracy;
+        copy.onHitEffects = copyEffectListOrNull(source.onHitEffects);
         return copy;
     }
 
     /** Deep-copy an effect list into a mutable ArrayList (null → empty ArrayList). */
     private static ArrayList<MoveData.StatusEffectData> copyEffectList(java.util.List<MoveData.StatusEffectData> src) {
         if (src == null) return new ArrayList<>();
+        return src.stream().map(MoveEditorScreen::copyEffect)
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+    }
+
+    /** Deep-copy an effect list but preserve null (so empty lists aren't serialized). */
+    private static ArrayList<MoveData.StatusEffectData> copyEffectListOrNull(java.util.List<MoveData.StatusEffectData> src) {
+        if (src == null) return null;
         return src.stream().map(MoveEditorScreen::copyEffect)
             .filter(java.util.Objects::nonNull)
             .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
@@ -539,9 +551,13 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
     private static List<MoveData.StatusEffectData> codedEffects(MoveData move) {
         List<MoveData.StatusEffectData> effects = new ArrayList<>();
-        if (move.onHitEffects != null) {
-            move.onHitEffects.stream().filter(MoveData.StatusEffectData::isCoded)
-                .forEach(effects::add);
+        // On-hit coded effects live per hit component; scan each one.
+        if (move.hitComponents != null) {
+            for (MoveData.HitComponentData component : move.hitComponents) {
+                if (component == null || component.onHitEffects == null) continue;
+                component.onHitEffects.stream().filter(MoveData.StatusEffectData::isCoded)
+                    .forEach(effects::add);
+            }
         }
         if (move.selfEffects != null) {
             move.selfEffects.stream().filter(MoveData.StatusEffectData::isCoded)
@@ -605,11 +621,18 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 try { initialTags.add(MoveTag.valueOf(t)); } catch (Exception ignored) {}
             }
         }
+        Set<MoveTag> previousTypeTags = typeTags(initialTags);
         TagPicker tagPicker = new TagPicker(initialTags, tags -> {
+            Set<MoveTag> selectedTypeTags = typeTags(tags);
+            boolean typeTagsChanged = !selectedTypeTags.equals(previousTypeTags);
             d.tags = tags.stream().map(MoveTag::name)
                 .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
             if (d.hitComponents != null && tags.contains(MoveTag.ATTACK)) {
-                synchronizeParentDamageTags(d);
+                if (typeTagsChanged && !selectedTypeTags.isEmpty()) {
+                    applyMoveDamageTagsToComponents(d, selectedTypeTags);
+                } else {
+                    synchronizeParentDamageTags(d);
+                }
             }
             // STUN/GUARD_BREAK/HEAVY are modifier tags backed by dedicated flags (not
             // part of any MoveCategory), so keep them in sync with the tag selection.
@@ -618,6 +641,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             d.heavy = tags.contains(MoveTag.HEAVY);
             ensureTechniqueStatPrerequisites(d, tags);
             synchronizeWeaponRequirement(d);
+            previousTypeTags.clear();
+            previousTypeTags.addAll(typeTagsFromNames(d.tags));
             if (d.hitComponents != null) rebuildDetail();
             else refreshCategorySections(d);
         }, game.audio()::play, skin);
@@ -628,8 +653,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         if (d.hitComponents != null && hasTag(d, MoveTag.ATTACK)) {
             synchronizeParentDamageTags(d);
-            tagPicker.disableTags(MoveTag.TYPE_TAGS);
         }
+        previousTypeTags.clear();
+        previousTypeTags.addAll(typeTagsFromNames(d.tags));
         d.stun = tagPicker.getSelected().contains(MoveTag.STUN);
         d.guardBreak = tagPicker.getSelected().contains(MoveTag.GUARD_BREAK);
         d.heavy = tagPicker.getSelected().contains(MoveTag.HEAVY);
@@ -637,7 +663,25 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         tagsSection.add(tagPicker).growX().row();
         if (d.hitComponents != null && hasTag(d, MoveTag.ATTACK)) {
             tagsSection.add(formHint(
-                "Damage types are controlled by the hit components below.")).row();
+                "Move damage types apply to every hit; refine individual hits below.")).row();
+        }
+        // Derived MULTI-HIT marker: shown (read-only) whenever the move authors
+        // more than one hit component. It is not a MoveTag, not persisted, and
+        // cannot be toggled — it reflects the component count.
+        if (d.hitComponents != null && d.hitComponents.size() > 1) {
+            Table multiHitRow = new Table(skin);
+            multiHitRow.left().padTop(2f);
+            Label chip = new Label("  MULTI-HIT  ", skin, "small");
+            // PixelSkin has no "disabled" Color resource (Skin.getColor would
+            // throw), so reuse the muted text-dim tone used elsewhere for
+            // derived/non-authorable hints.
+            chip.setColor(skin.has("text-dim", com.badlogic.gdx.graphics.Color.class)
+                ? skin.getColor("text-dim")
+                : com.badlogic.gdx.graphics.Color.GRAY);
+            multiHitRow.add(chip).left();
+            multiHitRow.add(new Label("derived — " + d.hitComponents.size() + " hits",
+                skin, "small")).padLeft(6f);
+            tagsSection.add(multiHitRow).left().row();
         }
 
         // ── Cost ───────────────────────────────────────────────────────────────
@@ -766,9 +810,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 }
             });
             attack.add(neverMissCb).left().row();
-
-            attack.add(new Label("ON-HIT EFFECTS", skin, "small")).padTop(8f).left().row();
-            attack.add(buildEffectsEditor("onHit", d)).growX().row();
+            // On-hit effects are authored per hit component below — no move-level section.
         }
 
         if (hasTag(d, MoveTag.DEFENSIVE)) {
@@ -835,9 +877,18 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             t.add(formHint("Accuracy is N/A for a never-miss move.")).row();
             return t;
         }
+        // With hit components, accuracy is authored per hit (each component may
+        // override). The move-level value is only the fallback default for
+        // components that inherit it — show it as such, not as the source of truth.
+        if (d.hitComponents != null) {
+            t.add(formHint(
+                "Accuracy is authored per hit component; the move-level value below "
+                + "is the fallback default for hits that inherit it.")).row();
+        }
         // Accuracy as integer 1..100; stored /100 as double.
-        int acc = (int) Math.round(d.baseAccuracy * 100.0);
-        t.add(labelledIntField("Base Accuracy %", acc, 1, 100,
+        int acc = (int) Math.round(Math.max(0.0, Math.min(1.0, d.baseAccuracy)) * 100.0);
+        t.add(labelledIntField(d.hitComponents != null
+                ? "Fallback Base Accuracy %" : "Base Accuracy %", acc, 1, 100,
                 v -> { d.baseAccuracy = v / 100.0; })).growX().row();
         return t;
     }
@@ -910,6 +961,24 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 })).growX().row();
             card.add(new Label("Damage Types", skin)).padTop(3f).row();
             card.add(buildHitComponentTagToggles(d, component)).growX().row();
+
+            // Per-hit accuracy. A component with no authored accuracy (the legacy
+            // -1 "inherit" marker) shows the move's base accuracy as its starting
+            // value so authors see what they're overriding. never-miss hides it.
+            if (!d.neverMiss) {
+                int accDisplay = component.baseAccuracy >= 0.0
+                    ? (int) Math.round(component.baseAccuracy * 100.0)
+                    : (int) Math.round(Math.max(0.0, Math.min(1.0, d.baseAccuracy)) * 100.0);
+                card.add(labelledIntField("Base Accuracy %", accDisplay, 1, 100,
+                    value -> {
+                        component.baseAccuracy = value / 100.0;
+                        markDirty();
+                    })).growX().row();
+            } else {
+                card.add(formHint("Accuracy is N/A for a never-miss move.")).row();
+                component.baseAccuracy = HitComponent.INHERIT_MOVE_ACCURACY;
+            }
+
             int minimumDelay = component.requiresPreviousConnection && index > 0
                 ? d.hitComponents.get(index - 1).delayTicks : 0;
             card.add(labelledIntField("Delay Offset (AP ticks)", component.delayTicks,
@@ -945,6 +1014,14 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 }
             });
             card.add(avoidable).left().row();
+
+            // Per-hit on-hit effects. These fire only when this specific component
+            // connects, replacing the old move-level on-hit list.
+            if (component.onHitEffects == null) {
+                component.onHitEffects = new ArrayList<>();
+            }
+            card.add(new Label("ON-HIT EFFECTS", skin, "small")).padTop(4f).left().row();
+            card.add(buildEffectsEditor(component.onHitEffects)).growX().row();
             editor.add(card).growX().padBottom(5f).row();
         }
 
@@ -1019,6 +1096,16 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         component.delayTicks = 0;
         component.requiresPreviousConnection = false;
         component.avoidable = true;
+        // Carry the move's accuracy onto the first component, and migrate any
+        // legacy move-level on-hit effects onto it so nothing is lost.
+        if (move.baseAccuracy >= 0.0) component.baseAccuracy = move.baseAccuracy;
+        if (move.onHitEffects != null && !move.onHitEffects.isEmpty()) {
+            component.onHitEffects = move.onHitEffects.stream()
+                .map(MoveEditorScreen::copyEffect)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+            move.onHitEffects = null;
+        }
         move.hitComponents = new ArrayList<>(List.of(component));
         synchronizeParentDamageTags(move);
         synchronizeCombinedBasePower(move);
@@ -1093,6 +1180,46 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 move.tags.add(MoveTag.CURSED_ENERGY.name());
             }
         }
+    }
+
+    /** Apply a move-level type selection to every authored hit component. */
+    static void applyMoveDamageTagsToComponents(MoveData move, Set<MoveTag> selectedTags) {
+        if (move == null || move.hitComponents == null) return;
+        Set<MoveTag> damageTypes = typeTags(selectedTags);
+        ArrayList<String> tags = COMPONENT_DAMAGE_TAGS.stream()
+            .filter(damageTypes::contains)
+            .map(MoveTag::name)
+            .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        tags = editableComponentTags(tags);
+        if (tags.isEmpty()) return;
+        for (MoveData.HitComponentData component : move.hitComponents) {
+            if (component != null) component.tags = new ArrayList<>(tags);
+        }
+        synchronizeParentDamageTags(move);
+    }
+
+    private static Set<MoveTag> typeTags(Set<MoveTag> tags) {
+        Set<MoveTag> result = EnumSet.noneOf(MoveTag.class);
+        if (tags == null) return result;
+        for (MoveTag tag : tags) {
+            if (MoveTag.TYPE_TAGS.contains(tag)) result.add(tag);
+        }
+        return result;
+    }
+
+    private static Set<MoveTag> typeTagsFromNames(List<String> tags) {
+        Set<MoveTag> result = EnumSet.noneOf(MoveTag.class);
+        if (tags == null) return result;
+        for (String tag : tags) {
+            if (tag == null) continue;
+            try {
+                MoveTag parsed = MoveTag.valueOf(tag);
+                if (MoveTag.TYPE_TAGS.contains(parsed)) result.add(parsed);
+            } catch (IllegalArgumentException ignored) {
+                // Invalid tags are reported by MoveData validation when the draft is saved.
+            }
+        }
+        return result;
     }
 
     private static ArrayList<String> defaultComponentTags(MoveData move) {
@@ -1401,24 +1528,30 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     private Actor buildEffectsEditor(String which, MoveData d) {
         List<MoveData.StatusEffectData> raw;
         switch (which) {
-            case "onHit":   raw = d.onHitEffects;   break;
             case "self":    raw = d.selfEffects;    break;
             case "onBlock": raw = d.onBlockEffects;  break;
             case "onParry": raw = d.onParryEffects;  break;
             case "onDodge": raw = d.onDodgeEffects;  break;
-            default:        raw = d.onHitEffects;    break;
+            default:        raw = d.selfEffects;     break;
         }
         if (raw == null) {
             raw = new ArrayList<>();
             switch (which) {
-                case "onHit":   d.onHitEffects = raw;   break;
                 case "self":    d.selfEffects = raw;    break;
                 case "onBlock": d.onBlockEffects = raw; break;
                 case "onParry": d.onParryEffects = raw; break;
                 case "onDodge": d.onDodgeEffects = raw; break;
-                default:        d.onHitEffects = raw;   break;
+                default:        d.selfEffects = raw;    break;
             }
         }
+        return buildEffectsEditor(raw);
+    }
+
+    /**
+     * Render an editable list of status effects. Used by the move-level
+     * self/block/parry/dodge editors and the per-hit-component on-hit editor.
+     */
+    private Actor buildEffectsEditor(List<MoveData.StatusEffectData> raw) {
         final List<MoveData.StatusEffectData> list = raw;
 
         Table t = new Table(skin);

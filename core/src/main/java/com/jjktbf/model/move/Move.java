@@ -174,8 +174,8 @@ public class Move {
      */
     private final int parryStaggerTicks;
 
-    /** Status effects this move applies on hit (may be empty). */
-    private final List<StatusEffect> onHitEffects;
+    // On-hit status effects live per {@link HitComponent} (applied when that
+    // specific component connects). There is no move-level onHitEffects field.
 
     /** Status effects applied to the defender when a {@link DefenseType#BLOCK} negates/reduces a hit. */
     private final List<StatusEffect> onBlockEffects;
@@ -253,7 +253,6 @@ public class Move {
         this.dodgeChance          = b.dodgeChance;
         this.dodgeScope           = b.dodgeScope;
         this.parryStaggerTicks    = b.parryStaggerTicks;
-        this.onHitEffects        = Collections.unmodifiableList(b.onHitEffects);
         this.selfEffects         = Collections.unmodifiableList(b.selfEffects);
         this.onBlockEffects      = Collections.unmodifiableList(b.onBlockEffects);
         this.onParryEffects      = Collections.unmodifiableList(b.onParryEffects);
@@ -278,7 +277,12 @@ public class Move {
         if (builder.category == MoveCategory.UTILITY || builder.category == MoveCategory.DEFENSIVE) {
             return List.of();
         }
-        return List.of(new HitComponent(builder.basePower, builder.category, 0));
+        // Legacy single-component path: seed the synthesized fallback component
+        // with the builder-level on-hit effects and accuracy so existing
+        // basePower-based authoring keeps working.
+        return List.of(new HitComponent(
+            builder.basePower, builder.category.getTags(), 0, false, true,
+            builder.baseAccuracy, builder.onHitEffects));
     }
 
     private static int totalBasePower(List<HitComponent> components) {
@@ -328,7 +332,19 @@ public class Move {
     public int getDodgeChance()                   { return dodgeChance; }
     public String getDodgeScope()                 { return dodgeScope; }
     public int getParryStaggerTicks()             { return parryStaggerTicks; }
-    public List<StatusEffect> getOnHitEffects()   { return onHitEffects; }
+    /**
+     * On-hit status effects aggregated across all hit components (in authored
+     * order). On-hit effects live per {@link HitComponent}; this convenience
+     * flattens them for callers that do not need per-hit attribution.
+     */
+    public List<StatusEffect> getOnHitEffects()   {
+        if (hitComponents.isEmpty()) return List.of();
+        java.util.List<StatusEffect> all = new java.util.ArrayList<>();
+        for (HitComponent component : hitComponents) {
+            all.addAll(component.getOnHitEffects());
+        }
+        return Collections.unmodifiableList(all);
+    }
     public List<StatusEffect> getSelfEffects()    { return selfEffects; }
     public List<StatusEffect> getOnBlockEffects() { return onBlockEffects; }
     public List<StatusEffect> getOnParryEffects() { return onParryEffects; }
@@ -637,6 +653,12 @@ public class Move {
         private int dodgeChance                = 0;
         private String dodgeScope              = "BOTH";
         private int parryStaggerTicks          = 0;
+        /**
+         * On-hit effects for the legacy single-component authoring path. When a
+         * move is built with {@link #basePower} (no explicit {@link #hitComponents}),
+         * these seed the synthesized fallback component. Explicit hit components
+         * carry their own effects and ignore this value.
+         */
         private List<StatusEffect> onHitEffects = List.of();
         private List<StatusEffect> selfEffects  = List.of();
         private List<StatusEffect> onBlockEffects = List.of();
@@ -682,6 +704,11 @@ public class Move {
         public Builder dodgeChance(int v)                  { this.dodgeChance = v; return this; }
         public Builder dodgeScope(String v)                { this.dodgeScope = v; return this; }
         public Builder parryStaggerTicks(int v)            { this.parryStaggerTicks = v; return this; }
+        /**
+         * On-hit effects for the legacy single-component path only (seeds the
+         * synthesized fallback component). For multi-hit moves, author effects
+         * directly on each {@link HitComponent}.
+         */
         public Builder onHitEffects(List<StatusEffect> v)  { this.onHitEffects = v; return this; }
         public Builder selfEffects(List<StatusEffect> v)   { this.selfEffects = v; return this; }
         public Builder onBlockEffects(List<StatusEffect> v){ this.onBlockEffects = v; return this; }

@@ -290,16 +290,16 @@ class MultiHitMoveTest {
 
     @Test
     void launchWorkRunsOnceAndHitWorkRunsPerComponent() {
+        StatusEffect onHit = new StatusEffect(
+            StatusEffectType.STRENGTH_INCREASE, 2, 5.0);
         Move move = attackBuilder("EFFECTS")
             .baseCeCost(10)
             .hasCeCost(true)
             .selfEffects(List.of(new StatusEffect(
                 StatusEffectType.STRENGTH_INCREASE, 2, 5.0)))
-            .onHitEffects(List.of(new StatusEffect(
-                StatusEffectType.STRENGTH_INCREASE, 2, 5.0)))
             .hitComponents(List.of(
-                component(1, MoveCategory.PHYSICAL, 0, false, true),
-                component(1, MoveCategory.PHYSICAL, 0, false, true)))
+                componentWithEffects(1, MoveCategory.PHYSICAL, 0, false, true, List.of(onHit)),
+                componentWithEffects(1, MoveCategory.PHYSICAL, 0, false, true, List.of(onHit))))
             .build();
 
         Resolution resolution = resolve(move, 1, null, 0, 10, new FixedRandom(0.0), 10);
@@ -534,6 +534,24 @@ class MultiHitMoveTest {
             delayTicks,
             requiresPreviousConnection,
             avoidable);
+    }
+
+    private static HitComponent componentWithEffects(
+        int basePower,
+        MoveCategory category,
+        int delayTicks,
+        boolean requiresPreviousConnection,
+        boolean avoidable,
+        List<StatusEffect> onHitEffects
+    ) {
+        return new HitComponent(
+            basePower,
+            category.getTags(),
+            delayTicks,
+            requiresPreviousConnection,
+            avoidable,
+            HitComponent.INHERIT_MOVE_ACCURACY,
+            onHitEffects);
     }
 
     private static Move fullBlock(String id, List<String> affectedTags) {

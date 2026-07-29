@@ -802,7 +802,8 @@ public class CombatResolver {
                 .source(attacker).target(defender).move(move).componentIndex(componentIndex)
                 .tick(tick)
                 .message(defender.getCharacter().getName()
-                         + " blocked " + move.getName() + "! (damage reduced)")
+                         + " blocked " + move.getName() + "! (damage reduced)"
+                         + hitQualifier(move, componentIndex))
                 .build());
         }
 
@@ -815,7 +816,8 @@ public class CombatResolver {
                 ? defender.getCharacter().getName() + " ignores all damage from " + move.getName() + "!"
                 : attacker.getCharacter().getName() + "'s " + move.getName()
                     + " hits " + defender.getCharacter().getName()
-                    + " for " + appliedDamage + " damage!")
+                    + " for " + appliedDamage + " damage!"
+                    + hitQualifier(move, componentIndex))
             .build());
         events.addAll(abilityActivations.process(state, AbilityTrigger.move(
             AbilityTrigger.Type.ATTACK_HIT, attacker, defender, move, tick)));
@@ -853,12 +855,23 @@ public class CombatResolver {
         }
 
         if (finishBattleIfNeeded(state, events, tick)) return true;
-        applyOnHitEffects(state, attacker, defender, move, componentIndex, tick, events);
+        applyOnHitEffects(state, attacker, defender, move, component, componentIndex, tick, events);
         applyAbilityOnHitEffects(
             state, attacker, defender, move, componentIndex, tick, events);
         if (finishBattleIfNeeded(state, events, tick)) return true;
         if (move.isStun()) resolveStunTag(defender, move, componentIndex, tick, events);
         return true;
+    }
+
+    /**
+     * Per-hit dialogue qualifier for multi-hit moves — e.g. " (hit 2)". Empty
+     * for single-hit moves so their messages are unchanged, and empty for the
+     * first hit of a multi-hit move (it reads as the opening strike).
+     */
+    private static String hitQualifier(Move move, int componentIndex) {
+        if (move == null || move.getHitComponents().size() <= 1) return "";
+        if (componentIndex <= 0) return "";
+        return " (hit " + (componentIndex + 1) + ")";
     }
 
     // -------------------------------------------------------------------------
@@ -1083,11 +1096,12 @@ public class CombatResolver {
         BattleCombatant attacker,
         BattleCombatant defender,
         Move            move,
+        HitComponent    component,
         int             componentIndex,
         int             tick,
         List<CombatEvent> events
     ) {
-        for (StatusEffect effect : move.getOnHitEffects()) {
+        for (StatusEffect effect : component.getOnHitEffects()) {
             // A coded on-hit row is dispatched to the matching compiled runtime
             // instead of being applied as a status — this is how a technique move's
             // hardcoded on-hit behaviour is stored on an editable effect row.

@@ -336,11 +336,6 @@ tag names below.
     SWORD                 Sword / sword-like weapon modifier used by move-scoped
                            abilities (e.g. Earnest Swordswoman). Modifier tag.
 
-  MARKER TAG:
-    SOUL                  Marks attacks and effects that can interact directly
-                          with a soul. It does not alter category, Power, pool,
-                          block coverage, or Black Flash eligibility.
-
   MODIFIER FLAGS (also backed by a dedicated boolean on Move):
     STUN                  On a successful offensive hit, the defender's action
                           segment(s) active on the current tick are stunned

@@ -108,6 +108,12 @@ public class BattleScreen implements Screen, BattleView {
     private static final float MOVE_EFFECT_DURATION_SECONDS = 3f;
     /** Successful blocks use the same grow/fade treatment in a much shorter burst. */
     private static final float BLOCK_EFFECT_DURATION_SECONDS = 0.75f;
+    /**
+     * Per-hit impact flash length. On a multi-hit move every connecting hit
+     * punches its own icon onto the defender's sprite so each hit reads as a
+     * distinct strike, not a single unleash.
+     */
+    private static final float HIT_FLASH_DURATION_SECONDS  = 0.6f;
     /** Chars revealed per second when typing a log line out letter-by-letter. */
     private static final float LOG_TYPE_RATE_CPS       = 40f;
     /**
@@ -198,6 +204,14 @@ public class BattleScreen implements Screen, BattleView {
     private float unleashedMoveDurationSeconds = MOVE_EFFECT_DURATION_SECONDS;
     private boolean unleashedMoveTargetsCombatant;
     private boolean unleashedMoveTargetsPlayer;
+
+    /**
+     * Per-hit impact flashes for multi-hit moves. Each connecting hit spawns a
+     * short targeted burst on the defender's sprite (attack icon for a damaging
+     * hit, defense icon for a blocked/parried/dodged one). Bounded so a long
+     * multi-hit chain cannot grow unbounded; oldest flashes age out and drop.
+     */
+    private final java.util.List<HitFlash> hitFlashes = new java.util.ArrayList<>();
 
     // ── Move selection state ──────────────────────────────────────────────────
     private volatile boolean inputConfirmed = false;
@@ -397,6 +411,7 @@ public class BattleScreen implements Screen, BattleView {
     public void render(float delta) {
         frameDelta = delta;
         updateMoveUnleashAnimation(delta);
+        updateHitFlashes(delta);
         updateTyping(delta);
         if (mode == BattleMode.MULTIPLAYER) updateMultiplayerPlayback(delta);
         clearScreen();
@@ -553,6 +568,7 @@ public class BattleScreen implements Screen, BattleView {
         drawNextRoundButton();
         if (SHOW_TICK_COUNTER) drawTickCounter(sw, sh);
         drawMoveUnleashAnimation(sw, sh);
+        drawHitFlashes(sw, sh);
         batch.end();
 
     }
@@ -779,6 +795,83 @@ public class BattleScreen implements Screen, BattleView {
             playSuccessfulBlockAnimation(true);
         } else if (event.getTarget() == renderEnemy) {
             playSuccessfulBlockAnimation(false);
+        }
+    }
+
+    /**
+     * Spawn a per-hit impact flash on the defender's sprite. On a multi-hit
+     * move each connecting hit gets its own short burst (attack icon for damage,
+     * defense icon for a blocked/parried/dodged hit) instead of sharing the
+     * single center-screen unleash slot.
+     */
+    private void spawnHitFlash(CombatEvent event) {
+        if (event == null || event.getMove() == null) return;
+        // Only multi-hit moves need per-hit flashes; single-hit moves already
+        // get the center-screen unleash + this would double up the visual.
+        if (event.getMove().getHitComponents().size() <= 1) return;
+        boolean playerTarget = event.getTarget() == renderPlayer;
+        boolean enemyTarget = event.getTarget() == renderEnemy;
+        if (!playerTarget && !enemyTarget) return;
+
+        CombatEvent.Type type = event.getType();
+        Texture icon;
+        if (type == CombatEvent.Type.MOVE_BLOCKED
+            || type == CombatEvent.Type.MOVE_BLOCK_REDUCED
+            || type == CombatEvent.Type.MOVE_DODGED
+            || type == CombatEvent.Type.MOVE_PARRIED) {
+            icon = assets.battleUi.defenseEffectIcon;
+        } else {
+            icon = assets.battleUi.attackEffectIcon;
+        }
+        hitFlashes.add(new HitFlash(icon, playerTarget, HIT_FLASH_DURATION_SECONDS));
+        // Bound the list so a runaway chain cannot grow without limit.
+        while (hitFlashes.size() > 8) hitFlashes.remove(0);
+    }
+
+    private void updateHitFlashes(float delta) {
+        if (hitFlashes.isEmpty()) return;
+        java.util.Iterator<HitFlash> it = hitFlashes.iterator();
+        while (it.hasNext()) {
+            HitFlash flash = it.next();
+            flash.elapsed += Math.max(0f, delta);
+            if (flash.elapsed >= flash.duration) it.remove();
+        }
+    }
+
+    private void drawHitFlashes(float screenWidth, float screenHeight) {
+        for (HitFlash flash : hitFlashes) {
+            float progress = Math.min(1f, flash.elapsed / flash.duration);
+            float eased = 1f - (1f - progress) * (1f - progress);
+            float viewportSize = Math.min(screenWidth, screenHeight);
+            float startSize = Math.max(28f, Math.min(44f, viewportSize * 0.06f));
+            float endSize = Math.max(startSize, Math.min(150f, viewportSize * 0.22f));
+            float size = startSize + (endSize - startSize) * eased;
+            float width = size * flash.icon.getWidth() / (float) flash.icon.getHeight();
+
+            CombatantPanel targetPanel = flash.targetsPlayer ? playerPanel : enemyPanel;
+            float centerX = screenWidth / 2f;
+            float centerY = screenHeight / 2f;
+            if (targetPanel != null) {
+                centerX = targetPanel.spriteCenterX();
+                centerY = targetPanel.spriteCenterY();
+            }
+            batch.setColor(1f, 1f, 1f, 1f - progress);
+            batch.draw(flash.icon, centerX - width / 2f, centerY - size / 2f, width, size);
+            batch.setColor(com.badlogic.gdx.graphics.Color.WHITE);
+        }
+    }
+
+    /** One transient per-hit impact flash on a combatant's sprite. */
+    private static final class HitFlash {
+        final Texture icon;
+        final boolean targetsPlayer;
+        final float duration;
+        float elapsed;
+        HitFlash(Texture icon, boolean targetsPlayer, float duration) {
+            this.icon = icon;
+            this.targetsPlayer = targetsPlayer;
+            this.duration = duration;
+            this.elapsed = 0f;
         }
     }
 
@@ -1028,10 +1121,28 @@ public class BattleScreen implements Screen, BattleView {
                 Move unleashedMove = e.getMove();
                 postLocal(() -> playMoveUnleashAnimation(unleashedMove));
             }
+            // Per-hit impact visuals. For multi-hit moves each connecting hit
+            // (damage, block, dodge, parry) spawns its own targeted flash so the
+            // hits read as distinct strikes; single-hit moves keep using the
+            // shared center-screen unleash slot.
+            if (e.getType() == CombatEvent.Type.DAMAGE_DEALT
+                || e.getType() == CombatEvent.Type.DAMAGE_IGNORED
+                || e.getType() == CombatEvent.Type.MOVE_BLOCKED
+                || e.getType() == CombatEvent.Type.MOVE_BLOCK_REDUCED
+                || e.getType() == CombatEvent.Type.MOVE_DODGED
+                || e.getType() == CombatEvent.Type.MOVE_PARRIED) {
+                final CombatEvent impactEvent = e;
+                postLocal(() -> spawnHitFlash(impactEvent));
+            }
             if (e.getType() == CombatEvent.Type.MOVE_BLOCKED
                 || e.getType() == CombatEvent.Type.MOVE_BLOCK_REDUCED) {
                 CombatEvent blockEvent = e;
-                postLocal(() -> playSuccessfulBlockAnimation(blockEvent));
+                // Single-hit blocked moves use the shared center unleash; a
+                // multi-hit move's per-hit blocks are drawn as flashes above.
+                if (blockEvent.getMove() == null
+                    || blockEvent.getMove().getHitComponents().size() <= 1) {
+                    postLocal(() -> playSuccessfulBlockAnimation(blockEvent));
+                }
             }
             if (e.getType() == CombatEvent.Type.RATIO_TRIGGERED) {
                 postLocal(this::playRatioUnleashAnimation);
@@ -1367,11 +1478,13 @@ public class BattleScreen implements Screen, BattleView {
         if (!tags.isEmpty()) {
             return new HitComponent(
                 state.basePower(), tags, state.delayTicks(),
-                state.requiresPreviousConnection(), state.avoidable());
+                state.requiresPreviousConnection(), state.avoidable(),
+                state.baseAccuracy(), null);
         }
         return new HitComponent(
-            state.basePower(), MoveCategory.valueOf(state.category()), state.delayTicks(),
-            state.requiresPreviousConnection(), state.avoidable());
+            state.basePower(), MoveCategory.valueOf(state.category()).getTags(),
+            state.delayTicks(), state.requiresPreviousConnection(), state.avoidable(),
+            state.baseAccuracy(), null);
     }
 
     private void submitOnlinePlan() {
@@ -1553,12 +1666,37 @@ public class BattleScreen implements Screen, BattleView {
             unleashedMove = findOnlineMove(event.sourceSide(), event.moveId());
             if (unleashedMove != null) playMoveUnleashAnimation(unleashedMove);
         }
+        // Per-hit impact flash for multi-hit moves (online path mirrors local).
+        if (unleashedMove != null
+            && unleashedMove.getHitComponents().size() > 1
+            && (event.type() == BattleEventType.DAMAGE_DEALT
+                || event.type() == BattleEventType.MOVE_BLOCKED
+                || event.type() == BattleEventType.MOVE_BLOCK_REDUCED
+                || event.type() == BattleEventType.MOVE_DODGED
+                || event.type() == BattleEventType.MOVE_PARRIED)) {
+            boolean targetsPlayer = event.targetSide() == multiplayerSetup.playerSide();
+            boolean targetsEnemy = event.targetSide() == opposite(multiplayerSetup.playerSide());
+            if (targetsPlayer || targetsEnemy) {
+                CombatEvent.Type flashType = event.type() == BattleEventType.DAMAGE_DEALT
+                    ? CombatEvent.Type.DAMAGE_DEALT : CombatEvent.Type.MOVE_BLOCKED;
+                CombatEvent flashProxy = CombatEvent.of(flashType)
+                    .move(unleashedMove)
+                    .target(targetsPlayer ? renderPlayer : renderEnemy)
+                    .build();
+                spawnHitFlash(flashProxy);
+            }
+        }
         if (event.type() == BattleEventType.MOVE_BLOCKED
             || event.type() == BattleEventType.MOVE_BLOCK_REDUCED) {
-            if (event.targetSide() == multiplayerSetup.playerSide()) {
-                playSuccessfulBlockAnimation(true);
-            } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
-                playSuccessfulBlockAnimation(false);
+            // Only single-hit moves use the shared center-slot block animation;
+            // multi-hit per-hit blocks are rendered as flashes above.
+            if (unleashedMove == null
+                || unleashedMove.getHitComponents().size() <= 1) {
+                if (event.targetSide() == multiplayerSetup.playerSide()) {
+                    playSuccessfulBlockAnimation(true);
+                } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
+                    playSuccessfulBlockAnimation(false);
+                }
             }
         }
         if (event.eventId() == null || soundedOnlineEventIds.add(event.eventId())) {

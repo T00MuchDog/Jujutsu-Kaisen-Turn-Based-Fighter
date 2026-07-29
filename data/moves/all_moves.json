@@ -1461,13 +1461,15 @@
     "tags" : [ "PHYSICAL" ],
     "delayTicks" : 0,
     "requiresPreviousConnection" : false,
-    "avoidable" : true
+    "avoidable" : true,
+    "baseAccuracy" : 0.94
   }, {
     "basePower" : 20,
     "tags" : [ "CURSED_ENERGY" ],
     "delayTicks" : 2,
     "requiresPreviousConnection" : true,
-    "avoidable" : false
+    "avoidable" : false,
+    "baseAccuracy" : 0.94
   } ],
   "baseAccuracy" : 0.94,
   "neverMiss" : false,

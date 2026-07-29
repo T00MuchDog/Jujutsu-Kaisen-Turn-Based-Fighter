@@ -381,7 +381,7 @@
   },
   {
     "term": "SOUL",
-    "description": "A marker for attacks and effects capable of interacting directly with a soul."
+    "description": "A character and ability concept for effects that interact directly with a soul."
   },
   {
     "term": "VESSEL",

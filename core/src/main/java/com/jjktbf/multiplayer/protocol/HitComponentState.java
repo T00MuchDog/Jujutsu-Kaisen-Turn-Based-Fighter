@@ -9,7 +9,8 @@ public record HitComponentState(
     List<String> tags,
     int delayTicks,
     boolean requiresPreviousConnection,
-    boolean avoidable
+    boolean avoidable,
+    double baseAccuracy
 ) {
     public HitComponentState {
         tags = tags == null ? List.of() : List.copyOf(tags);

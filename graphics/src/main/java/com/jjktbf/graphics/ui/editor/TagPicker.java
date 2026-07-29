@@ -32,7 +32,7 @@ import java.util.function.Consumer;
  *   <li><b>TYPE</b> — Physical, Cursed Energy, Innate Technique,
  *       Non-Innate Technique</li>
  *   <li><b>RANGE</b> — Melee, Ranged, AOE</li>
- *   <li><b>TAGS</b> — Soul, Stun, Guard Break, Heavy</li>
+ *   <li><b>TAGS</b> — Stun, Guard Break, Heavy</li>
  * </ol>
  *
  * <p>Two coupling rules are enforced in the UI:
@@ -61,8 +61,6 @@ public class TagPicker extends Table {
 
     /** Per-tag checkbox, so the lock logic can toggle individual ones. */
     private final Map<MoveTag, CheckBox> checkboxes = new java.util.EnumMap<>(MoveTag.class);
-    private final Set<MoveTag> externallyDisabled = java.util.EnumSet.noneOf(MoveTag.class);
-
     /**
      * Snapshot of each lockable tag's normal checkbox drawables, to restore
      * after unlocking. Populated lazily for tags that get a cloned style.
@@ -183,10 +181,6 @@ public class TagPicker extends Table {
             selected.stream().anyMatch(TECHNIQUE_TAGS::contains));
         applyLockOff(MoveTag.MELEE, !attackSelected);
         applyLockOff(MoveTag.RANGED, !attackSelected);
-        externallyDisabled.forEach(tag -> {
-            CheckBox checkbox = checkboxes.get(tag);
-            if (checkbox != null) checkbox.setDisabled(true);
-        });
     }
 
     /** Lock a checkbox ON (forced checked, unclickable, grey fill + text). */
@@ -266,12 +260,6 @@ public class TagPicker extends Table {
         return new LinkedHashSet<>(selected);
     }
 
-    /** Keep selected tags visible while making their checkboxes read-only. */
-    public void disableTags(Set<MoveTag> tags) {
-        if (tags != null) externallyDisabled.addAll(tags);
-        applyLocks();
-    }
-
     /** The ordered tag sections rendered top-to-bottom. */
     private static Map<String, List<MoveTag>> sectionOrder() {
         Map<String, List<MoveTag>> sections = new LinkedHashMap<>();
@@ -281,7 +269,7 @@ public class TagPicker extends Table {
             MoveTag.INNATE_TECHNIQUE, MoveTag.NON_INNATE_TECHNIQUE));
         sections.put("RANGE", List.of(MoveTag.MELEE, MoveTag.RANGED, MoveTag.AOE));
         sections.put("TAGS", List.of(
-            MoveTag.SWORD, MoveTag.SOUL, MoveTag.STUN, MoveTag.GUARD_BREAK, MoveTag.HEAVY));
+            MoveTag.SWORD, MoveTag.STUN, MoveTag.GUARD_BREAK, MoveTag.HEAVY));
         return sections;
     }
 

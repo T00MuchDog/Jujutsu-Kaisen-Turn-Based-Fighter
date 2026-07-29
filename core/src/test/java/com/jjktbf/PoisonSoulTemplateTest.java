@@ -7,9 +7,6 @@ import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.combat.BattleCombatant;
-import com.jjktbf.model.move.Move;
-import com.jjktbf.model.move.MoveCategory;
-import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.StatusEffect;
 import com.jjktbf.model.move.StatusEffectType;
 import org.junit.jupiter.api.Test;
@@ -35,25 +32,6 @@ class PoisonSoulTemplateTest {
         assertTrue(StatusEffectType.POISON.requiresRoundDuration());
         assertThrows(IllegalArgumentException.class,
             () -> new StatusEffect(StatusEffectType.POISON, 0, 2, 5.0));
-    }
-
-    @Test
-    void soulMarkerRoundTripsWithoutChangingCategoryOrBlackFlash() {
-        MoveData data = new MoveData();
-        data.id = "SOUL_MOVE";
-        data.name = "Soul Move";
-        data.tags = List.of("PHYSICAL", "ATTACK", "MELEE", "SOUL");
-        data.basePower = 20;
-        data.apCost = 5;
-        data.unleashPoint = 1;
-
-        Move move = data.toMove();
-        MoveData restored = MoveData.fromMove(move);
-
-        assertEquals(MoveCategory.PHYSICAL, move.getCategory());
-        assertTrue(move.hasTag("SOUL"));
-        assertFalse(move.isBlackFlashEligible());
-        assertTrue(restored.tags.contains("SOUL"));
     }
 
     @Test

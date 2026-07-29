@@ -147,6 +147,14 @@ public class MoveData {
         public int delayTicks = 0;
         public boolean requiresPreviousConnection = false;
         public boolean avoidable = true;
+        /**
+         * Per-hit base accuracy as a fraction [0.0, 1.0]. A value &lt;= 0 in legacy
+         * data means "inherit the parent move's baseAccuracy" — preserved so old
+         * saves round-trip without silently changing every component to 0%.
+         */
+        public double baseAccuracy = -1.0;
+        /** On-hit status effects applied when this specific component connects. */
+        public List<StatusEffectData> onHitEffects;
 
         public HitComponent toHitComponent() {
             EnumSet<MoveTag> parsed = EnumSet.noneOf(MoveTag.class);
@@ -163,8 +171,14 @@ public class MoveData {
                     parsed.add(parsedTag);
                 }
             }
+            // baseAccuracy <= 0 (the legacy "unset" marker) → inherit the move's.
+            double acc = baseAccuracy >= 0.0
+                ? Math.max(0.0, Math.min(1.0, baseAccuracy))
+                : HitComponent.INHERIT_MOVE_ACCURACY;
+            List<StatusEffect> effects = toStatusEffects(onHitEffects);
             return new HitComponent(
-                basePower, parsed, delayTicks, requiresPreviousConnection, avoidable);
+                basePower, parsed, delayTicks, requiresPreviousConnection, avoidable,
+                acc, effects);
         }
 
         public static HitComponentData fromHitComponent(HitComponent component) {
@@ -174,6 +188,15 @@ public class MoveData {
             data.delayTicks = component.getDelayTicks();
             data.requiresPreviousConnection = component.requiresPreviousConnection();
             data.avoidable = component.isAvoidable();
+            // Only persist per-hit accuracy when it is actually authored; leaving
+            // baseAccuracy at its -1.0 "inherit" default keeps legacy saves clean.
+            if (component.hasOwnAccuracy()) {
+                data.baseAccuracy = component.getBaseAccuracy();
+            }
+            if (!component.getOnHitEffects().isEmpty()) {
+                data.onHitEffects = component.getOnHitEffects().stream()
+                    .map(MoveData::toEffectData).toList();
+            }
             return data;
         }
     }
@@ -351,19 +374,50 @@ public class MoveData {
 
         if (!rawTags.isEmpty()) b.tags(rawTags);
         if (hitComponents != null) {
+            // Legacy migration: on-hit effects used to live on the move itself.
+            // Push any such legacy list onto each component that defines none of
+            // its own, so saved multi-hit moves keep applying their effects per
+            // connecting hit. The migrated effects are then cleared from the
+            // move-level DTO so they are never re-serialised.
+            migrateLegacyOnHitEffects();
             b.hitComponents(hitComponents.stream()
                 .filter(java.util.Objects::nonNull)
                 .map(HitComponentData::toHitComponent)
                 .toList());
+        } else if (onHitEffects != null && !onHitEffects.isEmpty()) {
+            // Legacy single-component data (no explicit hitComponents): seed the
+            // synthesized fallback component via the builder so the move keeps
+            // its on-hit behaviour. Cleared afterwards so it is not re-serialised.
+            b.onHitEffects(toStatusEffects(onHitEffects));
+            onHitEffects = null;
         }
         if (prerequisites != null)  b.prerequisites(prerequisites);
-        if (onHitEffects  != null)  b.onHitEffects(toStatusEffects(onHitEffects));
+        // On-hit effects now live per HitComponent — no move-level mapping here.
         if (selfEffects   != null)  b.selfEffects(toStatusEffects(selfEffects));
         if (onBlockEffects != null) b.onBlockEffects(toStatusEffects(onBlockEffects));
         if (onParryEffects != null) b.onParryEffects(toStatusEffects(onParryEffects));
         if (onDodgeEffects != null) b.onDodgeEffects(toStatusEffects(onDodgeEffects));
 
         return b.build();
+    }
+
+    /**
+     * Move legacy move-level on-hit effects onto each hit component that has
+     * none of its own, then clear the move-level list so it is not re-serialised.
+     * No-op when there are no components or no legacy on-hit effects.
+     */
+    private void migrateLegacyOnHitEffects() {
+        if (hitComponents == null || hitComponents.isEmpty()) return;
+        if (onHitEffects == null || onHitEffects.isEmpty()) return;
+        for (HitComponentData component : hitComponents) {
+            if (component == null) continue;
+            if (component.onHitEffects == null || component.onHitEffects.isEmpty()) {
+                component.onHitEffects = new java.util.ArrayList<>(onHitEffects);
+            }
+        }
+        // Legacy on-hit effects are now carried by the components; drop them
+        // from the move-level DTO so they are never written back to JSON.
+        onHitEffects = null;
     }
 
     /**
@@ -514,9 +568,8 @@ public class MoveData {
         d.prerequisites       = move.getPrerequisites().isEmpty() ? null
                                     : new java.util.LinkedHashMap<>(move.getPrerequisites());
 
-        if (!move.getOnHitEffects().isEmpty()) {
-            d.onHitEffects = move.getOnHitEffects().stream().map(MoveData::toEffectData).toList();
-        }
+        // On-hit effects are serialized per HitComponent (see HitComponentData);
+        // never write a move-level onHitEffects — it would duplicate them.
         if (!move.getSelfEffects().isEmpty()) {
             d.selfEffects = move.getSelfEffects().stream().map(MoveData::toEffectData).toList();
         }

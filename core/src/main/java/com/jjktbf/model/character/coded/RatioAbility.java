@@ -82,7 +82,10 @@ public final class RatioAbility implements CodedAbilityRuntime {
     ) {
         if (attacker != owner) return CodedHitModifiers.none();
 
-        boolean directRatio = appliesRatioToMove(move.getOnHitEffects())
+        // Ratio's APPLY_TO_MOVE effect now lives on a specific HitComponent;
+        // directRatio fires only for the component that carries it. The
+        // move-level self effects (cast-time Ratio) still apply move-wide.
+        boolean directRatio = appliesRatioToMove(component.getOnHitEffects())
             || appliesRatioToMove(move.getSelfEffects());
 
         boolean consumedStack = consumeStackFor(defender);

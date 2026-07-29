@@ -931,7 +931,8 @@ public final class HeadlessBattleSession {
                     component.getTags().stream().map(MoveTag::name).toList(),
                     component.getDelayTicks(),
                     component.requiresPreviousConnection(),
-                    component.isAvoidable()))
+                    component.isAvoidable(),
+                    component.getBaseAccuracy()))
                 .toList(),
             move.getBaseAccuracy(),
             move.isNeverMiss(),

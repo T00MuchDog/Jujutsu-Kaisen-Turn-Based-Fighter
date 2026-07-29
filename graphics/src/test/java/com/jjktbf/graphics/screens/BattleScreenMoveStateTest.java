@@ -61,9 +61,9 @@ class BattleScreenMoveStateTest {
             999,
             List.of(
                 new HitComponentState(
-                    40, "PHYSICAL", List.of("PHYSICAL"), 0, false, true),
+                    40, "PHYSICAL", List.of("PHYSICAL"), 0, false, true, 1.0),
                 new HitComponentState(
-                    25, "CURSED_ENERGY", List.of("CURSED_ENERGY"), 4, true, false))
+                    25, "CURSED_ENERGY", List.of("CURSED_ENERGY"), 4, true, false, 1.0))
         ));
 
         assertEquals(65, move.getBasePower());

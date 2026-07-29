@@ -71,6 +71,10 @@ public abstract class EditorScreenBase<D> implements Screen {
     private static final float PAD = 8f;
     /** Minimum width of the label column in form rows, for cross-row alignment. */
     private static final float FORM_LABEL_WIDTH = 200f;
+    /** Delay before a held record-navigation key begins repeating. */
+    private static final float RECORD_KEY_REPEAT_DELAY = 0.50f;
+    /** Repeat cadence for held record-navigation keys (12.5 records per second). */
+    private static final float RECORD_KEY_REPEAT_INTERVAL = 0.08f;
 
     // ── Injected deps ──────────────────────────────────────────────────────────
 
@@ -123,6 +127,10 @@ public abstract class EditorScreenBase<D> implements Screen {
     private final List<String> visibleRecordIds = new ArrayList<>();
     /** Suppresses record-open audio for keyboard and programmatic list changes. */
     private boolean suppressRecordSelectionSound;
+    /** Arrow key currently driving repeated master-list navigation, or -1. */
+    private int heldRecordKey = -1;
+    /** Remaining time before the next held-key navigation step. */
+    private float recordKeyRepeatTimer;
 
     // =========================================================================
     // Construction
@@ -372,13 +380,17 @@ public abstract class EditorScreenBase<D> implements Screen {
                 }
                 Actor keyboardFocus = stage.getKeyboardFocus();
                 if (keyboardFocus != null && keyboardFocus != masterList) return false;
-                if (keycode == Input.Keys.UP) {
-                    if (nudgeSelection(-1)) game.audio().play(SoundCue.UI_NAVIGATE);
-                    event.cancel();
-                    return true;
-                }
-                if (keycode == Input.Keys.DOWN) {
-                    if (nudgeSelection(+1)) game.audio().play(SoundCue.UI_NAVIGATE);
+                if (keycode == Input.Keys.UP || keycode == Input.Keys.DOWN) {
+                    // Desktop backends may emit keyDown repeatedly while a key is held.
+                    // Drive repetition from render() instead so the cadence is consistent.
+                    if (keycode == heldRecordKey) {
+                        event.cancel();
+                        return true;
+                    }
+                    int direction = keycode == Input.Keys.UP ? -1 : 1;
+                    if (nudgeSelection(direction)) game.audio().play(SoundCue.UI_NAVIGATE);
+                    heldRecordKey = keycode;
+                    recordKeyRepeatTimer = RECORD_KEY_REPEAT_DELAY;
                     event.cancel();
                     return true;
                 }
@@ -388,6 +400,13 @@ public abstract class EditorScreenBase<D> implements Screen {
                     return true;
                 }
                 return false;
+            }
+
+            @Override public boolean keyUp(InputEvent event, int keycode) {
+                if (keycode != heldRecordKey) return false;
+                stopRecordKeyRepeat();
+                event.cancel();
+                return true;
             }
 
             @Override public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
@@ -405,12 +424,39 @@ public abstract class EditorScreenBase<D> implements Screen {
         });
     }
 
+    /** Advances a held Up/Down key after its initial delay. */
+    private void repeatHeldRecordKey(float delta) {
+        if (heldRecordKey == -1) return;
+        Actor keyboardFocus = stage.getKeyboardFocus();
+        if (topmostDialog() != null || (keyboardFocus != null && keyboardFocus != masterList)) {
+            stopRecordKeyRepeat();
+            return;
+        }
+
+        recordKeyRepeatTimer -= delta;
+        while (recordKeyRepeatTimer <= 0f) {
+            int direction = heldRecordKey == Input.Keys.UP ? -1 : 1;
+            if (!nudgeSelection(direction)) {
+                stopRecordKeyRepeat();
+                return;
+            }
+            // Repeated navigation stays silent so a long hold does not layer UI sounds.
+            recordKeyRepeatTimer += RECORD_KEY_REPEAT_INTERVAL;
+        }
+    }
+
+    private void stopRecordKeyRepeat() {
+        heldRecordKey = -1;
+        recordKeyRepeatTimer = 0f;
+    }
+
     // =========================================================================
     // Lifecycle
     // =========================================================================
 
     @Override
     public void show() {
+        stopRecordKeyRepeat();
         removeDialogs();
         Gdx.input.setInputProcessor(stage);
         try {
@@ -431,6 +477,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         // #CDDCFA — light blue, shared across all screens
         Gdx.gl.glClearColor(0.804f, 0.863f, 0.980f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        repeatHeldRecordKey(delta);
         stage.act(delta);
         stage.draw();
     }
@@ -446,7 +493,7 @@ public abstract class EditorScreenBase<D> implements Screen {
 
     @Override public void pause()  {}
     @Override public void resume() {}
-    @Override public void hide()   { removeDialogs(); }
+    @Override public void hide()   { stopRecordKeyRepeat(); removeDialogs(); }
 
     @Override
     public void dispose() {
@@ -523,7 +570,18 @@ public abstract class EditorScreenBase<D> implements Screen {
         } finally {
             suppressRecordSelectionSound = false;
         }
+        scrollMasterListTo(idx);
         return idx != current;
+    }
+
+    /** Keeps keyboard-selected records visible within the master-list scroll pane. */
+    private void scrollMasterListTo(int index) {
+        masterScroll.validate();
+        float itemHeight = masterList.getItemHeight();
+        if (itemHeight <= 0f) return;
+        float y = masterList.getHeight() - (index + 1) * itemHeight;
+        masterScroll.scrollTo(0f, y, masterList.getWidth(), itemHeight);
+        masterScroll.updateVisualScroll();
     }
 
     // =========================================================================
