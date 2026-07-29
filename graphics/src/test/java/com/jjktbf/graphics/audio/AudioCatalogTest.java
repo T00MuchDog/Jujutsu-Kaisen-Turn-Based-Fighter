@@ -1,7 +1,11 @@
 package com.jjktbf.graphics.audio;
 
+import com.badlogic.gdx.backends.lwjgl3.audio.Wav;
+import com.badlogic.gdx.files.FileHandle;
 import org.junit.jupiter.api.Test;
 
+import java.net.URL;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -32,6 +36,21 @@ class AudioCatalogTest {
         ClassLoader loader = AudioCatalogTest.class.getClassLoader();
         for (SoundCue cue : SoundCue.values()) {
             assertNotNull(loader.getResource(cue.assetPath()), cue.assetPath());
+        }
+    }
+
+    @Test
+    void everyPackagedWavCanBeDecodedByLibGdx() throws Exception {
+        ClassLoader loader = AudioCatalogTest.class.getClassLoader();
+        for (SoundCue cue : SoundCue.values()) {
+            if (!cue.assetPath().endsWith(".wav")) continue;
+
+            URL resource = loader.getResource(cue.assetPath());
+            assertNotNull(resource, cue.assetPath());
+            FileHandle file = new FileHandle(Path.of(resource.toURI()).toFile());
+            try (Wav.WavInputStream wav = new Wav.WavInputStream(file)) {
+                assertTrue(wav.dataRemaining > 0, cue.assetPath());
+            }
         }
     }
 

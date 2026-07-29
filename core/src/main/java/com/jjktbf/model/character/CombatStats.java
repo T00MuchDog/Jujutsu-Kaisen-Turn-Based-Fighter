@@ -8,15 +8,20 @@ package com.jjktbf.model.character;
  * STAT SCALING  (StatScale.java — applied to EVERY base stat first)
  * ============================================================
  * Every base stat is passed through StatScale.scale() before entering any
- * derived formula below. The curve is a nonlinear transform anchored at 80:
+ * derived formula below. The curve is PIECEWISE, anchored at the baseline 80:
  *
- *   S(s) = max(8, round(80 + sign(s − 80) · 0.12 · |s − 80|^1.5))
+ *   For s <= 80:  S(s) = s                                          (identity / linear)
+ *   For s >  80:  S(s) = max(8, round(80 + 0.12 · (s − 80)^1.5))   (super-linear)
  *
- * It flattens at the baseline (S(80) = 80) and steepens away from it, so stat
- * differences matter MORE the further the stats sit from 80 — a 300-vs-250 gap
- * dwarfs a 100-vs-200 gap — while low stats stay meaningfully worse without
- * collapsing (S(20)=24, S(40)=50, S(60)=69). See StatScale for full detail.
- * All formulas below use the SCALED stat values.
+ * Linear from 10 to 80 (the Grade 3 → Grade 1 climb feels massive and scales
+ * uniformly), flat just above 80 (Grade 1 peers trade near-even — differences
+ * are marginal), then steepening toward 300 (heavy hitters pull away faster
+ * than the raw gap suggests). So S(20)=20, S(40)=40, S(60)=60, S(80)=80, and
+ * above 80 S(150)=150, S(200)=238, S(300)=472. See StatScale for full detail.
+ *
+ * EXCEPTION: AP bar size uses StatScale.scaleForAp() — a separate curve with
+ * lower anchors (G(80)=60, G(300)=300) so AP bars are intentionally smaller.
+ * All OTHER formulas below use S(stat).
  *
  * ============================================================
  * FORMULA REFERENCE  (inputs are the SCALED stats S(stat))
@@ -28,10 +33,12 @@ package com.jjktbf.model.character;
  *    HP_PER_VIT = 3.5  (raised from the 2.67 placeholder — longer fights)
  *
  *  AP BAR SIZE
- *    Baseline (SPD=80, CA=80)   → 80
+ *    Baseline (SPD=80, CA=80)   → 60   (uses StatScale.scaleForAp, NOT S)
  *    Ratio 15:3 Speed to CombatAbility.
- *    Formula: AP = (S(SPD) * 15 + S(CA) * 3) / AP_DIVISOR
- *    AP_DIVISOR = 18 → baseline = 80. High stats now amplify via the curve.
+ *    Formula: AP = (G(SPD) * 15 + G(CA) * 3) / AP_DIVISOR
+ *      where G = StatScale.scaleForAp: G(10)=10, G(80)=60, G(300)=300
+ *    AP_DIVISOR = 18. On the SPD==CA diagonal AP collapses to G(stat), so
+ *    AP(80,80)=60 and AP(300,300)=300 exactly.
  *
  *  ACCURACY  (attacker stat — not a 0-100%, used in hit-roll formula)
  *    Ratio 4:1 CombatAbility to Speed
@@ -116,8 +123,9 @@ public class CombatStats {
     public static final double HP_PER_VIT = 3.5;
 
     /**
-     * AP bar divisor in the (S(SPD)*15 + S(CA)*3) formula.
-     * Baseline (SPD=80, CA=80) → 80 AP exactly; high stats amplify via StatScale.
+     * AP bar divisor in the (G(SPD)*15 + G(CA)*3) formula, where G is
+     * {@link StatScale#scaleForAp(int)}. Baseline (SPD=80, CA=80) → 60 AP
+     * exactly; high stats amplify via the AP-specific curve to 300 at 300/300.
      */
     public static final int AP_DIVISOR = 18;
 
@@ -235,8 +243,10 @@ public class CombatStats {
     }
 
     private static int computeMaxApBar(CharacterStats cs) {
-        return (StatScale.scale(cs.getSpeed()) * 15
-              + StatScale.scale(cs.getCombatAbility()) * 3) / AP_DIVISOR;
+        // AP uses StatScale.scaleForAp (a lower-baseline curve than S) so that
+        // 80/80 → 60 and 300/300 → 300. Speed weighted 15:3 over Combat Ability.
+        return (StatScale.scaleForAp(cs.getSpeed()) * 15
+              + StatScale.scaleForAp(cs.getCombatAbility()) * 3) / AP_DIVISOR;
     }
 
     private static int computeAccuracy(CharacterStats cs) {

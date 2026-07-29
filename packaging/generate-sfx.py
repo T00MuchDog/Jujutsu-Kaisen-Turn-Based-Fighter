@@ -258,12 +258,6 @@ def generate_battle() -> dict[str, list[float]]:
             (noise(0.25, 202, volume=0.58, color="high", decay=1.15, gate_hz=37), 0.0, 1.0),
             (oscillator(0.17, 155, 64, shape="triangle", volume=0.42, decay=1.5), 0.025, 1.0),
         ), 34, 3),
-        "battle/block.wav": bitcrush(mix(
-            0.25,
-            (noise(0.12, 203, volume=0.48, color="high", decay=2.5), 0.0, 1.0),
-            (oscillator(0.22, 1850, 780, shape="triangle", volume=0.46, vibrato_hz=38, vibrato_depth=0.06, decay=0.9), 0.0, 1.0),
-            (oscillator(0.10, 170, 90, shape="triangle", volume=0.34, decay=1.8), 0.0, 1.0),
-        ), 56, 2),
         "battle/miss.wav": bitcrush(mix(
             0.28,
             (noise(0.24, 204, volume=0.44, color="high", attack=0.025, decay=0.8, gate_hz=18), 0.0, 1.0),

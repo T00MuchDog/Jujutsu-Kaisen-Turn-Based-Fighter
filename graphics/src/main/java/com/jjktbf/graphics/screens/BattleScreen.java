@@ -104,6 +104,8 @@ public class BattleScreen implements Screen, BattleView {
      * resolution after a move's dialogue finishes.
      */
     private static final float MOVE_EFFECT_DURATION_SECONDS = 3f;
+    /** Successful blocks use the same grow/fade treatment in a much shorter burst. */
+    private static final float BLOCK_EFFECT_DURATION_SECONDS = 0.75f;
     /** Chars revealed per second when typing a log line out letter-by-letter. */
     private static final float LOG_TYPE_RATE_CPS       = 40f;
     /**
@@ -191,6 +193,9 @@ public class BattleScreen implements Screen, BattleView {
     // ── Move unleash animation (render-thread state) ──────────────────────────
     private Texture unleashedMoveIcon;
     private float unleashedMoveElapsed;
+    private float unleashedMoveDurationSeconds = MOVE_EFFECT_DURATION_SECONDS;
+    private boolean unleashedMoveTargetsCombatant;
+    private boolean unleashedMoveTargetsPlayer;
 
     // ── Move selection state ──────────────────────────────────────────────────
     private volatile boolean inputConfirmed = false;
@@ -703,7 +708,7 @@ public class BattleScreen implements Screen, BattleView {
     private void updateMoveUnleashAnimation(float delta) {
         if (unleashedMoveIcon == null) return;
         unleashedMoveElapsed += Math.max(0f, delta);
-        if (unleashedMoveElapsed >= MOVE_EFFECT_DURATION_SECONDS) {
+        if (unleashedMoveElapsed >= unleashedMoveDurationSeconds) {
             unleashedMoveIcon = null;
         }
     }
@@ -711,18 +716,27 @@ public class BattleScreen implements Screen, BattleView {
     private void drawMoveUnleashAnimation(float screenWidth, float screenHeight) {
         if (unleashedMoveIcon == null) return;
 
-        float progress = Math.min(1f, unleashedMoveElapsed / MOVE_EFFECT_DURATION_SECONDS);
+        float progress = Math.min(1f, unleashedMoveElapsed / unleashedMoveDurationSeconds);
         float easedGrowth = 1f - (1f - progress) * (1f - progress);
         float viewportSize = Math.min(screenWidth, screenHeight);
         float startSize = Math.max(40f, Math.min(64f, viewportSize * 0.09f));
         float endSize = Math.max(startSize, Math.min(240f, viewportSize * 0.34f));
         float size = startSize + (endSize - startSize) * easedGrowth;
         float width = size * unleashedMoveIcon.getWidth() / (float) unleashedMoveIcon.getHeight();
+        float centerX = screenWidth / 2f;
+        float centerY = screenHeight / 2f;
+        if (unleashedMoveTargetsCombatant) {
+            CombatantPanel targetPanel = unleashedMoveTargetsPlayer ? playerPanel : enemyPanel;
+            if (targetPanel != null) {
+                centerX = targetPanel.spriteCenterX();
+                centerY = targetPanel.spriteCenterY();
+            }
+        }
 
         batch.setColor(1f, 1f, 1f, 1f - progress);
         batch.draw(unleashedMoveIcon,
-            (screenWidth - width) / 2f,
-            (screenHeight - size) / 2f,
+            centerX - width / 2f,
+            centerY - size / 2f,
             width,
             size);
         batch.setColor(Color.WHITE);
@@ -738,12 +752,32 @@ public class BattleScreen implements Screen, BattleView {
             unleashedMoveIcon = assets.battleUi.attackEffectIcon;
         }
         unleashedMoveElapsed = 0f;
+        unleashedMoveDurationSeconds = MOVE_EFFECT_DURATION_SECONDS;
+        unleashedMoveTargetsCombatant = false;
     }
 
     /** Plays the successful Ratio-stack proc with the same center-screen treatment as a move effect. */
     private void playRatioUnleashAnimation() {
         unleashedMoveIcon = assets.battleUi.ratioStack;
         unleashedMoveElapsed = 0f;
+        unleashedMoveDurationSeconds = MOVE_EFFECT_DURATION_SECONDS;
+        unleashedMoveTargetsCombatant = false;
+    }
+
+    private void playSuccessfulBlockAnimation(boolean playerTarget) {
+        unleashedMoveIcon = assets.battleUi.defenseEffectIcon;
+        unleashedMoveElapsed = 0f;
+        unleashedMoveDurationSeconds = BLOCK_EFFECT_DURATION_SECONDS;
+        unleashedMoveTargetsCombatant = true;
+        unleashedMoveTargetsPlayer = playerTarget;
+    }
+
+    private void playSuccessfulBlockAnimation(CombatEvent event) {
+        if (event.getTarget() == renderPlayer) {
+            playSuccessfulBlockAnimation(true);
+        } else if (event.getTarget() == renderEnemy) {
+            playSuccessfulBlockAnimation(false);
+        }
     }
 
     private void drawBattleOver() {
@@ -991,6 +1025,11 @@ public class BattleScreen implements Screen, BattleView {
             if (e.getType() == CombatEvent.Type.MOVE_FIRED) {
                 Move unleashedMove = e.getMove();
                 postLocal(() -> playMoveUnleashAnimation(unleashedMove));
+            }
+            if (e.getType() == CombatEvent.Type.MOVE_BLOCKED
+                || e.getType() == CombatEvent.Type.MOVE_BLOCK_REDUCED) {
+                CombatEvent blockEvent = e;
+                postLocal(() -> playSuccessfulBlockAnimation(blockEvent));
             }
             if (e.getType() == CombatEvent.Type.RATIO_TRIGGERED) {
                 postLocal(this::playRatioUnleashAnimation);
@@ -1482,6 +1521,14 @@ public class BattleScreen implements Screen, BattleView {
         if (event.type() == BattleEventType.MOVE_FIRED && event.moveId() != null) {
             unleashedMove = findOnlineMove(event.sourceSide(), event.moveId());
             if (unleashedMove != null) playMoveUnleashAnimation(unleashedMove);
+        }
+        if (event.type() == BattleEventType.MOVE_BLOCKED
+            || event.type() == BattleEventType.MOVE_BLOCK_REDUCED) {
+            if (event.targetSide() == multiplayerSetup.playerSide()) {
+                playSuccessfulBlockAnimation(true);
+            } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
+                playSuccessfulBlockAnimation(false);
+            }
         }
         if (event.eventId() == null || soundedOnlineEventIds.add(event.eventId())) {
             BattleAudioRouter.cueFor(event, unleashedMove).ifPresent(game.audio()::play);

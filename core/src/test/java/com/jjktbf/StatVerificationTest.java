@@ -24,27 +24,27 @@ import static org.junit.jupiter.api.Assertions.*;
 public class StatVerificationTest {
 
     @Test
-    void baselineApBarShouldBeAround80() {
+    void baselineApBarShouldBeAround60() {
         CharacterStats stats = new CharacterStats.Builder()
             .speed(80).combatAbility(80).build();
         CombatStats cs = new CombatStats(stats);
         int ap = cs.getMaxApBar();
         System.out.println("Baseline AP bar: " + ap);
-        // (80*15 + 80*3) / 18 = 1440/18 = 80 exactly
-        assertEquals(80, ap, "Expected baseline AP = 80 exactly");
+        // AP uses StatScale.scaleForAp (lower-baseline curve than S):
+        //   G(80) = 60. (60*15 + 60*3) / 18 = 1080/18 = 60 exactly.
+        assertEquals(60, ap, "Expected baseline AP = 60 exactly");
     }
 
     @Test
-    void highStatApBarShouldBeAround380() {
+    void highStatApBarAtMaxStats() {
         CharacterStats stats = new CharacterStats.Builder()
             .speed(300).combatAbility(300).build();
         CombatStats cs = new CombatStats(stats);
         int ap = cs.getMaxApBar();
         System.out.println("Max AP bar (300/300): " + ap);
-        // Stats are StatScale-scaled: S(300) = 472. AP uses scaled stats:
-        //   (472*15 + 472*3) / 18 = 8496/18 = 472. The nonlinear curve amplifies
-        // high-tier AP bars (a 300-stat character has a much larger action economy).
-        assertEquals(472, ap, "Expected AP at 300/300 (scaled) = 472");
+        // AP uses StatScale.scaleForAp: G(300) = 300. On the SPD==CA diagonal
+        //   AP = (G*15 + G*3)/18 = G, so AP(300,300) = 300 exactly.
+        assertEquals(300, ap, "Expected AP at 300/300 (AP curve) = 300");
     }
 
     @Test

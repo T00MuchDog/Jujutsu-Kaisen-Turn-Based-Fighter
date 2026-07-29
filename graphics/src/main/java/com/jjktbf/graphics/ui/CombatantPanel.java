@@ -78,6 +78,14 @@ public class CombatantPanel {
         damageFlashRemaining = DAMAGE_FLASH_DURATION_SECONDS;
     }
 
+    public float spriteCenterX() {
+        return spriteBounds.x + spriteBounds.width / 2f;
+    }
+
+    public float spriteCenterY() {
+        return spriteBounds.y + spriteBounds.height / 2f;
+    }
+
     public void draw(Batch batch, BitmapFont nameFont, BitmapFont barFont, String name, float delta) {
         batch.setColor(Color.WHITE);
         if (basePlate != null) {
