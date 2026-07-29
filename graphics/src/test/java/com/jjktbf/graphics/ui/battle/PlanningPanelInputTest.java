@@ -130,6 +130,26 @@ class PlanningPanelInputTest {
         assertEquals(1, PlanningPanel.lastStartTick(data.toMove(), 10));
     }
 
+    @Test
+    void movePaletteFillsTenCardsAcrossTwoRowsBeforeExtendingRight() {
+        assertEquals(1, PlanningPanel.paletteRowCount(5));
+        assertEquals(2, PlanningPanel.paletteRowCount(6));
+        assertEquals(2, PlanningPanel.paletteRowCount(30));
+
+        assertEquals(0, PlanningPanel.paletteRow(0));
+        assertEquals(4, PlanningPanel.paletteColumn(4));
+        assertEquals(1, PlanningPanel.paletteRow(5));
+        assertEquals(0, PlanningPanel.paletteColumn(5));
+        assertEquals(1, PlanningPanel.paletteRow(9));
+        assertEquals(4, PlanningPanel.paletteColumn(9));
+
+        assertEquals(0, PlanningPanel.paletteRow(10));
+        assertEquals(5, PlanningPanel.paletteColumn(10));
+        assertEquals(1, PlanningPanel.paletteRow(11));
+        assertEquals(5, PlanningPanel.paletteColumn(11));
+        assertEquals(6, PlanningPanel.paletteColumnCount(12));
+    }
+
     private static PlanningPanel panel(Move move, int apBudget) {
         return new PlanningPanel(
             List.of(move), Map.of(move.getId(), 0), apBudget, 0,

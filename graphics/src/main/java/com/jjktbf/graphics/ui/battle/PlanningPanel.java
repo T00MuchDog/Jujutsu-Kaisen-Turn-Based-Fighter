@@ -1,8 +1,10 @@
 package com.jjktbf.graphics.ui.battle;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input.Buttons;
 import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
@@ -35,6 +37,14 @@ public class PlanningPanel {
 
     private static final float MARGIN = 34f;
     private static final float CARD_GAP = 10f;
+    private static final float PALETTE_PADDING = 10f;
+    private static final float SCROLLBAR_HEIGHT = 6f;
+    private static final float SCROLLBAR_MIN_THUMB_WIDTH = 28f;
+    private static final float PALETTE_SCROLL_SPEED = 0.2f;
+    private static final float PALETTE_SCROLL_SMOOTHING = 12f;
+    private static final int PALETTE_COLUMNS = 5;
+    private static final int PALETTE_ROWS = 2;
+    private static final int PALETTE_PAGE_SIZE = PALETTE_COLUMNS * PALETTE_ROWS;
     private static final float DRAG_THRESHOLD = 5f;
 
     private final BattlePlan plan;
@@ -53,11 +63,21 @@ public class PlanningPanel {
     private final List<ActionSegmentView> defensiveViews = new ArrayList<>();
     private final Rectangle headerBounds = new Rectangle();
     private final Rectangle paletteBounds = new Rectangle();
+    private final Rectangle paletteViewportBounds = new Rectangle();
+    private final Rectangle paletteScrollTrackBounds = new Rectangle();
+    private final Rectangle paletteScrollThumbBounds = new Rectangle();
     private final Rectangle lockInBounds = new Rectangle();
 
     private float screenWidth;
     private float screenHeight;
     private boolean compactLayout;
+    private float paletteContentWidth;
+    private float paletteScrollX;
+    private float paletteScrollTargetX;
+    private float paletteScrollMax;
+    private boolean draggingPaletteScrollbar;
+    private float scrollbarDragStartX;
+    private float scrollbarDragStartOffset;
 
     private Move draggingMove;
     private ActionSegment draggingSegment;
@@ -161,6 +181,7 @@ public class PlanningPanel {
         draggingBoard = null;
         pressedSegment = null;
         pressedBoard = null;
+        draggingPaletteScrollbar = false;
         snapValid = false;
         clickingMoveCard = false;
         dragSoundPlayed = false;
@@ -185,11 +206,12 @@ public class PlanningPanel {
             lockInBounds.set(headerBounds.x + headerBounds.width - 156f, headerBounds.y + 10f, 142f, headerH - 20f);
         }
 
-        int columns = Math.max(1, (int) ((width - margin * 2f + CARD_GAP) / (MoveCardView.CARD_W + CARD_GAP)));
-        int rows = Math.max(1, (int) Math.ceil(knownMoves.size() / (double) columns));
+        int rows = paletteRowCount(knownMoves.size());
         float paletteHeight = 20f + rows * MoveCardView.CARD_H + (rows - 1) * CARD_GAP;
-        paletteBounds.set(margin, margin, width - margin * 2f, paletteHeight);
-        buildPalette(columns);
+        float availablePaletteWidth = Math.max(1f, width - margin * 2f);
+        float paletteWidth = Math.min(availablePaletteWidth, preferredPaletteWidth());
+        paletteBounds.set((width - paletteWidth) / 2f, margin, paletteWidth, paletteHeight);
+        buildPalette(rows);
 
         float labelWidth = compactLayout ? 0f : Math.min(150f, Math.max(108f, width * 0.12f));
         float timelineX = margin + labelWidth;
@@ -211,16 +233,118 @@ public class PlanningPanel {
         offensiveBar.setBounds(timelineX, defensiveY + timelineH + boardGap, timelineW, timelineH);
     }
 
-    private void buildPalette(int columns) {
+    private void buildPalette(int rows) {
         cards.clear();
-        int rows = Math.max(1, (int) Math.ceil(knownMoves.size() / (double) columns));
         for (int i = 0; i < knownMoves.size(); i++) {
-            int row = i / columns;
-            int column = i % columns;
-            float x = paletteBounds.x + 10f + column * (MoveCardView.CARD_W + CARD_GAP);
-            float y = paletteBounds.y + 10f + (rows - row - 1) * (MoveCardView.CARD_H + CARD_GAP);
-            cards.add(new MoveCardView(knownMoves.get(i), x, y));
+            cards.add(new MoveCardView(knownMoves.get(i), 0f, 0f));
         }
+
+        paletteViewportBounds.set(
+            paletteBounds.x + PALETTE_PADDING,
+            paletteBounds.y + PALETTE_PADDING,
+            Math.max(0f, paletteBounds.width - PALETTE_PADDING * 2f),
+            Math.max(0f, paletteBounds.height - PALETTE_PADDING * 2f));
+        int columns = paletteColumnCount(knownMoves.size());
+        paletteContentWidth = columns == 0
+            ? 0f
+            : columns * MoveCardView.CARD_W + (columns - 1) * CARD_GAP;
+        paletteScrollMax = Math.max(0f, paletteContentWidth - paletteViewportBounds.width);
+        paletteScrollX = clamp(paletteScrollX, 0f, paletteScrollMax);
+        paletteScrollTargetX = clamp(paletteScrollTargetX, 0f, paletteScrollMax);
+        draggingPaletteScrollbar = false;
+        layoutPaletteCards(rows);
+        layoutPaletteScrollbar();
+    }
+
+    private void layoutPaletteCards(int rows) {
+        for (int i = 0; i < cards.size(); i++) {
+            int row = paletteRow(i);
+            int column = paletteColumn(i);
+            float x = paletteViewportBounds.x
+                + column * (MoveCardView.CARD_W + CARD_GAP) - paletteScrollX;
+            float y = paletteViewportBounds.y
+                + (rows - row - 1) * (MoveCardView.CARD_H + CARD_GAP);
+            cards.get(i).getBounds().setPosition(x, y);
+        }
+    }
+
+    private void layoutPaletteScrollbar() {
+        if (paletteScrollMax <= 0f) {
+            paletteScrollTrackBounds.set(0f, 0f, 0f, 0f);
+            paletteScrollThumbBounds.set(0f, 0f, 0f, 0f);
+            return;
+        }
+
+        paletteScrollTrackBounds.set(
+            paletteBounds.x + PALETTE_PADDING,
+            paletteBounds.y + 2f,
+            Math.max(0f, paletteBounds.width - PALETTE_PADDING * 2f),
+            SCROLLBAR_HEIGHT);
+        float thumbWidth = Math.max(
+            SCROLLBAR_MIN_THUMB_WIDTH,
+            paletteScrollTrackBounds.width * paletteViewportBounds.width / paletteContentWidth);
+        thumbWidth = Math.min(paletteScrollTrackBounds.width, thumbWidth);
+        float travel = paletteScrollTrackBounds.width - thumbWidth;
+        float progress = paletteScrollMax == 0f ? 0f : paletteScrollX / paletteScrollMax;
+        paletteScrollThumbBounds.set(
+            paletteScrollTrackBounds.x + travel * progress,
+            paletteScrollTrackBounds.y,
+            thumbWidth,
+            paletteScrollTrackBounds.height);
+    }
+
+    private void setPaletteScroll(float value) {
+        paletteScrollX = clamp(value, 0f, paletteScrollMax);
+        paletteScrollTargetX = paletteScrollX;
+        layoutPaletteCards(paletteRowCount(cards.size()));
+        layoutPaletteScrollbar();
+    }
+
+    private void setPaletteScrollTarget(float value) {
+        paletteScrollTargetX = clamp(value, 0f, paletteScrollMax);
+    }
+
+    private void updatePaletteScrollAnimation(float delta) {
+        float distance = paletteScrollTargetX - paletteScrollX;
+        if (Math.abs(distance) < 0.1f) {
+            if (distance == 0f) return;
+            paletteScrollX = paletteScrollTargetX;
+        } else {
+            float elapsed = Math.min(Math.max(delta, 0f), 0.05f);
+            float blend = 1f - (float) Math.exp(-PALETTE_SCROLL_SMOOTHING * elapsed);
+            paletteScrollX += distance * blend;
+        }
+        layoutPaletteCards(paletteRowCount(cards.size()));
+        layoutPaletteScrollbar();
+        updateHoveredCard();
+    }
+
+    private static float preferredPaletteWidth() {
+        return PALETTE_PADDING * 2f
+            + PALETTE_COLUMNS * MoveCardView.CARD_W
+            + (PALETTE_COLUMNS - 1) * CARD_GAP;
+    }
+
+    static int paletteRowCount(int cardCount) {
+        return cardCount <= PALETTE_COLUMNS ? 1 : PALETTE_ROWS;
+    }
+
+    static int paletteRow(int cardIndex) {
+        if (cardIndex < PALETTE_PAGE_SIZE) return cardIndex / PALETTE_COLUMNS;
+        return (cardIndex - PALETTE_PAGE_SIZE) % PALETTE_ROWS;
+    }
+
+    static int paletteColumn(int cardIndex) {
+        if (cardIndex < PALETTE_PAGE_SIZE) return cardIndex % PALETTE_COLUMNS;
+        return PALETTE_COLUMNS + (cardIndex - PALETTE_PAGE_SIZE) / PALETTE_ROWS;
+    }
+
+    static int paletteColumnCount(int cardCount) {
+        if (cardCount <= 0) return 0;
+        if (cardCount <= PALETTE_COLUMNS) return cardCount;
+        if (cardCount <= PALETTE_PAGE_SIZE) return PALETTE_COLUMNS;
+        return PALETTE_COLUMNS
+            + (int) Math.ceil((cardCount - PALETTE_PAGE_SIZE) / (double) PALETTE_ROWS);
     }
 
     private void refresh() {
@@ -251,6 +375,7 @@ public class PlanningPanel {
     }
 
     public void draw(Batch batch, BitmapFont font, BitmapFont titleFont, BitmapFont statFont) {
+        updatePaletteScrollAnimation(Gdx.graphics.getDeltaTime());
         refresh();
         batch.begin();
         drawHeader(batch, font, titleFont);
@@ -264,10 +389,54 @@ public class PlanningPanel {
         for (ActionSegmentView view : defensiveViews) view.draw(batch, font, ui);
 
         ui.palette.draw(batch, paletteBounds.x, paletteBounds.y, paletteBounds.width, paletteBounds.height);
-        for (MoveCardView card : cards) card.draw(batch, titleFont, statFont, ui, ceCost(card.getMove()));
+        beginPaletteClip(batch);
+        try {
+            for (MoveCardView card : cards) {
+                card.draw(batch, titleFont, statFont, ui, ceCost(card.getMove()));
+            }
+        } finally {
+            endPaletteClip(batch);
+        }
+        drawPaletteScrollbar(batch);
         drawDragAvatar(batch, font);
         drawKeywordTooltip(batch, font, titleFont);
         batch.end();
+    }
+
+    private void beginPaletteClip(Batch batch) {
+        batch.flush();
+        float scaleX = Gdx.graphics.getBackBufferWidth() / (float) Gdx.graphics.getWidth();
+        float scaleY = Gdx.graphics.getBackBufferHeight() / (float) Gdx.graphics.getHeight();
+        Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);
+        Gdx.gl.glScissor(
+            Math.round(paletteViewportBounds.x * scaleX),
+            Math.round(paletteViewportBounds.y * scaleY),
+            Math.round(paletteViewportBounds.width * scaleX),
+            Math.round(paletteViewportBounds.height * scaleY));
+    }
+
+    private void endPaletteClip(Batch batch) {
+        batch.flush();
+        Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
+    }
+
+    private void drawPaletteScrollbar(Batch batch) {
+        if (paletteScrollMax <= 0f) return;
+        batch.setColor(BattleUiAssets.INK);
+        batch.draw(
+            ui.pixel,
+            paletteScrollTrackBounds.x,
+            paletteScrollTrackBounds.y,
+            paletteScrollTrackBounds.width,
+            paletteScrollTrackBounds.height);
+        batch.setColor(BattleUiAssets.YELLOW);
+        batch.draw(
+            ui.pixel,
+            paletteScrollThumbBounds.x,
+            paletteScrollThumbBounds.y,
+            paletteScrollThumbBounds.width,
+            paletteScrollThumbBounds.height);
+        batch.setColor(Color.WHITE);
     }
 
     private void drawKeywordTooltip(Batch batch, BitmapFont font, BitmapFont titleFont) {
@@ -451,23 +620,35 @@ public class PlanningPanel {
             pressMouseX = dragMouseX;
             pressMouseY = dragMouseY;
 
+            if (paletteScrollMax > 0f && paletteScrollTrackBounds.contains(dragMouseX, dragMouseY)) {
+                if (!paletteScrollThumbBounds.contains(dragMouseX, dragMouseY)) {
+                    scrollPaletteThumbTo(dragMouseX);
+                }
+                draggingPaletteScrollbar = true;
+                scrollbarDragStartX = dragMouseX;
+                scrollbarDragStartOffset = paletteScrollX;
+                return true;
+            }
+
             if (lockInBounds.contains(dragMouseX, dragMouseY)) {
                 confirmed = true;
                 onConfirm.run();
                 return true;
             }
 
-            for (int i = 0; i < cards.size(); i++) {
-                MoveCardView card = cards.get(i);
-                if (!card.isDisabled() && card.getBounds().contains(dragMouseX, dragMouseY)) {
-                    selectedSegment = null;
-                    draggingMove = card.getMove();
-                    draggingSegment = null;
-                    draggingBoard = BattlePlan.boardFor(draggingMove);
-                    clickingMoveCard = true;
-                    dragSoundPlayed = false;
-                    updateSnap();
-                    return true;
+            if (paletteViewportBounds.contains(dragMouseX, dragMouseY)) {
+                for (int i = 0; i < cards.size(); i++) {
+                    MoveCardView card = cards.get(i);
+                    if (!card.isDisabled() && card.getBounds().contains(dragMouseX, dragMouseY)) {
+                        selectedSegment = null;
+                        draggingMove = card.getMove();
+                        draggingSegment = null;
+                        draggingBoard = BattlePlan.boardFor(draggingMove);
+                        clickingMoveCard = true;
+                        dragSoundPlayed = false;
+                        updateSnap();
+                        return true;
+                    }
                 }
             }
 
@@ -485,6 +666,16 @@ public class PlanningPanel {
 
         @Override
         public boolean touchDragged(int screenX, int screenY, int pointer) {
+            if (draggingPaletteScrollbar) {
+                updatePointer(screenX, screenY);
+                float trackTravel = paletteScrollTrackBounds.width - paletteScrollThumbBounds.width;
+                if (trackTravel > 0f) {
+                    setPaletteScroll(scrollbarDragStartOffset
+                        + (dragMouseX - scrollbarDragStartX) * paletteScrollMax / trackTravel);
+                    updateHover();
+                }
+                return true;
+            }
             if (confirmed || (draggedMove() == null && pressedSegment == null)) return false;
             updatePointer(screenX, screenY);
             float deltaX = dragMouseX - pressMouseX;
@@ -511,6 +702,11 @@ public class PlanningPanel {
         public boolean touchUp(int screenX, int screenY, int pointer, int button) {
             if (confirmed || button != Buttons.LEFT) return false;
             updatePointer(screenX, screenY);
+            if (draggingPaletteScrollbar) {
+                draggingPaletteScrollbar = false;
+                updateHover();
+                return true;
+            }
             if (pressedSegment != null) {
                 pressedSegment = null;
                 pressedBoard = null;
@@ -547,6 +743,34 @@ public class PlanningPanel {
             updatePointer(screenX, screenY);
             updateHover();
             return hoveredCard >= 0 || hoveredSegment != null || lockHovered;
+        }
+
+        @Override
+        public boolean scrolled(float amountX, float amountY) {
+            if (confirmed || draggedMove() != null || paletteScrollMax <= 0f) return false;
+            updatePointer(Gdx.input.getX(), Gdx.input.getY());
+            if (!paletteBounds.contains(dragMouseX, dragMouseY)) return false;
+
+            float amount = Math.abs(amountX) > Math.abs(amountY) ? amountX : amountY;
+            if (amount == 0f) return false;
+            float step = Math.min(
+                MoveCardView.CARD_W + CARD_GAP,
+                Math.max(48f, paletteViewportBounds.width * 0.3f));
+            setPaletteScrollTarget(
+                paletteScrollTargetX + amount * step * PALETTE_SCROLL_SPEED);
+            updateHover();
+            return true;
+        }
+
+        private void scrollPaletteThumbTo(float pointerX) {
+            float travel = paletteScrollTrackBounds.width - paletteScrollThumbBounds.width;
+            if (travel <= 0f) return;
+            float thumbX = clamp(
+                pointerX - paletteScrollThumbBounds.width / 2f,
+                paletteScrollTrackBounds.x,
+                paletteScrollTrackBounds.x + travel);
+            setPaletteScroll(
+                (thumbX - paletteScrollTrackBounds.x) * paletteScrollMax / travel);
         }
 
         private void startMoveDrag(ActionSegment segment, BattlePlan.Board board) {
@@ -612,14 +836,8 @@ public class PlanningPanel {
         }
 
         private void updateHover() {
-            hoveredCard = -1;
             lockHovered = !confirmed && lockInBounds.contains(dragMouseX, dragMouseY);
-            for (int i = 0; i < cards.size(); i++) {
-                if (cards.get(i).getBounds().contains(dragMouseX, dragMouseY)) {
-                    hoveredCard = i;
-                    break;
-                }
-            }
+            updateHoveredCard();
             ActionSegmentView hit = hitSegment();
             hoveredSegment = hit == null ? null : hit.getSegment();
         }
@@ -633,5 +851,20 @@ public class PlanningPanel {
             }
             return null;
         }
+    }
+
+    private void updateHoveredCard() {
+        hoveredCard = -1;
+        if (!paletteViewportBounds.contains(dragMouseX, dragMouseY)) return;
+        for (int i = 0; i < cards.size(); i++) {
+            if (cards.get(i).getBounds().contains(dragMouseX, dragMouseY)) {
+                hoveredCard = i;
+                return;
+            }
+        }
+    }
+
+    private static float clamp(float value, float minimum, float maximum) {
+        return Math.max(minimum, Math.min(maximum, value));
     }
 }
