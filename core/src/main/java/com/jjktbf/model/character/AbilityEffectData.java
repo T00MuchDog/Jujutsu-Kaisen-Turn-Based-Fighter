@@ -20,6 +20,9 @@ import static com.jjktbf.model.character.CharacterStats.MAX_STAT;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class AbilityEffectData {
 
+    /** Stable row ID used by activation conditions to target this effect. */
+    public String effectId;
+
     /** Which effect primitive this represents. */
     public String type;   // AbilityEffectType name
 
@@ -95,6 +98,7 @@ public class AbilityEffectData {
 
     /** Replace this DTO's values with another effect's values. */
     public void copyFrom(AbilityEffectData source) {
+        this.effectId = source.effectId;
         this.type = source.type;
         this.codedAbilityKey = source.codedAbilityKey;
         this.codedFeature = source.codedFeature;

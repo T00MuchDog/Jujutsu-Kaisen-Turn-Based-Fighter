@@ -10,6 +10,7 @@ import com.jjktbf.model.move.StatusEffect;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /** Runtime for New Shadow Style's Simple Domain stance and Miwa's binding vow. */
 public final class NewShadowStyleAbility implements CodedAbilityRuntime {
@@ -19,14 +20,12 @@ public final class NewShadowStyleAbility implements CodedAbilityRuntime {
     public static final String SIMPLE_DOMAIN_BINDING_VOW = "SIMPLE_DOMAIN_BINDING_VOW";
 
     private final BattleCombatant owner;
-    private final Set<String> features;
     private boolean simpleDomainActive;
     private final String simpleDomainMoveId;
     private final Move reactionMove;
 
     NewShadowStyleAbility(BattleCombatant owner, Set<String> features) {
         this.owner = owner;
-        this.features = Set.copyOf(features);
         Move simpleDomain = owner.getCharacter().getKnownMoves().stream()
             .filter(NewShadowStyleAbility::activatesSimpleDomain)
             .findFirst().orElseThrow(() -> new IllegalStateException(
@@ -44,12 +43,17 @@ public final class NewShadowStyleAbility implements CodedAbilityRuntime {
     }
 
     @Override
-    public List<CombatEvent> onTrigger(BattleState state, AbilityTrigger trigger) {
-        if (!simpleDomainActive || !features.contains(SIMPLE_DOMAIN_BINDING_VOW)
+    public List<CombatEvent> onTrigger(
+        BattleState state,
+        AbilityTrigger trigger,
+        Predicate<String> featureActive
+    ) {
+        if (!simpleDomainActive
             || trigger.type() != AbilityTrigger.Type.MOVE_USED || trigger.actor() != owner
             || trigger.move() == null || trigger.move().getId().equals(simpleDomainMoveId)) {
             return List.of();
         }
+        if (!featureActive.test(SIMPLE_DOMAIN_BINDING_VOW)) return List.of();
         simpleDomainActive = false;
         return List.of(event(trigger.tick(), "Using " + trigger.move().getName()
             + " dispels " + owner.getCharacter().getName() + "'s Simple Domain."));
@@ -75,7 +79,8 @@ public final class NewShadowStyleAbility implements CodedAbilityRuntime {
         BattleCombatant attacker,
         BattleCombatant defender,
         Move move,
-        int tick
+        int tick,
+        Predicate<String> featureActive
     ) {
         if (!simpleDomainActive || defender != owner || !move.hasTag(MoveTag.ATTACK.name())
             || (!move.isMelee() && !move.isRanged())) {
@@ -90,11 +95,6 @@ public final class NewShadowStyleAbility implements CodedAbilityRuntime {
         return new CodedMoveResponse(fullBlock, reactions, List.of(event(tick,
             owner.getCharacter().getName() + "'s Simple Domain intercepts "
                 + move.getName() + " and is dispelled.")));
-    }
-
-    @Override
-    public boolean preventFatalDamage() {
-        return false;
     }
 
     @Override

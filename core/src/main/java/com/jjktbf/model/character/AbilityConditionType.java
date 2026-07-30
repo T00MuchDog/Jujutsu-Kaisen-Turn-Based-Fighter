@@ -1,6 +1,7 @@
 package com.jjktbf.model.character;
 
 import com.jjktbf.model.combat.BattleState;
+import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffectType;
 
@@ -14,8 +15,9 @@ import static com.jjktbf.model.character.AbilityConditionParameter.*;
 public enum AbilityConditionType {
     ALL("All conditions (AND)", "Every child condition must be true."),
     ANY("Any condition (OR)", "At least one child condition must be true."),
-    ALWAYS("At battle start", "Activates at battle start. It cannot be combined with another condition."),
-    MANUAL_ACTIVATION("Manual activation", "Reserved for player-triggered activation. It does not activate automatically yet."),
+    ALWAYS("Always active", "Generic effects activate once when battle processing begins; coded effects remain eligible at every natural runtime opportunity. It cannot be combined with another condition."),
+    MANUAL_ACTIVATION("Manual activation", "Activates only when the battle controller requests this ability during planning."),
+    BATTLE_STARTED("Battle started", "The battle has just started."),
 
     HP_PERCENT_AT_OR_BELOW("HP at or below %", "The selected combatant's HP reaches or falls below this percentage.", ACTOR, PERCENTAGE),
     HP_PERCENT_AT_OR_ABOVE("HP at or above %", "The selected combatant's HP reaches or rises above this percentage.", ACTOR, PERCENTAGE),
@@ -34,6 +36,9 @@ public enum AbilityConditionType {
     ATTACK_HIT("Attack hit", "The selected combatant lands an attack.", ACTOR),
     ATTACK_MISSED("Attack missed", "The selected combatant misses an attack.", ACTOR),
     MOVE_BLOCKED("Attack blocked", "The selected combatant's attack is fully blocked.", ACTOR),
+    ATTACK_CONNECTED("Attack connected", "The selected combatant's current hit connected before block and defense.", ACTOR),
+    CONNECTED_HIT_HAS_TAG("Connected hit has tag", "The selected combatant's current connected hit has this tag.", ACTOR, MOVE_TAG),
+    FATAL_DAMAGE("Fatal damage incoming", "The selected combatant is about to take damage or an effect that would reduce HP to zero.", ACTOR),
 
     TIMELINE_POINT_REACHED("Timeline point reached", "The action counter reaches this tick.", TICK),
     ROUND_REACHED("Round reached", "The battle reaches this round.", ROUND),
@@ -53,7 +58,10 @@ public enum AbilityConditionType {
     HAS_STATUS("Has status", "The selected combatant is affected by this status.", ACTOR, STATUS_TYPE),
     DOES_NOT_HAVE_STATUS("Does not have status", "The selected combatant is not affected by this status.", ACTOR, STATUS_TYPE),
     STATUS_APPLIED("Status applied", "The selected combatant receives this status.", ACTOR, STATUS_TYPE),
-    STATUS_REMOVED("Status removed", "This status expires or is removed from the selected combatant.", ACTOR, STATUS_TYPE);
+    STATUS_REMOVED("Status removed", "This status expires or is removed from the selected combatant.", ACTOR, STATUS_TYPE),
+
+    CODED_STATE_AT_OR_ABOVE("Coded state at or above", "The selected combatant's compiled resource or state is at least this value.", ACTOR, CODED_ABILITY, AMOUNT),
+    CODED_STATE_AT_OR_BELOW("Coded state at or below", "The selected combatant's compiled resource or state is at most this value.", ACTOR, CODED_ABILITY, AMOUNT);
 
     private final String displayName;
     private final String description;
@@ -89,10 +97,15 @@ public enum AbilityConditionType {
         condition.percentage = uses(PERCENTAGE) ? 0.5 : null;
         condition.amount = uses(AMOUNT) ? defaultAmount() : null;
         condition.moveId = null;
-        condition.moveTag = uses(MOVE_TAG) ? MoveTag.ATTACK.name() : null;
+        condition.moveTag = uses(MOVE_TAG)
+            ? (this == CONNECTED_HIT_HAS_TAG
+                ? MoveTag.PHYSICAL.name() : MoveTag.ATTACK.name())
+            : null;
         condition.stat = uses(STAT) ? StatKey.VITALITY.fieldName : null;
         condition.statusType = uses(STATUS_TYPE)
             ? StatusEffectType.STRENGTH_INCREASE.name() : null;
+        condition.codedAbilityKey = uses(CODED_ABILITY)
+            ? CodedAbilityRegistry.stateKeys().get(0).key() : null;
         condition.tick = uses(TICK) ? 1 : null;
         condition.round = uses(ROUND) ? 1 : null;
         condition.phase = uses(PHASE) ? BattleState.Phase.PLANNING.name() : null;
@@ -108,6 +121,7 @@ public enum AbilityConditionType {
         if (!uses(MOVE_TAG)) condition.moveTag = null;
         if (!uses(STAT)) condition.stat = null;
         if (!uses(STATUS_TYPE)) condition.statusType = null;
+        if (!uses(CODED_ABILITY)) condition.codedAbilityKey = null;
         if (!uses(TICK)) condition.tick = null;
         if (!uses(ROUND)) condition.round = null;
         if (!uses(PHASE)) condition.phase = null;
@@ -117,7 +131,7 @@ public enum AbilityConditionType {
     public static String validationError(AbilityConditionData root) {
         if (root == null) return null;
         if (root.containsAlways() && !ALWAYS.name().equalsIgnoreCase(root.type)) {
-            return "At battle start cannot be combined with another condition.";
+            return "Always active cannot be combined with another condition.";
         }
         return validationError(root, "Condition");
     }
@@ -163,6 +177,10 @@ public enum AbilityConditionType {
         if (type.uses(STATUS_TYPE)) {
             try { StatusEffectType.fromName(condition.statusType); }
             catch (Exception ex) { return path + " needs a valid status."; }
+        }
+        if (type.uses(CODED_ABILITY)
+            && !CodedAbilityRegistry.supportsStateKey(condition.codedAbilityKey)) {
+            return path + " needs a valid coded state.";
         }
         if (type.uses(TICK) && (condition.tick == null || condition.tick < 1)) {
             return path + " timeline point must be at least 1.";

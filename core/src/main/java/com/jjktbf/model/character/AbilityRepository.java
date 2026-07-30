@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.jjktbf.model.repo.BaseRepository;
 
 import java.util.List;
+import java.io.IOException;
 
 /**
  * Persistent repository for ability definitions ({@code data/abilities/all_abilities.json}).
@@ -18,6 +19,16 @@ public class AbilityRepository extends BaseRepository<AbilityData> {
 
     public AbilityRepository(String dataDirectory) {
         super(dataDirectory, "all_abilities.json");
+    }
+
+    @Override
+    public void load() throws IOException {
+        super.load();
+        boolean migrated = false;
+        for (AbilityData ability : getAll()) {
+            if (ability != null) migrated |= ability.migrateActivationData();
+        }
+        if (migrated) save();
     }
 
     @Override protected String idOf(AbilityData d)             { return d.id; }

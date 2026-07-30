@@ -1,6 +1,9 @@
 package com.jjktbf.model.combat;
 
 import com.jjktbf.model.character.*;
+import com.jjktbf.model.character.coded.CodedAbilityBinding;
+import com.jjktbf.model.character.coded.CodedHitModifiers;
+import com.jjktbf.model.character.coded.CodedMoveResponse;
 import com.jjktbf.model.move.StatusEffect;
 import com.jjktbf.model.move.StatusEffectType;
 
@@ -8,12 +11,21 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 /** Evaluates active ability conditions and executes their modular effects. */
 public final class AbilityActivationEngine {
 
     private static final int MAX_CHAINED_TRIGGERS = 128;
+
+    private record RuleActivationKey(
+        BattleCombatant owner,
+        Ability ability,
+        int abilityIndex,
+        int ruleIndex
+    ) { }
 
     private final RandomSource rng;
 
@@ -24,23 +36,129 @@ public final class AbilityActivationEngine {
     public List<CombatEvent> process(BattleState state, AbilityTrigger initialTrigger) {
         List<CombatEvent> events = new ArrayList<>();
         ArrayDeque<AbilityTrigger> triggers = new ArrayDeque<>();
-        Set<String> activatedThisChain = new HashSet<>();
+        Set<RuleActivationKey> activatedThisChain = new HashSet<>();
         triggers.add(initialTrigger);
         int processed = 0;
         while (!triggers.isEmpty() && processed++ < MAX_CHAINED_TRIGGERS) {
             AbilityTrigger trigger = triggers.removeFirst();
-            events.addAll(state.getPlayerCombatant().getCodedAbilities().onTrigger(state, trigger));
-            events.addAll(state.getEnemyCombatant().getCodedAbilities().onTrigger(state, trigger));
+            Map<RuleActivationKey, Boolean> activationCache = new HashMap<>();
+            observeRules(
+                state, state.getPlayerCombatant(), state.getEnemyCombatant(), trigger,
+                activatedThisChain);
+            observeRules(
+                state, state.getEnemyCombatant(), state.getPlayerCombatant(), trigger,
+                activatedThisChain);
+            events.addAll(dispatchCodedTrigger(
+                state, state.getPlayerCombatant(), state.getEnemyCombatant(), trigger,
+                activationCache));
+            events.addAll(dispatchCodedTrigger(
+                state, state.getEnemyCombatant(), state.getPlayerCombatant(), trigger,
+                activationCache));
             evaluateOwner(state, state.getPlayerCombatant(), state.getEnemyCombatant(), trigger,
-                events, triggers, activatedThisChain);
+                events, triggers, activatedThisChain, activationCache);
             evaluateOwner(state, state.getEnemyCombatant(), state.getPlayerCombatant(), trigger,
-                events, triggers, activatedThisChain);
+                events, triggers, activatedThisChain, activationCache);
         }
         if (!triggers.isEmpty()) {
             System.err.println("[WARN] Ability activation chain exceeded "
                 + MAX_CHAINED_TRIGGERS + " events.");
         }
         return events;
+    }
+
+    /** Evaluate an active coded effect after a hit connects but before defenses. */
+    public CodedHitModifiers onAttackConnected(BattleState state, AbilityTrigger trigger) {
+        if (state == null || trigger == null || trigger.actor() == null) {
+            return CodedHitModifiers.none();
+        }
+        BattleCombatant owner = trigger.actor();
+        BattleCombatant enemy = opponent(state, owner);
+        Map<RuleActivationKey, Boolean> activationCache = new HashMap<>();
+        return owner.getCodedAbilities().onAttackConnected(
+            trigger.actor(), trigger.target(), trigger.move(), trigger.hitComponent(),
+            trigger.tick(), rng,
+            binding -> allowsCodedBinding(
+                binding, owner, enemy, state, trigger, activationCache));
+    }
+
+    /** Evaluate coded reactions immediately before an incoming move executes. */
+    public CodedMoveResponse beforeIncomingMove(BattleState state, AbilityTrigger trigger) {
+        if (state == null || trigger == null || trigger.target() == null) {
+            return CodedMoveResponse.none();
+        }
+        BattleCombatant owner = trigger.target();
+        BattleCombatant enemy = opponent(state, owner);
+        Map<RuleActivationKey, Boolean> activationCache = new HashMap<>();
+        return owner.getCodedAbilities().beforeIncomingMove(
+            state, trigger.actor(), trigger.target(), trigger.move(), trigger.tick(),
+            binding -> allowsCodedBinding(
+                binding, owner, enemy, state, trigger, activationCache));
+    }
+
+    /** Evaluate coded fatal-hit protection after shields but before HP is removed. */
+    public boolean preventFatalDamage(BattleState state, AbilityTrigger trigger) {
+        if (state == null || trigger == null || trigger.target() == null) return false;
+        BattleCombatant owner = trigger.target();
+        BattleCombatant enemy = opponent(state, owner);
+        Map<RuleActivationKey, Boolean> activationCache = new HashMap<>();
+        return owner.getCodedAbilities().preventFatalDamage(
+            binding -> allowsCodedBinding(
+                binding, owner, enemy, state, trigger, activationCache));
+    }
+
+    private List<CombatEvent> dispatchCodedTrigger(
+        BattleState state,
+        BattleCombatant owner,
+        BattleCombatant enemy,
+        AbilityTrigger trigger,
+        Map<RuleActivationKey, Boolean> activationCache
+    ) {
+        return owner.getCodedAbilities().onTrigger(
+            state,
+            trigger,
+            binding -> allowsCodedBinding(
+                binding, owner, enemy, state, trigger, activationCache));
+    }
+
+    /** Preserve event facts even when a coded runtime does not query its gate yet. */
+    private void observeRules(
+        BattleState state,
+        BattleCombatant owner,
+        BattleCombatant enemy,
+        AbilityTrigger trigger,
+        Set<RuleActivationKey> activatedThisChain
+    ) {
+        List<Ability> abilities = owner.getAbilities();
+        for (int abilityIndex = 0; abilityIndex < abilities.size(); abilityIndex++) {
+            Ability ability = abilities.get(abilityIndex);
+            if (ability == null || !ability.isActive()) continue;
+            if (trigger.type() == AbilityTrigger.Type.MANUAL_ACTIVATION
+                && (trigger.actor() != owner
+                    || !java.util.Objects.equals(trigger.abilityId(), ability.getId()))) {
+                continue;
+            }
+            List<AbilityConditionRuleData> rules = ability.getActivationConditions();
+            for (int ruleIndex = 0; ruleIndex < rules.size(); ruleIndex++) {
+                AbilityConditionRuleData rule = rules.get(ruleIndex);
+                RuleActivationKey activationKey = new RuleActivationKey(
+                    owner, ability, abilityIndex, ruleIndex);
+                if (rule == null || rule.condition == null
+                    || Boolean.TRUE.equals(rule.matchSameTrigger)
+                    || activatedThisChain.contains(activationKey)) {
+                    continue;
+                }
+                if (trigger.type() == AbilityTrigger.Type.MANUAL_ACTIVATION
+                    && !containsConditionType(
+                        rule.condition, AbilityConditionType.MANUAL_ACTIVATION)) {
+                    continue;
+                }
+                if (trigger.type() == AbilityTrigger.Type.MANUAL_ACTIVATION) continue;
+                if (hasMatchingEventLeaf(rule.condition, owner, enemy, state, trigger)) {
+                    owner.recordAbilityTrigger(
+                        ruleKey(ability, abilityIndex, ruleIndex), trigger);
+                }
+            }
+        }
     }
 
     private void evaluateOwner(
@@ -50,49 +168,118 @@ public final class AbilityActivationEngine {
         AbilityTrigger trigger,
         List<CombatEvent> events,
         ArrayDeque<AbilityTrigger> followUps,
-        Set<String> activatedThisChain
+        Set<RuleActivationKey> activatedThisChain,
+        Map<RuleActivationKey, Boolean> activationCache
     ) {
         List<Ability> abilities = owner.getAbilities();
         for (int index = 0; index < abilities.size(); index++) {
             Ability ability = abilities.get(index);
-            if (ability == null || !ability.isActive()
-                || ability.getEffects().stream().noneMatch(effect ->
-                    effect != null && !effect.isCoded())) {
-                continue;
-            }
+            if (ability == null || !ability.isActive()) continue;
+            List<AbilityConditionRuleData> rules = ability.getActivationConditions();
+            for (int ruleIndex = 0; ruleIndex < rules.size(); ruleIndex++) {
+                AbilityConditionRuleData rule = rules.get(ruleIndex);
+                List<AbilityEffectData> targetedEffects = ability.getEffects().stream()
+                    .filter(effect -> effect != null && effect.type != null && !effect.isCoded())
+                    .filter(effect -> rule.targetsEffect(effect.effectId))
+                    .toList();
+                if (targetedEffects.isEmpty()) continue;
 
-            String key = abilityKey(ability, index);
-            boolean eventOpportunity = hasMatchingEventLeaf(
-                ability.getActivationCondition(), owner, enemy, state, trigger);
-            if (eventOpportunity) owner.recordAbilityTrigger(key, trigger);
-            List<AbilityTrigger> history = owner.getAbilityTriggerHistory(key);
-            boolean matches = evaluate(
-                ability.getActivationCondition(), owner, enemy, state, trigger, history);
-            boolean previouslyMatched = owner.wasAbilityConditionTrue(key);
-            owner.setAbilityConditionTrue(key, matches);
-            if (!matches || (previouslyMatched && !eventOpportunity)) continue;
-            if (!history.isEmpty()) {
-                owner.clearAbilityTriggerHistory(key);
-                owner.setAbilityConditionTrue(key, evaluate(
-                    ability.getActivationCondition(), owner, enemy, state, trigger, List.of()));
-            }
-            String chainKey = System.identityHashCode(owner) + ":" + key;
-            if (!activatedThisChain.add(chainKey)) continue;
-            double chance = ability.getActivationChance();
-            if (chance <= 0.0) continue;
-            if (chance < 1.0 && rng.nextDouble() >= chance) continue;
+                RuleActivationKey cacheKey = new RuleActivationKey(
+                    owner, ability, index, ruleIndex);
+                if (activatedThisChain.contains(cacheKey)) continue;
+                Boolean cached = activationCache.get(cacheKey);
+                boolean activated = cached != null ? cached : activateRule(
+                    ability, index, rule, ruleIndex, owner, enemy, state, trigger, false);
+                activationCache.putIfAbsent(cacheKey, activated);
+                if (!activated) continue;
+                activatedThisChain.add(cacheKey);
 
-            events.add(CombatEvent.of(CombatEvent.Type.ABILITY_ACTIVATED)
-                .source(owner)
-                .tick(trigger.tick())
-                .message(owner.getCharacter().getName() + " activates " + ability.getName() + "!")
-                .build());
+                events.add(CombatEvent.of(CombatEvent.Type.ABILITY_ACTIVATED)
+                    .source(owner)
+                    .tick(trigger.tick())
+                    .message(owner.getCharacter().getName() + " activates " + ability.getName() + "!")
+                    .build());
 
-            for (AbilityEffectData effect : ability.getEffects()) {
-                if (effect == null || effect.type == null) continue;
-                applyEffect(state, owner, enemy, effect, trigger.tick(), events, followUps);
+                for (AbilityEffectData effect : targetedEffects) {
+                    applyEffect(state, owner, enemy, effect, trigger.tick(), events, followUps);
+                }
             }
         }
+    }
+
+    private boolean allowsCodedBinding(
+        CodedAbilityBinding binding,
+        BattleCombatant owner,
+        BattleCombatant enemy,
+        BattleState state,
+        AbilityTrigger trigger,
+        Map<RuleActivationKey, Boolean> activationCache
+    ) {
+        if (binding == null || binding.ability() == null || binding.effect() == null) return false;
+        Ability ability = binding.ability();
+        if (ability.isPassive()) return true;
+        if (!ability.isActive()) return false;
+        List<AbilityConditionRuleData> rules = ability.getActivationConditions();
+        for (int ruleIndex = 0; ruleIndex < rules.size(); ruleIndex++) {
+            AbilityConditionRuleData rule = rules.get(ruleIndex);
+            if (!rule.targetsEffect(binding.effect().effectId)) continue;
+            int currentRule = ruleIndex;
+            RuleActivationKey cacheKey = new RuleActivationKey(
+                owner, ability, binding.abilityIndex(), currentRule);
+            if (activationCache.computeIfAbsent(cacheKey, ignored -> activateRule(
+                ability, binding.abilityIndex(), rule, currentRule,
+                owner, enemy, state, trigger, true))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean activateRule(
+        Ability ability,
+        int abilityIndex,
+        AbilityConditionRuleData rule,
+        int ruleIndex,
+        BattleCombatant owner,
+        BattleCombatant enemy,
+        BattleState state,
+        AbilityTrigger trigger,
+        boolean codedOpportunity
+    ) {
+        if (rule == null || rule.condition == null) return false;
+        if (trigger.type() == AbilityTrigger.Type.MANUAL_ACTIVATION
+            && (trigger.actor() != owner
+                || !java.util.Objects.equals(trigger.abilityId(), ability.getId()))) {
+            return false;
+        }
+        if (trigger.type() == AbilityTrigger.Type.MANUAL_ACTIVATION
+            && !containsConditionType(
+                rule.condition, AbilityConditionType.MANUAL_ACTIVATION)) {
+            return false;
+        }
+        String key = ruleKey(ability, abilityIndex, ruleIndex);
+        boolean eventOpportunity = hasMatchingEventLeaf(
+            rule.condition, owner, enemy, state, trigger);
+        boolean sameTrigger = Boolean.TRUE.equals(rule.matchSameTrigger)
+            || trigger.type() == AbilityTrigger.Type.MANUAL_ACTIVATION;
+        if (eventOpportunity && !sameTrigger) owner.recordAbilityTrigger(key, trigger);
+        List<AbilityTrigger> history = owner.getAbilityTriggerHistory(key);
+        List<AbilityTrigger> evaluationHistory = sameTrigger
+            ? List.of(trigger) : history;
+        boolean matches = evaluate(
+            rule.condition, owner, enemy, state, trigger, evaluationHistory);
+        boolean previouslyMatched = owner.wasAbilityConditionTrue(key);
+        owner.setAbilityConditionTrue(key, matches);
+        if (!matches || (!codedOpportunity && previouslyMatched && !eventOpportunity)) {
+            return false;
+        }
+        if (!history.isEmpty() || (sameTrigger && eventOpportunity)) {
+            owner.clearAbilityTriggerHistory(key);
+            owner.setAbilityConditionTrue(
+                key, evaluate(rule.condition, owner, enemy, state, trigger, List.of()));
+        }
+        double chance = rule.effectiveActivationChance();
+        return chance > 0.0 && (chance >= 1.0 || rng.nextDouble() < chance);
     }
 
     private boolean evaluate(
@@ -120,7 +307,8 @@ public final class AbilityActivationEngine {
 
         return switch (type) {
             case ALWAYS -> true;
-            case MANUAL_ACTIVATION -> false;
+            case MANUAL_ACTIVATION, BATTLE_STARTED -> history.stream().anyMatch(candidate ->
+                eventLeafMatches(type, condition, owner, enemy, state, candidate));
             case HP_PERCENT_AT_OR_BELOW -> anyActor(condition, owner, enemy,
                 combatant -> ratio(combatant.getCurrentHp(), combatant.getMaxHp()) <= value(condition.percentage));
             case HP_PERCENT_AT_OR_ABOVE -> anyActor(condition, owner, enemy,
@@ -143,8 +331,10 @@ public final class AbilityActivationEngine {
             case BLACK_FLASH_STREAK_AT_LEAST -> anyActor(condition, owner, enemy,
                 combatant -> combatant.getConsecutiveBfsHits() >= value(condition.amount));
             case MOVE_USED, MOVE_TAG_USED, ATTACK_HIT, ATTACK_MISSED, MOVE_BLOCKED,
-                 TIMELINE_POINT_REACHED -> history.stream().anyMatch(candidate ->
+                  TIMELINE_POINT_REACHED -> history.stream().anyMatch(candidate ->
                 eventLeafMatches(type, condition, owner, enemy, state, candidate));
+            case ATTACK_CONNECTED, CONNECTED_HIT_HAS_TAG, FATAL_DAMAGE ->
+                eventLeafMatches(type, condition, owner, enemy, state, trigger);
             case ROUND_REACHED -> state.getRoundNumber() >= value(condition.round);
             case TIMELINE_POINT_ON_ROUND, EVERY_N_ROUNDS, PHASE_REACHED, HEALED,
                  DAMAGE_DEALT_AT_LEAST, DAMAGE_TAKEN_AT_LEAST, CE_SPENT_AT_LEAST,
@@ -159,8 +349,22 @@ public final class AbilityActivationEngine {
             case DOES_NOT_HAVE_STATUS -> statusPredicate(condition, owner, enemy, true);
             case STATUS_APPLIED, STATUS_REMOVED -> history.stream().anyMatch(candidate ->
                 eventLeafMatches(type, condition, owner, enemy, state, candidate));
+            case CODED_STATE_AT_OR_ABOVE -> codedStatePredicate(
+                condition, owner, enemy, true);
+            case CODED_STATE_AT_OR_BELOW -> codedStatePredicate(
+                condition, owner, enemy, false);
             case ALL, ANY -> false;
         };
+    }
+
+    private static boolean containsConditionType(
+        AbilityConditionData condition,
+        AbilityConditionType expected
+    ) {
+        if (condition == null) return false;
+        if (expected.name().equalsIgnoreCase(condition.type)) return true;
+        return condition.children != null && condition.children.stream()
+            .anyMatch(child -> containsConditionType(child, expected));
     }
 
     private void applyEffect(
@@ -223,7 +427,12 @@ public final class AbilityActivationEngine {
                         default -> 0;
                     };
                     int damage = type == AbilityEffectType.INSTANT_KILL
-                        ? target.receiveInstantKill() : target.receiveDamage(requested);
+                        ? target.receiveInstantKill(ignored -> preventFatalDamage(
+                            state, AbilityTrigger.fatalDamage(
+                                owner, target, null, null, target.getCurrentHp(), tick)))
+                        : target.receiveDamage(requested, fatalAmount -> preventFatalDamage(
+                            state, AbilityTrigger.fatalDamage(
+                                owner, target, null, null, fatalAmount, tick)));
                     events.addAll(target.getCodedAbilities().drainPendingEvents(tick));
                     events.add(CombatEvent.of(damage == 0
                             ? CombatEvent.Type.DAMAGE_IGNORED : CombatEvent.Type.DAMAGE_DEALT)
@@ -363,11 +572,13 @@ public final class AbilityActivationEngine {
         }
         boolean eventCondition = switch (type) {
             case BLACK_FLASH_HIT, MOVE_USED, MOVE_TAG_USED, ATTACK_HIT, ATTACK_MISSED,
-                 MOVE_BLOCKED, TIMELINE_POINT_REACHED, TIMELINE_POINT_ON_ROUND,
-                 EVERY_N_ROUNDS, PHASE_REACHED, HEALED, DAMAGE_DEALT_AT_LEAST,
-                 DAMAGE_TAKEN_AT_LEAST, CE_SPENT_AT_LEAST, CE_LOST_AT_LEAST,
-                 CE_RESTORED_AT_LEAST,
-                 STATUS_APPLIED, STATUS_REMOVED -> true;
+                  MOVE_BLOCKED, TIMELINE_POINT_REACHED, TIMELINE_POINT_ON_ROUND,
+                  EVERY_N_ROUNDS, PHASE_REACHED, HEALED, DAMAGE_DEALT_AT_LEAST,
+                  DAMAGE_TAKEN_AT_LEAST, CE_SPENT_AT_LEAST, CE_LOST_AT_LEAST,
+                  CE_RESTORED_AT_LEAST,
+                  STATUS_APPLIED, STATUS_REMOVED, MANUAL_ACTIVATION, BATTLE_STARTED,
+                  ATTACK_CONNECTED, CONNECTED_HIT_HAS_TAG,
+                  FATAL_DAMAGE -> true;
             default -> false;
         };
         return eventCondition && eventLeafMatches(type, condition, owner, enemy, state, trigger);
@@ -382,6 +593,8 @@ public final class AbilityActivationEngine {
         AbilityTrigger trigger
     ) {
         return switch (type) {
+            case MANUAL_ACTIVATION -> trigger.type() == AbilityTrigger.Type.MANUAL_ACTIVATION;
+            case BATTLE_STARTED -> trigger.type() == AbilityTrigger.Type.BATTLE_START;
             case BLACK_FLASH_HIT -> trigger.type() == AbilityTrigger.Type.BLACK_FLASH
                 && eventActorMatches(condition, owner, enemy, trigger.actor());
             case MOVE_USED -> trigger.type() == AbilityTrigger.Type.MOVE_USED
@@ -396,6 +609,13 @@ public final class AbilityActivationEngine {
                 && eventActorMatches(condition, owner, enemy, trigger.actor());
             case MOVE_BLOCKED -> trigger.type() == AbilityTrigger.Type.MOVE_BLOCKED
                 && eventActorMatches(condition, owner, enemy, trigger.actor());
+            case ATTACK_CONNECTED -> trigger.type() == AbilityTrigger.Type.ATTACK_CONNECTED
+                && eventActorMatches(condition, owner, enemy, trigger.actor());
+            case CONNECTED_HIT_HAS_TAG -> trigger.type() == AbilityTrigger.Type.ATTACK_CONNECTED
+                && eventActorMatches(condition, owner, enemy, trigger.actor())
+                && connectedHitHasTag(trigger, condition.moveTag);
+            case FATAL_DAMAGE -> trigger.type() == AbilityTrigger.Type.FATAL_DAMAGE
+                && eventActorMatches(condition, owner, enemy, trigger.target());
             case TIMELINE_POINT_REACHED -> trigger.type() == AbilityTrigger.Type.TIMELINE_TICK
                 && trigger.tick() == value(condition.tick);
             case TIMELINE_POINT_ON_ROUND -> trigger.type() == AbilityTrigger.Type.TIMELINE_TICK
@@ -461,6 +681,31 @@ public final class AbilityActivationEngine {
             combatant -> combatant.getActiveEffects().stream()
                 .map(StatusEffect::getType)
                 .anyMatch(statuses::contains) != negated);
+    }
+
+    private static boolean codedStatePredicate(
+        AbilityConditionData condition,
+        BattleCombatant owner,
+        BattleCombatant enemy,
+        boolean atOrAbove
+    ) {
+        return anyActor(condition, owner, enemy, combatant ->
+            combatant.getCodedAbilities().state(condition.codedAbilityKey)
+                .map(state -> atOrAbove
+                    ? state.currentValue() >= value(condition.amount)
+                    : state.currentValue() <= value(condition.amount))
+                .orElse(false));
+    }
+
+    private static boolean connectedHitHasTag(AbilityTrigger trigger, String tagName) {
+        com.jjktbf.model.move.MoveTag tag;
+        try { tag = com.jjktbf.model.move.MoveTag.valueOf(tagName); }
+        catch (Exception ex) { return false; }
+        if (trigger.hitComponent() != null
+            && com.jjktbf.model.move.MoveTag.TYPE_TAGS.contains(tag)) {
+            return trigger.hitComponent().getTags().contains(tag);
+        }
+        return trigger.move() != null && trigger.move().hasTag(tag.name());
     }
 
     private static boolean extendStatusForCurrentPhase(BattleState state) {
@@ -557,6 +802,16 @@ public final class AbilityActivationEngine {
     private static String abilityKey(Ability ability, int index) {
         if (ability.getId() != null && !ability.getId().isBlank()) return ability.getId();
         return String.valueOf(ability.getName()) + "#" + index;
+    }
+
+    private static String ruleKey(Ability ability, int abilityIndex, int ruleIndex) {
+        return abilityKey(ability, abilityIndex) + "#" + abilityIndex
+            + "#condition-" + ruleIndex;
+    }
+
+    private static BattleCombatant opponent(BattleState state, BattleCombatant owner) {
+        return state.getPlayerCombatant() == owner
+            ? state.getEnemyCombatant() : state.getPlayerCombatant();
     }
 
     private static double ratio(int current, int maximum) {

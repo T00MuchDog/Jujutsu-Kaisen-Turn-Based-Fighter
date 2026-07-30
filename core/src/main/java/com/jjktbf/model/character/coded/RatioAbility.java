@@ -7,13 +7,13 @@ import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.HitComponent;
-import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffect;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /** Runtime implementation for the Ratio cursed technique. */
 public final class RatioAbility implements CodedAbilityRuntime {
@@ -27,20 +27,21 @@ public final class RatioAbility implements CodedAbilityRuntime {
     public static final int MAX_STACKS = 3;
     public static final int STACK_DURATION_TICKS = 50;
     public static final double STACK_TRIGGER_CHANCE = 0.70;
-    public static final double REINFORCEMENT_TRIGGER_CHANCE = 0.05;
     public static final double DEFENSE_MULTIPLIER = 0.3;
 
     private final BattleCombatant owner;
-    private final Set<String> features;
     private final List<RatioStack> stacks = new ArrayList<>();
 
     RatioAbility(BattleCombatant owner, Set<String> features) {
         this.owner = owner;
-        this.features = Set.copyOf(features);
     }
 
     @Override
-    public List<CombatEvent> onTrigger(BattleState state, AbilityTrigger trigger) {
+    public List<CombatEvent> onTrigger(
+        BattleState state,
+        AbilityTrigger trigger,
+        Predicate<String> featureActive
+    ) {
         return List.of();
     }
 
@@ -78,7 +79,8 @@ public final class RatioAbility implements CodedAbilityRuntime {
         Move move,
         HitComponent component,
         int tick,
-        RandomSource rng
+        RandomSource rng,
+        Predicate<String> featureActive
     ) {
         if (attacker != owner) return CodedHitModifiers.none();
 
@@ -91,10 +93,7 @@ public final class RatioAbility implements CodedAbilityRuntime {
         boolean consumedStack = consumeStackFor(defender);
         boolean stackRatio = consumedStack && rng.nextDouble() < STACK_TRIGGER_CHANCE;
 
-        boolean reinforcementRatio = false;
-        if (features.contains(REINFORCEMENT_RATIO) && isReinforcement(component)) {
-            reinforcementRatio = rng.nextDouble() < REINFORCEMENT_TRIGGER_CHANCE;
-        }
+        boolean reinforcementRatio = featureActive.test(REINFORCEMENT_RATIO);
 
         boolean ratioApplied = directRatio || stackRatio || reinforcementRatio;
         if (!ratioApplied && !consumedStack) return CodedHitModifiers.none();
@@ -143,11 +142,6 @@ public final class RatioAbility implements CodedAbilityRuntime {
     }
 
     @Override
-    public boolean preventFatalDamage() {
-        return false;
-    }
-
-    @Override
     public List<CombatEvent> drainPendingEvents(int tick) {
         return List.of();
     }
@@ -186,12 +180,6 @@ public final class RatioAbility implements CodedAbilityRuntime {
     private static boolean appliesRatioToMove(List<StatusEffect> effects) {
         return effects.stream().anyMatch(effect -> isRatioEffect(effect)
             && APPLY_TO_MOVE.equalsIgnoreCase(effect.getCodedTarget()));
-    }
-
-    private static boolean isReinforcement(HitComponent component) {
-        return component != null
-            && component.getTags().contains(MoveTag.PHYSICAL)
-            && component.getTags().contains(MoveTag.CURSED_ENERGY);
     }
 
     private CombatEvent event(int tick, BattleCombatant target, String message) {

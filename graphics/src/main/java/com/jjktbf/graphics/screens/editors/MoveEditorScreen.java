@@ -485,6 +485,11 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                         ability.sourceValue, ability.sourceValue);
                 }
                 remapConditionMoves(ability.activationCondition, remappedIds);
+                if (ability.activationConditions != null) {
+                    ability.activationConditions.stream()
+                        .filter(java.util.Objects::nonNull)
+                        .forEach(rule -> remapConditionMoves(rule.condition, remappedIds));
+                }
                 if (ability.effects == null) continue;
                 ability.effects.stream()
                     .filter(java.util.Objects::nonNull)
@@ -518,6 +523,11 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             if (acquiresMove) return "granted or forced move";
         }
         if (conditionReferencesMove(ability.activationCondition, moveId)) {
+            return "activation condition";
+        }
+        if (ability.activationConditions != null && ability.activationConditions.stream()
+            .filter(java.util.Objects::nonNull)
+            .anyMatch(rule -> conditionReferencesMove(rule.condition, moveId))) {
             return "activation condition";
         }
         return null;

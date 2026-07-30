@@ -25,6 +25,7 @@ public class AbilityConditionData {
     public String moveTag;
     public String stat;
     public String statusType;
+    public String codedAbilityKey;
     public Integer tick;
     public Integer round;
     public String phase;
@@ -65,6 +66,7 @@ public class AbilityConditionData {
         moveTag = source.moveTag;
         stat = source.stat;
         statusType = source.statusType;
+        codedAbilityKey = source.codedAbilityKey;
         tick = source.tick;
         round = source.round;
         phase = source.phase;

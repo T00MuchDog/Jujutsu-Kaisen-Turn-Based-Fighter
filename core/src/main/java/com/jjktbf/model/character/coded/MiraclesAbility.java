@@ -9,6 +9,7 @@ import com.jjktbf.model.move.StatusEffect;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /** Runtime implementation for the Miracles cursed technique. */
 public final class MiraclesAbility implements CodedAbilityRuntime {
@@ -31,12 +32,17 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
     }
 
     @Override
-    public List<CombatEvent> onTrigger(BattleState state, AbilityTrigger trigger) {
-        if (trigger.type() == AbilityTrigger.Type.BATTLE_START && hasFeature(RESERVOIR)) {
+    public List<CombatEvent> onTrigger(
+        BattleState state,
+        AbilityTrigger trigger,
+        Predicate<String> featureActive
+    ) {
+        if (trigger.type() == AbilityTrigger.Type.BATTLE_START
+            && featureActive.test(RESERVOIR)) {
             miracles = MAX_MIRACLES;
             return List.of(event(trigger.tick(), gainMessage(MAX_MIRACLES)));
         }
-        if (!hasFeature(FORTUNE_RECLAIMED) || !gainsFrom(trigger)) return List.of();
+        if (!featureActive.test(FORTUNE_RECLAIMED)) return List.of();
         if (!addMiracle()) return List.of();
         return List.of(event(trigger.tick(), gainMessage(1)));
     }
@@ -67,8 +73,8 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
     }
 
     @Override
-    public boolean preventFatalDamage() {
-        if (!hasFeature(FATEFUL_REPRIEVE) || miracles <= 0) return false;
+    public boolean preventFatalDamage(Predicate<String> featureActive) {
+        if (!featureActive.test(FATEFUL_REPRIEVE) || miracles <= 0) return false;
         miracles--;
         pendingFatalAversions.add(miracles);
         return true;
@@ -95,12 +101,6 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
         return RESERVOIR.equals(feature)
             || FATEFUL_REPRIEVE.equals(feature)
             || FORTUNE_RECLAIMED.equals(feature);
-    }
-
-    private boolean gainsFrom(AbilityTrigger trigger) {
-        return (trigger.type() == AbilityTrigger.Type.ATTACK_MISSED
-            && trigger.target() == owner && trigger.actor() != owner)
-            || (trigger.type() == AbilityTrigger.Type.BLACK_FLASH && trigger.actor() == owner);
     }
 
     private boolean hasFeature(String feature) {

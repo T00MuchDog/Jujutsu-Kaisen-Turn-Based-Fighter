@@ -37,6 +37,11 @@ import java.util.Random;
  */
 public final class DamageCalculator {
 
+    @FunctionalInterface
+    public interface ConnectedHitHook {
+        CodedHitModifiers onAttackConnected(AbilityTrigger trigger);
+    }
+
     /**
      * Global damage scale factor.
      * Lower = less damage per hit, longer fights.
@@ -126,6 +131,23 @@ public final class DamageCalculator {
         boolean         forceFullBlock,
         boolean         requireFiredDefense
     ) {
+        return resolve(attacker, defender, move, component, currentTick, rng,
+            currentRound, forceFullBlock, requireFiredDefense, null);
+    }
+
+    /** Resolve one component with a context-aware active-ability connection hook. */
+    public static DamageResult resolve(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move            move,
+        HitComponent    component,
+        int             currentTick,
+        RandomSource    rng,
+        int             currentRound,
+        boolean         forceFullBlock,
+        boolean         requireFiredDefense,
+        ConnectedHitHook connectedHitHook
+    ) {
         if (component == null) throw new IllegalArgumentException("hit component is required");
         // Use ability-modified stats for all calculations
         CharacterStats acs = attacker.getEffectiveStats();
@@ -181,8 +203,11 @@ public final class DamageCalculator {
 
         // Compiled techniques can react to a direct connection before block and
         // defense are calculated. Misses never reach this hook.
-        CodedHitModifiers codedModifiers = attacker.getCodedAbilities().onAttackConnected(
-            attacker, defender, move, component, currentTick, rng);
+        CodedHitModifiers codedModifiers = connectedHitHook == null
+            ? attacker.getCodedAbilities().onAttackConnected(
+                attacker, defender, move, component, currentTick, rng)
+            : connectedHitHook.onAttackConnected(AbilityTrigger.attackConnected(
+                attacker, defender, move, component, currentTick));
 
         // --- 1b. Parry check (potency-gated; GUARD_BREAK does NOT bypass parry) ---
         // A parry negates the hit entirely. If the parry would stagger the attacker

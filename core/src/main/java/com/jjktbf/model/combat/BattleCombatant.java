@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.IntPredicate;
 
 /**
  * Mutable battle-time wrapper around an immutable Character.
@@ -150,8 +151,16 @@ public class BattleCombatant {
         receiveDamage(damage);
     }
 
-    /** Apply battle modifiers, shields, immunity, and fatal-hit protection. */
+    /**
+     * Apply damage without a battle activation context. Conditional coded fatal
+     * protection is available through the callback overload used by CombatResolver.
+     */
     public int receiveDamage(int damage) {
+        return receiveDamage(damage, ignored -> false);
+    }
+
+    /** Apply damage with a context-aware fatal-hit protection callback. */
+    public int receiveDamage(int damage, IntPredicate preventFatalDamage) {
         int remaining = Math.max(0, (int) Math.round(
             modifyBattleStat(BattleStatKey.DAMAGE_TAKEN, damage)));
         if (remaining == 0) return 0;
@@ -171,7 +180,8 @@ public class BattleCombatant {
         }
 
         if (remaining >= currentHp) {
-            if (currentHp > 0 && codedAbilities.preventFatalDamage()) {
+            if (currentHp > 0 && preventFatalDamage != null
+                && preventFatalDamage.test(remaining)) {
                 return 0;
             }
             RuntimeAbilityEffect survival = firstUsable(AbilityEffectType.SURVIVE_FATAL_DAMAGE);
@@ -185,11 +195,16 @@ public class BattleCombatant {
         return applied;
     }
 
-    /** Apply an instant-kill effect, bypassing shields and immunity but not fatal-hit protection. */
+    /** Apply an instant kill without a battle activation context. */
     public int receiveInstantKill() {
+        return receiveInstantKill(ignored -> false);
+    }
+
+    /** Apply instant kill with a context-aware fatal-hit protection callback. */
+    public int receiveInstantKill(IntPredicate preventFatalDamage) {
         if (currentHp <= 0) return 0;
         int before = currentHp;
-        if (codedAbilities.preventFatalDamage()) {
+        if (preventFatalDamage != null && preventFatalDamage.test(before)) {
             return 0;
         }
         RuntimeAbilityEffect survival = firstUsable(AbilityEffectType.SURVIVE_FATAL_DAMAGE);
@@ -616,6 +631,7 @@ public class BattleCombatant {
     public void recordAbilityTrigger(String key, AbilityTrigger trigger) {
         List<AbilityTrigger> history = abilityTriggerHistory.computeIfAbsent(
             key, ignored -> new ArrayList<>());
+        if (!history.isEmpty() && history.get(history.size() - 1) == trigger) return;
         history.add(trigger);
         if (history.size() > 64) history.remove(0);
     }

@@ -9,6 +9,7 @@ public enum AbilityConditionParameter {
     MOVE_TAG,
     STAT,
     STATUS_TYPE,
+    CODED_ABILITY,
     TICK,
     ROUND,
     PHASE

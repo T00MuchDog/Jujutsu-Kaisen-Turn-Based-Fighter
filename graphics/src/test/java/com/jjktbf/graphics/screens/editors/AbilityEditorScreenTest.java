@@ -3,6 +3,8 @@ package com.jjktbf.graphics.screens.editors;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectType;
+import com.jjktbf.model.character.AbilityConditionData;
+import com.jjktbf.model.character.AbilityConditionRuleData;
 import com.jjktbf.model.move.StatusEffectType;
 import org.junit.jupiter.api.Test;
 
@@ -11,6 +13,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class AbilityEditorScreenTest {
 
@@ -66,5 +69,34 @@ class AbilityEditorScreenTest {
         effect.durationRounds = 1;
         assertEquals("Stagger must use 0 rounds and at least 1 AP tick.",
             AbilityEffectType.APPLY_STATUS.validationError(effect));
+    }
+
+    @Test
+    void temporarilySwitchingToPassivePreservesAuthoredConditions() {
+        AbilityConditionRuleData rule = AbilityConditionRuleData.allEffects(
+            AbilityConditionData.manualActivation());
+        AbilityData draft = new AbilityData();
+        draft.category = "ACTIVE";
+        draft.activationConditions = new ArrayList<>(List.of(rule));
+
+        draft.category = "PASSIVE";
+        AbilityEditorScreen.initialiseCategoryDefaults(draft);
+        draft.category = "ACTIVE";
+        AbilityEditorScreen.initialiseCategoryDefaults(draft);
+
+        assertEquals(1, draft.activationConditions.size());
+        assertSame(rule, draft.activationConditions.get(0));
+    }
+
+    @Test
+    void malformedConditionDraftGetsAFailClosedEditablePredicate() {
+        AbilityConditionRuleData rule = new AbilityConditionRuleData();
+        AbilityData draft = new AbilityData();
+        draft.category = "ACTIVE";
+        draft.activationConditions = new ArrayList<>(List.of(rule));
+
+        AbilityEditorScreen.initialiseActivationDefaults(draft);
+
+        assertEquals("MANUAL_ACTIVATION", rule.condition.type);
     }
 }

@@ -25,9 +25,7 @@ public class Ability {
     private final String sourceType;      // "CHARACTER" | "TECHNIQUE" | "MOVE" | "STAT_THRESHOLD"
     private final String sourceValue;     // nullable
     private final List<AbilityEffectData> effects;
-    private final AbilityConditionData activationCondition;
-    private final boolean activationChanceEnabled;
-    private final double activationChance;
+    private final List<AbilityConditionRuleData> activationConditions;
 
     public Ability(AbilityData data) {
         this.id               = data.id;
@@ -37,12 +35,14 @@ public class Ability {
         this.category         = data.category     != null ? data.category     : "PASSIVE";
         this.sourceType       = data.sourceType   != null ? data.sourceType   : "CHARACTER";
         this.sourceValue      = data.sourceValue;
-        this.effects          = data.effects != null
-            ? data.effects.stream()
+        List<AbilityEffectData> copiedEffects = data.effects != null
+            ? new java.util.ArrayList<>(data.effects.stream()
                 .filter(java.util.Objects::nonNull)
                 .map(AbilityEffectData::copy)
-                .toList()
-            : List.of();
+                .toList())
+            : new java.util.ArrayList<>();
+        AbilityData.ensureEffectIds(copiedEffects);
+        this.effects = List.copyOf(copiedEffects);
         for (AbilityEffectData effect : effects) {
             AbilityEffectType type;
             try { type = AbilityEffectType.fromName(effect.type); }
@@ -63,14 +63,8 @@ public class Ability {
                 StatusEffect.validateDuration(rounds, ticks);
             }
         }
-        this.activationCondition = isActive()
-            ? (data.activationCondition == null
-                ? AbilityConditionData.manualActivation() : data.activationCondition.copy())
-            : null;
-        this.activationChanceEnabled = isActive()
-            && Boolean.TRUE.equals(data.activationChanceEnabled);
-        this.activationChance = data.activationChance == null
-            ? 1.0 : Math.max(0.0, Math.min(1.0, data.activationChance));
+        this.activationConditions = isActive()
+            ? List.copyOf(data.resolvedActivationConditions()) : List.of();
     }
 
     // -------------------------------------------------------------------------
@@ -85,9 +79,22 @@ public class Ability {
     public String getSourceType()       { return sourceType; }
     public String getSourceValue()      { return sourceValue; }
     public List<AbilityEffectData> getEffects() { return effects; }
-    public AbilityConditionData getActivationCondition() { return activationCondition; }
-    public boolean isActivationChanceEnabled() { return activationChanceEnabled; }
-    public double getActivationChance() { return activationChanceEnabled ? activationChance : 1.0; }
+    public List<AbilityConditionRuleData> getActivationConditions() { return activationConditions; }
+
+    /** Legacy convenience accessor for callers that only support one rule. */
+    public AbilityConditionData getActivationCondition() {
+        return activationConditions.isEmpty() ? null : activationConditions.get(0).condition;
+    }
+
+    public boolean isActivationChanceEnabled() {
+        return !activationConditions.isEmpty()
+            && Boolean.TRUE.equals(activationConditions.get(0).activationChanceEnabled);
+    }
+
+    public double getActivationChance() {
+        return activationConditions.isEmpty()
+            ? 1.0 : activationConditions.get(0).effectiveActivationChance();
+    }
 
     public boolean isPassive()  { return "PASSIVE".equalsIgnoreCase(category); }
     public boolean isActive()   { return "ACTIVE".equalsIgnoreCase(category); }

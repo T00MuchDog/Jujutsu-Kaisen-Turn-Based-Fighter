@@ -6,6 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jjktbf.model.character.Ability;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityEffectData;
+import com.jjktbf.model.character.AbilityConditionRuleData;
+import com.jjktbf.model.character.AbilityConditionData;
+import com.jjktbf.model.character.AbilityConditionType;
 import com.jjktbf.model.character.AbilityResolver;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.SorcererCharacter;
@@ -163,6 +166,13 @@ public final class ContentCatalog {
             }
             requireIdentifier(definition.id, "ability ID");
             requireText(definition.name, "ability name for " + definition.id);
+            definition.migrateActivationData();
+            String effectIdError = AbilityConditionRuleData.effectIdValidationError(
+                definition.effects);
+            if (effectIdError != null) {
+                throw invalid(ABILITIES_RESOURCE,
+                    "invalid effects on ability " + definition.id + ": " + effectIdError);
+            }
             for (AbilityEffectData effect : definition.effects == null
                 ? List.<AbilityEffectData>of() : definition.effects) {
                 if (effect != null && effect.isCoded()
@@ -170,6 +180,22 @@ public final class ContentCatalog {
                         effect.codedAbilityKey, effect.codedFeature)) {
                     throw invalid(ABILITIES_RESOURCE,
                         "invalid coded effect on ability " + definition.id);
+                }
+            }
+            if (definition.isActive()) {
+                String conditionError = AbilityConditionRuleData.validationError(
+                    definition.activationConditions, definition.effects);
+                if (conditionError != null) {
+                    throw invalid(ABILITIES_RESOURCE,
+                        "invalid conditions on ability " + definition.id + ": " + conditionError);
+                }
+                for (AbilityConditionRuleData rule : definition.activationConditions) {
+                    String missingMove = missingConditionMove(rule.condition, movesById.keySet());
+                    if (missingMove != null) {
+                        throw invalid(ABILITIES_RESOURCE,
+                            "ability " + definition.id
+                                + " condition references unknown move " + missingMove);
+                    }
                 }
             }
             if (!abilityIds.add(definition.id)) {
@@ -272,6 +298,24 @@ public final class ContentCatalog {
             }
         }
         return new ContentCatalog(charactersById, summaries);
+    }
+
+    private static String missingConditionMove(
+        AbilityConditionData condition,
+        Set<String> moveIds
+    ) {
+        if (condition == null) return null;
+        if (AbilityConditionType.MOVE_USED.name().equalsIgnoreCase(condition.type)
+            && !moveIds.contains(condition.moveId)) {
+            return condition.moveId;
+        }
+        if (condition.children != null) {
+            for (AbilityConditionData child : condition.children) {
+                String missing = missingConditionMove(child, moveIds);
+                if (missing != null) return missing;
+            }
+        }
+        return null;
     }
 
     private static void verifyReferences(

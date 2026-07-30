@@ -11,20 +11,41 @@ import com.jjktbf.model.move.StatusEffect;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Predicate;
 
 /** Generic dispatcher and state holder for compiled ability runtimes on one combatant. */
 public final class CodedAbilities {
 
-    private final List<CodedAbilityRuntime> runtimes;
+    static record RuntimeEntry(
+        CodedAbilityRuntime runtime,
+        Map<String, List<CodedAbilityBinding>> bindingsByFeature
+    ) {
+        RuntimeEntry {
+            bindingsByFeature = bindingsByFeature == null ? Map.of() : bindingsByFeature;
+        }
+    }
 
-    CodedAbilities(List<CodedAbilityRuntime> runtimes) {
+    private final List<RuntimeEntry> runtimes;
+
+    CodedAbilities(List<RuntimeEntry> runtimes) {
         this.runtimes = runtimes == null ? List.of() : List.copyOf(runtimes);
     }
 
     public List<CombatEvent> onTrigger(BattleState state, AbilityTrigger trigger) {
+        return onTrigger(state, trigger, CodedAbilities::passiveBinding);
+    }
+
+    public List<CombatEvent> onTrigger(
+        BattleState state,
+        AbilityTrigger trigger,
+        Predicate<CodedAbilityBinding> activationGate
+    ) {
         List<CombatEvent> events = new ArrayList<>();
-        for (CodedAbilityRuntime runtime : runtimes) {
-            events.addAll(runtime.onTrigger(state, trigger));
+        for (RuntimeEntry entry : runtimes) {
+            events.addAll(entry.runtime().onTrigger(
+                state, trigger, featureGate(entry, activationGate)));
         }
         return events;
     }
@@ -42,15 +63,19 @@ public final class CodedAbilities {
         int tick
     ) {
         List<CombatEvent> events = new ArrayList<>();
-        for (CodedAbilityRuntime runtime : runtimes) {
-            events.addAll(runtime.onEffectFired(state, effect, attacker, defender, tick));
+        for (RuntimeEntry entry : runtimes) {
+            events.addAll(entry.runtime().onEffectFired(state, effect, attacker, defender, tick));
         }
         return events;
     }
 
     public boolean preventFatalDamage() {
-        for (CodedAbilityRuntime runtime : runtimes) {
-            if (runtime.preventFatalDamage()) return true;
+        return preventFatalDamage(CodedAbilities::passiveBinding);
+    }
+
+    public boolean preventFatalDamage(Predicate<CodedAbilityBinding> activationGate) {
+        for (RuntimeEntry entry : runtimes) {
+            if (entry.runtime().preventFatalDamage(featureGate(entry, activationGate))) return true;
         }
         return false;
     }
@@ -75,10 +100,24 @@ public final class CodedAbilities {
         int tick,
         RandomSource rng
     ) {
+        return onAttackConnected(
+            attacker, defender, move, component, tick, rng, CodedAbilities::passiveBinding);
+    }
+
+    public CodedHitModifiers onAttackConnected(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move move,
+        HitComponent component,
+        int tick,
+        RandomSource rng,
+        Predicate<CodedAbilityBinding> activationGate
+    ) {
         CodedHitModifiers modifiers = CodedHitModifiers.none();
-        for (CodedAbilityRuntime runtime : runtimes) {
-            modifiers = modifiers.combine(runtime.onAttackConnected(
-                attacker, defender, move, component, tick, rng));
+        for (RuntimeEntry entry : runtimes) {
+            modifiers = modifiers.combine(entry.runtime().onAttackConnected(
+                attacker, defender, move, component, tick, rng,
+                featureGate(entry, activationGate)));
         }
         return modifiers;
     }
@@ -90,38 +129,72 @@ public final class CodedAbilities {
         Move move,
         int tick
     ) {
+        return beforeIncomingMove(
+            state, attacker, defender, move, tick, CodedAbilities::passiveBinding);
+    }
+
+    public CodedMoveResponse beforeIncomingMove(
+        BattleState state,
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move move,
+        int tick,
+        Predicate<CodedAbilityBinding> activationGate
+    ) {
         CodedMoveResponse response = CodedMoveResponse.none();
-        for (CodedAbilityRuntime runtime : runtimes) {
-            response = response.combine(runtime.beforeIncomingMove(
-                state, attacker, defender, move, tick));
+        for (RuntimeEntry entry : runtimes) {
+            response = response.combine(entry.runtime().beforeIncomingMove(
+                state, attacker, defender, move, tick,
+                featureGate(entry, activationGate)));
         }
         return response;
     }
 
     public List<CombatEvent> tickTimelineEffects(int tick) {
         List<CombatEvent> events = new ArrayList<>();
-        for (CodedAbilityRuntime runtime : runtimes) {
-            events.addAll(runtime.tickTimelineEffects(tick));
+        for (RuntimeEntry entry : runtimes) {
+            events.addAll(entry.runtime().tickTimelineEffects(tick));
         }
         return events;
     }
 
     public int getRemainingTimelineEffectTicks() {
         return runtimes.stream()
-            .mapToInt(CodedAbilityRuntime::getRemainingTimelineEffectTicks)
+            .mapToInt(entry -> entry.runtime().getRemainingTimelineEffectTicks())
             .max().orElse(0);
     }
 
     public List<CombatEvent> drainPendingEvents(int tick) {
         List<CombatEvent> events = new ArrayList<>();
-        for (CodedAbilityRuntime runtime : runtimes) {
-            events.addAll(runtime.drainPendingEvents(tick));
+        for (RuntimeEntry entry : runtimes) {
+            events.addAll(entry.runtime().drainPendingEvents(tick));
         }
         return events;
     }
 
     public List<CodedAbilityState> states() {
-        return runtimes.stream().map(CodedAbilityRuntime::state).toList();
+        return runtimes.stream().map(entry -> entry.runtime().state()).toList();
+    }
+
+    public Optional<CodedAbilityState> state(String key) {
+        if (key == null) return Optional.empty();
+        return states().stream().filter(state -> state.key().equalsIgnoreCase(key)).findFirst();
+    }
+
+    private static Predicate<String> featureGate(
+        RuntimeEntry entry,
+        Predicate<CodedAbilityBinding> activationGate
+    ) {
+        Predicate<CodedAbilityBinding> gate = activationGate == null
+            ? binding -> false : activationGate;
+        return feature -> entry.bindingsByFeature()
+            .getOrDefault(CodedAbilityRegistry.normalize(feature), List.of())
+            .stream()
+            .anyMatch(gate);
+    }
+
+    private static boolean passiveBinding(CodedAbilityBinding binding) {
+        return binding != null && binding.ability() != null && binding.ability().isPassive();
     }
 
 }

@@ -8,6 +8,7 @@ import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.ContentSizedDialog;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.model.character.*;
+import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveTag;
@@ -103,7 +104,7 @@ public class ConditionTreeEditor extends Table {
                 parent.children.remove(childIndex);
                 if (parent.children.isEmpty()) {
                     parent.copyFrom(parent == root
-                        ? AbilityConditionData.always()
+                        ? AbilityConditionData.manualActivation()
                         : AbilityConditionType.HP_PERCENT_AT_OR_BELOW.createDefault());
                 }
                 soundPlayer.accept(SoundCue.UI_DELETE);
@@ -111,7 +112,7 @@ public class ConditionTreeEditor extends Table {
             }));
         } else {
             table.add(button("Reset", () -> {
-                root.copyFrom(AbilityConditionData.always());
+                root.copyFrom(AbilityConditionData.manualActivation());
                 soundPlayer.accept(SoundCue.UI_DELETE);
                 changed();
             }));
@@ -286,6 +287,22 @@ public class ConditionTreeEditor extends Table {
             }));
             addRow(fields, "Status", box);
         }
+        if (type.uses(AbilityConditionParameter.CODED_ABILITY)) {
+            List<CodedAbilityRegistry.StateKey> states = CodedAbilityRegistry.stateKeys();
+            SelectBox<String> box = new DynamicSelectBox<>(skin);
+            box.setItems(states.stream()
+                .map(CodedAbilityRegistry.StateKey::label)
+                .toArray(String[]::new));
+            box.setSelected(states.stream()
+                .filter(state -> state.key().equalsIgnoreCase(condition.codedAbilityKey))
+                .map(CodedAbilityRegistry.StateKey::label)
+                .findFirst().orElse(states.get(0).label()));
+            box.addListener(change(() -> condition.codedAbilityKey = states.stream()
+                .filter(state -> state.label().equals(box.getSelected()))
+                .map(CodedAbilityRegistry.StateKey::key)
+                .findFirst().orElse(states.get(0).key())));
+            addRow(fields, "Coded state", box);
+        }
         if (type.uses(AbilityConditionParameter.TICK)) {
             TextField field = integerField(condition.tick);
             field.addListener(change(() -> condition.tick = parseInteger(field.getText())));
@@ -371,6 +388,12 @@ public class ConditionTreeEditor extends Table {
         if (type.uses(AbilityConditionParameter.MOVE_TAG)) result.append(" | ").append(pretty(condition.moveTag));
         if (type.uses(AbilityConditionParameter.STAT)) result.append(" | ").append(statLabel(condition.stat));
         if (type.uses(AbilityConditionParameter.STATUS_TYPE)) result.append(" | ").append(pretty(condition.statusType));
+        if (type.uses(AbilityConditionParameter.CODED_ABILITY)) {
+            result.append(" | ").append(CodedAbilityRegistry.stateKeys().stream()
+                .filter(state -> state.key().equalsIgnoreCase(condition.codedAbilityKey))
+                .map(CodedAbilityRegistry.StateKey::label)
+                .findFirst().orElse(condition.codedAbilityKey));
+        }
         if (type.uses(AbilityConditionParameter.TICK)) result.append(" | tick ").append(condition.tick);
         if (type.uses(AbilityConditionParameter.ROUND)) result.append(" | round ").append(condition.round);
         if (type.uses(AbilityConditionParameter.PHASE)) result.append(" | ").append(condition.phase);
@@ -392,13 +415,13 @@ public class ConditionTreeEditor extends Table {
 
     private static AbilityConditionType safeType(String value) {
         try { return AbilityConditionType.fromName(value); }
-        catch (Exception ex) { return AbilityConditionType.ALWAYS; }
+        catch (Exception ex) { return AbilityConditionType.MANUAL_ACTIVATION; }
     }
 
     private static AbilityConditionType typeFromLabel(String label) {
         return Arrays.stream(AbilityConditionType.values())
             .filter(type -> type.displayName().equals(label))
-            .findFirst().orElse(AbilityConditionType.ALWAYS);
+            .findFirst().orElse(AbilityConditionType.MANUAL_ACTIVATION);
     }
 
     private static String statLabel(String value) {

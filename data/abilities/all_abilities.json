@@ -6,6 +6,7 @@
   "category" : "PASSIVE",
   "sourceType" : "CHARACTER",
   "effects" : [ {
+    "effectId" : "effect-000000",
     "type" : "STAT_ADD",
     "stat" : "durability",
     "intValue" : 15
@@ -20,6 +21,7 @@
   "sourceType" : "TECHNIQUE",
   "sourceValue" : "Miracles",
   "effects" : [ {
+    "effectId" : "effect-000000",
     "type" : "CODED",
     "codedAbilityKey" : "MIRACLES",
     "codedFeature" : "RESERVOIR"
@@ -33,7 +35,24 @@
   "category" : "ACTIVE",
   "sourceType" : "TECHNIQUE",
   "sourceValue" : "Miracles",
+  "activationConditions" : [ {
+    "condition" : {
+      "type" : "ALL",
+      "children" : [ {
+        "type" : "FATAL_DAMAGE",
+        "actor" : "SELF"
+      }, {
+        "type" : "CODED_STATE_AT_OR_ABOVE",
+        "actor" : "SELF",
+        "amount" : 1,
+        "codedAbilityKey" : "MIRACLES"
+      } ]
+    },
+    "targetEffectIds" : [ "effect-000000" ],
+    "matchSameTrigger" : true
+  } ],
   "effects" : [ {
+    "effectId" : "effect-000000",
     "type" : "CODED",
     "codedAbilityKey" : "MIRACLES",
     "codedFeature" : "FATEFUL_REPRIEVE"
@@ -47,7 +66,30 @@
   "category" : "ACTIVE",
   "sourceType" : "TECHNIQUE",
   "sourceValue" : "Miracles",
+  "activationConditions" : [ {
+    "condition" : {
+      "type" : "ALL",
+      "children" : [ {
+        "type" : "CODED_STATE_AT_OR_BELOW",
+        "actor" : "SELF",
+        "amount" : 5,
+        "codedAbilityKey" : "MIRACLES"
+      }, {
+        "type" : "ANY",
+        "children" : [ {
+          "type" : "ATTACK_MISSED",
+          "actor" : "ENEMY"
+        }, {
+          "type" : "BLACK_FLASH_HIT",
+          "actor" : "SELF"
+        } ]
+      } ]
+    },
+    "targetEffectIds" : [ "effect-000000" ],
+    "matchSameTrigger" : true
+  } ],
   "effects" : [ {
+    "effectId" : "effect-000000",
     "type" : "CODED",
     "codedAbilityKey" : "MIRACLES",
     "codedFeature" : "FORTUNE_RECLAIMED"
@@ -61,7 +103,29 @@
   "category" : "ACTIVE",
   "sourceType" : "TECHNIQUE",
   "sourceValue" : "Ratio",
+  "activationConditions" : [ {
+    "condition" : {
+      "type" : "ALL",
+      "children" : [ {
+        "type" : "ATTACK_CONNECTED",
+        "actor" : "SELF"
+      }, {
+        "type" : "CONNECTED_HIT_HAS_TAG",
+        "actor" : "SELF",
+        "moveTag" : "PHYSICAL"
+      }, {
+        "type" : "CONNECTED_HIT_HAS_TAG",
+        "actor" : "SELF",
+        "moveTag" : "CURSED_ENERGY"
+      } ]
+    },
+    "targetEffectIds" : [ "effect-000000" ],
+    "activationChanceEnabled" : true,
+    "activationChance" : 0.05,
+    "matchSameTrigger" : true
+  } ],
   "effects" : [ {
+    "effectId" : "effect-000000",
     "type" : "CODED",
     "codedAbilityKey" : "RATIO",
     "codedFeature" : "REINFORCEMENT_RATIO"
@@ -75,9 +139,11 @@
   "category" : "PASSIVE",
   "sourceType" : "CHARACTER",
   "effects" : [ {
+    "effectId" : "effect-000000",
     "type" : "GRANT_MOVE",
     "moveId" : "000027"
   }, {
+    "effectId" : "effect-000001",
     "type" : "GRANT_MOVE",
     "moveId" : "000028"
   } ],
@@ -90,6 +156,7 @@
   "category" : "PASSIVE",
   "sourceType" : "CHARACTER",
   "effects" : [ {
+    "effectId" : "effect-000000",
     "type" : "CODED",
     "codedAbilityKey" : "NEW_SHADOW_STYLE",
     "codedFeature" : "SIMPLE_DOMAIN_BINDING_VOW"
@@ -103,6 +170,7 @@
   "category" : "PASSIVE",
   "sourceType" : "CHARACTER",
   "effects" : [ {
+    "effectId" : "effect-000000",
     "type" : "MOVE_BASE_POWER_MULTIPLY",
     "moveTag" : "SWORD",
     "doubleValue" : 1.1
@@ -116,12 +184,15 @@
   "category" : "PASSIVE",
   "sourceType" : "CHARACTER",
   "effects" : [ {
+    "effectId" : "effect-000000",
     "type" : "GRANT_ABILITY",
     "abilityId" : "000009"
   }, {
+    "effectId" : "effect-000001",
     "type" : "GRANT_ABILITY",
     "abilityId" : "000010"
   }, {
+    "effectId" : "effect-000002",
     "type" : "GRANT_ABILITY",
     "abilityId" : "000011"
   } ],
@@ -135,18 +206,22 @@
   "sourceType" : "ABILITY",
   "sourceValue" : "000008",
   "effects" : [ {
+    "effectId" : "effect-000000",
     "type" : "STAT_ALLOCATION_MINIMUM",
     "stat" : "vitality",
     "intValue" : 60
   }, {
+    "effectId" : "effect-000001",
     "type" : "STAT_ALLOCATION_MINIMUM",
     "stat" : "strength",
     "intValue" : 60
   }, {
+    "effectId" : "effect-000002",
     "type" : "STAT_ALLOCATION_MINIMUM",
     "stat" : "durability",
     "intValue" : 60
   }, {
+    "effectId" : "effect-000003",
     "type" : "STAT_ALLOCATION_MINIMUM",
     "stat" : "speed",
     "intValue" : 60
@@ -161,6 +236,7 @@
   "sourceType" : "ABILITY",
   "sourceValue" : "000008",
   "effects" : [ {
+    "effectId" : "effect-000000",
     "type" : "POISON_IMMUNITY"
   } ],
   "masteryThreshold" : 0
@@ -173,6 +249,7 @@
   "sourceType" : "ABILITY",
   "sourceValue" : "000008",
   "effects" : [ {
+    "effectId" : "effect-000000",
     "type" : "GRANT_ABILITY",
     "abilityId" : "000012"
   } ],
@@ -186,6 +263,7 @@
   "sourceType" : "ABILITY",
   "sourceValue" : "000011",
   "effects" : [ {
+    "effectId" : "effect-000000",
     "type" : "SOUL_AWARE_ATTACKS"
   } ],
   "masteryThreshold" : 0

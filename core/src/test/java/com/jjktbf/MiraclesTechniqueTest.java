@@ -4,6 +4,9 @@ import com.jjktbf.model.character.Ability;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectType;
+import com.jjktbf.model.character.AbilityConditionData;
+import com.jjktbf.model.character.AbilityConditionRuleData;
+import com.jjktbf.model.character.AbilityConditionType;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.SorcererCharacter;
@@ -37,7 +40,12 @@ class MiraclesTechniqueTest {
         assertEquals(MiraclesAbility.MAX_MIRACLES, miracleCount(owner));
         assertEquals("OWNER gains 6 Miracles (6/6 remaining).", startEvents.get(0).getMessage());
         assertTrue(owner.getActiveEffects().isEmpty());
-        assertEquals(0, owner.receiveDamage(hpBeforeLethalHit));
+        AbilityActivationEngine engine = new AbilityActivationEngine(
+            new SeededRandomSource(new FixedRandom()));
+        assertEquals(0, owner.receiveDamage(
+            hpBeforeLethalHit,
+            amount -> engine.preventFatalDamage(state, AbilityTrigger.fatalDamage(
+                enemy, owner, null, null, amount, 1))));
         assertEquals(hpBeforeLethalHit, owner.getCurrentHp());
         assertEquals(MiraclesAbility.MAX_MIRACLES - 1, miracleCount(owner));
         List<CombatEvent> aversionEvents = owner.getCodedAbilities().drainPendingEvents(1);
@@ -60,14 +68,14 @@ class MiraclesTechniqueTest {
         AbilityActivationEngine engine = new AbilityActivationEngine(new SeededRandomSource(new FixedRandom()));
         Move attack = attack("ATTACK");
 
-        owner.receiveDamage(owner.getCurrentHp());
+        avertFatal(owner, enemy, state, engine, 0);
         List<CombatEvent> missedEvents = engine.process(state, AbilityTrigger.move(
             AbilityTrigger.Type.ATTACK_MISSED, enemy, owner, attack, 1));
         assertEquals(MiraclesAbility.MAX_MIRACLES, miracleCount(owner));
         assertEquals("OWNER gains 1 Miracle (6/6 remaining).", missedEvents.get(0).getMessage());
 
-        owner.receiveDamage(owner.getCurrentHp());
-        owner.receiveDamage(owner.getCurrentHp());
+        avertFatal(owner, enemy, state, engine, 1);
+        avertFatal(owner, enemy, state, engine, 1);
         List<CombatEvent> blackFlashEvents = engine.process(state, AbilityTrigger.move(
             AbilityTrigger.Type.BLACK_FLASH, owner, enemy, attack, 2));
         assertEquals(MiraclesAbility.MAX_MIRACLES - 1, miracleCount(owner));
@@ -92,7 +100,10 @@ class MiraclesTechniqueTest {
             first, combatant("ENEMY_ONE", List.of(), List.of())));
         new CombatResolver(new FixedRandom()).processRoundStart(new BattleState(
             second, combatant("ENEMY_TWO", List.of(), List.of())));
-        first.receiveDamage(first.getCurrentHp());
+        BattleCombatant firstEnemy = combatant("FIRST_ENEMY", List.of(), List.of());
+        BattleState firstState = new BattleState(first, firstEnemy);
+        avertFatal(first, firstEnemy, firstState, new AbilityActivationEngine(
+            new SeededRandomSource(new FixedRandom())), 1);
 
         assertEquals(MiraclesAbility.MAX_MIRACLES - 1, miracleCount(first));
         assertEquals(MiraclesAbility.MAX_MIRACLES, miracleCount(second));
@@ -110,24 +121,74 @@ class MiraclesTechniqueTest {
 
     private static List<Ability> miracleAbilities() {
         return List.of(
-            codedAbility("Miracle Reservoir", "MIRACLE_RESERVOIR", MiraclesAbility.RESERVOIR),
-            codedAbility("Fateful Reprieve", "FATEFUL_REPRIEVE", MiraclesAbility.FATEFUL_REPRIEVE),
-            codedAbility("Fortune Reclaimed", "FORTUNE_RECLAIMED", MiraclesAbility.FORTUNE_RECLAIMED)
+            codedAbility("Miracle Reservoir", "MIRACLE_RESERVOIR",
+                MiraclesAbility.RESERVOIR, "PASSIVE", null),
+            codedAbility("Fateful Reprieve", "FATEFUL_REPRIEVE",
+                MiraclesAbility.FATEFUL_REPRIEVE, "ACTIVE", fatefulCondition()),
+            codedAbility("Fortune Reclaimed", "FORTUNE_RECLAIMED",
+                MiraclesAbility.FORTUNE_RECLAIMED, "ACTIVE", fortuneCondition())
         );
     }
 
-    private static Ability codedAbility(String name, String id, String feature) {
+    private static Ability codedAbility(
+        String name,
+        String id,
+        String feature,
+        String category,
+        AbilityConditionRuleData condition
+    ) {
         AbilityData ability = new AbilityData();
         ability.id = id;
         ability.name = name;
-        ability.category = "PASSIVE";
+        ability.category = category;
         ability.sourceType = "TECHNIQUE";
         ability.sourceValue = "Miracles";
         AbilityEffectData coded = AbilityEffectType.CODED.createDefault();
+        coded.effectId = "effect-000000";
         coded.codedAbilityKey = MiraclesAbility.KEY;
         coded.codedFeature = feature;
         ability.effects = List.of(coded);
+        ability.activationConditions = condition == null ? null : List.of(condition);
         return new Ability(ability);
+    }
+
+    private static AbilityConditionRuleData fatefulCondition() {
+        AbilityConditionData fatal = AbilityConditionType.FATAL_DAMAGE.createDefault();
+        AbilityConditionData hasMiracle = AbilityConditionType.CODED_STATE_AT_OR_ABOVE.createDefault();
+        hasMiracle.codedAbilityKey = MiraclesAbility.KEY;
+        hasMiracle.amount = 1;
+        return linkedRule(AbilityConditionData.all(List.of(fatal, hasMiracle)));
+    }
+
+    private static AbilityConditionRuleData fortuneCondition() {
+        AbilityConditionData belowCap = AbilityConditionType.CODED_STATE_AT_OR_BELOW.createDefault();
+        belowCap.codedAbilityKey = MiraclesAbility.KEY;
+        belowCap.amount = MiraclesAbility.MAX_MIRACLES - 1;
+        AbilityConditionData missed = AbilityConditionType.ATTACK_MISSED.createDefault();
+        missed.actor = "ENEMY";
+        AbilityConditionData blackFlash = AbilityConditionType.BLACK_FLASH_HIT.createDefault();
+        AbilityConditionRuleData rule = linkedRule(AbilityConditionData.all(List.of(
+            belowCap, AbilityConditionData.any(List.of(missed, blackFlash)))));
+        rule.matchSameTrigger = true;
+        return rule;
+    }
+
+    private static AbilityConditionRuleData linkedRule(AbilityConditionData condition) {
+        AbilityConditionRuleData rule = AbilityConditionRuleData.allEffects(condition);
+        rule.targetEffectIds = List.of("effect-000000");
+        rule.matchSameTrigger = true;
+        return rule;
+    }
+
+    private static void avertFatal(
+        BattleCombatant owner,
+        BattleCombatant enemy,
+        BattleState state,
+        AbilityActivationEngine engine,
+        int tick
+    ) {
+        owner.receiveDamage(owner.getCurrentHp(), amount -> engine.preventFatalDamage(
+            state, AbilityTrigger.fatalDamage(enemy, owner, null, null, amount, tick)));
     }
 
     private static int miracleCount(BattleCombatant combatant) {

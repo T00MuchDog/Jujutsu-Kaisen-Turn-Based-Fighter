@@ -8,6 +8,7 @@ import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityConditionData;
 import com.jjktbf.model.character.AbilityConditionType;
 import com.jjktbf.model.character.AbilityConditionActor;
+import com.jjktbf.model.character.AbilityConditionRuleData;
 import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectParameter;
 import com.jjktbf.model.character.AbilityEffectTarget;
@@ -450,9 +451,14 @@ class AbilitySystemTest {
         for (AbilityData ability : abilities) {
             assertTrue(ability.isPassive() || ability.isActive(), ability.name);
             assertFalse(ability.effects == null || ability.effects.isEmpty(), ability.name);
-            if (ability.isActive() && ability.effects.stream()
-                .anyMatch(effect -> effect != null && !effect.isCoded())) {
-                assertNull(AbilityConditionType.validationError(ability.activationCondition), ability.name);
+            Set<String> effectIds = new HashSet<>();
+            for (AbilityEffectData effect : ability.effects) {
+                assertTrue(effect.effectId != null && !effect.effectId.isBlank(), ability.name);
+                assertTrue(effectIds.add(effect.effectId), ability.name + " duplicate effect ID");
+            }
+            if (ability.isActive()) {
+                assertNull(AbilityConditionRuleData.validationError(
+                    ability.activationConditions, ability.effects), ability.name);
             }
             for (AbilityEffectData effect : ability.effects) {
                 AbilityEffectType type = AbilityEffectType.fromName(effect.type);
@@ -480,7 +486,7 @@ class AbilitySystemTest {
 
         AbilityConditionData invalid = AbilityConditionData.any(List.of(
             AbilityConditionData.always(), moveUsed));
-        assertEquals("At battle start cannot be combined with another condition.",
+        assertEquals("Always active cannot be combined with another condition.",
             AbilityConditionType.validationError(invalid));
     }
 
@@ -505,6 +511,196 @@ class AbilitySystemTest {
         assertTrue(engine.process(new BattleState(owner, enemy),
             AbilityTrigger.simple(AbilityTrigger.Type.BATTLE_START)).isEmpty());
         assertEquals(before, owner.getCurrentHp());
+
+        List<CombatEvent> events = new CombatResolver(new FixedRandom())
+            .activateAbilityManually(new BattleState(owner, enemy), owner, data.id, 1);
+        assertEquals(before + 20, owner.getCurrentHp());
+        assertTrue(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.ABILITY_ACTIVATED));
+
+        AbilityData automatic = ability("ACTIVE", "Automatic", "AUTOMATIC");
+        AbilityConditionData hp = AbilityConditionType.HP_PERCENT_AT_OR_BELOW.createDefault();
+        hp.percentage = 0.9;
+        automatic.activationCondition = hp;
+        automatic.effects = List.of(heal.copy());
+        BattleCombatant automaticOwner = combatant(
+            "AUTOMATIC_OWNER", List.of(), List.of(new Ability(automatic)));
+        automaticOwner.applyDamage(50);
+        int automaticHp = automaticOwner.getCurrentHp();
+        BattleCombatant automaticEnemy = combatant("AUTOMATIC_ENEMY", List.of(), List.of());
+        assertTrue(new CombatResolver(new FixedRandom()).activateAbilityManually(
+            new BattleState(automaticOwner, automaticEnemy),
+            automaticOwner, automatic.id, 1).isEmpty());
+        assertEquals(automaticHp, automaticOwner.getCurrentHp());
+    }
+
+    @Test
+    void conditionRulesActivateOnlyTheirLinkedEffects() {
+        AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
+        heal.effectId = "effect-heal";
+        heal.intValue = 20;
+        AbilityEffectData restore = AbilityEffectType.RESTORE_CE.createDefault();
+        restore.effectId = "effect-ce";
+        restore.intValue = 15;
+
+        AbilityConditionRuleData opening = AbilityConditionRuleData.allEffects(
+            AbilityConditionType.BATTLE_STARTED.createDefault());
+        opening.targetEffectIds = List.of(heal.effectId);
+        AbilityConditionRuleData onHit = AbilityConditionRuleData.allEffects(
+            AbilityConditionType.ATTACK_HIT.createDefault());
+        onHit.targetEffectIds = List.of(restore.effectId);
+
+        AbilityData data = ability("ACTIVE", "Linked effects", "LINKED");
+        data.effects = List.of(heal, restore);
+        data.activationConditions = List.of(opening, onHit);
+        assertNull(AbilityConditionRuleData.validationError(
+            data.activationConditions, data.effects));
+
+        BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
+        BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
+        owner.applyDamage(50);
+        owner.drainCe(30);
+        int damagedHp = owner.getCurrentHp();
+        int drainedCe = owner.getCurrentCe();
+        BattleState state = new BattleState(owner, enemy);
+        AbilityActivationEngine engine = new AbilityActivationEngine(
+            new SeededRandomSource(new FixedRandom()));
+
+        engine.process(state, AbilityTrigger.simple(AbilityTrigger.Type.BATTLE_START));
+        assertEquals(damagedHp + 20, owner.getCurrentHp());
+        assertEquals(drainedCe, owner.getCurrentCe());
+
+        engine.process(state, AbilityTrigger.move(
+            AbilityTrigger.Type.ATTACK_HIT, owner, enemy, attack("LINKED_HIT"), 1));
+        assertEquals(damagedHp + 20, owner.getCurrentHp());
+        assertEquals(drainedCe + 15, owner.getCurrentCe());
+    }
+
+    @Test
+    void failedCompoundManualRequestDoesNotArmALaterAutomaticActivation() {
+        AbilityConditionData hp = AbilityConditionType.HP_PERCENT_AT_OR_BELOW.createDefault();
+        hp.percentage = 0.5;
+        AbilityConditionRuleData rule = AbilityConditionRuleData.allEffects(
+            AbilityConditionData.all(List.of(
+                AbilityConditionData.manualActivation(), hp)));
+        AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
+        heal.effectId = "heal";
+        heal.intValue = 20;
+        rule.targetEffectIds = List.of(heal.effectId);
+        AbilityData data = ability("ACTIVE", "Manual threshold", "MANUAL_THRESHOLD");
+        data.effects = List.of(heal);
+        data.activationConditions = List.of(rule);
+        BattleCombatant owner = combatant("OWNER", List.of(), List.of(new Ability(data)));
+        BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
+        BattleState state = new BattleState(owner, enemy);
+
+        assertTrue(new CombatResolver(new FixedRandom()).activateAbilityManually(
+            state, owner, data.id, 0).isEmpty());
+        owner.applyDamage(owner.getMaxHp() * 3 / 4);
+        int before = owner.getCurrentHp();
+
+        new AbilityActivationEngine(new SeededRandomSource(new FixedRandom())).process(
+            state, AbilityTrigger.phase(BattleState.Phase.PLANNING));
+        assertEquals(before, owner.getCurrentHp());
+    }
+
+    @Test
+    void legacyActivationDataMigratesToOneAllEffectsRule() {
+        AbilityData data = ability("ACTIVE", "Legacy", "LEGACY");
+        AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
+        data.effects = new java.util.ArrayList<>(List.of(heal));
+        data.activationCondition = AbilityConditionType.ATTACK_HIT.createDefault();
+        data.activationChanceEnabled = true;
+        data.activationChance = 0.25;
+
+        data.migrateActivationData();
+
+        assertEquals("effect-000000", heal.effectId);
+        assertEquals(1, data.activationConditions.size());
+        AbilityConditionRuleData rule = data.activationConditions.get(0);
+        assertEquals(AbilityConditionType.ATTACK_HIT.name(), rule.condition.type);
+        assertNull(rule.targetEffectIds);
+        assertEquals(0.25, rule.activationChance);
+        assertNull(data.activationCondition);
+        assertNull(data.activationChanceEnabled);
+        assertNull(data.activationChance);
+    }
+
+    @Test
+    void legacyCodedAbilitiesRecoverTheirFormerAutomaticConditions() {
+        AbilityData ratio = ability("ACTIVE", "Legacy Ratio", "LEGACY_RATIO");
+        AbilityEffectData coded = AbilityEffectType.CODED.createDefault();
+        coded.codedAbilityKey = "RATIO";
+        coded.codedFeature = "REINFORCEMENT_RATIO";
+        ratio.effects = new java.util.ArrayList<>(List.of(coded));
+
+        ratio.migrateActivationData();
+
+        assertEquals("effect-000000", coded.effectId);
+        assertEquals(1, ratio.activationConditions.size());
+        AbilityConditionRuleData rule = ratio.activationConditions.get(0);
+        assertEquals(AbilityConditionType.ALL.name(), rule.condition.type);
+        assertEquals(List.of(coded.effectId), rule.targetEffectIds);
+        assertTrue(Boolean.TRUE.equals(rule.matchSameTrigger));
+        assertTrue(Boolean.TRUE.equals(rule.activationChanceEnabled));
+        assertEquals(0.05, rule.activationChance);
+        assertNull(AbilityConditionRuleData.validationError(
+            ratio.activationConditions, ratio.effects));
+    }
+
+    @Test
+    void legacyMixedAbilitySeparatesGenericAndCodedActivationRules() {
+        AbilityData data = ability("ACTIVE", "Legacy mixed", "LEGACY_MIXED");
+        AbilityEffectData coded = AbilityEffectType.CODED.createDefault();
+        coded.codedAbilityKey = "RATIO";
+        coded.codedFeature = "REINFORCEMENT_RATIO";
+        AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
+        data.effects = new java.util.ArrayList<>(List.of(coded, heal));
+        data.activationCondition = AbilityConditionType.ATTACK_HIT.createDefault();
+        data.activationChanceEnabled = true;
+        data.activationChance = 0.25;
+
+        data.migrateActivationData();
+
+        assertEquals(2, data.activationConditions.size());
+        AbilityConditionRuleData generic = data.activationConditions.get(0);
+        AbilityConditionRuleData codedRule = data.activationConditions.get(1);
+        assertEquals(List.of(heal.effectId), generic.targetEffectIds);
+        assertEquals(AbilityConditionType.ATTACK_HIT.name(), generic.condition.type);
+        assertEquals(0.25, generic.activationChance);
+        assertEquals(List.of(coded.effectId), codedRule.targetEffectIds);
+        assertEquals(0.05, codedRule.activationChance);
+        assertNull(AbilityConditionRuleData.validationError(
+            data.activationConditions, data.effects));
+    }
+
+    @Test
+    void malformedOrUnsupportedConditionLinksFailValidation() {
+        AbilityEffectData heal = AbilityEffectType.HEAL_HP.createDefault();
+        heal.effectId = "heal";
+        AbilityConditionRuleData missing = new AbilityConditionRuleData();
+        missing.targetEffectIds = List.of(heal.effectId);
+        assertEquals("Condition 1 predicate is missing.",
+            AbilityConditionRuleData.validationError(List.of(missing), List.of(heal)));
+
+        AbilityConditionRuleData fatalHeal = AbilityConditionRuleData.allEffects(
+            AbilityConditionType.FATAL_DAMAGE.createDefault());
+        fatalHeal.targetEffectIds = List.of(heal.effectId);
+        assertEquals(
+            "Condition 1 uses a pre-resolution condition that can only target coded effects.",
+            AbilityConditionRuleData.validationError(List.of(fatalHeal), List.of(heal)));
+
+        AbilityEffectData ratio = AbilityEffectType.CODED.createDefault();
+        ratio.effectId = "ratio";
+        ratio.codedAbilityKey = "RATIO";
+        ratio.codedFeature = "REINFORCEMENT_RATIO";
+        AbilityConditionRuleData fatalRatio = AbilityConditionRuleData.allEffects(
+            AbilityConditionType.FATAL_DAMAGE.createDefault());
+        fatalRatio.targetEffectIds = List.of(ratio.effectId);
+        assertEquals(
+            "Condition 1: Fatal damage incoming is not a runtime opportunity for "
+                + "RATIO/REINFORCEMENT_RATIO.",
+            AbilityConditionRuleData.validationError(List.of(fatalRatio), List.of(ratio)));
     }
 
     @Test
@@ -713,8 +909,9 @@ class AbilitySystemTest {
         BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
         BattleState state = new BattleState(owner, enemy);
 
-        List<CombatEvent> events = new AbilityActivationEngine(
-            new SeededRandomSource(new FixedRandom())).process(
+        AbilityActivationEngine engine = new AbilityActivationEngine(
+            new SeededRandomSource(new FixedRandom()));
+        List<CombatEvent> events = engine.process(
                 state,
                 AbilityTrigger.status(AbilityTrigger.Type.STATUS_APPLIED,
                     owner, StatusEffectType.STRENGTH_DECREASE, 1));
@@ -723,6 +920,9 @@ class AbilitySystemTest {
             .filter(event -> event.getType() == CombatEvent.Type.ABILITY_ACTIVATED)
             .count());
         assertEquals(1, owner.getActiveEffects().size());
+        assertTrue(engine.process(state, AbilityTrigger.phase(
+            BattleState.Phase.PLANNING)).stream().noneMatch(event ->
+                event.getType() == CombatEvent.Type.ABILITY_ACTIVATED));
     }
 
     @Test

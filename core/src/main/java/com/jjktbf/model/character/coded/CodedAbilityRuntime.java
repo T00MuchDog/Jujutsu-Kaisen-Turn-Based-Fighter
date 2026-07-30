@@ -11,6 +11,7 @@ import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.StatusEffect;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Battle-time behavior for an ability whose mechanics cannot be composed in the editor.
@@ -24,7 +25,11 @@ import java.util.List;
  */
 public interface CodedAbilityRuntime {
 
-    List<CombatEvent> onTrigger(BattleState state, AbilityTrigger trigger);
+    List<CombatEvent> onTrigger(
+        BattleState state,
+        AbilityTrigger trigger,
+        Predicate<String> featureActive
+    );
 
     /**
      * React to a coded effect row firing during move resolution.
@@ -57,7 +62,8 @@ public interface CodedAbilityRuntime {
         BattleCombatant defender,
         Move move,
         int tick,
-        RandomSource rng
+        RandomSource rng,
+        Predicate<String> featureActive
     ) {
         return CodedHitModifiers.none();
     }
@@ -69,9 +75,10 @@ public interface CodedAbilityRuntime {
         Move move,
         HitComponent component,
         int tick,
-        RandomSource rng
+        RandomSource rng,
+        Predicate<String> featureActive
     ) {
-        return onAttackConnected(attacker, defender, move, tick, rng);
+        return onAttackConnected(attacker, defender, move, tick, rng, featureActive);
     }
 
     /** React immediately before an incoming planned move is marked as fired. */
@@ -80,7 +87,8 @@ public interface CodedAbilityRuntime {
         BattleCombatant attacker,
         BattleCombatant defender,
         Move move,
-        int tick
+        int tick,
+        Predicate<String> featureActive
     ) {
         return CodedMoveResponse.none();
     }
@@ -95,7 +103,9 @@ public interface CodedAbilityRuntime {
         return 0;
     }
 
-    boolean preventFatalDamage();
+    default boolean preventFatalDamage(Predicate<String> featureActive) {
+        return false;
+    }
 
     List<CombatEvent> drainPendingEvents(int tick);
 

@@ -19,15 +19,20 @@ public final class CodedAbilityRegistry {
 
     public record AbilityFeature(String key, String feature, String label) { }
     public record EffectAction(String key, String action, String label) { }
+    public record StateKey(String key, String label) { }
 
     private CodedAbilityRegistry() {
     }
 
     public static CodedAbilities create(BattleCombatant owner, List<Ability> abilities) {
         Map<String, Set<String>> featuresByKey = new LinkedHashMap<>();
-        for (Ability ability : abilities == null ? List.<Ability>of() : abilities) {
+        Map<String, Map<String, List<CodedAbilityBinding>>> bindingsByKey = new LinkedHashMap<>();
+        List<Ability> sourceAbilities = abilities == null ? List.of() : abilities;
+        for (int abilityIndex = 0; abilityIndex < sourceAbilities.size(); abilityIndex++) {
+            Ability ability = sourceAbilities.get(abilityIndex);
             if (ability == null) continue;
-            for (AbilityEffectData effect : ability.getEffects()) {
+            for (int effectIndex = 0; effectIndex < ability.getEffects().size(); effectIndex++) {
+                AbilityEffectData effect = ability.getEffects().get(effectIndex);
                 if (effect == null || !effect.isCoded()) continue;
                 String key = normalize(effect.codedAbilityKey);
                 String feature = normalize(effect.codedFeature);
@@ -37,6 +42,9 @@ public final class CodedAbilityRegistry {
                     continue;
                 }
                 featuresByKey.computeIfAbsent(key, ignored -> new LinkedHashSet<>()).add(feature);
+                bindingsByKey.computeIfAbsent(key, ignored -> new LinkedHashMap<>())
+                    .computeIfAbsent(feature, ignored -> new ArrayList<>())
+                    .add(new CodedAbilityBinding(ability, effect, abilityIndex, effectIndex));
             }
         }
 
@@ -63,14 +71,20 @@ public final class CodedAbilityRegistry {
             }
         }
 
-        List<CodedAbilityRuntime> runtimes = new ArrayList<>();
+        List<CodedAbilities.RuntimeEntry> runtimes = new ArrayList<>();
         for (Map.Entry<String, Set<String>> entry : featuresByKey.entrySet()) {
+            CodedAbilityRuntime runtime = null;
             if (MiraclesAbility.KEY.equals(entry.getKey())) {
-                runtimes.add(new MiraclesAbility(owner, entry.getValue()));
+                runtime = new MiraclesAbility(owner, entry.getValue());
             } else if (RatioAbility.KEY.equals(entry.getKey())) {
-                runtimes.add(new RatioAbility(owner, entry.getValue()));
+                runtime = new RatioAbility(owner, entry.getValue());
             } else if (NewShadowStyleAbility.KEY.equals(entry.getKey())) {
-                runtimes.add(new NewShadowStyleAbility(owner, entry.getValue()));
+                runtime = new NewShadowStyleAbility(owner, entry.getValue());
+            }
+            if (runtime != null) {
+                runtimes.add(new CodedAbilities.RuntimeEntry(
+                    runtime,
+                    bindingsByKey.getOrDefault(entry.getKey(), Map.of())));
             }
         }
         return new CodedAbilities(runtimes);
@@ -101,6 +115,19 @@ public final class CodedAbilityRegistry {
                 NewShadowStyleAbility.SIMPLE_DOMAIN_BINDING_VOW,
                 "Simple Domain Binding Vow")
         );
+    }
+
+    public static List<StateKey> stateKeys() {
+        return List.of(
+            new StateKey(MiraclesAbility.KEY, "Miracles"),
+            new StateKey(RatioAbility.KEY, "Ratio stacks"),
+            new StateKey(NewShadowStyleAbility.KEY, "Simple Domain")
+        );
+    }
+
+    public static boolean supportsStateKey(String key) {
+        String normalized = normalize(key);
+        return stateKeys().stream().anyMatch(state -> state.key().equals(normalized));
     }
 
     /**

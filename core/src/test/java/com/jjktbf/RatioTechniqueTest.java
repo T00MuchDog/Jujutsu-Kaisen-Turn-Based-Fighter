@@ -4,11 +4,15 @@ import com.jjktbf.model.character.Ability;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectType;
+import com.jjktbf.model.character.AbilityConditionData;
+import com.jjktbf.model.character.AbilityConditionRuleData;
+import com.jjktbf.model.character.AbilityConditionType;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.character.coded.RatioAbility;
 import com.jjktbf.model.combat.BattleCombatant;
+import com.jjktbf.model.combat.AbilityActivationEngine;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.CombatResolver;
@@ -18,6 +22,7 @@ import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.StatusEffect;
 import org.junit.jupiter.api.Test;
@@ -25,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -134,8 +140,13 @@ class RatioTechniqueTest {
         BattleCombatant successOwner = ratioCombatant("SUCCESS", List.of(reinforcement));
         BattleCombatant successTarget = combatant("TARGET_ONE", List.of(block));
         successTarget.setTimeline(timelineWith(block));
+        ConstantRandom successRandom = new ConstantRandom(0.0499);
+        BattleState successState = new BattleState(successOwner, successTarget);
+        AbilityActivationEngine successEngine = new AbilityActivationEngine(successRandom);
         DamageCalculator.DamageResult success = DamageCalculator.resolve(
-            successOwner, successTarget, reinforcement, 1, new ConstantRandom(0.0499), 1);
+            successOwner, successTarget, reinforcement,
+            reinforcement.getHitComponents().get(0), 1, successRandom, 1,
+            false, false, trigger -> successEngine.onAttackConnected(successState, trigger));
         assertTrue(success.isHit());
         assertTrue(success.bypassedBlock());
         assertEquals(0, ratioCount(successOwner), "The passive must not create a stack");
@@ -143,10 +154,82 @@ class RatioTechniqueTest {
         BattleCombatant failOwner = ratioCombatant("FAIL", List.of(reinforcement));
         BattleCombatant failTarget = combatant("TARGET_TWO", List.of(block));
         failTarget.setTimeline(timelineWith(block));
+        ConstantRandom failRandom = new ConstantRandom(0.05);
+        BattleState failState = new BattleState(failOwner, failTarget);
+        AbilityActivationEngine failEngine = new AbilityActivationEngine(failRandom);
         DamageCalculator.DamageResult failure = DamageCalculator.resolve(
-            failOwner, failTarget, reinforcement, 1, new ConstantRandom(0.05), 1);
+            failOwner, failTarget, reinforcement,
+            reinforcement.getHitComponents().get(0), 1, failRandom, 1,
+            false, false, trigger -> failEngine.onAttackConnected(failState, trigger));
         assertTrue(failure.isBlocked());
         assertEquals(0, ratioCount(failOwner));
+    }
+
+    @Test
+    void alwaysActiveCodedConditionIsEligibleForEveryConnectedHit() {
+        Move attack = plainAttack("ALWAYS_RATIO");
+        AbilityConditionRuleData always = AbilityConditionRuleData.allEffects(
+            AbilityConditionData.always());
+        always.targetEffectIds = List.of("effect-000000");
+        BattleCombatant owner = ratioCombatant("ALWAYS", List.of(attack), always);
+        BattleCombatant target = combatant("TARGET", List.of());
+        BattleState state = new BattleState(owner, target);
+        AbilityActivationEngine engine = new AbilityActivationEngine(new ConstantRandom(0.5));
+
+        assertTrue(engine.onAttackConnected(state, com.jjktbf.model.combat.AbilityTrigger
+            .attackConnected(owner, target, attack, attack.getHitComponents().get(0), 1))
+            .bypassBlock());
+        assertTrue(engine.onAttackConnected(state, com.jjktbf.model.combat.AbilityTrigger
+            .attackConnected(owner, target, attack, attack.getHitComponents().get(0), 2))
+            .bypassBlock());
+    }
+
+    @Test
+    void codedConditionCanAccumulateFactsBeforeItsNaturalRuntimeHook() {
+        Move attack = plainAttack("SEQUENCED_RATIO");
+        AbilityConditionData moveUsed = AbilityConditionType.MOVE_USED.createDefault();
+        moveUsed.moveId = attack.getId();
+        AbilityConditionData connected = AbilityConditionType.ATTACK_CONNECTED.createDefault();
+        AbilityConditionRuleData sequence = AbilityConditionRuleData.allEffects(
+            AbilityConditionData.all(List.of(moveUsed, connected)));
+        sequence.targetEffectIds = List.of("effect-000000");
+        BattleCombatant owner = ratioCombatant("SEQUENCE", List.of(attack), sequence);
+        BattleCombatant target = combatant("TARGET", List.of());
+        BattleState state = new BattleState(owner, target);
+        AbilityActivationEngine engine = new AbilityActivationEngine(new ConstantRandom(0.5));
+
+        engine.process(state, com.jjktbf.model.combat.AbilityTrigger.move(
+            com.jjktbf.model.combat.AbilityTrigger.Type.MOVE_USED,
+            owner, target, attack, 1));
+
+        assertTrue(engine.onAttackConnected(state, com.jjktbf.model.combat.AbilityTrigger
+            .attackConnected(owner, target, attack, attack.getHitComponents().get(0), 1))
+            .bypassBlock());
+    }
+
+    @Test
+    void reinforcementTagsAreCheckedOnTheCurrentHitComponent() {
+        HitComponent physical = new HitComponent(50, MoveCategory.PHYSICAL, 0);
+        HitComponent cursedEnergy = new HitComponent(50, MoveCategory.CURSED_ENERGY, 0);
+        Move split = new Move.Builder("SPLIT_TYPES")
+            .name("Split Types")
+            .category(MoveCategory.PHYSICAL_CURSED_ENERGY)
+            .hitComponents(List.of(physical, cursedEnergy))
+            .neverMiss(true)
+            .apCost(10)
+            .unleashPoint(1)
+            .build();
+        BattleCombatant owner = ratioCombatant("SPLIT", List.of(split));
+        BattleCombatant target = combatant("TARGET", List.of());
+        BattleState state = new BattleState(owner, target);
+        AbilityActivationEngine engine = new AbilityActivationEngine(new ConstantRandom(0.0));
+
+        assertFalse(engine.onAttackConnected(state,
+            com.jjktbf.model.combat.AbilityTrigger.attackConnected(
+                owner, target, split, physical, 1)).bypassBlock());
+        assertFalse(engine.onAttackConnected(state,
+            com.jjktbf.model.combat.AbilityTrigger.attackConnected(
+                owner, target, split, cursedEnergy, 1)).bypassBlock());
     }
 
     @Test
@@ -232,16 +315,37 @@ class RatioTechniqueTest {
     }
 
     private static BattleCombatant ratioCombatant(String id, List<Move> moves) {
+        AbilityConditionData connected = AbilityConditionType.ATTACK_CONNECTED.createDefault();
+        AbilityConditionData physical = AbilityConditionType.CONNECTED_HIT_HAS_TAG.createDefault();
+        physical.moveTag = "PHYSICAL";
+        AbilityConditionData cursedEnergy = AbilityConditionType.CONNECTED_HIT_HAS_TAG.createDefault();
+        cursedEnergy.moveTag = "CURSED_ENERGY";
+        AbilityConditionRuleData rule = AbilityConditionRuleData.allEffects(
+            AbilityConditionData.all(List.of(connected, physical, cursedEnergy)));
+        rule.targetEffectIds = List.of("effect-000000");
+        rule.activationChanceEnabled = true;
+        rule.activationChance = 0.05;
+        rule.matchSameTrigger = true;
+        return ratioCombatant(id, moves, rule);
+    }
+
+    private static BattleCombatant ratioCombatant(
+        String id,
+        List<Move> moves,
+        AbilityConditionRuleData rule
+    ) {
         AbilityData data = new AbilityData();
         data.id = id + "_RATIO";
         data.name = "Ratio Reinforcement";
-        data.category = "PASSIVE";
+        data.category = "ACTIVE";
         data.sourceType = "TECHNIQUE";
         data.sourceValue = "Ratio";
         AbilityEffectData coded = AbilityEffectType.CODED.createDefault();
+        coded.effectId = "effect-000000";
         coded.codedAbilityKey = RatioAbility.KEY;
         coded.codedFeature = RatioAbility.REINFORCEMENT_RATIO;
         data.effects = List.of(coded);
+        data.activationConditions = List.of(rule);
         Character character = new SorcererCharacter(
             id, id, new CharacterStats.Builder().build(), "Ratio", moves, List.of(new Ability(data)));
         return new BattleCombatant(character);

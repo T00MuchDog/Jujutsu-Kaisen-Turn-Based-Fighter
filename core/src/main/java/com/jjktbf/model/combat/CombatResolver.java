@@ -66,6 +66,25 @@ public class CombatResolver {
         return (combatant.getCurrentCe() >= cost) ? cost : -1;
     }
 
+    /** Authoritative entry point for a player-requested manual ability activation. */
+    public List<CombatEvent> activateAbilityManually(
+        BattleState state,
+        BattleCombatant owner,
+        String abilityId,
+        int tick
+    ) {
+        if (state == null || owner == null || abilityId == null
+            || state.getCurrentPhase() != BattleState.Phase.PLANNING
+            || state.isBattleOver()
+            || (owner != state.getPlayerCombatant() && owner != state.getEnemyCombatant())) {
+            return List.of();
+        }
+        List<CombatEvent> events = new ArrayList<>(abilityActivations.process(
+            state, AbilityTrigger.manual(owner, abilityId, tick)));
+        finishBattleIfNeeded(state, events, tick);
+        return events;
+    }
+
     /** Charge passive per-round CE costs before either side plans the round. */
     public List<CombatEvent> processRoundStart(BattleState state) {
         List<CombatEvent> events = new ArrayList<>();
@@ -543,8 +562,9 @@ public class CombatResolver {
         List<CombatEvent> events
     ) {
         Move incomingMove = entry.segment.getMove();
-        CodedMoveResponse response = entry.defender.getCodedAbilities().beforeIncomingMove(
-            state, entry.attacker, entry.defender, incomingMove, tick);
+        CodedMoveResponse response = abilityActivations.beforeIncomingMove(
+            state, AbilityTrigger.incomingMove(
+                entry.attacker, entry.defender, incomingMove, tick));
         events.addAll(response.events());
 
         for (Move reactionMove : response.reactionMoves()) {
@@ -735,7 +755,8 @@ public class CombatResolver {
             // fire BEFORE the attack lands, not merely on the same tick. Do NOT
             // revert this to `launchTick < tick` — that re-enables the old rule
             // where a not-yet-fired same-tick defense contested regardless of speed.
-            true);
+            true,
+            trigger -> abilityActivations.onAttackConnected(state, trigger));
         events.addAll(result.getCodedEvents());
 
         if (result.isMiss()) {
@@ -802,7 +823,12 @@ public class CombatResolver {
         }
 
         boolean wasBlocked = !result.bypassedBlock() && result.getDefenseSegment() != null;
-        int appliedDamage = defender.receiveDamage(result.getFinalDamage());
+        int appliedDamage = defender.receiveDamage(
+            result.getFinalDamage(),
+            fatalAmount -> abilityActivations.preventFatalDamage(
+                state,
+                AbilityTrigger.fatalDamage(
+                    attacker, defender, move, component, fatalAmount, tick)));
         events.addAll(defender.getCodedAbilities().drainPendingEvents(tick));
 
         if (wasBlocked) {

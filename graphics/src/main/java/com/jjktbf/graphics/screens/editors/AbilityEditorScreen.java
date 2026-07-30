@@ -2,7 +2,6 @@ package com.jjktbf.graphics.screens.editors;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
-import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
@@ -10,16 +9,16 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
-import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
 import com.jjktbf.graphics.ui.editor.EffectListEditor;
-import com.jjktbf.graphics.ui.editor.ConditionTreeEditor;
+import com.jjktbf.graphics.ui.editor.ConditionListEditor;
 import com.jjktbf.graphics.ui.editor.EnumSelectBox;
 import com.jjktbf.graphics.ui.editor.HoverTextField;
 import com.jjktbf.graphics.ui.editor.ValidationResult;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityConditionData;
+import com.jjktbf.model.character.AbilityConditionRuleData;
 import com.jjktbf.model.character.AbilityConditionType;
 import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectParameter;
@@ -82,6 +81,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
     @Override
     protected AbilityData draftFromRecord(AbilityData stored) {
         AbilityData draft = copyAbility(stored);
+        draft.migrateActivationData();
         normalizeLegacyStatusAmounts(draft);
         return draft;
     }
@@ -101,10 +101,16 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                 .filter(java.util.Objects::nonNull)
                 .map(AbilityEffectData::copy)
                 .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        draft.activationConditions = stored.activationConditions == null
+            ? null
+            : stored.activationConditions.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(AbilityConditionRuleData::copy)
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         draft.activationCondition = stored.activationCondition == null
             ? null : stored.activationCondition.copy();
-        draft.activationChanceEnabled = Boolean.TRUE.equals(stored.activationChanceEnabled);
-        draft.activationChance = stored.activationChance == null ? 1.0 : stored.activationChance;
+        draft.activationChanceEnabled = stored.activationChanceEnabled;
+        draft.activationChance = stored.activationChance;
         draft.masteryThreshold = stored.masteryThreshold;
         return draft;
     }
@@ -219,17 +225,6 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         if (ability.effects == null || ability.effects.isEmpty()) {
             return "An ability needs at least one effect.";
         }
-        if (ability.isActive() && hasGenericEffects(ability)) {
-            String conditionError = AbilityConditionType.validationError(ability.activationCondition);
-            if (conditionError != null) return conditionError;
-            if (Boolean.TRUE.equals(ability.activationChanceEnabled)
-                && (ability.activationChance == null || !Double.isFinite(ability.activationChance)
-                    || ability.activationChance < 0 || ability.activationChance > 1)) {
-                return "Activation chance must be between 0% and 100%.";
-            }
-            String conditionMoveError = validateConditionMoves(ability.activationCondition);
-            if (conditionMoveError != null) return conditionMoveError;
-        }
         for (int i = 0; i < ability.effects.size(); i++) {
             AbilityEffectData effect = ability.effects.get(i);
             AbilityEffectType type;
@@ -263,6 +258,17 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             if (type == AbilityEffectType.UNLOCK_TECHNIQUE
                 && techniqueRepo.findByName(effect.stringValue).isEmpty()) {
                 return "Effect " + (i + 1) + " references a technique that does not exist.";
+            }
+        }
+        String effectIdError = AbilityConditionRuleData.effectIdValidationError(ability.effects);
+        if (effectIdError != null) return effectIdError;
+        if (ability.isActive()) {
+            String ruleError = AbilityConditionRuleData.validationError(
+                ability.activationConditions, ability.effects);
+            if (ruleError != null) return ruleError;
+            for (AbilityConditionRuleData rule : ability.activationConditions) {
+                String conditionMoveError = validateConditionMoves(rule.condition);
+                if (conditionMoveError != null) return conditionMoveError;
             }
         }
         return null;
@@ -355,24 +361,34 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                 .ifPresent(parent -> ability.sourceValue = parent.id);
         }
 
-        if (ability.isActive() && hasGenericEffects(ability)) {
-            if (ability.activationCondition == null) {
-                ability.activationCondition = AbilityConditionData.manualActivation();
+        AbilityData.ensureEffectIds(ability.effects);
+        if (ability.isActive()) {
+            if (ability.activationConditions == null || ability.activationConditions.isEmpty()) {
+                ability.activationConditions = new ArrayList<>(List.of(
+                    AbilityConditionRuleData.allEffects(
+                        AbilityConditionData.manualActivation())));
             }
-            if (ability.activationCondition.containsAlways()) {
-                ability.activationCondition = AbilityConditionData.always();
-            } else {
-                normalizeCondition(ability.activationCondition);
-            }
-            if (!Boolean.TRUE.equals(ability.activationChanceEnabled)) {
-                ability.activationChanceEnabled = null;
-                ability.activationChance = null;
+            pruneConditionTargets(ability);
+            for (AbilityConditionRuleData rule : ability.activationConditions) {
+                if (rule.condition.containsAlways()) {
+                    rule.condition = AbilityConditionData.always();
+                } else {
+                    normalizeCondition(rule.condition);
+                }
+                if (!Boolean.TRUE.equals(rule.activationChanceEnabled)) {
+                    rule.activationChanceEnabled = null;
+                    rule.activationChance = null;
+                }
+                if (!Boolean.TRUE.equals(rule.matchSameTrigger)) {
+                    rule.matchSameTrigger = null;
+                }
             }
         } else {
-            ability.activationCondition = null;
-            ability.activationChanceEnabled = null;
-            ability.activationChance = null;
+            ability.activationConditions = null;
         }
+        ability.activationCondition = null;
+        ability.activationChanceEnabled = null;
+        ability.activationChance = null;
         for (AbilityEffectData effect : ability.effects) {
             AbilityEffectType.fromName(effect.type).clearUnusedFields(effect);
         }
@@ -478,6 +494,9 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
     @Override
     protected Actor buildDetailForm(AbilityData ability) {
         activationContainer = null;
+        AbilityData.ensureEffectIds(ability.effects);
+        if (ability.isActive()) initialiseActivationDefaults(ability);
+        pruneConditionTargets(ability);
         Table form = formRoot();
 
         Table identity = formSection(form, "NAME");
@@ -513,17 +532,17 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         sourceValueContainer.setActor(buildSourceValue(ability));
         source.add(sourceValueContainer).growX().row();
 
-        Table effects = formSection(form, "EFFECTS");
-        effectsContainer = new Container<>();
-        effectsContainer.setActor(buildEffects(ability));
-        effects.add(effectsContainer).growX().row();
-
-        if (ability.isActive() && hasGenericEffects(ability)) {
-            Table activation = formSection(form, "ACTIVATION CONDITIONS");
+        if (ability.isActive()) {
+            Table activation = formSection(form, "CONDITIONS");
             activationContainer = new Container<>();
             activationContainer.setActor(buildActivation(ability));
             activation.add(activationContainer).growX().row();
         }
+
+        Table effects = formSection(form, "EFFECTS");
+        effectsContainer = new Container<>();
+        effectsContainer.setActor(buildEffects(ability));
+        effects.add(effectsContainer).growX().row();
 
         return form;
     }
@@ -602,46 +621,20 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
     }
 
     private Actor buildActivation(AbilityData ability) {
-        if (ability.activationCondition == null) {
-            ability.activationCondition = AbilityConditionData.manualActivation();
-        }
+        initialiseActivationDefaults(ability);
         Table table = new Table(skin);
         table.defaults().left().pad(4).growX();
-
-        CheckBox enabled = new CheckBox(" Roll an activation chance when conditions are met", skin);
-        enabled.setChecked(Boolean.TRUE.equals(ability.activationChanceEnabled));
-        TextField chance = new HoverTextField(formatPercent(
-            ability.activationChance == null ? 1.0 : ability.activationChance), skin);
-        chance.setTextFieldFilter((field, character) -> Character.isDigit(character) || character == '.');
-        chance.setDisabled(!enabled.isChecked());
-        enabled.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
-                game.audio().play(SoundCue.UI_TOGGLE);
-                ability.activationChanceEnabled = enabled.isChecked();
-                if (ability.activationChance == null) ability.activationChance = 1.0;
-                chance.setDisabled(!enabled.isChecked());
-                markDirty();
-            }
-        });
-        chance.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
-                Double value = parseDouble(chance.getText());
-                ability.activationChance = value == null ? null : value / 100.0;
-                markDirty();
-            }
-        });
-        table.add(enabled).colspan(2).growX().row();
-        table.add(labelledRow("Activation chance %", chance)).colspan(2).growX().row();
-        table.add(new ConditionTreeEditor(
-            ability.activationCondition,
+        table.add(new ConditionListEditor(
+            ability.activationConditions,
+            ability.effects,
             moveRepo.getAll(),
             this::markDirty,
             game.audio()::play,
-            skin)).colspan(2).growX().row();
+            skin)).growX().row();
         table.add(formHint(
-            "AND/OR groups may be nested. At battle start cannot be combined with another condition. "
-                + "Manual activation does not trigger automatically yet."))
-            .colspan(2).row();
+            "Nest AND/OR groups inside each condition. Link a condition to all effects or select "
+                + "specific effects below. Every effect must be linked exactly once."))
+            .row();
         return table;
     }
 
@@ -660,22 +653,44 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             : null;
     }
 
-    private static void initialiseCategoryDefaults(AbilityData ability) {
+    static void initialiseCategoryDefaults(AbilityData ability) {
         if (ability.isActive()) {
-            if (ability.activationCondition == null) {
-                ability.activationCondition = AbilityConditionData.manualActivation();
-            }
-            if (ability.activationChance == null) ability.activationChance = 1.0;
-            return;
+            initialiseActivationDefaults(ability);
         }
-        ability.activationCondition = null;
-        ability.activationChanceEnabled = null;
-        ability.activationChance = null;
     }
 
-    private static boolean hasGenericEffects(AbilityData ability) {
-        return ability.effects != null && ability.effects.stream()
-            .anyMatch(effect -> effect != null && !effect.isCoded());
+    static void initialiseActivationDefaults(AbilityData ability) {
+        if (ability.activationConditions == null || ability.activationConditions.isEmpty()) {
+            ability.activationConditions = new ArrayList<>(List.of(
+                AbilityConditionRuleData.allEffects(
+                    AbilityConditionData.manualActivation())));
+        }
+        ability.activationConditions.removeIf(java.util.Objects::isNull);
+        if (ability.activationConditions.isEmpty()) {
+            ability.activationConditions.add(AbilityConditionRuleData.allEffects(
+                AbilityConditionData.manualActivation()));
+        }
+        for (AbilityConditionRuleData rule : ability.activationConditions) {
+            if (rule.condition == null) {
+                rule.condition = AbilityConditionData.manualActivation();
+            }
+        }
+    }
+
+    private static void pruneConditionTargets(AbilityData ability) {
+        if (ability == null || ability.activationConditions == null) return;
+        java.util.Set<String> effectIds = ability.effects == null
+            ? java.util.Set.of()
+            : ability.effects.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(effect -> effect.effectId)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+        for (AbilityConditionRuleData rule : ability.activationConditions) {
+            if (rule != null && rule.targetEffectIds != null) {
+                rule.targetEffectIds.removeIf(effectId -> !effectIds.contains(effectId));
+            }
+        }
     }
 
     private SelectBox<String> moveSelect(String currentId, Consumer<String> onChange) {
@@ -797,12 +812,6 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         }
     }
 
-    private static Double parseDouble(String value) {
-        if (value == null || value.isBlank() || ".".equals(value)) return null;
-        try { return Double.valueOf(value); }
-        catch (NumberFormatException ex) { return null; }
-    }
-
     private String validateConditionMoves(AbilityConditionData condition) {
         if (condition == null) return null;
         if (AbilityConditionType.MOVE_USED.name().equalsIgnoreCase(condition.type)) {
@@ -825,12 +834,6 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         if (condition.children != null) {
             condition.children.forEach(AbilityEditorScreen::normalizeCondition);
         }
-    }
-
-    private static String formatPercent(double fraction) {
-        double percentage = fraction * 100.0;
-        return percentage == Math.rint(percentage)
-            ? String.valueOf((long) percentage) : String.valueOf(percentage);
     }
 
     private static SourceTypeEnum safeSource(String source) {
