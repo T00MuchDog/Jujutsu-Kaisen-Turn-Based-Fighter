@@ -652,7 +652,10 @@ public class SkillTreeCanvas extends WidgetGroup {
         return SkillTreePrerequisiteData.MASTERY;
     }
 
-    private static StatKey statOf(String name) {
+    static StatKey statOf(String name) {
+        if (name == null || name.isBlank()) {
+            return StatKey.VITALITY;
+        }
         try {
             return StatKey.fromString(name);
         } catch (IllegalArgumentException ex) {
