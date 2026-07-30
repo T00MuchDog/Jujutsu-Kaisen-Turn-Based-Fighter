@@ -25,8 +25,6 @@ public class Ability {
     private final String sourceType;      // "CHARACTER" | "TECHNIQUE" | "MOVE" | "STAT_THRESHOLD"
     private final String sourceValue;     // nullable
     private final List<AbilityEffectData> effects;
-    private final String codedAbilityKey;
-    private final String codedFeature;
     private final AbilityConditionData activationCondition;
     private final boolean activationChanceEnabled;
     private final double activationChance;
@@ -65,8 +63,6 @@ public class Ability {
                 StatusEffect.validateDuration(rounds, ticks);
             }
         }
-        this.codedAbilityKey  = data.codedAbilityKey;
-        this.codedFeature     = data.codedFeature;
         this.activationCondition = isActive()
             ? (data.activationCondition == null
                 ? AbilityConditionData.manualActivation() : data.activationCondition.copy())
@@ -89,15 +85,12 @@ public class Ability {
     public String getSourceType()       { return sourceType; }
     public String getSourceValue()      { return sourceValue; }
     public List<AbilityEffectData> getEffects() { return effects; }
-    public String getCodedAbilityKey()  { return codedAbilityKey; }
-    public String getCodedFeature()     { return codedFeature; }
     public AbilityConditionData getActivationCondition() { return activationCondition; }
     public boolean isActivationChanceEnabled() { return activationChanceEnabled; }
     public double getActivationChance() { return activationChanceEnabled ? activationChance : 1.0; }
 
     public boolean isPassive()  { return "PASSIVE".equalsIgnoreCase(category); }
     public boolean isActive()   { return "ACTIVE".equalsIgnoreCase(category); }
-    public boolean isCoded()    { return codedAbilityKey != null && !codedAbilityKey.isBlank(); }
 
     /** Total STAT_BONUS_POINTS this ability contributes (for character editor budget). */
     public int statBonusPoints() {

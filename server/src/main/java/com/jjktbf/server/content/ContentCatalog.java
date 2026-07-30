@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jjktbf.model.character.Ability;
 import com.jjktbf.model.character.AbilityData;
+import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityResolver;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.SorcererCharacter;
@@ -110,6 +111,8 @@ public final class ContentCatalog {
 
         Map<String, Move> movesById = new LinkedHashMap<>();
         Map<String, MoveData> moveDataById = new LinkedHashMap<>();
+        Map<String, List<MoveData.StatusEffectData>> codedEffectsByMoveId =
+            new LinkedHashMap<>();
         for (MoveData definition : moveDefinitions) {
             if (definition == null) {
                 throw invalid(MOVES_RESOURCE, "contains a null move definition");
@@ -118,7 +121,10 @@ public final class ContentCatalog {
             requireText(definition.name, "move name for " + definition.id);
             // Coded bindings now live on effect rows (self or on-hit), not on the
             // move. Validate every coded effect row against the registry allow-list.
-            for (MoveData.StatusEffectData effect : codedEffectRows(definition)) {
+            // Keep these rows because legacy on-hit migration clears the DTO field.
+            List<MoveData.StatusEffectData> codedEffects = codedEffectRows(definition);
+            codedEffectsByMoveId.put(definition.id, codedEffects);
+            for (MoveData.StatusEffectData effect : codedEffects) {
                 if (!CodedAbilityRegistry.supportsEffect(
                     effect.codedAbilityKey,
                     effect.codedAction,
@@ -139,7 +145,7 @@ public final class ContentCatalog {
             }
         }
         for (MoveData definition : moveDefinitions) {
-            for (MoveData.StatusEffectData effect : codedEffectRows(definition)) {
+            for (MoveData.StatusEffectData effect : codedEffectsByMoveId.get(definition.id)) {
                 if (NewShadowStyleAbility.KEY.equalsIgnoreCase(effect.codedAbilityKey)
                     && NewShadowStyleAbility.ACTIVATE_SIMPLE_DOMAIN.equalsIgnoreCase(effect.codedAction)
                     && !NewShadowStyleAbility.isValidReactionMove(
@@ -157,9 +163,14 @@ public final class ContentCatalog {
             }
             requireIdentifier(definition.id, "ability ID");
             requireText(definition.name, "ability name for " + definition.id);
-            if (!CodedAbilityRegistry.supportsAbility(
-                definition.codedAbilityKey, definition.codedFeature)) {
-                throw invalid(ABILITIES_RESOURCE, "invalid coded ability on " + definition.id);
+            for (AbilityEffectData effect : definition.effects == null
+                ? List.<AbilityEffectData>of() : definition.effects) {
+                if (effect != null && effect.isCoded()
+                    && !CodedAbilityRegistry.supportsAbilityEffect(
+                        effect.codedAbilityKey, effect.codedFeature)) {
+                    throw invalid(ABILITIES_RESOURCE,
+                        "invalid coded effect on ability " + definition.id);
+                }
             }
             if (!abilityIds.add(definition.id)) {
                 throw invalid(ABILITIES_RESOURCE, "duplicate ability ID " + definition.id);
@@ -308,16 +319,33 @@ public final class ContentCatalog {
         }
     }
 
-    /** The coded effect rows (self + on-hit) carried by a move — validated against the ability registry. */
+    /** The coded effect rows carried by a move, validated against the ability registry. */
     private static List<MoveData.StatusEffectData> codedEffectRows(MoveData move) {
         List<MoveData.StatusEffectData> rows = new ArrayList<>();
-        for (List<MoveData.StatusEffectData> list : List.of(move.selfEffects, move.onHitEffects)) {
-            if (list == null) continue;
-            for (MoveData.StatusEffectData effect : list) {
-                if (effect != null && effect.isCoded()) rows.add(effect);
+        addCodedEffects(rows, move.selfEffects);
+        addCodedEffects(rows, move.onHitEffects);
+        if (move.hitComponents != null) {
+            for (MoveData.HitComponentData component : move.hitComponents) {
+                if (component != null) {
+                    addCodedEffects(rows, component.onHitEffects);
+                }
             }
         }
         return rows;
+    }
+
+    private static void addCodedEffects(
+        List<MoveData.StatusEffectData> rows,
+        List<MoveData.StatusEffectData> effects
+    ) {
+        if (effects == null) {
+            return;
+        }
+        for (MoveData.StatusEffectData effect : effects) {
+            if (effect != null && effect.isCoded()) {
+                rows.add(effect);
+            }
+        }
     }
 
     private static void requireIdentifier(String value, String field) {

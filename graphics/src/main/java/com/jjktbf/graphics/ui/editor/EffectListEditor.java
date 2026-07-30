@@ -21,6 +21,7 @@ import com.jjktbf.model.character.AbilityEffectTiming;
 import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.BattleStatKey;
 import com.jjktbf.model.character.StatKey;
+import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffectType;
@@ -234,6 +235,29 @@ public class EffectListEditor extends Table {
             ? integerField(effect.durationRounds) : null;
         TextField durationTicksField = type.uses(AbilityEffectParameter.DURATION)
             && !roundOnlyStatus ? nonNegativeIntegerField(effect.durationTicks) : null;
+
+        if (type.uses(AbilityEffectParameter.CODED_FEATURE)) {
+            List<CodedAbilityRegistry.AbilityFeature> features =
+                CodedAbilityRegistry.abilityFeatures();
+            CodedAbilityRegistry.AbilityFeature selected = codedFeature(effect);
+            SelectBox<String> featureBox = new DynamicSelectBox<>(skin);
+            featureBox.setItems(features.stream()
+                .map(CodedAbilityRegistry.AbilityFeature::label)
+                .toArray(String[]::new));
+            featureBox.setSelected(selected.label());
+            effect.codedAbilityKey = selected.key();
+            effect.codedFeature = selected.feature();
+            featureBox.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    CodedAbilityRegistry.AbilityFeature feature = features.stream()
+                        .filter(candidate -> candidate.label().equals(featureBox.getSelected()))
+                        .findFirst().orElse(features.get(0));
+                    effect.codedAbilityKey = feature.key();
+                    effect.codedFeature = feature.feature();
+                }
+            });
+            addRow(fields, "Coded effect", featureBox);
+        }
 
         if (type.uses(AbilityEffectParameter.STAT)) {
             SelectBox<String> statBox = new DynamicSelectBox<>(skin);
@@ -511,6 +535,9 @@ public class EffectListEditor extends Table {
         AbilityEffectType type = safeType(effect == null ? null : effect.type);
         if (effect == null) return type.displayName();
         StringBuilder summary = new StringBuilder(type.displayName());
+        if (type.uses(AbilityEffectParameter.CODED_FEATURE)) {
+            summary.append(" | ").append(codedFeature(effect).label());
+        }
         if (type.uses(AbilityEffectParameter.STAT) && effect.stat != null) {
             summary.append(" | ").append(statLabel(effect.stat));
         }
@@ -617,6 +644,18 @@ public class EffectListEditor extends Table {
             if (type.displayName().equals(label)) return type;
         }
         return AbilityEffectType.STAT_ADD;
+    }
+
+    private static CodedAbilityRegistry.AbilityFeature codedFeature(
+        AbilityEffectData effect
+    ) {
+        List<CodedAbilityRegistry.AbilityFeature> features =
+            CodedAbilityRegistry.abilityFeatures();
+        return features.stream()
+            .filter(feature -> feature.key().equalsIgnoreCase(effect.codedAbilityKey)
+                && feature.feature().equalsIgnoreCase(effect.codedFeature))
+            .findFirst()
+            .orElse(features.get(0));
     }
 
     private static String statusLabel(String statusName) {

@@ -2,6 +2,8 @@ package com.jjktbf;
 
 import com.jjktbf.model.character.Ability;
 import com.jjktbf.model.character.AbilityData;
+import com.jjktbf.model.character.AbilityEffectData;
+import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.SorcererCharacter;
@@ -236,9 +238,10 @@ class RatioTechniqueTest {
         data.category = "PASSIVE";
         data.sourceType = "TECHNIQUE";
         data.sourceValue = "Ratio";
-        data.effects = List.of();
-        data.codedAbilityKey = RatioAbility.KEY;
-        data.codedFeature = RatioAbility.REINFORCEMENT_RATIO;
+        AbilityEffectData coded = AbilityEffectType.CODED.createDefault();
+        coded.codedAbilityKey = RatioAbility.KEY;
+        coded.codedFeature = RatioAbility.REINFORCEMENT_RATIO;
+        data.effects = List.of(coded);
         Character character = new SorcererCharacter(
             id, id, new CharacterStats.Builder().build(), "Ratio", moves, List.of(new Ability(data)));
         return new BattleCombatant(character);

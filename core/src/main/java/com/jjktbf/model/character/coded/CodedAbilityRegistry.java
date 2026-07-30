@@ -1,6 +1,7 @@
 package com.jjktbf.model.character.coded;
 
 import com.jjktbf.model.character.Ability;
+import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.StatusEffect;
@@ -16,6 +17,7 @@ import java.util.Set;
 /** Allow-list of compiled ability implementations and their data-defined features. */
 public final class CodedAbilityRegistry {
 
+    public record AbilityFeature(String key, String feature, String label) { }
     public record EffectAction(String key, String action, String label) { }
 
     private CodedAbilityRegistry() {
@@ -24,14 +26,18 @@ public final class CodedAbilityRegistry {
     public static CodedAbilities create(BattleCombatant owner, List<Ability> abilities) {
         Map<String, Set<String>> featuresByKey = new LinkedHashMap<>();
         for (Ability ability : abilities == null ? List.<Ability>of() : abilities) {
-            if (ability == null || !ability.isCoded()) continue;
-            String key = normalize(ability.getCodedAbilityKey());
-            String feature = normalize(ability.getCodedFeature());
-            if (!supportsAbility(key, feature)) {
-                System.err.println("[WARN] Unknown coded ability binding: " + key + "/" + feature);
-                continue;
+            if (ability == null) continue;
+            for (AbilityEffectData effect : ability.getEffects()) {
+                if (effect == null || !effect.isCoded()) continue;
+                String key = normalize(effect.codedAbilityKey);
+                String feature = normalize(effect.codedFeature);
+                if (!supportsAbilityEffect(key, feature)) {
+                    System.err.println("[WARN] Unknown coded ability effect: "
+                        + key + "/" + feature);
+                    continue;
+                }
+                featuresByKey.computeIfAbsent(key, ignored -> new LinkedHashSet<>()).add(feature);
             }
-            featuresByKey.computeIfAbsent(key, ignored -> new LinkedHashSet<>()).add(feature);
         }
 
         // A coded move effect must be usable independently of optional passive
@@ -70,16 +76,31 @@ public final class CodedAbilityRegistry {
         return new CodedAbilities(runtimes);
     }
 
-    public static boolean supportsAbility(String key, String feature) {
+    public static boolean supportsAbilityEffect(String key, String feature) {
         String normalizedKey = normalize(key);
         String normalizedFeature = normalize(feature);
-        if (normalizedKey.isEmpty() && normalizedFeature.isEmpty()) return true;
         return (MiraclesAbility.KEY.equals(normalizedKey)
             && MiraclesAbility.supportsFeature(normalizedFeature))
             || (RatioAbility.KEY.equals(normalizedKey)
             && RatioAbility.supportsFeature(normalizedFeature))
             || (NewShadowStyleAbility.KEY.equals(normalizedKey)
             && NewShadowStyleAbility.supportsFeature(normalizedFeature));
+    }
+
+    public static List<AbilityFeature> abilityFeatures() {
+        return List.of(
+            new AbilityFeature(MiraclesAbility.KEY,
+                MiraclesAbility.RESERVOIR, "Miracle Reservoir"),
+            new AbilityFeature(MiraclesAbility.KEY,
+                MiraclesAbility.FATEFUL_REPRIEVE, "Fateful Reprieve"),
+            new AbilityFeature(MiraclesAbility.KEY,
+                MiraclesAbility.FORTUNE_RECLAIMED, "Fortune Reclaimed"),
+            new AbilityFeature(RatioAbility.KEY,
+                RatioAbility.REINFORCEMENT_RATIO, "Ratio Reinforcement"),
+            new AbilityFeature(NewShadowStyleAbility.KEY,
+                NewShadowStyleAbility.SIMPLE_DOMAIN_BINDING_VOW,
+                "Simple Domain Binding Vow")
+        );
     }
 
     /**

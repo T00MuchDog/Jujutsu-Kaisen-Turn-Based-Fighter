@@ -697,8 +697,9 @@ ABILITY
   A passive (or, in data, ACTIVE) power attached to a character. Each ability has
   a category (PASSIVE / ACTIVE), a sourceType (CHARACTER / TECHNIQUE / MOVE /
   STAT_THRESHOLD / ABILITY), an optional innate-technique mastery threshold, and a
-  list of effects. Coded abilities (codedAbilityKey set) are implemented in
-  compiled code and are read-only in the editor (see §15).
+  list of effects. Mechanics that require compiled code are represented by an
+  editable CODED effect row inside that list (see §15); the ability remains an
+  ordinary mutable data wrapper and may combine coded and generic effects.
 
 PASSIVE ABILITY
   Applied once at BattleCombatant construction via AbilityApplicator for
@@ -728,7 +729,7 @@ CHARACTER-SOURCE ABILITY
   An ability whose sourceType is CHARACTER. It is available to every character;
   CHARACTER does not mean character-exclusive. Only assigned abilities are active.
 
-ABILITY EFFECT TYPES  (52 enum constants; grouped as in source).
+ABILITY EFFECT TYPES  (53 enum constants; grouped as in source).
   Each type owns its editor display name, description, required parameters, and
   defaults. Effects with ordinal ≥ HEAL_HP are TRIGGERED RUNTIME EFFECTS: applied
   by the passive dispatcher on activation, not at construction.
@@ -745,6 +746,9 @@ ABILITY EFFECT TYPES  (52 enum constants; grouped as in source).
   Marker templates:
     POISON_IMMUNITY     Mark the character as poison-immune
     SOUL_AWARE_ATTACKS  Mark the character's attacks as soul-aware
+
+  Compiled mechanics:
+    CODED               Enable an allow-listed compiled feature  (CODED_FEATURE)
 
   CE cost modifiers (move-scoped):
     CE_COST_TO_MINIMUM  Force matching moves to min CE cost      (MOVE_SCOPE)
@@ -809,7 +813,7 @@ ABILITY EFFECT TYPES  (52 enum constants; grouped as in source).
 
   Effect parameters (AbilityEffectParameter): STAT, INTEGER, DECIMAL, MOVE_SCOPE,
     MOVE_ID, ABILITY_ID, TECHNIQUE, STATUS_TYPE, TARGET, TIMING, DURATION,
-    MAGNITUDE, USES, BATTLE_STAT.
+    MAGNITUDE, USES, BATTLE_STAT, CODED_FEATURE.
   Effect target (AbilityEffectTarget): SELF, ENEMY, BOTH.
   Effect timing (AbilityEffectTiming): FIGHT_START, ROUND_START, ON_HIT.
     A ROUND_START AUTO_STATUS_APPLY must last exactly 1 round / 0 ticks so it
@@ -826,15 +830,15 @@ ABILITY EFFECT TYPES  (52 enum constants; grouped as in source).
 ================================================================================
 
 Some mechanics cannot be composed from generic effect types. These are
-implemented as COMPILED CODED ABILITIES, exposed in data via an ability with a
-codedAbilityKey (and optional codedFeature) OR via a coded effect row on a move
-(a self/on-hit effect carrying a coded action). The Move stays pure data: the
-hardcoded behaviour lives in a CodedAbilityRuntime keyed off the effect's
-codedAbilityKey / codedAction.
+implemented as COMPILED CODED ABILITIES and exposed in data through effect rows:
+an ability uses an AbilityEffectData row with type CODED, codedAbilityKey, and
+codedFeature; a move uses a self/on-hit effect carrying codedAbilityKey and
+codedAction. Moves and abilities stay editable data wrappers, while the hardcoded
+behaviour lives in a CodedAbilityRuntime selected by the effect row.
 
 The registry (CodedAbilityRegistry) is an allow-list. At combatant construction
-it collects every coded ability key the character has (from assigned abilities
-and from coded effect rows on known moves), validates each binding, and
+it collects every coded ability key the character has (from CODED rows on assigned
+abilities and from coded effect rows on known moves), validates each binding, and
 instantiates one runtime per key. Unknown bindings log a warning and are skipped.
 
 CodedAbilityRuntime hooks (all optional except the first two):
@@ -887,6 +891,13 @@ Effect actions exposed to editors (CodedAbilityRegistry.effectActions):
   MIRACLES / CREATE                 "Create Miracle"
   RATIO / RATIO_EFFECT              "Ratio Effect"
   NEW_SHADOW_STYLE / ACTIVATE_SIMPLE_DOMAIN  "Activate Simple Domain"
+
+Ability features exposed to editors (CodedAbilityRegistry.abilityFeatures):
+  MIRACLES / RESERVOIR                    "Miracle Reservoir"
+  MIRACLES / FATEFUL_REPRIEVE             "Fateful Reprieve"
+  MIRACLES / FORTUNE_RECLAIMED            "Fortune Reclaimed"
+  RATIO / REINFORCEMENT_RATIO             "Ratio Reinforcement"
+  NEW_SHADOW_STYLE / SIMPLE_DOMAIN_BINDING_VOW  "Simple Domain Binding Vow"
 
 ================================================================================
   16. STATUS EFFECTS  (StatusEffectType.java)
@@ -1066,15 +1077,12 @@ CHARACTER EDITOR  (CharacterEditorScreen)
 ABILITY EDITOR  (AbilityEditorScreen)
   Creates/edits abilities; saves data/abilities/all_abilities.json. Category
   {PASSIVE, ACTIVE}; sourceType {CHARACTER, TECHNIQUE, MOVE, STAT_THRESHOLD,
-  ABILITY}. Coded abilities (codedAbilityKey set) render read-only. Passive
-  abilities use an EffectListEditor + ConditionTreeEditor (nested AND/OR) and an
-  optional activation chance (0–100%). Active abilities link to a move and are
-  normalized to subtype QUEUED on save (effects cleared). Validation enforces
-  unique name, valid category/source, source-specific rules (TECHNIQUE needs an
-  existing technique + mastery threshold 0–300; MOVE needs a valid move;
-  STAT_THRESHOLD parses; ABILITY forbids self-reference and cycles), and that
-  GRANT_MOVE / FORCE_MOVE / GRANT_ABILITY / UNLOCK_TECHNIQUE / STAT_BONUS_POINTS
-  / LOCK_MOVE_TAG / AUTO_STATUS_APPLY require the ability to be always-active.
+  ABILITY}. Every ability uses EffectListEditor; CODED rows select an allow-listed
+  compiled feature and remain addable, editable, and removable like generic rows.
+  Active abilities with generic effects use ConditionTreeEditor (nested AND/OR)
+  and an optional activation chance (0–100%). Validation enforces unique name,
+  valid category/source, source-specific references, effect parameters, and the
+  passive/active restrictions owned by each effect type.
 
 TECHNIQUE EDITOR  (TechniqueEditorScreen)
   Creates/edits innate techniques and their skill trees; saves
@@ -1113,7 +1121,7 @@ reflect HEAD at the time of writing. See the JSON files for full detail.
              a coded self-effect NEW_SHADOW_STYLE/ACTIVATE_SIMPLE_DOMAIN.
 
   ABILITIES — 13 abilities (data/abilities/all_abilities.json), ids 000000–000012.
-    Coded abilities (read-only in editor; passive or automatically triggered):
+    Abilities with editable CODED effect rows (passive or automatically triggered):
       000001 Miracle Reservoir        MIRACLES/RESERVOIR
       000002 Fateful Reprieve         MIRACLES/FATEFUL_REPRIEVE
       000003 Fortune Reclaimed        MIRACLES/FORTUNE_RECLAIMED

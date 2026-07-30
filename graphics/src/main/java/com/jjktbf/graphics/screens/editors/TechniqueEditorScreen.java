@@ -102,18 +102,28 @@ public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData>
             }
         }
 
-        String previousName = repo.findById(technique.id)
-            .map(existing -> existing.name).orElse(null);
+        InnateTechniqueData existing = repo.findById(technique.id).orElse(null);
+        String previousName = existing == null ? null : existing.name;
+        boolean existingTechnique = existing != null;
         CharacterRepository characterRepo = null;
-        boolean renamed = previousName != null && !previousName.equals(technique.name);
+        boolean renamed = existingTechnique
+            && (previousName == null || !previousName.equals(technique.name));
+        boolean prunedSelections = false;
         try {
-            if (renamed) {
+            if (renamed || existingTechnique) {
                 characterRepo = new CharacterRepository("data/characters");
                 characterRepo.load();
+            }
+            if (renamed) {
                 rewriteTechniqueReferences(previousName, technique.name, characterRepo);
             }
             TechniqueSkillTree.synchronize(technique, moveRepo.getAll(), abilityRepo.getAll());
             applyAuthoredPrerequisites(technique);
+            if (characterRepo != null) {
+                for (CharacterData character : characterRepo.getAll()) {
+                    prunedSelections |= TechniqueSkillTree.pruneLockedSelections(technique, character);
+                }
+            }
 
             if (isNewDraft(technique)) {
                 technique.id = null;
@@ -124,11 +134,15 @@ public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData>
             repo.save();
             moveRepo.save();
             abilityRepo.save();
-            if (characterRepo != null) characterRepo.save();
+            if (characterRepo != null && (renamed || prunedSelections)) characterRepo.save();
         } catch (Exception exception) {
             return ValidationResult.error("Save failed: " + exception.getMessage());
         }
-        return ValidationResult.ok("Saved \"" + technique.name + "\".");
+        String message = "Saved \"" + technique.name + "\".";
+        if (prunedSelections) {
+            message += " Removed selections that no longer meet its prerequisites.";
+        }
+        return ValidationResult.ok(message);
     }
 
     @Override

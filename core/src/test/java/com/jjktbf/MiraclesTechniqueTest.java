@@ -2,6 +2,8 @@ package com.jjktbf;
 
 import com.jjktbf.model.character.Ability;
 import com.jjktbf.model.character.AbilityData;
+import com.jjktbf.model.character.AbilityEffectData;
+import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.SorcererCharacter;
@@ -121,9 +123,10 @@ class MiraclesTechniqueTest {
         ability.category = "PASSIVE";
         ability.sourceType = "TECHNIQUE";
         ability.sourceValue = "Miracles";
-        ability.codedAbilityKey = MiraclesAbility.KEY;
-        ability.codedFeature = feature;
-        ability.effects = List.of();
+        AbilityEffectData coded = AbilityEffectType.CODED.createDefault();
+        coded.codedAbilityKey = MiraclesAbility.KEY;
+        coded.codedFeature = feature;
+        ability.effects = List.of(coded);
         return new Ability(ability);
     }
 

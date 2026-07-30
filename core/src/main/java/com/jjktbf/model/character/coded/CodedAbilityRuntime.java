@@ -1,5 +1,6 @@
 package com.jjktbf.model.character.coded;
 
+import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.combat.AbilityTrigger;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
@@ -14,13 +15,12 @@ import java.util.List;
 /**
  * Battle-time behavior for an ability whose mechanics cannot be composed in the editor.
  *
- * <p>Hardcoded move effects are expressed as <em>coded effect rows</em> (a self-effect
- * or on-hit effect carrying a {@link StatusEffect#isCoded() coded action}), NOT as state
- * baked onto the {@link Move}. This keeps the Move pure data and fully editable: the
- * effect row is the unit that can be added, edited, or removed, and the runtime it
- * dispatches to holds the actual hardcoded logic. This is the precedent for future
- * technique moves that need compiled behaviour — implement it here, keyed off the
- * effect's {@link StatusEffect#getCodedAbilityKey()} / {@link StatusEffect#getCodedAction()}.
+ * <p>Hardcoded ability features are expressed as editable
+ * {@link AbilityEffectData#isCoded() coded ability effects}. Hardcoded move behavior is
+ * likewise expressed as a self-effect or on-hit effect carrying a
+ * {@link StatusEffect#isCoded() coded action}, not as state baked onto the wrapper.
+ * The effect row is the unit that can be added, edited, or removed; this runtime owns
+ * the compiled behavior selected by that row.
  */
 public interface CodedAbilityRuntime {
 

@@ -1,5 +1,6 @@
 package com.jjktbf.model.character;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -21,6 +22,13 @@ public class AbilityEffectData {
 
     /** Which effect primitive this represents. */
     public String type;   // AbilityEffectType name
+
+    // ── Compiled effects ─────────────────────────────────────────────────────
+    /** Allow-listed compiled runtime that owns this effect. */
+    public String codedAbilityKey;
+
+    /** Feature enabled on {@link #codedAbilityKey}. */
+    public String codedFeature;
 
     // ── Stat-related ─────────────────────────────────────────────────────────
     /** Stat name (lowercase, e.g. "cursedEnergyEfficiency"). */
@@ -73,6 +81,11 @@ public class AbilityEffectData {
     /** Number of times a consumable effect may be used. -1 means unlimited. */
     public Integer uses;
 
+    @JsonIgnore
+    public boolean isCoded() {
+        return AbilityEffectType.CODED.name().equalsIgnoreCase(type);
+    }
+
     /** Field-by-field copy used by editor drafts and immutable domain objects. */
     public AbilityEffectData copy() {
         AbilityEffectData copy = new AbilityEffectData();
@@ -83,6 +96,8 @@ public class AbilityEffectData {
     /** Replace this DTO's values with another effect's values. */
     public void copyFrom(AbilityEffectData source) {
         this.type = source.type;
+        this.codedAbilityKey = source.codedAbilityKey;
+        this.codedFeature = source.codedFeature;
         this.stat = source.stat;
         this.intValue = source.intValue;
         this.doubleValue = source.doubleValue;
@@ -166,6 +181,8 @@ public class AbilityEffectData {
     @Override
     public String toString() {
         return type + "{"
+            + (codedAbilityKey != null ? " coded=" + codedAbilityKey : "")
+            + (codedFeature    != null ? "/" + codedFeature : "")
             + (stat        != null ? " stat=" + stat : "")
             + (intValue    != null ? " int=" + intValue : "")
             + (doubleValue != null ? " dbl=" + doubleValue : "")

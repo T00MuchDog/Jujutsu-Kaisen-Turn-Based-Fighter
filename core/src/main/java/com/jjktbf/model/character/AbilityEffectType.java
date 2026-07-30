@@ -1,5 +1,6 @@
 package com.jjktbf.model.character;
 
+import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffect;
 import com.jjktbf.model.move.StatusEffectType;
@@ -22,6 +23,7 @@ import static com.jjktbf.model.character.AbilityEffectParameter.TECHNIQUE;
 import static com.jjktbf.model.character.AbilityEffectParameter.TIMING;
 import static com.jjktbf.model.character.AbilityEffectParameter.USES;
 import static com.jjktbf.model.character.AbilityEffectParameter.BATTLE_STAT;
+import static com.jjktbf.model.character.AbilityEffectParameter.CODED_FEATURE;
 
 /**
  * Mechanical effects that can be composed into an ability.
@@ -67,6 +69,10 @@ public enum AbilityEffectType {
     SOUL_AWARE_ATTACKS(
         "Soul-aware attacks",
         "Marks the character's attacks as capable of interacting with souls."),
+    CODED(
+        "Coded effect",
+        "Enables an allow-listed compiled mechanic that cannot be composed from generic effects.",
+        CODED_FEATURE),
 
     CE_COST_TO_MINIMUM(
         "Minimum CE costs",
@@ -298,6 +304,8 @@ public enum AbilityEffectType {
     /** Replace all effect parameters with this type's defaults. */
     public void reset(AbilityEffectData effect) {
         effect.type = name();
+        effect.codedAbilityKey = null;
+        effect.codedFeature = null;
         effect.stat = null;
         effect.intValue = null;
         effect.doubleValue = null;
@@ -317,6 +325,12 @@ public enum AbilityEffectType {
         if (uses(DURATION)) effect.durationTicks = 0;
 
         switch (this) {
+            case CODED -> {
+                CodedAbilityRegistry.AbilityFeature feature =
+                    CodedAbilityRegistry.abilityFeatures().get(0);
+                effect.codedAbilityKey = feature.key();
+                effect.codedFeature = feature.feature();
+            }
             case STAT_ADD -> effect.intValue = 10;
             case STAT_MULTIPLY -> effect.doubleValue = 1.10;
             case STAT_DIVIDE -> effect.doubleValue = 2.0;
@@ -411,6 +425,11 @@ public enum AbilityEffectType {
             } catch (IllegalArgumentException ignored) { }
         }
         clearUnusedFields(effect);
+        if (uses(CODED_FEATURE) && (isBlank(effect.codedAbilityKey)
+            || isBlank(effect.codedFeature))) {
+            effect.codedAbilityKey = defaults.codedAbilityKey;
+            effect.codedFeature = defaults.codedFeature;
+        }
         if (uses(STAT) && isBlank(effect.stat)) effect.stat = defaults.stat;
         if (uses(INTEGER) && effect.intValue == null) effect.intValue = defaults.intValue;
         if (uses(DECIMAL) && effect.doubleValue == null) effect.doubleValue = defaults.doubleValue;
@@ -439,6 +458,10 @@ public enum AbilityEffectType {
 
     /** Remove stale values so persisted JSON contains only parameters this type reads. */
     public void clearUnusedFields(AbilityEffectData effect) {
+        if (!uses(CODED_FEATURE)) {
+            effect.codedAbilityKey = null;
+            effect.codedFeature = null;
+        }
         if (!uses(STAT)) effect.stat = null;
         if (!uses(INTEGER)) effect.intValue = null;
         if (!uses(DECIMAL)) effect.doubleValue = null;
@@ -533,6 +556,10 @@ public enum AbilityEffectType {
         if (uses(BATTLE_STAT)) {
             try { BattleStatKey.fromString(effect.stringValue); }
             catch (Exception ex) { return "Choose a valid battle stat."; }
+        }
+        if (uses(CODED_FEATURE) && !CodedAbilityRegistry.supportsAbilityEffect(
+            effect.codedAbilityKey, effect.codedFeature)) {
+            return "Choose a supported coded effect.";
         }
 
         return switch (this) {

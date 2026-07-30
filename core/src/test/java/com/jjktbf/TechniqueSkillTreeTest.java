@@ -99,6 +99,28 @@ class TechniqueSkillTreeTest {
     }
 
     @Test
+    void pruningRemovesSelectedMovesThatNoLongerMeetStatRequirements() {
+        InnateTechniqueData technique = technique();
+        MoveData move = move("M1", "Miracles");
+        TechniqueSkillTree.synchronize(technique, List.of(move), List.of());
+        SkillTreeNodeData moveNode = node(technique, SkillTreeNodeData.MOVE, "M1");
+        SkillTreePrerequisiteData strength = new SkillTreePrerequisiteData();
+        strength.type = SkillTreePrerequisiteData.STAT;
+        strength.stat = "strength";
+        strength.minimum = 100;
+        moveNode.prerequisites.add(strength);
+
+        CharacterData character = new CharacterData();
+        character.strength = 99;
+        character.moveIds = new ArrayList<>(List.of("M1"));
+        character.availableMoveIds = new ArrayList<>(List.of("M1"));
+
+        assertTrue(TechniqueSkillTree.pruneLockedSelections(technique, character));
+        assertFalse(character.moveIds.contains("M1"));
+        assertFalse(character.availableMoveIds.contains("M1"));
+    }
+
+    @Test
     void techniqueAbilitiesRequireExplicitTreeActivation() {
         AbilityData ability = ability("A1", "Miracles");
         InnateTechniqueData technique = technique();

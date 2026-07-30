@@ -69,12 +69,6 @@ public class AbilityData {
     /** The list of effect primitives this ability applies. */
     public List<AbilityEffectData> effects;
 
-    /** Allow-listed compiled runtime key for mechanics that cannot be authored in the editor. */
-    public String codedAbilityKey;
-
-    /** Feature enabled on {@link #codedAbilityKey}; interpreted only by compiled code. */
-    public String codedFeature;
-
     /** Recursive activation predicate for active abilities. Null means MANUAL_ACTIVATION. */
     public AbilityConditionData activationCondition;
 
@@ -95,7 +89,6 @@ public class AbilityData {
 
     @JsonIgnore public boolean isPassive()  { return "PASSIVE".equalsIgnoreCase(category); }
     @JsonIgnore public boolean isActive()   { return "ACTIVE".equalsIgnoreCase(category); }
-    @JsonIgnore public boolean isCoded()    { return codedAbilityKey != null && !codedAbilityKey.isBlank(); }
 
     @JsonIgnore public double effectiveActivationChance() {
         if (!isActive() || !Boolean.TRUE.equals(activationChanceEnabled)) return 1.0;

@@ -19,9 +19,11 @@
   "category" : "PASSIVE",
   "sourceType" : "TECHNIQUE",
   "sourceValue" : "Miracles",
-  "effects" : [ ],
-  "codedAbilityKey" : "MIRACLES",
-  "codedFeature" : "RESERVOIR",
+  "effects" : [ {
+    "type" : "CODED",
+    "codedAbilityKey" : "MIRACLES",
+    "codedFeature" : "RESERVOIR"
+  } ],
   "masteryThreshold" : 0
 }, {
   "id" : "000002",
@@ -31,9 +33,11 @@
   "category" : "ACTIVE",
   "sourceType" : "TECHNIQUE",
   "sourceValue" : "Miracles",
-  "effects" : [ ],
-  "codedAbilityKey" : "MIRACLES",
-  "codedFeature" : "FATEFUL_REPRIEVE",
+  "effects" : [ {
+    "type" : "CODED",
+    "codedAbilityKey" : "MIRACLES",
+    "codedFeature" : "FATEFUL_REPRIEVE"
+  } ],
   "masteryThreshold" : 0
 }, {
   "id" : "000003",
@@ -43,9 +47,11 @@
   "category" : "ACTIVE",
   "sourceType" : "TECHNIQUE",
   "sourceValue" : "Miracles",
-  "effects" : [ ],
-  "codedAbilityKey" : "MIRACLES",
-  "codedFeature" : "FORTUNE_RECLAIMED",
+  "effects" : [ {
+    "type" : "CODED",
+    "codedAbilityKey" : "MIRACLES",
+    "codedFeature" : "FORTUNE_RECLAIMED"
+  } ],
   "masteryThreshold" : 0
 }, {
   "id" : "000004",
@@ -55,9 +61,11 @@
   "category" : "ACTIVE",
   "sourceType" : "TECHNIQUE",
   "sourceValue" : "Ratio",
-  "effects" : [ ],
-  "codedAbilityKey" : "RATIO",
-  "codedFeature" : "REINFORCEMENT_RATIO",
+  "effects" : [ {
+    "type" : "CODED",
+    "codedAbilityKey" : "RATIO",
+    "codedFeature" : "REINFORCEMENT_RATIO"
+  } ],
   "masteryThreshold" : 0
 }, {
   "id" : "000005",
@@ -81,9 +89,11 @@
   "mechanicText" : "Using another move while SIMPLE DOMAIN is active dispels SIMPLE DOMAIN.",
   "category" : "PASSIVE",
   "sourceType" : "CHARACTER",
-  "effects" : [ ],
-  "codedAbilityKey" : "NEW_SHADOW_STYLE",
-  "codedFeature" : "SIMPLE_DOMAIN_BINDING_VOW",
+  "effects" : [ {
+    "type" : "CODED",
+    "codedAbilityKey" : "NEW_SHADOW_STYLE",
+    "codedFeature" : "SIMPLE_DOMAIN_BINDING_VOW"
+  } ],
   "masteryThreshold" : 0
 }, {
   "id" : "000007",

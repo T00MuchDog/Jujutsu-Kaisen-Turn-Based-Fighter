@@ -18,6 +18,7 @@ import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.BattleStatKey;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
+import com.jjktbf.model.character.coded.MiraclesAbility;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
@@ -112,6 +113,25 @@ class AbilitySystemTest {
         BattleCombatant combatant = new BattleCombatant(character);
 
         assertEquals(105, combatant.getEffectiveStats().getStrength());
+    }
+
+    @Test
+    void codedAndGenericEffectsCanCoexistOnOneAbility() {
+        AbilityEffectData coded = AbilityEffectType.CODED.createDefault();
+        coded.codedAbilityKey = MiraclesAbility.KEY;
+        coded.codedFeature = MiraclesAbility.RESERVOIR;
+        AbilityData data = ability("PASSIVE", "Mutable Coded Ability", "CODED");
+        data.effects = List.of(
+            coded,
+            statEffect(AbilityEffectType.STAT_ADD, 25, null)
+        );
+
+        BattleCombatant combatant = combatant(
+            "OWNER", List.of(), List.of(new Ability(data)));
+
+        assertEquals(105, combatant.getEffectiveStats().getStrength());
+        assertTrue(combatant.getCodedAbilities().states().stream()
+            .anyMatch(state -> MiraclesAbility.KEY.equals(state.key())));
     }
 
     @Test
@@ -395,6 +415,26 @@ class AbilitySystemTest {
     }
 
     @Test
+    void codedBindingsSerializeInsideEffectRowsOnly() {
+        AbilityEffectData coded = AbilityEffectType.CODED.createDefault();
+        coded.codedAbilityKey = MiraclesAbility.KEY;
+        coded.codedFeature = MiraclesAbility.FATEFUL_REPRIEVE;
+        AbilityData data = ability("ACTIVE", "Coded", "CODED");
+        data.effects = List.of(coded);
+
+        com.fasterxml.jackson.databind.JsonNode json =
+            new ObjectMapper().valueToTree(data);
+
+        assertNull(json.get("codedAbilityKey"));
+        assertNull(json.get("codedFeature"));
+        assertEquals("CODED", json.path("effects").get(0).path("type").asText());
+        assertEquals(MiraclesAbility.KEY,
+            json.path("effects").get(0).path("codedAbilityKey").asText());
+        assertEquals(MiraclesAbility.FATEFUL_REPRIEVE,
+            json.path("effects").get(0).path("codedFeature").asText());
+    }
+
+    @Test
     void bundledAbilitiesContainValidEffects() throws IOException {
         Path path = List.of(
                 Path.of("data", "abilities", "all_abilities.json"),
@@ -409,19 +449,18 @@ class AbilitySystemTest {
         assertFalse(abilities.isEmpty());
         for (AbilityData ability : abilities) {
             assertTrue(ability.isPassive() || ability.isActive(), ability.name);
-            if (ability.isCoded()) {
-                assertTrue(CodedAbilityRegistry.supportsAbility(
-                    ability.codedAbilityKey, ability.codedFeature), ability.name);
-                assertTrue(ability.effects == null || ability.effects.isEmpty(), ability.name);
-                continue;
-            }
             assertFalse(ability.effects == null || ability.effects.isEmpty(), ability.name);
-            if (ability.isActive()) {
+            if (ability.isActive() && ability.effects.stream()
+                .anyMatch(effect -> effect != null && !effect.isCoded())) {
                 assertNull(AbilityConditionType.validationError(ability.activationCondition), ability.name);
             }
             for (AbilityEffectData effect : ability.effects) {
                 AbilityEffectType type = AbilityEffectType.fromName(effect.type);
                 assertNull(type.validationError(effect), ability.name + ": " + type.name());
+                if (effect.isCoded()) {
+                    assertTrue(CodedAbilityRegistry.supportsAbilityEffect(
+                        effect.codedAbilityKey, effect.codedFeature), ability.name);
+                }
             }
         }
     }

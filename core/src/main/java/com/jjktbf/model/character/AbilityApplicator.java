@@ -44,7 +44,7 @@ public final class AbilityApplicator {
         AbilityFlags flags = new AbilityFlags();
 
         for (Ability ability : abilities == null ? List.<Ability>of() : abilities) {
-            if (ability == null || !ability.isPassive() || ability.isCoded()) continue;
+            if (ability == null || !ability.isPassive()) continue;
             for (AbilityEffectData eff : ability.getEffects()) {
                 if (eff == null || eff.type == null) {
                     System.err.println("[WARN] AbilityApplicator: missing ability effect type");
@@ -59,6 +59,9 @@ public final class AbilityApplicator {
                 }
 
                 switch (type) {
+
+                    // Compiled behavior is installed by CodedAbilityRegistry.
+                    case CODED -> { }
 
                     // ── Override (set) — applied before add/multiply ─────────
                     case STAT_SET_MIN -> {

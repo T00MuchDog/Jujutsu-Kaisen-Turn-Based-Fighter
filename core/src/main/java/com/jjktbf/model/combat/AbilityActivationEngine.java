@@ -55,7 +55,11 @@ public final class AbilityActivationEngine {
         List<Ability> abilities = owner.getAbilities();
         for (int index = 0; index < abilities.size(); index++) {
             Ability ability = abilities.get(index);
-            if (ability == null || !ability.isActive() || ability.isCoded()) continue;
+            if (ability == null || !ability.isActive()
+                || ability.getEffects().stream().noneMatch(effect ->
+                    effect != null && !effect.isCoded())) {
+                continue;
+            }
 
             String key = abilityKey(ability, index);
             boolean eventOpportunity = hasMatchingEventLeaf(
@@ -336,9 +340,9 @@ public final class AbilityActivationEngine {
                 }
             }
             case STAT_ALLOCATION_MINIMUM, STAT_BONUS_POINTS,
-                 POISON_IMMUNITY, SOUL_AWARE_ATTACKS,
-                 GRANT_MOVE, GRANT_ABILITY, FORCE_MOVE,
-                 UNLOCK_TECHNIQUE -> { }
+                  POISON_IMMUNITY, SOUL_AWARE_ATTACKS,
+                  GRANT_MOVE, GRANT_ABILITY, FORCE_MOVE,
+                  UNLOCK_TECHNIQUE, CODED -> { }
         }
     }
 
