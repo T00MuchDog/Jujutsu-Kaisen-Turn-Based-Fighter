@@ -525,6 +525,11 @@ ACTION SEGMENT
 INSTANT MOVE
   A move with unleashPoint == 1 (fireTick == startTick). Highest priority in
   tie-breaking — fires before other same-tick moves; further ties broken by Speed.
+  This speed ordering applies to defenses too: a defense only contests an attack
+  that lands on its tick if it has ALREADY fired (i.e. it won the same-tick
+  speed ordering). A slower same-tick defense has not fired yet when a faster
+  attack resolves, so it does NOT contest — defending means committing the block
+  to fire BEFORE the attack lands, not merely on the same tick.
 
 STUNNED (segment state)
   An action segment removed from firing — by a STUN-tagged hit, by CE depletion,
@@ -1027,8 +1032,12 @@ GREEDY AI STRATEGY  (the only shipped implementation; default)
       random 0–2 tick gap.
     Defensive moves — their FIRE tick is aligned to a randomly chosen placed
       offensive segment's fire tick (start = max(1, targetFireTick − unleashPoint + 1)),
-      so the block is active when the attack lands. Falls back to grouped-early
-      if alignment cannot be placed.
+      so the block is active when the attack lands. This same-tick alignment only
+      contests an attack when the AI is fast enough to fire first (defenses only
+      protect if they've already fired); when the AI is strictly slower the
+      alignment is skipped and the defense falls back to grouped-early so its
+      budget isn't wasted on a tick where it can't contest. Also falls back to
+      grouped-early if alignment cannot be placed.
 
   Termination — because the timeline only accumulates, a move that fails to
     place once can never fit later this round; it is added to a per-round "stuck"

@@ -172,8 +172,10 @@ class MultiHitMoveTest {
                 component(1, MoveCategory.PHYSICAL, 0, false, true),
                 component(1, MoveCategory.PHYSICAL, 0, true, true)))
             .build();
+        // Defender faster than attacker so the same-tick instant block fires
+        // first and legitimately contests both components (speed-priority rule).
         List<CombatEvent> blocked = resolve(
-            blockChain, 1, block, 1, 10, new FixedRandom(0.0)).events();
+            blockChain, 1, block, 1, 10, new FixedRandom(0.0), 0, 80, 120).events();
 
         assertEquals(List.of(0, 1), blocked.stream()
             .filter(event -> event.getType() == CombatEvent.Type.MOVE_BLOCKED)
@@ -204,10 +206,12 @@ class MultiHitMoveTest {
             .unleashPoint(1)
             .build();
 
+        // Defender faster than attacker so the same-tick instant dodge/parry
+        // fires first and legitimately contests (speed-priority rule).
         List<CombatEvent> dodged = resolve(
-            chain, 1, dodge, 1, 10, new FixedRandom(0.0)).events();
+            chain, 1, dodge, 1, 10, new FixedRandom(0.0), 0, 80, 120).events();
         List<CombatEvent> parried = resolve(
-            chain, 1, parry, 1, 10, new FixedRandom(0.0)).events();
+            chain, 1, parry, 1, 10, new FixedRandom(0.0), 0, 80, 120).events();
 
         assertTrue(dodged.stream().anyMatch(event ->
             event.getType() == CombatEvent.Type.MOVE_DODGED
@@ -264,8 +268,10 @@ class MultiHitMoveTest {
             .build();
         Move physicalBlock = fullBlock("PHYSICAL_BLOCK", List.of("PHYSICAL"));
 
+        // Defender faster than attacker so the same-tick instant block fires
+        // first and legitimately contests the PHYSICAL component.
         List<CombatEvent> events = resolve(
-            move, 1, physicalBlock, 1, 10, new FixedRandom(0.0)).events();
+            move, 1, physicalBlock, 1, 10, new FixedRandom(0.0), 0, 80, 120).events();
 
         assertTrue(events.stream().anyMatch(event ->
             event.getType() == CombatEvent.Type.MOVE_BLOCKED
@@ -477,10 +483,33 @@ class MultiHitMoveTest {
         Random random,
         int actualCeCost
     ) {
+        return resolve(attackerMove, attackerStart, defenderMove, defenderStart,
+            gridLength, random, actualCeCost, 120, 80);
+    }
+
+    /**
+     * Speeds-aware variant. The default helper makes the attacker (120) faster
+     * than the defender (80), which — under the speed-priority defense rule —
+     * means a same-tick instant defense will NOT contest the attack. Tests that
+     * exercise defense MECHANICS (block/dodge/parry of a multi-hit move) rather
+     * than the speed rule pass a faster defender so the defense fires first and
+     * legitimately contests.
+     */
+    private static Resolution resolve(
+        Move attackerMove,
+        int attackerStart,
+        Move defenderMove,
+        int defenderStart,
+        int gridLength,
+        Random random,
+        int actualCeCost,
+        int attackerSpeed,
+        int defenderSpeed
+    ) {
         BattleCombatant attacker = combatant(
-            "A", "Attacker", 120, List.of(attackerMove));
+            "A", "Attacker", attackerSpeed, List.of(attackerMove));
         BattleCombatant defender = combatant(
-            "D", "Defender", 80,
+            "D", "Defender", defenderSpeed,
             defenderMove == null ? List.of() : List.of(defenderMove));
         Timeline attackerTimeline = new Timeline(gridLength);
         Timeline defenderTimeline = new Timeline(gridLength);

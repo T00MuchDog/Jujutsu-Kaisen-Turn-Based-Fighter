@@ -19,6 +19,11 @@ import com.jjktbf.model.move.Move;
  * Priority rule for simultaneous fireTicks:
  *   Moves with unleashPoint == 1 (fireTick == startTick) are highest priority.
  *   All ties resolved by the combatant's Speed stat (higher Speed wins).
+ *
+ * This ordering applies to defenses too: a defensive move only contests an
+ * attack landing on its tick if it has already markFired() — i.e. it won the
+ * same-tick ordering. A slower same-tick defense does not contest a faster
+ * attack. (Enforced via the requireFiredDefense gate in DamageCalculator.)
  */
 public class ActionSegment {
 

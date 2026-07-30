@@ -727,7 +727,15 @@ public class CombatResolver {
         DamageCalculator.DamageResult result = DamageCalculator.resolve(
             attacker, defender, move, component, tick, rng,
             state.getRoundNumber(), execution.forceFullBlock,
-            execution.launchTick < tick);
+            // A defense only contests an attack if it has ALREADY fired this
+            // tick — i.e. it won the same-tick speed ordering (instant > higher
+            // Speed > random). A defense aligned to the same tick but slower has
+            // not been markFired() yet when a faster attack resolves, so it is
+            // skipped here. Defending therefore means committing the block to
+            // fire BEFORE the attack lands, not merely on the same tick. Do NOT
+            // revert this to `launchTick < tick` — that re-enables the old rule
+            // where a not-yet-fired same-tick defense contested regardless of speed.
+            true);
         events.addAll(result.getCodedEvents());
 
         if (result.isMiss()) {

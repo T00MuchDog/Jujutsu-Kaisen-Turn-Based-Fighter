@@ -31,7 +31,12 @@ import java.util.Set;
  *       is empty), with a small random 0–2 tick gap for subtle variety.</li>
  *   <li>Defensive moves align their <em>fire tick</em> with a randomly chosen
  *       placed offensive segment's fire tick, so blocks land when attacks do.
- *       If that alignment can't be placed, they fall back to grouped-early.</li>
+ *       This same-tick alignment only contests an attack when the AI is fast
+ *       enough to fire first (defenses only protect if they've already fired —
+ *       see CombatResolver's speed-priority rule); when the AI is slower the
+ *       alignment is skipped and the defense falls back to grouped-early so it
+ *       isn't wasted on a tick where it can't contest. If alignment can't be
+ *       placed at all, it likewise falls back to grouped-early.</li>
  * </ul>
  *
  * <p>Because the timelines only accumulate segments during a round, free grid
@@ -62,7 +67,7 @@ public class GreedyAIStrategy implements AIStrategy {
             if (candidates.isEmpty()) break;
 
             Move pick = weightedRandomPick(candidates, plan, rng);
-            boolean placed = tryPlace(pick, ai, plan, rng);
+            boolean placed = tryPlace(pick, ai, opponent, plan, rng);
             if (!placed) stuck.add(pick);
         }
 
@@ -134,11 +139,12 @@ public class GreedyAIStrategy implements AIStrategy {
     // Placement
     // -------------------------------------------------------------------------
 
-    private boolean tryPlace(Move move, BattleCombatant ai, BattlePlan plan, RandomSource rng) {
+    private boolean tryPlace(Move move, BattleCombatant ai, BattleCombatant opponent,
+                             BattlePlan plan, RandomSource rng) {
         int ceCost = ai.computeMoveCeCost(move);
 
         if (move.isDefensive()) {
-            return placeDefensive(move, ceCost, plan, rng)
+            return placeDefensive(move, ceCost, ai, opponent, plan, rng)
                 || placeGroupedEarly(move, ceCost, plan);
         }
         return placeGroupedEarly(move, ceCost, plan);
@@ -158,11 +164,25 @@ public class GreedyAIStrategy implements AIStrategy {
     /**
      * Align this defensive move's fire tick with a randomly chosen placed
      * offensive segment's fire tick, so the block is active when the attack lands.
-     * Returns false if no offensive segment exists or the alignment won't fit.
+     *
+     * <p>A same-tick aligned defense only contests an attack if it fires first,
+     * which requires the AI to be at least as fast as the opponent (defenses are
+     * skipped until they have markFired(); see CombatResolver's speed-priority
+     * rule). When the AI is strictly slower the alignment is abandoned — returning
+     * false so {@code tryPlace} falls back to grouped-early placement rather than
+     * spending the defense's budget on a tick where it can never contest.
+     *
+     * <p>Returns false if no offensive segment exists, the AI is too slow, or the
+     * alignment won't fit.
      */
-    private boolean placeDefensive(Move move, int ceCost, BattlePlan plan, RandomSource rng) {
+    private boolean placeDefensive(Move move, int ceCost, BattleCombatant ai,
+                                   BattleCombatant opponent, BattlePlan plan, RandomSource rng) {
         List<ActionSegment> offense = plan.offensiveTimeline().getSegments();
         if (offense.isEmpty()) return false;
+
+        int aiSpeed = ai.getEffectiveStats().getSpeed();
+        int opponentSpeed = opponent.getEffectiveStats().getSpeed();
+        if (aiSpeed < opponentSpeed) return false;
 
         ActionSegment anchor = offense.get(rng.nextInt(offense.size()));
         int targetFireTick = anchor.getFireTick();
