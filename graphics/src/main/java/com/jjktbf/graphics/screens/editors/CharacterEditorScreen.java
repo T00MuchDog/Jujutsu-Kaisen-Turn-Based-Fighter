@@ -28,6 +28,8 @@ import com.jjktbf.graphics.ui.editor.SkillTreeCanvas;
 import com.jjktbf.graphics.ui.editor.ValidationResult;
 import com.jjktbf.model.character.AbilityApplicator;
 import com.jjktbf.model.character.AbilityData;
+import com.jjktbf.model.character.AbilityEffectData;
+import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.AbilityRepository;
 import com.jjktbf.model.character.AbilityResolver;
 import com.jjktbf.model.character.CharacterData;
@@ -1058,6 +1060,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             @Override public void onAssign(String id) {
                 if (cd.abilityIds == null) cd.abilityIds = new ArrayList<>();
                 if (!cd.abilityIds.contains(id)) cd.abilityIds.add(id);
+                autoEquipGrantedAbilities(cd);
                 refreshAllocationMinimums(cd, true);
                 markDirty();
                 refreshBaseStatTotalLabel(cd);
@@ -1090,6 +1093,52 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             technique, moveRepo.getAll(), abilityRepo.getAll()));
         return AbilityResolver.resolve(
             cd, abilityRepo, this::isValidMoveDefinition, techniqueRepo);
+    }
+
+    /**
+     * Auto-equips abilities granted by already-assigned (parent) abilities.
+     *
+     * Runs only as a consequence of assigning a parent: after the parent is added,
+     * {@link AbilityResolver} propagates every {@code GRANT_ABILITY} effect to a fixed
+     * point, so transitively-granted children appear in the available pool. We then
+     * assign every such child that is currently available and conflict-free. Re-resolving
+     * after each add lets grant chains (grandchildren) cascade in one pass.
+     *
+     * This does nothing on unequip: removing a parent (or child) never cascades here.
+     */
+    private void autoEquipGrantedAbilities(CharacterData cd) {
+        if (cd.abilityIds == null) cd.abilityIds = new ArrayList<>();
+        Set<String> queued = new LinkedHashSet<>();
+        while (true) {
+            List<String> available = resolvedAbilities(cd).availableAbilityIds();
+            boolean changed = false;
+            for (String parentId : new ArrayList<>(cd.abilityIds)) {
+                for (String childId : grantedAbilityIds(parentId)) {
+                    if (cd.abilityIds.contains(childId) || queued.contains(childId)) continue;
+                    if (!available.contains(childId)) continue;           // not yet in available section
+                    if (abilityAssignmentConflict(cd, childId) != null) continue; // prerequisites unmet
+                    cd.abilityIds.add(childId);
+                    queued.add(childId);
+                    changed = true;
+                }
+            }
+            if (!changed) break;
+        }
+    }
+
+    /** IDs granted by an ability's {@code GRANT_ABILITY} effects (6-digit ability ids). */
+    private List<String> grantedAbilityIds(String parentId) {
+        List<String> ids = new ArrayList<>();
+        AbilityData parent = abilityRepo.findById(parentId).orElse(null);
+        if (parent == null || parent.effects == null || !parent.isPassive()) return ids;
+        for (AbilityEffectData effect : parent.effects) {
+            if (effect == null || effect.type == null || effect.abilityId == null
+                || effect.abilityId.isBlank()) continue;
+            if (!AbilityEffectType.GRANT_ABILITY.name().equalsIgnoreCase(
+                effect.type.trim())) continue;
+            ids.add(effect.abilityId);
+        }
+        return ids;
     }
 
     private boolean isValidMoveDefinition(String moveId) {
