@@ -266,6 +266,20 @@ class MoveEditorScreenTest {
     }
 
     @Test
+    void recordSectionsPrioritizeAttackThenDefenseThenUtility() {
+        MoveData move = new MoveData();
+        move.tags = new ArrayList<>(List.of(
+            MoveTag.ATTACK.name(), MoveTag.DEFENSIVE.name(), MoveTag.UTILITY.name()));
+        assertEquals("ATTACK", MoveEditorScreen.moveRecordSection(move));
+
+        move.tags.remove(MoveTag.ATTACK.name());
+        assertEquals("DEFENSE", MoveEditorScreen.moveRecordSection(move));
+
+        move.tags.remove(MoveTag.DEFENSIVE.name());
+        assertEquals("UTILITY", MoveEditorScreen.moveRecordSection(move));
+    }
+
+    @Test
     void saveCopyPreservesMustBeGrantedAndDefensiveCodedSelfEffects() {
         MoveData defense = new MoveData();
         defense.tags = new ArrayList<>(List.of(MoveTag.DEFENSIVE.name()));

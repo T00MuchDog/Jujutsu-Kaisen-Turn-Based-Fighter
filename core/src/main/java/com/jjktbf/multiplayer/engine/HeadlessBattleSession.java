@@ -317,7 +317,8 @@ public final class HeadlessBattleSession {
 
         BattlePlan canonicalPlan = new BattlePlan(
             participant.combatant.getMaxApBar(),
-            participant.combatant.getCurrentCe()
+            participant.combatant.getCurrentCe(),
+            battleGridLength()
         );
         List<SegmentRuntime> canonicalSegments = new ArrayList<>();
 
@@ -357,13 +358,14 @@ public final class HeadlessBattleSession {
             long endTick = (long) placement.startTick() + move.getApCost() - 1L;
             long fireTick = (long) placement.startTick() + move.getUnleashPoint() - 1L;
             long finalImpactTick = fireTick + move.getMaxHitDelayTicks();
+            int gridLength = canonicalPlan.gridLength();
             if (move.getApCost() < 1
                 || move.getUnleashPoint() < 1
                 || move.getUnleashPoint() > move.getApCost()
                 || ceCost < 0
                 || placement.startTick() < 1
-                || endTick > BattlePlan.GRID_LENGTH
-                || finalImpactTick > BattlePlan.GRID_LENGTH) {
+                || endTick > gridLength
+                || finalImpactTick > gridLength) {
                 return rejectPlacement(
                     commandId,
                     INVALID_PLACEMENT,
@@ -633,7 +635,7 @@ public final class HeadlessBattleSession {
             }
         }
         wireCurrentTick = Math.min(
-            BattlePlan.GRID_LENGTH,
+            battleGridLength(),
             Math.max(
                 resolutionEvents.stream().mapToInt(CombatEvent::getTick).max().orElse(0),
                 Math.max(0, battleState.getCurrentTick() - 1)
@@ -1243,6 +1245,21 @@ public final class HeadlessBattleSession {
             ? PlayerSide.PLAYER_TWO
             : PlayerSide.PLAYER_ONE;
         return participantsBySide.get(opponentSide);
+    }
+
+    /**
+     * Battle-wide timeline grid length for the current round, derived from the
+     * stronger fighter's AP tier. Recomputed each round because AP can shift
+     * via MAX_AP status effects; both timelines always share this length.
+     */
+    private int battleGridLength() {
+        int strongestAp = 0;
+        for (ParticipantRuntime runtime : participantsBySide.values()) {
+            if (runtime.combatant != null) {
+                strongestAp = Math.max(strongestAp, runtime.combatant.getMaxApBar());
+            }
+        }
+        return Timeline.gridLengthForStrongestAp(strongestAp);
     }
 
     private CommandResult reject(String commandId, String code, String message) {

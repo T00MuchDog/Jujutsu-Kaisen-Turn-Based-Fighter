@@ -9,9 +9,14 @@ import java.util.List;
 /**
  * One of the two horizontal timeline bars (offensive or defensive).
  *
- * <p>A pixel-framed dark board containing {@value Timeline#DEFAULT_GRID_LENGTH}
- * equally-spaced AP dots. The frames and dots come from {@link BattleUiAssets},
- * keeping the board readable at the small sizes required by a 150-tick grid.
+ * <p>A pixel-framed dark board containing {@code dotCount} equally-spaced AP
+ * dots. The count is the fight's battle-wide grid length (derived from the
+ * strongest fighter's AP tier — see
+ * {@link Timeline#gridLengthForStrongestAp}); the frames and dots come from
+ * {@link BattleUiAssets}. The on-screen width of the bar is set by
+ * {@link PlanningPanel} so that the highest tier fills the available width
+ * and lower tiers render a proportionally shorter, centered bar — keeping the
+ * dot size constant across tiers.
  *
  * <p>The bar is a pure spatial board: it maps dot index → pixel x and hosts
  * placed {@link ActionSegmentView}s. Budget/board-assignment logic lives on
@@ -23,15 +28,19 @@ public class TimelineBar {
 
     private final Kind kind;
     private final Rectangle bounds;
-    private final int dotCount;       // 150
+    private final int dotCount;
     private float dotSpacing;         // px between consecutive dot centres
 
     public TimelineBar(Kind kind, float x, float y, float width, float height) {
+        this(kind, x, y, width, height, Timeline.DEFAULT_GRID_LENGTH);
+    }
+
+    public TimelineBar(Kind kind, float x, float y, float width, float height, int dotCount) {
         this.kind = kind;
         this.bounds = new Rectangle(x, y, width, height);
-        this.dotCount = Timeline.DEFAULT_GRID_LENGTH;
+        this.dotCount = Math.max(1, dotCount);
         // Dots span the inner width; segment width math uses half-spacing edges.
-        this.dotSpacing = width / dotCount;
+        this.dotSpacing = width / this.dotCount;
     }
 
     public Kind getKind()        { return kind; }

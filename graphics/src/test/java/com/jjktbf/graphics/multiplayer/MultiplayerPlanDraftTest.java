@@ -129,10 +129,24 @@ class MultiplayerPlanDraftTest {
             null
         );
 
-        assertEquals(0, MultiplayerPlanDraft.lastStartTick(delayed));
+        assertEquals(0, draft.lastStartTick(delayed));
         assertEquals(MultiplayerPlanDraft.AddStatus.BOARD_FULL,
             draft.addFirstFit(delayed).status());
         assertFalse(draft.canAdd(delayed));
+    }
+
+    @Test
+    void battleGridLengthScalesPlacementBounds() {
+        MultiplayerPlanDraft starter = new MultiplayerPlanDraft();
+        starter.beginRound(1, 200, 20, 60);
+        MoveState dot = move("dot", PlanBoard.OFFENSIVE, 1, 0);
+        // A 1-AP move placed at tick 60 fills a 60-dot starter grid exactly.
+        assertTrue(starter.addFirstFit(dot).added());
+
+        MultiplayerPlanDraft topTier = new MultiplayerPlanDraft();
+        topTier.beginRound(1, 200, 20, 300);
+        // The same move still fits easily on the 300-dot top-tier grid.
+        assertTrue(topTier.addFirstFit(dot).added());
     }
 
     private static MoveState move(String id, PlanBoard board, int apCost, int ceCost) {

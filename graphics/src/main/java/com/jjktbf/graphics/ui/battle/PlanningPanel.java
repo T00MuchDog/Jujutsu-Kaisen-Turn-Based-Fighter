@@ -20,6 +20,7 @@ import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
+import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.multiplayer.protocol.PlanPlacement;
 
@@ -36,6 +37,8 @@ import java.util.function.Consumer;
 public class PlanningPanel {
 
     private static final float MARGIN = 34f;
+    /** Gap between the timeline label/icon and the left edge of its bar. */
+    private static final float LABEL_LEFT_GAP = 8f;
     private static final float CARD_GAP = 10f;
     private static final float PALETTE_PADDING = 10f;
     private static final float SCROLLBAR_HEIGHT = 6f;
@@ -56,8 +59,13 @@ public class PlanningPanel {
     private final BattleUiAssets ui;
     private final MiraclesMeter miraclesMeter = new MiraclesMeter();
 
-    private final TimelineBar offensiveBar = new TimelineBar(TimelineBar.Kind.OFFENSIVE, 0f, 0f, 1f, 1f);
-    private final TimelineBar defensiveBar = new TimelineBar(TimelineBar.Kind.DEFENSIVE, 0f, 0f, 1f, 1f);
+    /**
+     * Battle-wide timeline grid length (dot count), derived from the stronger
+     * fighter's AP tier. Drives the bars' dot count and the tier-scaled width.
+     */
+    private final int gridLength;
+    private TimelineBar offensiveBar;
+    private TimelineBar defensiveBar;
     private final List<MoveCardView> cards = new ArrayList<>();
     private final List<ActionSegmentView> offensiveViews = new ArrayList<>();
     private final List<ActionSegmentView> defensiveViews = new ArrayList<>();
@@ -104,7 +112,24 @@ public class PlanningPanel {
     private Consumer<SoundCue> soundPlayer = cue -> {};
 
     public PlanningPanel(BattleCombatant combatant, BattleUiAssets ui, float screenWidth, float screenHeight) {
-        this.plan = new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe());
+        this(Timeline.gridLengthForStrongestAp(combatant.getMaxApBar()), combatant, ui, screenWidth, screenHeight);
+    }
+
+    /**
+     * Builds the planner for a fight whose battle-wide grid length is known
+     * ({@code Timeline.gridLengthForStrongestAp(max(player, enemy) AP)}). Local
+     * play passes it in so the human's bar matches the AI's bar; the simpler
+     * constructor above derives it from the combatant alone.
+     */
+    public PlanningPanel(
+        int gridLength,
+        BattleCombatant combatant,
+        BattleUiAssets ui,
+        float screenWidth,
+        float screenHeight
+    ) {
+        this.gridLength = gridLength;
+        this.plan = new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe(), gridLength);
         this.ceEfficiency = combatant.getEffectiveStats().getCursedEnergyEfficiency();
         this.abilityFlags = combatant.getAbilityFlags();
         this.authoritativeCeCosts = Map.of();
@@ -114,6 +139,7 @@ public class PlanningPanel {
         for (Move move : combatant.getCharacter().getKnownMoves()) {
             if (abilityFlags.lockedMoveTags.stream().noneMatch(move::hasTag)) knownMoves.add(move);
         }
+        createBars();
         resize(screenWidth, screenHeight);
     }
 
@@ -131,7 +157,24 @@ public class PlanningPanel {
         float screenWidth,
         float screenHeight
     ) {
-        this.plan = new BattlePlan(apBudget, ceBudget);
+        this(Timeline.gridLengthForStrongestAp(apBudget),
+            moves, ceCosts, apBudget, ceBudget, miraclesState, ui, screenWidth, screenHeight);
+    }
+
+    /** Online planner with an explicit battle-wide grid length (see local overload). */
+    public PlanningPanel(
+        int gridLength,
+        List<Move> moves,
+        Map<String, Integer> ceCosts,
+        int apBudget,
+        int ceBudget,
+        CodedAbilityState miraclesState,
+        BattleUiAssets ui,
+        float screenWidth,
+        float screenHeight
+    ) {
+        this.gridLength = gridLength;
+        this.plan = new BattlePlan(apBudget, ceBudget, gridLength);
         this.ceEfficiency = 0;
         this.abilityFlags = null;
         this.authoritativeCeCosts = ceCosts == null ? Map.of() : Map.copyOf(ceCosts);
@@ -139,6 +182,7 @@ public class PlanningPanel {
         this.ui = ui;
         miraclesMeter.setState(miraclesState);
         if (moves != null) knownMoves.addAll(moves);
+        createBars();
         resize(screenWidth, screenHeight);
     }
 
@@ -148,6 +192,12 @@ public class PlanningPanel {
 
     public void setSoundPlayer(Consumer<SoundCue> soundPlayer) {
         this.soundPlayer = soundPlayer == null ? cue -> {} : soundPlayer;
+    }
+
+    /** Builds the two bars at the fight's battle-wide grid length (placeholder bounds; set in {@link #resize}). */
+    private void createBars() {
+        offensiveBar = new TimelineBar(TimelineBar.Kind.OFFENSIVE, 0f, 0f, 1f, 1f, gridLength);
+        defensiveBar = new TimelineBar(TimelineBar.Kind.DEFENSIVE, 0f, 0f, 1f, 1f, gridLength);
     }
 
     public BattlePlan getPlan() { return plan; }
@@ -214,8 +264,6 @@ public class PlanningPanel {
         buildPalette(rows);
 
         float labelWidth = compactLayout ? 0f : Math.min(150f, Math.max(108f, width * 0.12f));
-        float timelineX = margin + labelWidth;
-        float timelineW = width - timelineX - margin;
         float timelineH = MiraclesMeter.timelineHeightForViewport(height);
         float boardAreaBottom = paletteBounds.y + paletteBounds.height + 26f;
         float boardAreaTop = headerBounds.y - 24f;
@@ -226,6 +274,20 @@ public class PlanningPanel {
             // Compact timeline labels sit above their bars, so leave them a little more clearance.
             boardAreaTop = miracleY - (compactLayout ? 28f : 16f);
         }
+
+        // The bar grows with the fight's AP tier while keeping the dot spacing
+        // fixed: dot spacing is calibrated so the original DEFAULT_GRID_LENGTH
+        // (150) dots span the full width — exactly the old look. Lower tiers
+        // render a shorter slice of that same bar (fewer dots, same spacing),
+        // and the top tier (300) clamps to the full width. The bar plus its
+        // left-hand label gutter is centered as a group, so the timeline grows
+        // outward from the screen centre as the tier rises.
+        float maxBarWidth = Math.max(1f, width - margin * 2f - labelWidth);
+        float dotSpacing = maxBarWidth / (float) Timeline.DEFAULT_GRID_LENGTH;
+        float timelineW = Math.min(maxBarWidth, gridLength * dotSpacing);
+        float groupWidth = labelWidth + timelineW;
+        float timelineX = (width - groupWidth) / 2f + labelWidth;
+
         float boardGap = compactLayout ? 30f : 18f;
         float boardGroupHeight = timelineH * 2f + boardGap;
         float defensiveY = boardAreaBottom + Math.max(0f, (boardAreaTop - boardAreaBottom - boardGroupHeight) / 2f);
@@ -518,7 +580,10 @@ public class PlanningPanel {
     private void drawTimelineLabel(Batch batch, BitmapFont font, TimelineBar bar, String label,
                                    com.badlogic.gdx.graphics.Texture icon, Color color) {
         Rectangle bounds = bar.getBounds();
-        float x = compactLayout ? bounds.x + 4f : headerBounds.x + 4f;
+        // The label sits a constant gap to the left of the (centered, possibly
+        // tier-scaled) bar so it tracks the bar as it grows/shrinks. Compact
+        // layout keeps the label above the bar as before.
+        float x = compactLayout ? bounds.x + 4f : bounds.x - LABEL_LEFT_GAP - 23f;
         float y = compactLayout ? bounds.y + bounds.height + 9f : bounds.y + bounds.height / 2f;
         batch.draw(icon, x, y - 8f, 16f, 16f);
         font.setColor(color);

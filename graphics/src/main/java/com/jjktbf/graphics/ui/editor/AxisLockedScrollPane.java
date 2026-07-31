@@ -38,16 +38,21 @@ public class AxisLockedScrollPane extends ScrollPane {
                 InputEvent event, float x, float y, float scrollAmountX, float scrollAmountY
             ) {
                 event.cancel();
-                setScrollbarsVisible(true);
-                if (!isScrollX() && !isScrollY()) return false;
-                // Snap the gesture to its dominant axis so a trackpad swipe only moves
-                // content along the direction it actually travelled, then route each axis
-                // strictly to its matching scroll axis (no axis swapping).
-                float[] dominant = ScrollAxes.dominant(scrollAmountX, scrollAmountY);
-                if (isScrollY()) setScrollY(getScrollY() + getMouseWheelY() * dominant[1]);
-                if (isScrollX()) setScrollX(getScrollX() + getMouseWheelX() * dominant[0]);
-                return true;
+                return scrollBy(scrollAmountX, scrollAmountY);
             }
         });
+    }
+
+    /** Routes a wheel gesture to this pane, including from a pinned sibling overlay. */
+    public boolean scrollBy(float scrollAmountX, float scrollAmountY) {
+        setScrollbarsVisible(true);
+        if (!isScrollX() && !isScrollY()) return false;
+        // Snap the gesture to its dominant axis so a trackpad swipe only moves
+        // content along the direction it actually travelled, then route each axis
+        // strictly to its matching scroll axis (no axis swapping).
+        float[] dominant = ScrollAxes.dominant(scrollAmountX, scrollAmountY);
+        if (isScrollY()) setScrollY(getScrollY() + getMouseWheelY() * dominant[1]);
+        if (isScrollX()) setScrollX(getScrollX() + getMouseWheelX() * dominant[0]);
+        return true;
     }
 }

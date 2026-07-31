@@ -1041,8 +1041,12 @@ public class BattleScreen implements Screen, BattleView {
      */
     @Override
     public BattlePlan promptBattlePlan(BattleCombatant combatant, BattleCombatant opponent) {
+        // Battle-wide grid length: the same value the AI's plan uses, derived
+        // from the stronger fighter's AP tier so both timelines match.
+        int gridLength = com.jjktbf.model.combat.Timeline.gridLengthForStrongestAp(
+            Math.max(combatant.getMaxApBar(), opponent.getMaxApBar()));
         if (abortRequested || !isCurrentLocalBattleThread()) {
-            return new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe());
+            return new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe(), gridLength);
         }
         // This must happen on the controller thread before its wait loop. If it
         // only happens in the posted render callback, a prior round's confirmed
@@ -1054,7 +1058,8 @@ public class BattleScreen implements Screen, BattleView {
             syncLocalHpFromModel();
             executionUiActive = true;
             planningPanel = new com.jjktbf.graphics.ui.battle.PlanningPanel(
-                combatant, assets.battleUi, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+                gridLength, combatant, assets.battleUi,
+                Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
             planningPanel.setSoundPlayer(game.audio()::play);
             planningPanel.setOnConfirm(() -> {
                 game.audio().play(SoundCue.UI_PLAN_LOCK);
@@ -1072,7 +1077,7 @@ public class BattleScreen implements Screen, BattleView {
         // On abort, return an empty plan immediately — the controller will see
         // isAborted() and unwind without ever running this plan.
         if (abortRequested || !isCurrentLocalBattleThread()) {
-            return new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe());
+            return new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe(), gridLength);
         }
 
         // Read the plan on the render thread to avoid racing a drag-commit.
@@ -1102,7 +1107,7 @@ public class BattleScreen implements Screen, BattleView {
         BattlePlan result = holder.get();
         if (result == null) {
             // Fallback: empty plan (bank the round) — should not normally happen.
-            result = new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe());
+            result = new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe(), gridLength);
         }
         return result;
     }
@@ -1385,7 +1390,12 @@ public class BattleScreen implements Screen, BattleView {
             ? character.maxAp() : character.plan().apBudget();
         int ceBudget = character.plan() == null
             ? character.currentCe() : character.plan().ceBudget();
+        // Battle-wide grid length from the stronger fighter's AP tier; the
+        // server validates against the same value (both players' maxAp are in
+        // the MatchState, never concealed).
+        int gridLength = onlineBattleGridLength();
         planningPanel = new PlanningPanel(
+            gridLength,
             availableMoves,
             ceCosts,
             apBudget,
@@ -1906,6 +1916,26 @@ public class BattleScreen implements Screen, BattleView {
 
     private static PlayerSide opposite(PlayerSide side) {
         return side == PlayerSide.PLAYER_ONE ? PlayerSide.PLAYER_TWO : PlayerSide.PLAYER_ONE;
+    }
+
+    /**
+     * Battle-wide timeline grid length for the current online round, derived
+     * from the stronger fighter's AP tier. Matches the server's authoritative
+     * length (both players' {@code maxAp} are in the MatchState and are never
+     * concealed). Falls back to the local combatant's tier if the opponent's
+     * state isn't present yet.
+     */
+    private int onlineBattleGridLength() {
+        int strongestAp = 0;
+        if (multiplayerState != null && multiplayerSetup != null) {
+            strongestAp = Math.max(strongestAp,
+                multiplayerState.player(multiplayerSetup.playerSide())
+                    .map(ps -> ps.character().maxAp()).orElse(0));
+            strongestAp = Math.max(strongestAp,
+                multiplayerState.player(opposite(multiplayerSetup.playerSide()))
+                    .map(ps -> ps.character().maxAp()).orElse(0));
+        }
+        return com.jjktbf.model.combat.Timeline.gridLengthForStrongestAp(strongestAp);
     }
 
     private static boolean isTerminal(MatchStatus status) {

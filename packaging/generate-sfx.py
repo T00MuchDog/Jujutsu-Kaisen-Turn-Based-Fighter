@@ -177,10 +177,10 @@ def sand_step(seed: int) -> list[float]:
 def generate_ui() -> dict[str, list[float]]:
     return {
         "ui/navigate.wav": bitcrush(mix(
-            0.065,
-            (oscillator(0.055, 2050, 2650, duty=0.25, volume=0.52, decay=0.7), 0.0, 1.0),
-            (oscillator(0.045, 1025, 1325, duty=0.5, volume=0.20, decay=0.9), 0.006, 1.0),
-        ), 40, 2),
+            0.070,
+            (notes([392.0, 523.25], 0.028, volume=0.46, gap=0.002, duty=0.25), 0.0, 1.0),
+            (oscillator(0.060, 196.0, 261.63, shape="triangle", volume=0.16, decay=0.9), 0.003, 1.0),
+        ), 32, 3),
         "ui/confirm.wav": bitcrush(mix(
             0.14,
             (notes([1046.5, 1568.0], 0.055, volume=0.48, gap=0.004, duty=0.25), 0.0, 1.0),

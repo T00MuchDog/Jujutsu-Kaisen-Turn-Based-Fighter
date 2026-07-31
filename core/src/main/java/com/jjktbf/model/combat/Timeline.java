@@ -41,6 +41,27 @@ public class Timeline {
         this.gridLength = gridLength;
     }
 
+    /**
+     * Battle grid length for a fight whose strongest combatant has
+     * {@code strongestAp}. Low-AP starters get a smaller, less overwhelming
+     * timeline; the grid grows with the strongest fighter's tier. The floor is
+     * 60 dots (anything at or below Semi-Grade 1 AP). Tiers:
+     * <pre>
+     *   strongestAp &lt;=  60 -&gt;  60      strongestAp &lt;= 100 -&gt; 100
+     *   strongestAp &lt;=  70 -&gt;  70      strongestAp &lt;= 150 -&gt; 150
+     *   strongestAp &gt;  150 -&gt; 300
+     * </pre>
+     * Both timelines in a fight use this length (it is a battle-wide property
+     * derived from {@code max(player, enemy)} AP).
+     */
+    public static int gridLengthForStrongestAp(int strongestAp) {
+        if (strongestAp <= 60)  return 60;
+        if (strongestAp <= 70)  return 70;
+        if (strongestAp <= 100) return 100;
+        if (strongestAp <= 150) return 150;
+        return 300;
+    }
+
     // -------------------------------------------------------------------------
     // Placement
     // -------------------------------------------------------------------------

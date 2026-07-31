@@ -9,6 +9,7 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
@@ -17,11 +18,14 @@ import com.badlogic.gdx.scenes.scene2d.ui.HorizontalGroup;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.jjktbf.graphics.AssetLoader;
@@ -32,7 +36,10 @@ import com.jjktbf.graphics.ui.pixel.HoverList;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -97,7 +104,11 @@ public abstract class EditorScreenBase<D> implements Screen {
     /** The list of names shown in the master panel. Hover-highlighted (bright yellow). */
     protected final HoverList<String> masterList;
     /** ScrollPane wrapping the master list. */
-    protected ScrollPane masterScroll;
+    protected AxisLockedScrollPane masterScroll;
+    /** Scrollable content containing either the flat list or categorized sections. */
+    private final Table masterListContent;
+    /** Pinned copies of section headers that have reached the top of the list. */
+    private final Table stickySectionHeaders;
     /** Layout cell for the master pane, resized with the viewport. */
     private Cell<?> masterColumn;
     /** Container holding the detail form on the right. Cleared on selection change. */
@@ -125,6 +136,13 @@ public abstract class EditorScreenBase<D> implements Screen {
 
     /** Record IDs in the current filtered/sorted master-list order. */
     private final List<String> visibleRecordIds = new ArrayList<>();
+    /** Active lists and their local record-ID order. Sectioned editors have one per section. */
+    private final Map<HoverList<String>, List<String>> recordIdsByList = new IdentityHashMap<>();
+    private final List<HoverList<String>> masterRecordLists = new ArrayList<>();
+    private final List<MasterSectionView> masterSectionViews = new ArrayList<>();
+    private final Map<String, Boolean> collapsedRecordSections = new LinkedHashMap<>();
+    private List<String> renderedStickySections = List.of();
+    private boolean suppressMasterListEvents;
     /** Suppresses record-open audio for keyboard and programmatic list changes. */
     private boolean suppressRecordSelectionSound;
     /** Arrow key currently driving repeated master-list navigation, or -1. */
@@ -148,6 +166,11 @@ public abstract class EditorScreenBase<D> implements Screen {
         this.stage.addActor(root);
 
         this.masterList = new HoverList<>(skin);
+        this.masterListContent = new Table(skin);
+        this.masterListContent.top();
+        this.stickySectionHeaders = new Table(skin);
+        this.stickySectionHeaders.top();
+        this.stickySectionHeaders.setTouchable(Touchable.childrenOnly);
         buildChrome();
         wireInput();
     }
@@ -177,6 +200,12 @@ public abstract class EditorScreenBase<D> implements Screen {
 
     /** Human-readable list label for a record. */
     protected abstract String listLabel(D record);
+
+    /** Ordered record sections. An empty list keeps the traditional flat master list. */
+    protected List<String> recordSections() { return List.of(); }
+
+    /** Section name for a record when {@link #recordSections()} is non-empty. */
+    protected String recordSection(D record) { return null; }
 
     /**
      * Build the detail form Actor for the current draft. Called every time the
@@ -272,12 +301,16 @@ public abstract class EditorScreenBase<D> implements Screen {
         });
         left.add(searchField).growX().padBottom(PAD).row();
 
-        masterList.getSelection().setRequired(false);
-        masterList.getSelection().setMultiple(false);
-        masterScroll = new AxisLockedScrollPane(masterList, skin);
+        configureMasterRecordList(masterList);
+        masterListContent.add(masterList).growX().top();
+        masterScroll = new AxisLockedScrollPane(masterListContent, skin);
         masterScroll.setFadeScrollBars(false);
         masterScroll.setScrollingDisabled(true, false);
-        left.add(masterScroll).grow();
+
+        Stack masterStack = new Stack();
+        masterStack.add(masterScroll);
+        masterStack.add(stickySectionHeaders);
+        left.add(masterStack).grow();
 
         masterColumn = body.add(left).width(Gdx.graphics.getWidth() * LIST_W_FRAC).growY();
 
@@ -334,21 +367,7 @@ public abstract class EditorScreenBase<D> implements Screen {
     }
 
     private void wireInput() {
-        // Resolve the visible index through its parallel ID list because search
-        // filtering/sorting and duplicate labels make raw record indices unsafe.
-        masterList.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
-                int pickedIndex = masterList.getSelectedIndex();
-                if (pickedIndex < 0 || pickedIndex >= visibleRecordIds.size()) return;
-                String pickedId = visibleRecordIds.get(pickedIndex);
-                for (int i = 0; i < records.size(); i++) {
-                    if (Objects.equals(idOf(records.get(i)), pickedId)) {
-                        selectRecord(i);
-                        break;
-                    }
-                }
-            }
-        });
+        wireMasterRecordList(masterList);
         // Arrow-key navigation of the list (with focus), plus global hotkeys.
         //
         // Registered as a CAPTURE listener so it runs before LibGDX's stock
@@ -379,7 +398,7 @@ public abstract class EditorScreenBase<D> implements Screen {
                     return true;
                 }
                 Actor keyboardFocus = stage.getKeyboardFocus();
-                if (keyboardFocus != null && keyboardFocus != masterList) return false;
+                if (keyboardFocus != null && !masterRecordLists.contains(keyboardFocus)) return false;
                 if (keycode == Input.Keys.UP || keycode == Input.Keys.DOWN) {
                     // Desktop backends may emit keyDown repeatedly while a key is held.
                     // Drive repetition from render() instead so the cadence is consistent.
@@ -391,6 +410,23 @@ public abstract class EditorScreenBase<D> implements Screen {
                     if (nudgeSelection(direction)) game.audio().play(SoundCue.UI_NAVIGATE);
                     heldRecordKey = keycode;
                     recordKeyRepeatTimer = RECORD_KEY_REPEAT_DELAY;
+                    event.cancel();
+                    return true;
+                }
+                if (keycode == Input.Keys.HOME || keycode == Input.Keys.END) {
+                    int current = selectedVisibleRecordIndex();
+                    int target = keycode == Input.Keys.HOME ? 0 : visibleRecordIds.size() - 1;
+                    if (target >= 0 && target != current) {
+                        suppressRecordSelectionSound = true;
+                        try {
+                            selectVisibleRecordIndex(target);
+                        } finally {
+                            suppressRecordSelectionSound = false;
+                        }
+                        int selected = selectedVisibleRecordIndex();
+                        if (selected >= 0) scrollMasterListTo(selected);
+                        if (selected != current) game.audio().play(SoundCue.UI_NAVIGATE);
+                    }
                     event.cancel();
                     return true;
                 }
@@ -428,7 +464,8 @@ public abstract class EditorScreenBase<D> implements Screen {
     private void repeatHeldRecordKey(float delta) {
         if (heldRecordKey == -1) return;
         Actor keyboardFocus = stage.getKeyboardFocus();
-        if (topmostDialog() != null || (keyboardFocus != null && keyboardFocus != masterList)) {
+        if (topmostDialog() != null
+            || (keyboardFocus != null && !masterRecordLists.contains(keyboardFocus))) {
             stopRecordKeyRepeat();
             return;
         }
@@ -461,9 +498,9 @@ public abstract class EditorScreenBase<D> implements Screen {
         Gdx.input.setInputProcessor(stage);
         try {
             reloadRecords();
-            refreshMasterList();
             selectedIndex = -1;
             draft = null;
+            refreshMasterList();
             rebuildDetail();
             updateActionState();
             setStatus("", false);
@@ -479,6 +516,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
         repeatHeldRecordKey(delta);
         stage.act(delta);
+        updateStickySectionHeaders();
         stage.draw();
     }
 
@@ -532,8 +570,8 @@ public abstract class EditorScreenBase<D> implements Screen {
     /**
      * Rebuild the master list from {@link #records}, honouring the search box.
      *
-     * Items are sorted alphabetically by their display label after applying an
-     * optional search query.
+     * Items are sorted alphabetically by their display label within each section
+     * after applying an optional search query.
      */
     protected void refreshMasterList() {
         String q = searchField.getText().trim().toLowerCase();
@@ -546,43 +584,306 @@ public abstract class EditorScreenBase<D> implements Screen {
         }
         visibleRecords.sort((a, b) ->
             String.CASE_INSENSITIVE_ORDER.compare(listLabel(a), listLabel(b)));
-        visibleRecordIds.clear();
-        visibleRecords.forEach(record -> visibleRecordIds.add(idOf(record)));
-        suppressRecordSelectionSound = true;
+
+        String selectedId = selectedIndex >= 0 && selectedIndex < records.size()
+            ? idOf(records.get(selectedIndex)) : null;
+        suppressMasterListEvents = true;
         try {
-            masterList.setItems(visibleRecords.stream()
-                .map(this::listLabel).toArray(String[]::new));
+            visibleRecordIds.clear();
+            masterRecordLists.clear();
+            recordIdsByList.clear();
+            masterSectionViews.clear();
+            masterListContent.clearChildren();
+
+            List<String> sections = recordSections();
+            if (sections.isEmpty()) {
+                List<String> ids = visibleRecords.stream().map(this::idOf).toList();
+                masterList.setItems(visibleRecords.stream()
+                    .map(this::listLabel).toArray(String[]::new));
+                masterListContent.add(masterList).growX().top();
+                masterRecordLists.add(masterList);
+                recordIdsByList.put(masterList, ids);
+                visibleRecordIds.addAll(ids);
+            } else {
+                Map<String, List<D>> recordsBySection = new LinkedHashMap<>();
+                for (String section : sections) {
+                    recordsBySection.put(section, new ArrayList<>());
+                    collapsedRecordSections.putIfAbsent(section, false);
+                }
+                for (D record : visibleRecords) {
+                    List<D> sectionRecords = recordsBySection.get(recordSection(record));
+                    if (sectionRecords != null) sectionRecords.add(record);
+                }
+
+                for (String section : sections) {
+                    Table header = createRecordSectionHeader(section);
+                    masterListContent.add(header).growX().row();
+                    masterSectionViews.add(new MasterSectionView(section, header));
+
+                    if (Boolean.TRUE.equals(collapsedRecordSections.get(section))) continue;
+                    List<D> sectionRecords = recordsBySection.get(section);
+                    List<String> ids = sectionRecords.stream().map(this::idOf).toList();
+                    HoverList<String> list = new HoverList<>(skin);
+                    configureMasterRecordList(list);
+                    wireMasterRecordList(list);
+                    list.setItems(sectionRecords.stream()
+                        .map(this::listLabel).toArray(String[]::new));
+                    masterListContent.add(list).growX().top().row();
+                    masterRecordLists.add(list);
+                    recordIdsByList.put(list, ids);
+                    visibleRecordIds.addAll(ids);
+                }
+            }
+            selectVisibleRecord(selectedId);
         } finally {
-            suppressRecordSelectionSound = false;
+            suppressMasterListEvents = false;
         }
+        renderedStickySections = List.of();
+        masterListContent.invalidateHierarchy();
     }
 
     /** Move the master-list selection by delta, scrolling as needed. */
     private boolean nudgeSelection(int delta) {
-        int itemCount = masterList.getItems().size;
+        int itemCount = visibleRecordIds.size();
         if (itemCount == 0) return false;
-        int current = masterList.getSelectedIndex();
+        int current = selectedVisibleRecordIndex();
         int idx = current < 0 ? (delta > 0 ? 0 : itemCount - 1)
                               : Math.floorMod(current + delta, itemCount);
         suppressRecordSelectionSound = true;
         try {
-            masterList.setSelectedIndex(idx);
+            selectVisibleRecordIndex(idx);
         } finally {
             suppressRecordSelectionSound = false;
         }
-        scrollMasterListTo(idx);
-        return idx != current;
+        int selected = selectedVisibleRecordIndex();
+        if (selected >= 0) scrollMasterListTo(selected);
+        return selected != current;
     }
 
     /** Keeps keyboard-selected records visible within the master-list scroll pane. */
     private void scrollMasterListTo(int index) {
+        if (index < 0 || index >= visibleRecordIds.size()) return;
+        String id = visibleRecordIds.get(index);
+        HoverList<String> target = null;
+        int localIndex = -1;
+        for (HoverList<String> list : masterRecordLists) {
+            int found = recordIdsByList.getOrDefault(list, List.of()).indexOf(id);
+            if (found >= 0) {
+                target = list;
+                localIndex = found;
+                break;
+            }
+        }
+        if (target == null) return;
+
         masterScroll.validate();
-        float itemHeight = masterList.getItemHeight();
+        masterListContent.validate();
+        float itemHeight = target.getItemHeight();
         if (itemHeight <= 0f) return;
-        float y = masterList.getHeight() - (index + 1) * itemHeight;
-        masterScroll.scrollTo(0f, y, masterList.getWidth(), itemHeight);
+        float y = target.getHeight() - (localIndex + 1) * itemHeight;
+        Vector2 position = target.localToAscendantCoordinates(
+            masterListContent, new Vector2(0f, y));
+        masterScroll.scrollTo(0f, position.y, target.getWidth(), itemHeight);
+        masterScroll.updateVisualScroll();
+
+        float rowTopFromContentTop = masterListContent.getHeight()
+            - position.y - itemHeight;
+        // ScrollPane does not know about the pinned overlay. If it aligned a row
+        // with the physical top, move it back below the accumulated headers.
+        for (int attempt = 0; attempt < 2; attempt++) {
+            float scrollY = masterScroll.getScrollY();
+            float stickyHeight = stickySectionHeightAt(scrollY);
+            if (rowTopFromContentTop >= scrollY + stickyHeight) break;
+            masterScroll.setScrollY(Math.max(0f, rowTopFromContentTop - stickyHeight));
+        }
         masterScroll.updateVisualScroll();
     }
+
+    private void configureMasterRecordList(HoverList<String> list) {
+        list.getSelection().setRequired(false);
+        list.getSelection().setMultiple(false);
+    }
+
+    /** Resolve list-local selections through record IDs so duplicate labels stay safe. */
+    private void wireMasterRecordList(HoverList<String> list) {
+        list.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                if (suppressMasterListEvents) return;
+                int pickedIndex = list.getSelectedIndex();
+                List<String> ids = recordIdsByList.getOrDefault(list, List.of());
+                if (pickedIndex < 0 || pickedIndex >= ids.size()) return;
+
+                suppressMasterListEvents = true;
+                try {
+                    for (HoverList<String> other : masterRecordLists) {
+                        if (other != list) other.getSelection().clear();
+                    }
+                } finally {
+                    suppressMasterListEvents = false;
+                }
+
+                String pickedId = ids.get(pickedIndex);
+                for (int i = 0; i < records.size(); i++) {
+                    if (Objects.equals(idOf(records.get(i)), pickedId)) {
+                        selectRecord(i);
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    private int selectedVisibleRecordIndex() {
+        for (HoverList<String> list : masterRecordLists) {
+            int localIndex = list.getSelectedIndex();
+            List<String> ids = recordIdsByList.getOrDefault(list, List.of());
+            if (localIndex >= 0 && localIndex < ids.size()) {
+                return visibleRecordIds.indexOf(ids.get(localIndex));
+            }
+        }
+        return -1;
+    }
+
+    private void selectVisibleRecordIndex(int index) {
+        if (index < 0 || index >= visibleRecordIds.size()) return;
+        String id = visibleRecordIds.get(index);
+        suppressMasterListEvents = true;
+        HoverList<String> target = null;
+        int localIndex = -1;
+        try {
+            for (HoverList<String> list : masterRecordLists) {
+                List<String> ids = recordIdsByList.getOrDefault(list, List.of());
+                int found = ids.indexOf(id);
+                if (found >= 0) {
+                    target = list;
+                    localIndex = found;
+                }
+                list.getSelection().clear();
+            }
+        } finally {
+            suppressMasterListEvents = false;
+        }
+        if (target != null) target.setSelectedIndex(localIndex);
+    }
+
+    private void selectVisibleRecord(String id) {
+        boolean wasSuppressed = suppressMasterListEvents;
+        suppressMasterListEvents = true;
+        try {
+            for (HoverList<String> list : masterRecordLists) {
+                List<String> ids = recordIdsByList.getOrDefault(list, List.of());
+                int localIndex = id == null ? -1 : ids.indexOf(id);
+                if (localIndex >= 0) list.setSelectedIndex(localIndex);
+                else list.getSelection().clear();
+            }
+        } finally {
+            suppressMasterListEvents = wasSuppressed;
+        }
+    }
+
+    private Table createRecordSectionHeader(String section) {
+        Table header = new Table(skin);
+        header.setBackground(skin.getDrawable("battle-header"));
+        // The header itself remains touchable so clicks cannot reach rows hidden
+        // beneath a pinned copy. Route wheel input to its sibling ScrollPane.
+        header.setTouchable(Touchable.enabled);
+        header.addListener(new InputListener() {
+            @Override public boolean scrolled(
+                InputEvent event, float x, float y, float amountX, float amountY
+            ) {
+                masterScroll.scrollBy(amountX, amountY);
+                event.cancel();
+                return true;
+            }
+        });
+        header.pad(6f, 10f, 6f, 10f);
+
+        Label title = new Label(section, skin, "white");
+        title.setColor(Color.WHITE);
+        title.setTouchable(Touchable.disabled);
+        header.add(title).left().growX();
+
+        boolean collapsed = Boolean.TRUE.equals(collapsedRecordSections.get(section));
+        TextButton collapseButton = new TextButton(collapsed ? "+" : "-", skin);
+        collapseButton.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                game.audio().play(SoundCue.UI_CONFIRM);
+                toggleRecordSection(section, !collapsed);
+            }
+        });
+        header.add(collapseButton).right().size(24f, 22f);
+        return header;
+    }
+
+    /** Accumulates headers at the top once their original rows scroll past. */
+    private void updateStickySectionHeaders() {
+        if (masterSectionViews.isEmpty()) {
+            if (!renderedStickySections.isEmpty()) stickySectionHeaders.clearChildren();
+            renderedStickySections = List.of();
+            return;
+        }
+
+        masterScroll.validate();
+        masterListContent.validate();
+        Drawable scrollBackground = masterScroll.getStyle().background;
+        float leftInset = scrollBackground == null ? 0f : scrollBackground.getLeftWidth();
+        float rightInset = scrollBackground == null ? 0f : scrollBackground.getRightWidth();
+        float topInset = scrollBackground == null ? 0f : scrollBackground.getTopHeight();
+        if (masterScroll.isScrollY()) rightInset += masterScroll.getScrollBarWidth();
+        if (stickySectionHeaders.getPadLeft() != leftInset
+            || stickySectionHeaders.getPadRight() != rightInset
+            || stickySectionHeaders.getPadTop() != topInset) {
+            stickySectionHeaders.padLeft(leftInset).padRight(rightInset).padTop(topInset);
+        }
+        float scrollY = masterScroll.getVisualScrollY();
+        float stackedHeight = 0f;
+        List<String> sticky = new ArrayList<>();
+        for (MasterSectionView section : masterSectionViews) {
+            Table header = section.header();
+            float topFromContentTop = masterListContent.getHeight()
+                - header.getY() - header.getHeight();
+            if (topFromContentTop - scrollY <= stackedHeight + 0.5f) {
+                sticky.add(section.name());
+                stackedHeight += header.getHeight();
+            }
+        }
+        if (sticky.equals(renderedStickySections)) return;
+
+        renderedStickySections = List.copyOf(sticky);
+        stickySectionHeaders.clearChildren();
+        for (String section : sticky) {
+            stickySectionHeaders.add(createRecordSectionHeader(section)).growX().row();
+        }
+    }
+
+    private float stickySectionHeightAt(float scrollY) {
+        float stackedHeight = 0f;
+        for (MasterSectionView section : masterSectionViews) {
+            Table header = section.header();
+            float topFromContentTop = masterListContent.getHeight()
+                - header.getY() - header.getHeight();
+            if (topFromContentTop - scrollY <= stackedHeight + 0.5f) {
+                stackedHeight += header.getHeight();
+            }
+        }
+        return stackedHeight;
+    }
+
+    private void toggleRecordSection(String section, boolean collapsed) {
+        float scrollY = masterScroll.getScrollY();
+        collapsedRecordSections.put(section, collapsed);
+        refreshMasterList();
+        masterScroll.invalidateHierarchy();
+        masterScroll.validate();
+        masterScroll.setScrollY(Math.min(scrollY, masterScroll.getMaxY()));
+        masterScroll.updateVisualScroll();
+        if (!collapsed && selectedIndex >= 0 && selectedIndex < records.size()) {
+            int visibleIndex = visibleRecordIds.indexOf(idOf(records.get(selectedIndex)));
+            if (visibleIndex >= 0) scrollMasterListTo(visibleIndex);
+        }
+    }
+
+    private record MasterSectionView(String name, Table header) {}
 
     // =========================================================================
     // Selection / draft management
@@ -592,6 +893,9 @@ public abstract class EditorScreenBase<D> implements Screen {
     protected void selectRecord(int idx) {
         if (idx < 0 || idx >= records.size()) return;
         if (dirty) {
+            String currentId = selectedIndex >= 0 && selectedIndex < records.size()
+                ? idOf(records.get(selectedIndex)) : null;
+            selectVisibleRecord(currentId);
             if (!suppressRecordSelectionSound) game.audio().play(SoundCue.UI_CONFIRM);
             confirmDiscard(() -> doSelect(idx, false));
             return;
@@ -605,12 +909,16 @@ public abstract class EditorScreenBase<D> implements Screen {
 
     private void doSelect(int idx, boolean playSound) {
         selectedIndex = idx;
+        String selectedId = idOf(records.get(idx));
+        selectVisibleRecord(selectedId);
         draft = draftFromRecord(records.get(idx));
         suppressDirty = true;
         rebuildDetail();
         suppressDirty = false;
         clearDirty();
         setStatus("", false);
+        int visibleIndex = visibleRecordIds.indexOf(selectedId);
+        if (visibleIndex >= 0) scrollMasterListTo(visibleIndex);
         if (playSound) game.audio().play(SoundCue.UI_CONFIRM);
     }
 
@@ -624,7 +932,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         draft = newDraft();
         stampNewId(draft);
         selectedIndex = -1;
-        masterList.getSelection().clear();
+        selectVisibleRecord(null);
         suppressDirty = true;
         rebuildDetail();
         suppressDirty = false;
@@ -643,7 +951,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         // engine validation pass and lets the form show the prospective id.
         stampNewId(draft);
         selectedIndex = -1;
-        masterList.getSelection().clear();
+        selectVisibleRecord(null);
         suppressDirty = true;
         rebuildDetail();
         suppressDirty = false;
@@ -670,9 +978,9 @@ public abstract class EditorScreenBase<D> implements Screen {
                 game.audio().play(SoundCue.UI_DELETE);
                 try {
                     reloadRecords();
-                    refreshMasterList();
                     selectedIndex = -1;
                     draft = null;
+                    refreshMasterList();
                     rebuildDetail();
                     clearDirty();
                     setStatus("Deleted.", false);
@@ -731,7 +1039,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         if (r.isOk()) {
             try {
                 // Clear dirty BEFORE reselecting so the programmatic
-                // masterList.setSelectedIndex(i) below doesn't trip the
+                // selecting the saved row below doesn't trip the
                 // "discard changes?" guard in selectRecord() — we just saved,
                 // so there is nothing to discard.
                 clearDirty();
@@ -748,8 +1056,11 @@ public abstract class EditorScreenBase<D> implements Screen {
                         int visibleIndex = visibleRecordIds.indexOf(idOf(records.get(i)));
                         suppressRecordSelectionSound = true;
                         try {
-                            if (visibleIndex >= 0) masterList.setSelectedIndex(visibleIndex);
-                            else masterList.getSelection().clear();
+                            if (visibleIndex >= 0) {
+                                selectVisibleRecordIndex(visibleIndex);
+                                scrollMasterListTo(visibleIndex);
+                            }
+                            else selectVisibleRecord(null);
                         } finally {
                             suppressRecordSelectionSound = false;
                         }

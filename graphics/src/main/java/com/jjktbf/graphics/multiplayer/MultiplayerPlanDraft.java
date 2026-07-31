@@ -46,11 +46,25 @@ public final class MultiplayerPlanDraft {
     private int ceBudget;
     private int apUsed;
     private int ceUsed;
+    /**
+     * Battle-wide timeline grid length (dot count) for the current round, from
+     * the stronger fighter's AP tier. Bounds placement validation so the
+     * client preview matches the server's authoritative tier length.
+     */
+    private int gridLength = BattlePlan.GRID_LENGTH;
 
     /** Clears intent only when a different authoritative round is observed. */
     public boolean beginRound(int roundNumber, int apBudget, int ceBudget) {
+        return beginRound(roundNumber, apBudget, ceBudget, BattlePlan.GRID_LENGTH);
+    }
+
+    /** Overload carrying the battle-wide grid length (stronger fighter's tier). */
+    public boolean beginRound(int roundNumber, int apBudget, int ceBudget, int gridLength) {
         if (roundNumber < 0 || apBudget < 0 || ceBudget < 0) {
             throw new IllegalArgumentException("Round and budgets must not be negative");
+        }
+        if (gridLength < 1) {
+            throw new IllegalArgumentException("Grid length must be positive");
         }
         boolean changed = this.roundNumber != roundNumber;
         if (changed) {
@@ -61,6 +75,7 @@ public final class MultiplayerPlanDraft {
         this.roundNumber = roundNumber;
         this.apBudget = apBudget;
         this.ceBudget = ceBudget;
+        this.gridLength = gridLength;
         return changed;
     }
 
@@ -185,13 +200,14 @@ public final class MultiplayerPlanDraft {
             && move.effectiveCeCost() >= 0;
     }
 
-    static int lastStartTick(MoveState move) {
-        long occupancyLastStart = (long) BattlePlan.GRID_LENGTH - move.apCost() + 1L;
+    /** Latest start tick at which {@code move} fits within this round's battle grid. */
+    int lastStartTick(MoveState move) {
+        long occupancyLastStart = (long) gridLength - move.apCost() + 1L;
         int maxDelay = move.hitComponents().stream()
             .mapToInt(component -> component.delayTicks())
             .max()
             .orElse(0);
-        long impactLastStart = (long) BattlePlan.GRID_LENGTH - move.unleashPoint() + 1L
+        long impactLastStart = (long) gridLength - move.unleashPoint() + 1L
             - maxDelay;
         long lastStart = Math.min(occupancyLastStart, impactLastStart);
         return lastStart < 1L ? 0 : (int) lastStart;

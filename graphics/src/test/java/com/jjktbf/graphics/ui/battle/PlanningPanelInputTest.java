@@ -39,7 +39,10 @@ class PlanningPanelInputTest {
     @Test
     void clickingCardDoesNothingWhenItsTimelineHasNoFreeRange() {
         Move cardMove = move("FULL", 150);
-        PlanningPanel panel = panel(cardMove, 300);
+        // A 150-dot grid is exactly filled by one 150-AP move, so a second
+        // placement is rejected by the grid (no free range) even though AP
+        // would still allow it.
+        PlanningPanel panel = panel(cardMove, 300, 150);
 
         clickCard(panel.inputProcessor());
         clickCard(panel.inputProcessor());
@@ -51,7 +54,9 @@ class PlanningPanelInputTest {
     @Test
     void rightClickingSegmentRemovesItAndRefundsItsBudget() {
         Move move = move("REMOVE", 10);
-        PlanningPanel panel = panel(move, 150);
+        // Top-tier grid keeps the bar at full width so the fixed click
+        // coordinates land on the placed segment.
+        PlanningPanel panel = panel(move, 150, 300);
         assertNotNull(panel.getPlan().place(move, 1, 0));
         List<SoundCue> cues = new ArrayList<>();
         panel.setSoundPlayer(cues::add);
@@ -79,7 +84,9 @@ class PlanningPanelInputTest {
     @Test
     void dragStartsOnlyAfterThresholdAndThenEmitsPickupBeforePlacement() {
         Move move = move("DRAG", 10);
-        PlanningPanel panel = panel(move, 150);
+        // Top-tier grid keeps the bar at full width so the fixed drag
+        // coordinates land on the timeline.
+        PlanningPanel panel = panel(move, 150, 300);
         List<SoundCue> cues = new ArrayList<>();
         panel.setSoundPlayer(cues::add);
         PlanningPanel.PlanningInputProcessor input = panel.inputProcessor();
@@ -151,8 +158,18 @@ class PlanningPanelInputTest {
     }
 
     private static PlanningPanel panel(Move move, int apBudget) {
+        return panel(move, apBudget, apBudget);
+    }
+
+    /**
+     * Builds a panel with an explicit battle grid length. The grid controls the
+     * on-screen bar width (it scales with tier), so input-mechanics tests that
+     * click at fixed pixel coordinates pass a top-tier grid (300) to keep the
+     * bar at full width; grid-sensitive tests pass their intended grid.
+     */
+    private static PlanningPanel panel(Move move, int apBudget, int gridLength) {
         return new PlanningPanel(
-            List.of(move), Map.of(move.getId(), 0), apBudget, 0,
+            gridLength, List.of(move), Map.of(move.getId(), 0), apBudget, 0,
             null, null, WIDTH, HEIGHT
         );
     }

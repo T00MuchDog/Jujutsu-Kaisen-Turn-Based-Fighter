@@ -9,8 +9,10 @@ import java.util.List;
  * A combatant's round plan: two action-timeline boards (offensive + defensive)
  * sharing one AP budget and one CE budget.
  *
- * <p><b>Grid.</b> Both timelines are a fixed {@value #GRID_LENGTH}-dot board.
- * Segments are placed freely (gaps allowed) on the dots.
+ * <p><b>Grid.</b> Both timelines share a battle-wide grid length derived from
+ * the strongest fighter's AP tier
+ * ({@link Timeline#gridLengthForStrongestAp}); the default is
+ * {@value #GRID_LENGTH}. Segments are placed freely (gaps allowed) on the dots.
  *
  * <p><b>Budgets.</b> {@code apBudget} (the stat-derived maxApBar, repurposed)
  * caps the total AP that may be placed across <em>both</em> timelines.
@@ -35,8 +37,8 @@ public class BattlePlan {
     /** Which board a segment lives on. */
     public enum Board { OFFENSIVE, DEFENSIVE }
 
-    private final Timeline offensive = new Timeline(GRID_LENGTH);
-    private final Timeline defensive = new Timeline(GRID_LENGTH);
+    private final Timeline offensive;
+    private final Timeline defensive;
 
     private final int apBudget;
     private final int ceBudget;
@@ -44,9 +46,26 @@ public class BattlePlan {
     private int apUsed = 0;
     private int ceUsed = 0;
 
+    /**
+     * Builds a plan whose timeline grid length is derived from the owner's
+     * AP budget's tier (see {@link Timeline#gridLengthForStrongestAp}). Use
+     * {@link #BattlePlan(int, int, int)} when the battle-wide length is known
+     * (it is computed from {@code max(player, enemy)} AP).
+     */
     public BattlePlan(int apBudget, int ceBudget) {
+        this(apBudget, ceBudget, Timeline.gridLengthForStrongestAp(apBudget));
+    }
+
+    /**
+     * Builds a plan on an explicit battle-wide grid length. Both timelines use
+     * this length; it should be
+     * {@code Timeline.gridLengthForStrongestAp(max(player, enemy) AP)}.
+     */
+    public BattlePlan(int apBudget, int ceBudget, int gridLength) {
         this.apBudget = apBudget;
         this.ceBudget = ceBudget;
+        this.offensive = new Timeline(gridLength);
+        this.defensive = new Timeline(gridLength);
     }
 
     // -------------------------------------------------------------------------
@@ -128,6 +147,9 @@ public class BattlePlan {
     public Timeline offensiveTimeline() { return offensive; }
     public Timeline defensiveTimeline() { return defensive; }
 
+    /** The battle-wide grid length (dot count) of both timelines. */
+    public int gridLength() { return offensive.getGridLength(); }
+
     public Timeline boardTimeline(Board board) {
         return board == Board.OFFENSIVE ? offensive : defensive;
     }
@@ -145,13 +167,14 @@ public class BattlePlan {
     // -------------------------------------------------------------------------
 
     /**
-     * Merge both boards into a single old-style {@link Timeline} (a 150-wide
-     * grid holding every segment from both boards). This is a stopgap so the
+     * Merge both boards into a single old-style {@link Timeline} (a grid of
+     * this plan's length holding every segment from both boards). This is a
+     * stopgap so the
      * current single-timeline resolver can process a two-board plan while the
      * execution refactor (cross-board ticker) is pending.
      */
     public Timeline toLegacyTimeline() {
-        Timeline merged = new Timeline(GRID_LENGTH);
+        Timeline merged = new Timeline(offensive.getGridLength());
         // Insert each segment directly, bypassing placeAt's no-overlap check.
         // The offensive and defensive boards are independent grids: a defensive
         // segment is intentionally allowed to overlap an offensive one (they

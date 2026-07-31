@@ -321,6 +321,22 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         return r.name == null || r.name.isEmpty() ? "(unnamed)" : r.name;
     }
 
+    @Override protected List<String> recordSections() {
+        return List.of("ATTACK", "DEFENSE", "UTILITY");
+    }
+
+    @Override protected String recordSection(MoveData record) {
+        return moveRecordSection(record);
+    }
+
+    /** Assign multi-purpose legacy data by Attack, then Defense, then Utility priority. */
+    static String moveRecordSection(MoveData record) {
+        List<String> tags = record.tags == null ? List.of() : record.tags;
+        if (tags.contains(MoveTag.ATTACK.name())) return "ATTACK";
+        if (tags.contains(MoveTag.DEFENSIVE.name())) return "DEFENSE";
+        return "UTILITY";
+    }
+
     @Override protected boolean isNewDraft(MoveData draft) {
         return draft.id == null || draft.id.isEmpty()
             || repo.findById(draft.id).isEmpty();

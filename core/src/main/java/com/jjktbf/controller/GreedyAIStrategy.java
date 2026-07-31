@@ -55,7 +55,11 @@ public class GreedyAIStrategy implements AIStrategy {
 
     @Override
     public BattlePlan selectPlan(BattleCombatant ai, BattleCombatant opponent, RandomSource rng) {
-        BattlePlan plan = new BattlePlan(ai.getMaxApBar(), ai.getCurrentCe());
+        // The grid length is a battle-wide property keyed to the stronger
+        // fighter's AP tier; the AI must use the same length as the human's plan.
+        int gridLength = Timeline.gridLengthForStrongestAp(
+            Math.max(ai.getMaxApBar(), opponent.getMaxApBar()));
+        BattlePlan plan = new BattlePlan(ai.getMaxApBar(), ai.getCurrentCe(), gridLength);
         AbilityFlags abilityFlags = ai.getAbilityFlags();
         List<Move> knownMoves = ai.getCharacter().getKnownMoves();
 
