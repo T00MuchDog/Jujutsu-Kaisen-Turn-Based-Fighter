@@ -172,6 +172,15 @@ public class AbilityEffectData {
         return e;
     }
 
+    /** Constrains the maximum character allocation without changing effective combat stats. */
+    public static AbilityEffectData statAllocationMaximum(String stat, int maximum) {
+        AbilityEffectData e = new AbilityEffectData();
+        e.type = AbilityEffectType.STAT_ALLOCATION_MAXIMUM.name();
+        e.stat = stat;
+        e.intValue = maximum;
+        return e;
+    }
+
     public static AbilityEffectData ceCostToMinimum(String moveTag) {
         AbilityEffectData e = new AbilityEffectData();
         e.type    = AbilityEffectType.CE_COST_TO_MINIMUM.name();

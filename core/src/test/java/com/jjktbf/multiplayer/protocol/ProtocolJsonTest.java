@@ -38,6 +38,8 @@ class ProtocolJsonTest {
         assertEquals(205, tree.at("/roundStartCharacterStates/0/currentHp").intValue());
         assertEquals(2, restored.players().get(0).character()
             .knownMoves().get(0).hitComponents().size());
+        assertEquals(1, restored.players().get(0).character()
+            .knownMoves().get(0).moveCap());
         assertEquals(4, tree.at(
             "/players/0/character/knownMoves/0/hitComponents/1/delayTicks").intValue());
         assertEquals(1, restored.recentEvents().get(0).componentIndex());
@@ -183,6 +185,7 @@ class ProtocolJsonTest {
             32,
             10,
             80,
+            1,
             true,
             null
         );

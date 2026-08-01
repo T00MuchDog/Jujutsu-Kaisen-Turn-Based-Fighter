@@ -115,7 +115,9 @@ public abstract class Character extends Entity {
 
         this.type               = type;
         this.baseStats          = baseStats;
-        this.combatStats        = new CombatStats(baseStats);
+        AbilityApplicator.AbilityFlags passiveFlags =
+            AbilityApplicator.apply(baseStats, abilities).flags;
+        this.combatStats        = new CombatStats(baseStats, passiveFlags.jujutsuArtSlots);
         this.innateTechniqueName = innateTechniqueName;
         this.hasWeapon          = hasWeapon;
         Set<String> availableMoveIds = availableMoveIdsOf(abilities);

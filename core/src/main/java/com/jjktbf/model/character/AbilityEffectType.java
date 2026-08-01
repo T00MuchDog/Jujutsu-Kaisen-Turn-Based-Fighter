@@ -61,6 +61,10 @@ public enum AbilityEffectType {
         "Set allocation minimum",
         "Sets the minimum value assignable to one base stat without affecting battle-time stat changes.",
         STAT, INTEGER),
+    STAT_ALLOCATION_MAXIMUM(
+        "Set allocation maximum",
+        "Sets the maximum value assignable to one base stat without affecting battle-time stat changes.",
+        STAT, INTEGER),
     STAT_BONUS_POINTS(
         "Change point budget",
         "Changes the character editor's point-buy budget.",
@@ -135,6 +139,10 @@ public enum AbilityEffectType {
         "Multiply defense",
         "Multiplies the character's effective defense.",
         DECIMAL),
+    DEFENSE_FROM_DURABILITY(
+        "Defense from durability",
+        "Replaces the normal defense formula with scaled Durability multiplied by this value.",
+        DECIMAL),
     MODIFY_AP_BAR(
         "Change AP bar",
         "Adds or subtracts a flat amount from the character's AP bar.",
@@ -147,6 +155,10 @@ public enum AbilityEffectType {
         "Lock own move tag",
         "Prevents this character from selecting moves with one tag.",
         MOVE_SCOPE),
+    SET_JUJUTSU_ART_SLOTS(
+        "Set Jujutsu Art slots",
+        "Overrides the number of Jujutsu Art slots available to the character.",
+        INTEGER),
     COST_CE_PER_ROUND(
         "Round-start CE cost",
         "Drains CE before planning each round. Other passive effects remain active at 0 CE.",
@@ -340,11 +352,13 @@ public enum AbilityEffectType {
             case STAT_MULTIPLY -> effect.doubleValue = 1.10;
             case STAT_DIVIDE -> effect.doubleValue = 2.0;
             case STAT_SET_VALUE -> effect.intValue = CharacterStats.BASELINE;
-            case STAT_ALLOCATION_MINIMUM -> effect.intValue = CharacterStats.BASELINE;
+            case STAT_ALLOCATION_MINIMUM, STAT_ALLOCATION_MAXIMUM ->
+                effect.intValue = CharacterStats.BASELINE;
             case STAT_BONUS_POINTS -> effect.intValue = 10;
             case CE_COST_MULTIPLY, MOVE_ACCURACY_MULTIPLY,
                  OPPONENT_ACCURACY_MULTIPLY, DAMAGE_MULTIPLY, MOVE_BASE_POWER_MULTIPLY,
                  MODIFY_DEFENSE -> effect.doubleValue = 1.10;
+            case DEFENSE_FROM_DURABILITY -> effect.doubleValue = 4.0 / 3.0;
             case MOVE_ACCURACY_ADD, OPPONENT_ACCURACY_ADD -> effect.intValue = 10;
             case BF_CHANCE_ADD -> effect.doubleValue = 0.05;
             case MODIFY_AP_BAR -> effect.intValue = 10;
@@ -356,6 +370,7 @@ public enum AbilityEffectType {
                 effect.magnitude = 10.0;
             }
             case LOCK_MOVE_TAG -> effect.moveTag = MoveTag.PHYSICAL.name();
+            case SET_JUJUTSU_ART_SLOTS -> effect.intValue = 0;
             case COST_CE_PER_ROUND -> effect.intValue = 5;
             case HEAL_HP, RESTORE_CE, DRAIN_CE, DEAL_DIRECT_DAMAGE -> effect.intValue = 10;
             case HEAL_HP_PERCENT, RESTORE_CE_PERCENT, DRAIN_CE_PERCENT,
@@ -590,14 +605,14 @@ public enum AbilityEffectType {
                  MOVE_ACCURACY_ADD, OPPONENT_ACCURACY_ADD,
                   MODIFY_AP_BAR, TEMP_STAT_ADD -> effect.intValue == 0 ? "Enter a non-zero amount." : null;
             case STAT_SET_VALUE, TEMP_STAT_SET_VALUE -> effect.intValue < 0 ? "Stat value cannot be negative." : null;
-            case STAT_ALLOCATION_MINIMUM ->
+            case STAT_ALLOCATION_MINIMUM, STAT_ALLOCATION_MAXIMUM ->
                 effect.intValue < CharacterStats.MIN_STAT || effect.intValue > CharacterStats.MAX_STAT
-                    ? "Allocation minimum must be between " + CharacterStats.MIN_STAT
+                    ? "Allocation bound must be between " + CharacterStats.MIN_STAT
                         + " and " + CharacterStats.MAX_STAT + "."
                     : null;
             case STAT_MULTIPLY, CE_COST_MULTIPLY, MOVE_ACCURACY_MULTIPLY,
                   OPPONENT_ACCURACY_MULTIPLY, DAMAGE_MULTIPLY, MOVE_BASE_POWER_MULTIPLY,
-                  MODIFY_DEFENSE,
+                  MODIFY_DEFENSE, DEFENSE_FROM_DURABILITY,
                   TEMP_STAT_MULTIPLY, BATTLE_STAT_MULTIPLY ->
                 effect.doubleValue <= 0 || effect.doubleValue == 1.0
                     ? "Enter a positive multiplier other than 1.0." : null;
@@ -610,6 +625,10 @@ public enum AbilityEffectType {
                 ? "Enter a non-zero status magnitude." : null;
             case COST_CE_PER_ROUND -> effect.intValue <= 0
                 ? "Round-start CE cost must be greater than 0." : null;
+            case SET_JUJUTSU_ART_SLOTS -> effect.intValue < 0
+                || effect.intValue > CombatStats.MAX_ART_SLOTS
+                ? "Jujutsu Art slots must be between 0 and "
+                    + CombatStats.MAX_ART_SLOTS + "." : null;
             case HEAL_HP, RESTORE_CE, DRAIN_CE, DEAL_DIRECT_DAMAGE, DAMAGE_SHIELD ->
                 effect.intValue <= 0 ? "Amount must be greater than 0." : null;
             case HEAL_HP_PERCENT, RESTORE_CE_PERCENT, DRAIN_CE_PERCENT,
@@ -645,7 +664,8 @@ public enum AbilityEffectType {
 
     /** Numeric fields that may derive their value from CTM for this effect row. */
     public Set<String> masteryProgressionFields(AbilityEffectData effect) {
-        if (this == STAT_ALLOCATION_MINIMUM || this == STAT_BONUS_POINTS) return Set.of();
+        if (this == STAT_ALLOCATION_MINIMUM || this == STAT_ALLOCATION_MAXIMUM
+            || this == STAT_BONUS_POINTS || this == SET_JUJUTSU_ART_SLOTS) return Set.of();
         Set<String> fields = new LinkedHashSet<>();
         if (uses(INTEGER)) fields.add(TechniqueMasteryProgressions.INT_VALUE);
         if (uses(DECIMAL)) fields.add(TechniqueMasteryProgressions.DOUBLE_VALUE);
@@ -669,10 +689,11 @@ public enum AbilityEffectType {
     /** True for effects resolved while a passive ability is assigned. */
     public boolean isPassiveOnly() {
         return switch (this) {
-            case STAT_ALLOCATION_MINIMUM, STAT_BONUS_POINTS,
-                 POISON_IMMUNITY, SOUL_AWARE_ATTACKS,
-                 GRANT_MOVE, GRANT_ABILITY, FORCE_MOVE,
-                 UNLOCK_TECHNIQUE, AUTO_STATUS_APPLY -> true;
+            case STAT_ALLOCATION_MINIMUM, STAT_ALLOCATION_MAXIMUM, STAT_BONUS_POINTS,
+                  POISON_IMMUNITY, SOUL_AWARE_ATTACKS,
+                  GRANT_MOVE, GRANT_ABILITY, FORCE_MOVE,
+                  UNLOCK_TECHNIQUE, AUTO_STATUS_APPLY, DEFENSE_FROM_DURABILITY,
+                  SET_JUJUTSU_ART_SLOTS -> true;
             default -> false;
         };
     }

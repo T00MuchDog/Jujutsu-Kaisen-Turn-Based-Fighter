@@ -90,7 +90,7 @@ public class GreedyAIStrategy implements AIStrategy {
             if (stuck.contains(move)) continue;
             if (abilityFlags.lockedMoveTags.stream().anyMatch(move::hasTag)) continue;
             int ceCost = ai.computeMoveCeCost(move);
-            if (plan.fitsBudgets(move, ceCost)) affordable.add(move);
+            if (plan.canPlace(move, ceCost)) affordable.add(move);
         }
         return affordable;
     }

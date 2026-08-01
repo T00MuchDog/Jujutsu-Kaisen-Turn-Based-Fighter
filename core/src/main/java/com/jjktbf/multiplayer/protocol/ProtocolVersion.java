@@ -8,7 +8,7 @@ import java.util.Properties;
 public final class ProtocolVersion {
 
     public static final String GAME_VERSION = loadGameVersion();
-    public static final int PROTOCOL_VERSION = 7;
+    public static final int PROTOCOL_VERSION = 8;
     public static final String STANDARD_RULESET = "STANDARD";
 
     private ProtocolVersion() {

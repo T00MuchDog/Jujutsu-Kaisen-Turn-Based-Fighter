@@ -136,6 +136,24 @@ class MultiplayerPlanDraftTest {
     }
 
     @Test
+    void moveCapDisablesFurtherDraftPlacementsUntilReset() {
+        MultiplayerPlanDraft draft = new MultiplayerPlanDraft();
+        draft.beginRound(1, 30, 0);
+        MoveState capped = new MoveState(
+            "capped", "capped", "Once", "UTILITY", List.of("UTILITY"),
+            PlanBoard.DEFENSIVE, 0, List.of(), 1.0, true,
+            5, 1, false, 0, 0, 0, 0, 1, true, null);
+
+        assertTrue(draft.addFirstFit(capped).added());
+        assertEquals(MultiplayerPlanDraft.AddStatus.MOVE_CAP_REACHED,
+            draft.addFirstFit(capped).status());
+        assertFalse(draft.canAdd(capped));
+
+        draft.clear();
+        assertTrue(draft.canAdd(capped));
+    }
+
+    @Test
     void battleGridLengthScalesPlacementBounds() {
         MultiplayerPlanDraft starter = new MultiplayerPlanDraft();
         starter.beginRound(1, 200, 20, 60);

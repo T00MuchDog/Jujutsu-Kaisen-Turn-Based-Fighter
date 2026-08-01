@@ -45,12 +45,14 @@ public class StatField extends Table {
     private static final float TIER_MARKER_WIDTH = 2f;
 
     private final int rangeMin;
-    private final int max;
+    private final int rangeMax;
     private int effectiveMin;
+    private int effectiveMax;
 
     private final TextField valueField;
     private final Slider slider;
     private final Label minLabel;
+    private final Label maxLabel;
     private final IntConsumer onChange;
     private final Runnable onEdited;
     private boolean suppress = false;
@@ -69,7 +71,8 @@ public class StatField extends Table {
         super(skin);
         this.rangeMin = min;
         this.effectiveMin = min;
-        this.max      = max;
+        this.rangeMax = max;
+        this.effectiveMax = max;
         this.onChange = onChange;
         this.onEdited = onEdited;
 
@@ -79,7 +82,7 @@ public class StatField extends Table {
         minLabel = new Label(String.valueOf(min), skin, "small");
         minLabel.setAlignment(Align.right);
         minLabel.setColor(skin.get("text-dim", Color.class));
-        Label maxLabel = new Label(String.valueOf(max), skin, "small");
+        maxLabel = new Label(String.valueOf(max), skin, "small");
         maxLabel.setColor(skin.get("text-dim", Color.class));
 
         Slider.SliderStyle sliderStyle = skin.get("default-horizontal", Slider.SliderStyle.class);
@@ -207,10 +210,19 @@ public class StatField extends Table {
 
     /** Change the allocation floor without rescaling the slider's tier axis. */
     public void setEffectiveMinimum(int minimum) {
-        effectiveMin = Math.max(rangeMin, Math.min(max, minimum));
+        effectiveMin = Math.max(rangeMin, Math.min(effectiveMax, minimum));
         minLabel.setText(String.valueOf(effectiveMin));
         if ((int) slider.getValue() < effectiveMin) {
             setValueProgrammatic(effectiveMin);
+        }
+    }
+
+    /** Change the allocation ceiling without rescaling the slider's tier axis. */
+    public void setEffectiveMaximum(int maximum) {
+        effectiveMax = Math.max(effectiveMin, Math.min(rangeMax, maximum));
+        maxLabel.setText(String.valueOf(effectiveMax));
+        if ((int) slider.getValue() > effectiveMax) {
+            setValueProgrammatic(effectiveMax);
         }
     }
 
@@ -231,10 +243,10 @@ public class StatField extends Table {
     }
 
     public int getMin() { return effectiveMin; }
-    public int getMax() { return max; }
+    public int getMax() { return effectiveMax; }
 
     private int clamp(int v) {
-        return Math.max(effectiveMin, Math.min(max, v));
+        return Math.max(effectiveMin, Math.min(effectiveMax, v));
     }
 
     /** Header row whose tier scale uses the exact same horizontal geometry as every stat slider. */

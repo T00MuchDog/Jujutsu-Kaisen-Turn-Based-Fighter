@@ -196,6 +196,24 @@ class MoveEditorScreenTest {
     }
 
     @Test
+    void saveCopyPreservesMoveCapAndParryAffectedTags() {
+        MoveData draft = new MoveData();
+        draft.tags = new ArrayList<>(List.of(
+            MoveTag.DEFENSIVE.name(), MoveTag.PHYSICAL.name()));
+        draft.defenseType = DefenseType.PARRY.name();
+        draft.blockAffectedTags = new ArrayList<>(List.of(
+            MoveTag.PHYSICAL.name(), MoveTag.CURSED_ENERGY.name()));
+        draft.moveCap = 1;
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(draft);
+
+        assertEquals(1, saved.moveCap);
+        assertEquals(List.of(MoveTag.PHYSICAL.name(), MoveTag.CURSED_ENERGY.name()),
+            saved.blockAffectedTags);
+        assertNotSame(draft.blockAffectedTags, saved.blockAffectedTags);
+    }
+
+    @Test
     void retaggingUtilityBeforeSaveRestoresSelfEffects() {
         MoveData draft = moveWithAllSectionDetails();
 

@@ -225,13 +225,20 @@ public class CombatStats {
     // -------------------------------------------------------------------------
 
     public CombatStats(CharacterStats cs) {
+        this(cs, null);
+    }
+
+    /** Build derived stats with an optional passive override for Jujutsu Art slots. */
+    public CombatStats(CharacterStats cs, Integer jujutsuArtSlotsOverride) {
         this.maxHp                    = computeMaxHp(cs);
         this.maxApBar                 = computeMaxApBar(cs);
         this.accuracy                 = computeAccuracy(cs);
         this.evasion                  = computeEvasion(cs);
         this.maxCursedEnergy          = computeMaxCursedEnergy(cs);
         this.combatArtsSlots         = computeCombatArtsSlots(cs);
-        this.jujutsuArtsSlots        = computeJujutsuArtsSlots(cs);
+        this.jujutsuArtsSlots        = jujutsuArtSlotsOverride == null
+            ? computeJujutsuArtsSlots(cs)
+            : Math.max(0, Math.min(MAX_ART_SLOTS, jujutsuArtSlotsOverride));
     }
 
     // -------------------------------------------------------------------------

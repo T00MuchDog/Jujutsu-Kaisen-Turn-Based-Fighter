@@ -355,4 +355,87 @@
     "doubleValue" : 0.85
   } ],
   "masteryThreshold" : 0
+}, {
+  "id" : "000015",
+  "name" : "Partially Realised Heavenly Restriction",
+  "flavourText" : "A binding placed upon Maki at birth suppresses her jujutsu potential in exchange for a body that has only begun to realise its inhuman potential.",
+  "mechanicText" : "Grant access to FREAK OF NATURE, JUJUTSU INAPTITUDE, and HEAVENLY BODY.",
+  "category" : "PASSIVE",
+  "sourceType" : "CHARACTER",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "GRANT_ABILITY",
+    "abilityId" : "000009"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "GRANT_ABILITY",
+    "abilityId" : "000016"
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "GRANT_ABILITY",
+    "abilityId" : "000017"
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000016",
+  "name" : "Jujutsu Inaptitude",
+  "flavourText" : "Maki possesses barely enough cursed energy to distinguish her from an ordinary human and cannot shape it into jujutsu of her own.",
+  "mechanicText" : "Cap CURSED ENERGY RESERVES, CURSED ENERGY EFFICIENCY, CURSED ENERGY OUTPUT, and JUJUTSU SKILL at 10. Set JUJUTSU ART slots to 0.",
+  "category" : "PASSIVE",
+  "sourceType" : "ABILITY",
+  "sourceValue" : "000015",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "STAT_ALLOCATION_MAXIMUM",
+    "stat" : "cursedEnergyReserves",
+    "intValue" : 10
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "STAT_ALLOCATION_MAXIMUM",
+    "stat" : "cursedEnergyEfficiency",
+    "intValue" : 10
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "STAT_ALLOCATION_MAXIMUM",
+    "stat" : "cursedEnergyOutput",
+    "intValue" : 10
+  }, {
+    "effectId" : "effect-000003",
+    "type" : "STAT_ALLOCATION_MAXIMUM",
+    "stat" : "jujutsuSkill",
+    "intValue" : 10
+  }, {
+    "effectId" : "effect-000004",
+    "type" : "SET_JUJUTSU_ART_SLOTS",
+    "intValue" : 0
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000017",
+  "name" : "Heavenly Body",
+  "flavourText" : "Without cursed-energy reinforcement, Maki withstands punishment through the exceptional resilience of her own flesh and bone.",
+  "mechanicText" : "Calculate DEFENSE as round(SCALED DURABILITY x 8 / 6), ignoring cursed-energy reinforcement.",
+  "category" : "PASSIVE",
+  "sourceType" : "ABILITY",
+  "sourceValue" : "000015",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "DEFENSE_FROM_DURABILITY",
+    "doubleValue" : 1.3333333333333333
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000018",
+  "name" : "Relentless Training",
+  "flavourText" : "Years of relentless weapon drills and close-quarters training let Maki fight at the summit of grade one through skill alone.",
+  "mechanicText" : "Gain 15 COMBAT ABILITY.",
+  "category" : "PASSIVE",
+  "sourceType" : "CHARACTER",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "STAT_ADD",
+    "stat" : "combatAbility",
+    "intValue" : 15
+  } ],
+  "masteryThreshold" : 0
 } ]

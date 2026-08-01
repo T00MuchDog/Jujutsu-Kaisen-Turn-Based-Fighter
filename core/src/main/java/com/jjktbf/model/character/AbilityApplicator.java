@@ -137,8 +137,15 @@ public final class AbilityApplicator {
                     }
                     case BF_CHANCE_ADD           -> flags.bfChanceBonus    += nvl(eff.doubleValue, 0.0);
                     case MODIFY_DEFENSE          -> flags.defenseMultiplier *= nvl(eff.doubleValue, 1.0);
+                    case DEFENSE_FROM_DURABILITY ->
+                        flags.defenseFromDurabilityMultiplier = nvl(eff.doubleValue, 1.0);
                     case MODIFY_AP_BAR           -> flags.apBarBonus       += nvl(eff.intValue, 0);
                     case COST_CE_PER_ROUND       -> flags.ceCostPerRound   += nvl(eff.intValue, 0);
+                    case SET_JUJUTSU_ART_SLOTS   -> {
+                        int slots = nvl(eff.intValue, 0);
+                        flags.jujutsuArtSlots = flags.jujutsuArtSlots == null
+                            ? slots : Math.min(flags.jujutsuArtSlots, slots);
+                    }
 
                     case GRANT_MOVE -> {
                         if (eff.moveId != null) flags.grantedMoveIds.add(eff.moveId);
@@ -161,7 +168,7 @@ public final class AbilityApplicator {
                         // already in the character's knownMoves list, and UNLOCK_TECHNIQUE
                         // has no combat-time stat or slot side effects.
                     }
-                    case STAT_ALLOCATION_MINIMUM, STAT_BONUS_POINTS -> {
+                    case STAT_ALLOCATION_MINIMUM, STAT_ALLOCATION_MAXIMUM, STAT_BONUS_POINTS -> {
                         /* editor/creator-only — no runtime effect */
                     }
                     case POISON_IMMUNITY -> flags.poisonImmune = true;
@@ -359,6 +366,7 @@ public final class AbilityApplicator {
         public double  damageMultiplier   = 1.0;
         public double  basePowerMultiplier = 1.0;
         public double  defenseMultiplier  = 1.0;
+        public Double  defenseFromDurabilityMultiplier = null;
         public final java.util.List<AbilityEffectData> damageMultiplierEffects = new java.util.ArrayList<>();
         public final java.util.List<AbilityEffectData> basePowerMultiplierEffects = new java.util.ArrayList<>();
 
@@ -367,6 +375,9 @@ public final class AbilityApplicator {
 
         // AP bar
         public int     apBarBonus         = 0;
+
+        // Move pools
+        public Integer jujutsuArtSlots    = null;
 
         // Marker/template mechanics
         public boolean poisonImmune       = false;
@@ -428,8 +439,15 @@ public final class AbilityApplicator {
                 }
                 case BF_CHANCE_ADD -> bfChanceBonus += nvl(effect.doubleValue, 0.0);
                 case MODIFY_DEFENSE -> defenseMultiplier *= nvl(effect.doubleValue, 1.0);
+                case DEFENSE_FROM_DURABILITY ->
+                    defenseFromDurabilityMultiplier = nvl(effect.doubleValue, 1.0);
                 case MODIFY_AP_BAR -> apBarBonus += nvl(effect.intValue, 0);
                 case COST_CE_PER_ROUND -> ceCostPerRound += nvl(effect.intValue, 0);
+                case SET_JUJUTSU_ART_SLOTS -> {
+                    int slots = nvl(effect.intValue, 0);
+                    jujutsuArtSlots = jujutsuArtSlots == null
+                        ? slots : Math.min(jujutsuArtSlots, slots);
+                }
                 case GRANT_MOVE -> { if (effect.moveId != null) grantedMoveIds.add(effect.moveId); }
                 case GRANT_ABILITY -> { }
                 case FORCE_MOVE -> { if (effect.moveId != null) forcedMoveIds.add(effect.moveId); }
@@ -453,8 +471,10 @@ public final class AbilityApplicator {
             copy.damageMultiplier = damageMultiplier;
             copy.basePowerMultiplier = basePowerMultiplier;
             copy.defenseMultiplier = defenseMultiplier;
+            copy.defenseFromDurabilityMultiplier = defenseFromDurabilityMultiplier;
             copy.bfChanceBonus = bfChanceBonus;
             copy.apBarBonus = apBarBonus;
+            copy.jujutsuArtSlots = jujutsuArtSlots;
             copy.poisonImmune = poisonImmune;
             copy.soulAwareAttacks = soulAwareAttacks;
             copy.ceCostToMinimumEffects.addAll(ceCostToMinimumEffects);
@@ -541,7 +561,9 @@ public final class AbilityApplicator {
                 || accuracyBonus != 0 || accuracyMultiplier != 1.0
                 || opponentAccuracyBonus != 0 || opponentAccuracyMultiplier != 1.0
                 || damageMultiplier != 1.0 || basePowerMultiplier != 1.0 || defenseMultiplier != 1.0
+                || defenseFromDurabilityMultiplier != null
                 || bfChanceBonus != 0.0 || apBarBonus != 0 || ceCostPerRound != 0
+                || jujutsuArtSlots != null
                 || !grantedMoveIds.isEmpty() || !forcedMoveIds.isEmpty() || !lockedMoveTags.isEmpty()
                 || !autoStatusEffects.isEmpty();
         }

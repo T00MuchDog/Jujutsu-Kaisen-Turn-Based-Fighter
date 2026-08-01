@@ -131,6 +131,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         m.requiredTechniqueId = null;
         m.isFreeMove = false;
         m.mustBeGranted = false;
+        m.moveCap = 0;
         return m;
     }
 
@@ -195,6 +196,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         d.requiredTechniqueId   = s.requiredTechniqueId;
         d.isFreeMove            = s.isFreeMove;
         d.mustBeGranted         = s.mustBeGranted;
+        d.moveCap               = s.moveCap;
         return d;
     }
 
@@ -773,6 +775,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
         // ── Free-move ───────────────────────────────────────────────────────────
         Table misc = formSection(form, "MISC");
+        misc.add(labelledIntField("Move Cap (uses per round, 0 = unlimited)",
+            d.moveCap, 0, 99999, v -> d.moveCap = v)).growX().row();
+
         CheckBox freeCb = new CheckBox(" Free move (does not consume a slot)", skin);
         freeCb.setChecked(d.isFreeMove);
         freeCb.addListener(new ChangeListener() {
@@ -1388,6 +1393,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         // Potency gates which attacks this parry can stop.
         t.add(labelledIntField("Potency (1–5)", d.potency, 1, 5,
                 v -> { d.potency = v; })).growX().row();
+
+        t.add(new Label("Affected Tags (blank = all)", skin)).padTop(4).row();
+        t.add(buildBlockTagToggles(d)).growX().row();
 
         // Stagger ticks applied to the attacker on a successful non-GUARD_BREAK parry.
         t.add(labelledIntField("Stagger Ticks on Attacker (0 = none)",

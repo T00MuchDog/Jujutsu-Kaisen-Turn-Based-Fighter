@@ -378,6 +378,32 @@ public final class AbilityResolver {
             return statAllocationMinimums().getOrDefault(stat, CharacterStats.MIN_STAT);
         }
 
+        /** Lowest assigned passive allocation ceiling for each stat. */
+        public Map<StatKey, Integer> statAllocationMaximums() {
+            Map<StatKey, Integer> maximums = new java.util.EnumMap<>(StatKey.class);
+            abilities.stream()
+                .filter(AbilityData::isPassive)
+                .filter(ability -> ability.effects != null)
+                .flatMap(ability -> ability.effects.stream())
+                .filter(java.util.Objects::nonNull)
+                .filter(effect -> AbilityEffectType.STAT_ALLOCATION_MAXIMUM.name()
+                    .equalsIgnoreCase(effect.type))
+                .forEach(effect -> {
+                    if (effect.intValue == null) return;
+                    try {
+                        StatKey stat = StatKey.fromString(effect.stat);
+                        maximums.merge(stat, effect.intValue, Math::min);
+                    } catch (IllegalArgumentException ignored) {
+                        // Ability validation reports malformed stat references.
+                    }
+                });
+            return Collections.unmodifiableMap(maximums);
+        }
+
+        public int statAllocationMaximum(StatKey stat) {
+            return statAllocationMaximums().getOrDefault(stat, CharacterStats.MAX_STAT);
+        }
+
         public List<String> lockedMoveTags() {
             return abilities.stream()
                 .filter(AbilityData::isPassive)

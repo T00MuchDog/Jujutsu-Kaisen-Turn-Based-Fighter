@@ -139,6 +139,33 @@ public class ParryDodgeTest {
     }
 
     @Test
+    void parryAffectedTagsUseBlockCoverageRules() {
+        Move physical = attackWithPotency("PHYSICAL", 1);
+        Move cursedEnergy = new Move.Builder("CE")
+            .name("CE")
+            .category(MoveCategory.CURSED_ENERGY)
+            .basePower(100).neverMiss(true).potency(1)
+            .apCost(10).unleashPoint(1).build();
+        Move nonInnate = new Move.Builder("NON_INNATE")
+            .name("NON_INNATE")
+            .category(MoveCategory.NON_INNATE_TECHNIQUE)
+            .basePower(100).neverMiss(true).potency(1)
+            .prerequisites(java.util.Map.of("jujutsuSkill", 0))
+            .apCost(10).unleashPoint(1).build();
+        Move parry = new Move.Builder("TAGGED_PARRY")
+            .name("Tagged Parry")
+            .category(MoveCategory.DEFENSIVE)
+            .defenseType(DefenseType.PARRY)
+            .blockAffectedTags(List.of("PHYSICAL", "CURSED_ENERGY"))
+            .potency(1).apCost(10).unleashPoint(1).build();
+
+        assertTrue(resolve(combatant(physical), combatantWithDefense(parry), physical).isParried());
+        assertTrue(resolve(combatant(cursedEnergy), combatantWithDefense(parry), cursedEnergy).isParried());
+        assertFalse(resolve(
+            combatant(nonInnate), combatantWithDefense(parry), nonInnate).isParried());
+    }
+
+    @Test
     void parryIgnoredWhenAttackPotencyHigher() {
         Move attack = attackWithPotency("ATK", 5);
         Move parry = parry("PARRY", 1, 3);
@@ -260,6 +287,7 @@ public class ParryDodgeTest {
             .category(MoveCategory.DEFENSIVE)
             .defenseType(DefenseType.PARRY)
             .parryStaggerTicks(4)
+            .blockAffectedTags(List.of("PHYSICAL", "CURSED_ENERGY"))
             .potency(2)
             .apCost(10)
             .unleashPoint(1)
@@ -269,12 +297,14 @@ public class ParryDodgeTest {
         assertEquals(DefenseType.PARRY.name(), dto.defenseType);
         assertEquals(4, dto.parryStaggerTicks);
         assertEquals(2, dto.potency);
+        assertEquals(List.of("PHYSICAL", "CURSED_ENERGY"), dto.blockAffectedTags);
         assertTrue(dto.weaponRequired, "weaponRequired should round-trip true for a parry.");
 
         Move restored = dto.toMove();
         assertTrue(restored.isParry());
         assertEquals(4, restored.getParryStaggerTicks());
         assertEquals(2, restored.getPotency());
+        assertEquals(List.of("PHYSICAL", "CURSED_ENERGY"), restored.getBlockAffectedTags());
         assertTrue(restored.isWeaponRequired());
     }
 

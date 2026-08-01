@@ -145,6 +145,7 @@ public class CharacterData {
                 .orElse(false), techniqueRepo);
         validateAbilityAssignments(abilityRepo, resolvedAbilities);
         validateStatAllocationMinimums(resolvedAbilities);
+        validateStatAllocationMaximums(resolvedAbilities);
         List<Ability> abilities = resolvedAbilities.toDomainAbilities();
         validateDirectMoveAssignments(moveRepo, resolvedAbilities.availableMoveIds());
         Set<String> resolvedMoveIds = new LinkedHashSet<>();
@@ -233,6 +234,20 @@ public class CharacterData {
             if (actual < entry.getValue()) {
                 throw new IllegalArgumentException(
                     entry.getKey().label + " must be at least " + entry.getValue()
+                        + " because of an assigned ability (currently " + actual + ")");
+            }
+        }
+    }
+
+    /** Validate editor-only stat ceilings supplied by assigned passive abilities. */
+    public void validateStatAllocationMaximums(AbilityResolver.Result resolved) {
+        if (resolved == null) return;
+        for (Map.Entry<StatKey, Integer> entry
+            : resolved.statAllocationMaximums().entrySet()) {
+            int actual = entry.getKey().get(this);
+            if (actual > entry.getValue()) {
+                throw new IllegalArgumentException(
+                    entry.getKey().label + " must be at most " + entry.getValue()
                         + " because of an assigned ability (currently " + actual + ")");
             }
         }

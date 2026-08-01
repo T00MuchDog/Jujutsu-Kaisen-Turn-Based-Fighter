@@ -50,6 +50,16 @@ class MoveCardViewTest {
     }
 
     @Test
+    void cursedToolCardsUseTheDarkCrimsonWeaponReinforcementPalette() {
+        Move move = moveWithTags(true, "ATTACK", "PHYSICAL", "CURSED_ENERGY");
+        Move swordMove = moveWithTags("ATTACK", "PHYSICAL", "CURSED_ENERGY", "SWORD");
+
+        assertEquals("CURSED TOOL", MoveCardView.typeNameFor(move));
+        assertEquals(new Color(0.545f, 0.000f, 0.000f, 1f), MoveCardView.typeColorFor(move));
+        assertEquals("REINFORCEMENT", MoveCardView.typeNameFor(swordMove));
+    }
+
+    @Test
     void multiHitPowerLabelUsesCombinedPowerAndHitCount() {
         MoveData data = new MoveData();
         data.id = "MULTI_HIT_CARD";
@@ -65,10 +75,15 @@ class MoveCardViewTest {
     }
 
     private static Move moveWithTags(String... tags) {
+        return moveWithTags(false, tags);
+    }
+
+    private static Move moveWithTags(boolean weaponRequired, String... tags) {
         MoveData data = new MoveData();
         data.id = "CARD_TAG_TEST";
         data.name = "Card Tag Test";
         data.tags = List.of(tags);
+        data.weaponRequired = weaponRequired;
         data.apCost = 10;
         data.unleashPoint = 1;
         if (data.tags.contains("NON_INNATE_TECHNIQUE")) {

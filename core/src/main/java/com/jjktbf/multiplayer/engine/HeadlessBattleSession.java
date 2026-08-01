@@ -71,6 +71,7 @@ public final class HeadlessBattleSession {
     private static final String READY_ALREADY_SUBMITTED = "READY_ALREADY_SUBMITTED";
     private static final String INVALID_MOVE = "INVALID_MOVE";
     private static final String MOVE_RESTRICTED = "MOVE_RESTRICTED";
+    private static final String MOVE_CAP_REACHED = "MOVE_CAP_REACHED";
     private static final String INVALID_PLACEMENT = "INVALID_PLACEMENT";
     private static final String INSUFFICIENT_AP = "INSUFFICIENT_AP";
     private static final String INSUFFICIENT_RESOURCE = "INSUFFICIENT_RESOURCE";
@@ -349,6 +350,15 @@ public final class HeadlessBattleSession {
                     commandId,
                     MOVE_RESTRICTED,
                     "Move is currently restricted for this participant.",
+                    index,
+                    move.getId()
+                );
+            }
+            if (!canonicalPlan.hasRemainingUses(move)) {
+                return rejectPlacement(
+                    commandId,
+                    MOVE_CAP_REACHED,
+                    "Move has reached its per-round use cap.",
                     index,
                     move.getId()
                 );
@@ -945,6 +955,7 @@ public final class HeadlessBattleSession {
             effectiveCeCost,
             move.getMinCeCost(),
             move.getMaxCeCost(),
+            move.getMoveCap(),
             !isMoveRestricted(participant, move),
             moveRestrictionReason(participant, move)
         );

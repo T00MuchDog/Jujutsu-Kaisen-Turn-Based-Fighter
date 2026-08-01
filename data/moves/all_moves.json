@@ -28,12 +28,13 @@
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
   "isFreeMove" : true,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000001",
   "name" : "Basic Block",
@@ -69,12 +70,13 @@
   "onParryEffects" : [ ],
   "onDodgeEffects" : [ ],
   "isFreeMove" : true,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "anyBlock" : true
 }, {
   "id" : "000002",
   "name" : "Jab",
@@ -110,12 +112,13 @@
     "speed" : 35
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000003",
   "name" : "Elbow Strike",
@@ -151,12 +154,13 @@
     "combatAbility" : 30
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000004",
   "name" : "Body Blow",
@@ -192,12 +196,13 @@
     "combatAbility" : 35
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000005",
   "name" : "Sweeping Kick",
@@ -233,12 +238,13 @@
     "strength" : 25
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000006",
   "name" : "Knee Strike",
@@ -275,12 +281,13 @@
     "durability" : 20
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000007",
   "name" : "Overhand Punch",
@@ -319,12 +326,13 @@
     "combatAbility" : 45
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000008",
   "name" : "Reinforced Jab",
@@ -367,12 +375,13 @@
     "cursedEnergyEfficiency" : 25
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000009",
   "name" : "Reinforced Elbow",
@@ -411,12 +420,13 @@
     "cursedEnergyEfficiency" : 25
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000010",
   "name" : "Reinforced Knee",
@@ -459,12 +469,13 @@
     "jujutsuSkill" : 20
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000011",
   "name" : "Cursed Energy Burst",
@@ -501,12 +512,13 @@
     "cursedEnergyEfficiency" : 0
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000012",
   "name" : "Cursed Energy Blast",
@@ -546,12 +558,13 @@
     "jujutsuSkill" : 40
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000013",
   "name" : "Deflection",
@@ -593,12 +606,13 @@
     "speed" : 45
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "anyBlock" : true
 }, {
   "id" : "000014",
   "name" : "Reinforced Deflection",
@@ -644,12 +658,13 @@
     "jujutsuSkill" : 20
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "anyBlock" : true
 }, {
   "id" : "000015",
   "name" : "Cross Guard",
@@ -687,12 +702,13 @@
     "combatAbility" : 40
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "anyBlock" : true
 }, {
   "id" : "000016",
   "name" : "Reinforced Cross Guard",
@@ -733,12 +749,13 @@
     "jujutsuSkill" : 20
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "anyBlock" : true
 }, {
   "id" : "000017",
   "name" : "Braced Guard",
@@ -780,12 +797,13 @@
     "combatAbility" : 25
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "anyBlock" : true
 }, {
   "id" : "000018",
   "name" : "Reinforced Braced Guard",
@@ -829,12 +847,13 @@
     "jujutsuSkill" : 20
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "anyBlock" : true
 }, {
   "id" : "000019",
   "name" : "Reinforced Basic Block",
@@ -874,12 +893,13 @@
     "cursedEnergyOutput" : 20
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "anyBlock" : true
 }, {
   "id" : "000020",
   "name" : "Cursed Energy Focus",
@@ -925,20 +945,22 @@
     "cursedEnergyReserves" : 20
   },
   "isFreeMove" : false,
+  "moveCap" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000021",
   "name" : "Cursed Energy Surge",
   "description" : "Gain 15 CURSED ENERGY OUTPUT for 1 round.",
   "tags" : [ "UTILITY", "CURSED_ENERGY" ],
   "basePower" : 0,
+  "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
@@ -965,6 +987,9 @@
     "durationTicks" : 0,
     "magnitude" : 15.0
   } ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedEnergyOutput" : 45,
     "cursedEnergyReserves" : 35,
@@ -972,12 +997,13 @@
     "jujutsuSkill" : 35
   },
   "isFreeMove" : false,
+  "moveCap" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000022",
   "name" : "Miracle Creation",
@@ -1041,12 +1067,13 @@
   },
   "requiredTechniqueId" : "Miracles",
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000023",
   "name" : "Sword Slash",
@@ -1085,12 +1112,13 @@
     "combatAbility" : 35
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000024",
   "name" : "Sword Throw",
@@ -1129,12 +1157,13 @@
     "strength" : 30
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000025",
   "name" : "Ratio Mark",
@@ -1227,12 +1256,13 @@
   },
   "requiredTechniqueId" : "Ratio",
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000026",
   "name" : "Ratio Strike",
@@ -1282,12 +1312,13 @@
   },
   "requiredTechniqueId" : "Ratio",
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000027",
   "name" : "Batto Sword Drawing",
@@ -1329,12 +1360,13 @@
     "speed" : 50
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000028",
   "name" : "Simple Domain",
@@ -1382,12 +1414,13 @@
     "cursedEnergyReserves" : 30
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000029",
   "name" : "Sidestep",
@@ -1426,12 +1459,13 @@
     "combatAbility" : 25
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : true,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000030",
   "name" : "Weapon Parry",
@@ -1455,11 +1489,12 @@
   "defenseType" : "PARRY",
   "blockStyle" : "PERCENTAGE",
   "blockDuration" : 3,
+  "blockAffectedTags" : [ "PHYSICAL" ],
   "blockDamageReduction" : 100,
   "blockFlatReduction" : 0,
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
-  "parryStaggerTicks" : 3,
+  "parryStaggerTicks" : 4,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
   "onBlockEffects" : [ ],
@@ -1471,12 +1506,13 @@
     "combatAbility" : 70
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : true,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000031",
   "name" : "Evasive Dash",
@@ -1515,12 +1551,13 @@
     "combatAbility" : 65
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : true,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000032",
   "name" : "Divergent Fist",
@@ -1580,12 +1617,13 @@
     "cursedEnergyOutput" : 20
   },
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000033",
   "name" : "Broom Swoop",
@@ -1627,12 +1665,13 @@
   },
   "requiredTechniqueId" : "Tool Manipulation",
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : true,
-  "anyBlock" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "anyBlock" : false
 }, {
   "id" : "000034",
   "name" : "Gust of Wind",
@@ -1673,10 +1712,227 @@
   },
   "requiredTechniqueId" : "Tool Manipulation",
   "isFreeMove" : false,
+  "moveCap" : 0,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false,
+  "anyBlock" : false
+}, {
+  "id" : "000035",
+  "name" : "Katana Combination",
+  "description" : "Chain disciplined cuts into a swift PHYSICAL MELEE ATTACK with a SWORD.",
+  "tags" : [ "ATTACK", "MELEE", "SWORD", "PHYSICAL" ],
+  "basePower" : 45,
+  "hitComponents" : [ {
+    "basePower" : 15,
+    "tags" : [ "PHYSICAL" ],
+    "delayTicks" : 0,
+    "requiresPreviousConnection" : false,
+    "avoidable" : true,
+    "baseAccuracy" : 0.93,
+    "onHitEffects" : [ ]
+  }, {
+    "basePower" : 15,
+    "tags" : [ "PHYSICAL" ],
+    "delayTicks" : 0,
+    "requiresPreviousConnection" : false,
+    "avoidable" : true,
+    "baseAccuracy" : -1.0,
+    "onHitEffects" : [ ]
+  }, {
+    "basePower" : 15,
+    "tags" : [ "PHYSICAL" ],
+    "delayTicks" : 0,
+    "requiresPreviousConnection" : false,
+    "avoidable" : true,
+    "baseAccuracy" : -1.0,
+    "onHitEffects" : [ ]
+  } ],
+  "baseAccuracy" : 0.93,
+  "neverMiss" : false,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : true,
+  "apCost" : 14,
+  "unleashPoint" : 4,
+  "baseCeCost" : 0,
+  "hasCeCost" : false,
+  "minCeCost" : 0,
+  "maxCeCost" : 0,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "prerequisites" : {
+    "strength" : 40,
+    "combatAbility" : 80,
+    "speed" : 65
+  },
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "mustBeGranted" : false,
   "percentageBlock" : false,
-  "flatBlock" : false
+  "flatBlock" : false,
+  "parry" : false,
+  "dodge" : false,
+  "anyBlock" : false
+}, {
+  "id" : "000036",
+  "name" : "Cursed Tool Strike",
+  "description" : "Commit to a crushing HEAVY PHYSICAL MELEE ATTACK with a cursed tool.",
+  "tags" : [ "PHYSICAL", "ATTACK", "MELEE", "HEAVY", "CURSED_ENERGY" ],
+  "basePower" : 60,
+  "baseAccuracy" : 0.85,
+  "neverMiss" : false,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : true,
+  "potency" : 2,
+  "weaponRequired" : true,
+  "apCost" : 21,
+  "unleashPoint" : 15,
+  "baseCeCost" : 0,
+  "hasCeCost" : false,
+  "minCeCost" : 0,
+  "maxCeCost" : 0,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "prerequisites" : {
+    "combatAbility" : 80,
+    "durability" : 0,
+    "strength" : 60
+  },
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
+  "parry" : false,
+  "dodge" : false,
+  "anyBlock" : false
+}, {
+  "id" : "000037",
+  "name" : "Cursed Tool Deflection",
+  "description" : "PARRY POTENCY 1 PHYSICAL and CURSED ENERGY attacks for 3 AP ticks, staggering the attacker for 1 AP tick.",
+  "tags" : [ "DEFENSIVE", "PHYSICAL" ],
+  "basePower" : 0,
+  "hitComponents" : [ ],
+  "baseAccuracy" : 1.0,
+  "neverMiss" : true,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : true,
+  "apCost" : 7,
+  "unleashPoint" : 1,
+  "baseCeCost" : 0,
+  "hasCeCost" : false,
+  "minCeCost" : 0,
+  "maxCeCost" : 0,
+  "defenseType" : "PARRY",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 3,
+  "blockAffectedTags" : [ "PHYSICAL", "CURSED_ENERGY" ],
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 1,
+  "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "prerequisites" : {
+    "speed" : 80,
+    "combatAbility" : 120
+  },
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
+  "parry" : true,
+  "dodge" : false,
+  "anyBlock" : false
+}, {
+  "id" : "000038",
+  "name" : "Keen Observation",
+  "description" : "Read the opponent's rhythm to gain 10 ACCURACY and 10 EVASION for 1 round. Usable once per round.",
+  "tags" : [ "PHYSICAL", "UTILITY" ],
+  "basePower" : 0,
+  "hitComponents" : [ ],
+  "baseAccuracy" : 1.0,
+  "neverMiss" : true,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 12,
+  "unleashPoint" : 4,
+  "baseCeCost" : 0,
+  "hasCeCost" : false,
+  "minCeCost" : 0,
+  "maxCeCost" : 0,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "onHitEffects" : [ ],
+  "selfEffects" : [ {
+    "type" : "ACCURACY_INCREASE",
+    "durationRounds" : 1,
+    "durationTicks" : 0,
+    "magnitude" : 10.0
+  }, {
+    "type" : "EVASION_INCREASE",
+    "durationRounds" : 1,
+    "durationTicks" : 0,
+    "magnitude" : 10.0
+  } ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "prerequisites" : {
+    "speed" : 80,
+    "combatAbility" : 100
+  },
+  "isFreeMove" : false,
+  "moveCap" : 1,
+  "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
+  "parry" : false,
+  "dodge" : false,
+  "anyBlock" : false
 } ]

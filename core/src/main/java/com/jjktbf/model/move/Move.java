@@ -149,10 +149,11 @@ public class Move {
     private final int blockDuration;
 
     /**
-     * The full set of damage tags this block can stop (null/empty = all). The
-     * block fires against an incoming attack iff it COVERS every damage tag the
+     * The full set of damage tags this block or parry can stop (null/empty = all).
+     * The defense fires against an incoming attack iff it COVERS every damage tag the
      * attack uses — i.e. the attack's category tags are a subset of this list.
-     * See {@link #coveredByBlockTags(List)}. Applies to {@link DefenseType#BLOCK}.
+     * See {@link #coveredByBlockTags(List)}. Applies to {@link DefenseType#BLOCK}
+     * and {@link DefenseType#PARRY}.
      */
     private final List<String> blockAffectedTags;
 
@@ -217,6 +218,9 @@ public class Move {
     /** If true, this move can only enter a character's pool through an ability grant. */
     private final boolean mustBeGranted;
 
+    /** Maximum times this move may be placed in one round. 0 means unlimited. */
+    private final int moveCap;
+
     // -------------------------------------------------------------------------
     // Construction via Builder
     // -------------------------------------------------------------------------
@@ -261,6 +265,7 @@ public class Move {
         this.requiredTechniqueId = b.requiredTechniqueId;
         this.isFreeMove          = b.isFreeMove;
         this.mustBeGranted       = b.mustBeGranted;
+        this.moveCap             = b.moveCap;
     }
 
     private static Set<MoveTag> immutableTags(Set<MoveTag> source, MoveCategory category) {
@@ -353,6 +358,7 @@ public class Move {
     public String getRequiredTechniqueId()        { return requiredTechniqueId; }
     public boolean isFreeMove()                    { return isFreeMove; }
     public boolean mustBeGranted()                 { return mustBeGranted; }
+    public int getMoveCap()                        { return moveCap; }
 
     public boolean isBlackFlashEligible() {
         return hitComponents.stream().anyMatch(HitComponent::isBlackFlashEligible);
@@ -668,6 +674,7 @@ public class Move {
         private String requiredTechniqueId   = null;
         private boolean isFreeMove           = false;
         private boolean mustBeGranted        = false;
+        private int moveCap                  = 0;
 
         public Builder(String id) { this.id = id; }
 
@@ -718,11 +725,14 @@ public class Move {
         public Builder requiredTechniqueId(String v)       { this.requiredTechniqueId = v; return this; }
         public Builder freeMove(boolean v)                 { this.isFreeMove = v; return this; }
         public Builder mustBeGranted(boolean v)            { this.mustBeGranted = v; return this; }
+        public Builder moveCap(int v)                       { this.moveCap = v; return this; }
 
         public Move build() {
             if (id == null || id.isBlank()) throw new IllegalStateException("Move id is required");
             if (unleashPoint < 1 || unleashPoint > apCost)
                 throw new IllegalStateException("unleashPoint must be in [1, apCost]");
+            if (moveCap < 0)
+                throw new IllegalStateException("moveCap must be non-negative");
 
             validateHitComponents();
 

@@ -180,9 +180,8 @@ public class Timeline {
      * <ul>
      *   <li>{@link com.jjktbf.model.move.DefenseType#BLOCK BLOCK} — uses
      *       {@link Move#coveredByBlockTags(List)} (attack tags ⊆ block tags).</li>
-     *   <li>{@link com.jjktbf.model.move.DefenseType#PARRY PARRY} — parries are
-     *       weapon-based and type-agnostic; any attack with the ATTACK nature
-     *       can be parried.</li>
+     *   <li>{@link com.jjktbf.model.move.DefenseType#PARRY PARRY} — uses the
+     *       same affected-tag coverage as BLOCK.</li>
      *   <li>{@link com.jjktbf.model.move.DefenseType#DODGE DODGE} — uses
      *       {@link Move#dodgeAppliesTo(Move)} (MELEE / RANGED / BOTH scope).</li>
      * </ul>
@@ -221,12 +220,12 @@ public class Timeline {
             if (s.isStunned() || (requireFired && !s.hasFired())
                 || move.getDefenseType() != type) continue;
             if (incomingMove != null) {
-                if (type == com.jjktbf.model.move.DefenseType.BLOCK
+                if ((type == com.jjktbf.model.move.DefenseType.BLOCK
+                        || type == com.jjktbf.model.move.DefenseType.PARRY)
                         && !incomingMove.coveredByBlockTags(
                             move.getBlockAffectedTags(), component)) continue;
                 if (type == com.jjktbf.model.move.DefenseType.DODGE
                         && !move.dodgeAppliesTo(incomingMove)) continue;
-                // PARRY: no tag/scope filter — any attack is parryable.
             }
             int start = s.getFireTick();
             int end = switch (move.getBlockDuration()) {
@@ -249,7 +248,8 @@ public class Timeline {
             if (s.isStunned() || !move.isActiveDefense()) continue;
             if (incomingMove != null) {
                 com.jjktbf.model.move.DefenseType dt = move.getDefenseType();
-                if (dt == com.jjktbf.model.move.DefenseType.BLOCK
+                if ((dt == com.jjktbf.model.move.DefenseType.BLOCK
+                        || dt == com.jjktbf.model.move.DefenseType.PARRY)
                         && !incomingMove.coveredByBlockTags(move.getBlockAffectedTags())) continue;
                 if (dt == com.jjktbf.model.move.DefenseType.DODGE
                         && !move.dodgeAppliesTo(incomingMove)) continue;

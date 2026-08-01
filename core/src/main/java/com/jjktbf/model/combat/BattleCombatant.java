@@ -126,7 +126,8 @@ public class BattleCombatant {
             AbilityApplicator.apply(character.getBaseStats(), abilities);
 
         this.effectiveStats      = result.modifiedStats;
-        this.effectiveCombatStats= new CombatStats(effectiveStats);
+        this.effectiveCombatStats= new CombatStats(
+            effectiveStats, result.flags.jujutsuArtSlots);
         this.abilityFlags        = result.flags;
 
         // HP and CE derived from effective (ability-modified) stats
@@ -815,7 +816,9 @@ public class BattleCombatant {
             .mapToDouble(StatusEffect::getMagnitude)
             .sum();
     }
-    public CombatStats getEffectiveCombatStats()           { return new CombatStats(getEffectiveStats()); }
+    public CombatStats getEffectiveCombatStats() {
+        return new CombatStats(getEffectiveStats(), getAbilityFlags().jujutsuArtSlots);
+    }
     public AbilityApplicator.AbilityFlags getAbilityFlags(){
         AbilityApplicator.AbilityFlags flags = abilityFlags.copy();
         for (RuntimeAbilityEffect runtime : runtimeAbilityEffects) {
@@ -860,12 +863,17 @@ public class BattleCombatant {
      * Uses effective stats (ability-modified) and applies the defense multiplier flag.
      */
     public int computeCurrentDefense(int currentTick) {
-        int baseDefense = CombatStats.computeDefense(
-            getEffectiveStats(),
-            currentCe,
-            getMaxCursedEnergy()
-        );
-        double modified = baseDefense * getAbilityFlags().defenseMultiplier;
+        AbilityApplicator.AbilityFlags flags = getAbilityFlags();
+        int baseDefense = flags.defenseFromDurabilityMultiplier == null
+            ? CombatStats.computeDefense(
+                getEffectiveStats(),
+                currentCe,
+                getMaxCursedEnergy())
+            : (int) Math.round(
+                com.jjktbf.model.character.StatScale.scale(
+                    getEffectiveStats().getDurability())
+                    * flags.defenseFromDurabilityMultiplier);
+        double modified = baseDefense * flags.defenseMultiplier;
         return Math.max(0, (int) Math.round(modifyBattleStat(BattleStatKey.DEFENSE, modified)));
     }
 

@@ -94,6 +94,17 @@ class BattleScreenMoveStateTest {
     }
 
     @Test
+    void moveCapSurvivesOnlineDisplayReconstruction() {
+        MoveState state = new MoveState(
+            "CAPPED", "Capped", "Once", MoveCategory.UTILITY.name(),
+            List.of("PHYSICAL", "UTILITY"), PlanBoard.DEFENSIVE,
+            0, List.of(), 1.0, true, 5, 1, false,
+            0, 0, 0, 0, 1, true, null);
+
+        assertEquals(1, BattleScreen.toDisplayMove(state).getMoveCap());
+    }
+
+    @Test
     void actionTicksSkipGapsAndStunnedSegments() {
         List<ActionSegmentState> segments = List.of(
             actionSegment("FIRST", 1, 2, ActionSegmentStatus.RESOLVED),

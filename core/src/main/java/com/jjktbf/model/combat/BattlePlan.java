@@ -79,10 +79,30 @@ public class BattlePlan {
     public int apBudget()          { return apBudget; }
     public int ceBudget()          { return ceBudget; }
 
-    /** Does this move fit the budgets if placed (CE cost passed in)? */
+    /** Number of times this move is currently placed across both boards. */
+    public int selectedUses(Move move) {
+        if (move == null) return 0;
+        return (int) allSegments().stream()
+            .filter(segment -> move.getId().equals(segment.getMove().getId()))
+            .count();
+    }
+
+    /** Whether this move has another use available under its per-round cap. */
+    public boolean hasRemainingUses(Move move) {
+        return move != null && (move.getMoveCap() == 0
+            || selectedUses(move) < move.getMoveCap());
+    }
+
+    /** Does this move fit the AP and CE budgets? */
     public boolean fitsBudgets(Move move, int ceCost) {
-        return move.getApCost() <= remainingApBudget()
+        return move != null
+            && move.getApCost() <= remainingApBudget()
             && ceCost <= remainingCe();
+    }
+
+    /** Does this move fit the budgets and have a use remaining this round? */
+    public boolean canPlace(Move move, int ceCost) {
+        return hasRemainingUses(move) && fitsBudgets(move, ceCost);
     }
 
     // -------------------------------------------------------------------------
@@ -98,7 +118,7 @@ public class BattlePlan {
      *         (wrong board, out of bounds, overlapping, or over budget).
      */
     public ActionSegment place(Move move, int tick, int ceCost) {
-        if (!fitsBudgets(move, ceCost)) return null;
+        if (!canPlace(move, ceCost)) return null;
         Board board = boardFor(move);
         Timeline tl = boardTimeline(board);
         ActionSegment segment = tl.placeAt(move, tick, ceCost);
@@ -110,7 +130,7 @@ public class BattlePlan {
 
     /** Place at the first free range on the move's board that fits it. */
     public ActionSegment placeFirstFit(Move move, int ceCost) {
-        if (!fitsBudgets(move, ceCost)) return null;
+        if (!canPlace(move, ceCost)) return null;
         Timeline tl = boardTimeline(boardFor(move));
         ActionSegment segment = tl.placeAtFirstFit(move, ceCost);
         if (segment == null) return null;

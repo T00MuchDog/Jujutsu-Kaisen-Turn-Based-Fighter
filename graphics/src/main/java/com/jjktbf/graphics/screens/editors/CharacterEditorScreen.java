@@ -372,7 +372,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                     statFields[StatKey.CURSED_TECHNIQUE_MASTERY.ordinal()]
                         .setValueProgrammatic(0);
                 }
-                refreshAllocationMinimums(cd, true);
+                refreshAllocationBounds(cd, true);
                 refreshBaseStatTotalLabel(cd);
                 refreshDerivedPreview(cd);
                 refreshBudgetLabel(cd);
@@ -426,6 +426,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         boolean hasTechnique = cd.innateTechniqueName != null;
         Map<StatKey, Integer> allocationMinimums =
             resolvedAbilities(cd).statAllocationMinimums();
+        Map<StatKey, Integer> allocationMaximums =
+            resolvedAbilities(cd).statAllocationMaximums();
         for (int i = 0; i < STAT_ORDER.length; i++) {
             StatKey sk = STAT_ORDER[i];
             int statIndex = i;
@@ -433,7 +435,10 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             int fieldMinimum = sk == StatKey.CURSED_TECHNIQUE_MASTERY ? 0 : STAT_MIN;
             int allocationMinimum = locked ? 0
                 : allocationMinimums.getOrDefault(sk, fieldMinimum);
-            int val = Math.max(sk.get(cd), allocationMinimum);
+            int allocationMaximum = locked ? 0
+                : allocationMaximums.getOrDefault(sk, STAT_MAX);
+            int val = Math.max(allocationMinimum,
+                Math.min(allocationMaximum, sk.get(cd)));
             sk.set(cd, val);
             StatField sf = new StatField(sk.label, val, fieldMinimum, STAT_MAX, v -> {
                 lastEditedStatIndex = statIndex;
@@ -448,6 +453,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 markDirty();
             }, () -> lastEditedStatIndex = statIndex, locked, skin);
             sf.setEffectiveMinimum(allocationMinimum);
+            sf.setEffectiveMaximum(allocationMaximum);
             statFields[i] = sf;
             stats.add(sf).growX().colspan(2).row();
         }
@@ -700,10 +706,12 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     /** Apply point-buy mode: reset all stats to baseline, enforce budget. */
     private void applyPointBuy(CharacterData cd) {
         Map<StatKey, Integer> minimums = resolvedAbilities(cd).statAllocationMinimums();
+        Map<StatKey, Integer> maximums = resolvedAbilities(cd).statAllocationMaximums();
         for (StatKey sk : STAT_ORDER) {
             int value = sk == StatKey.CURSED_TECHNIQUE_MASTERY
                 && cd.innateTechniqueName == null ? 0
                 : Math.max(BASELINE, minimums.getOrDefault(sk, STAT_MIN));
+            value = Math.min(value, maximums.getOrDefault(sk, STAT_MAX));
             sk.set(cd, value);
             statFields[sk.ordinal()].setValueProgrammatic(value);
         }
@@ -730,29 +738,33 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         statFields[StatKey.CURSED_TECHNIQUE_MASTERY.ordinal()].setEditable(!locked);
     }
 
-    /** Refresh ability-provided editor floors, optionally raising invalid allocations. */
-    private void refreshAllocationMinimums(CharacterData cd, boolean raiseValues) {
-        Map<StatKey, Integer> minimums = resolvedAbilities(cd).statAllocationMinimums();
+    /** Refresh ability-provided editor bounds, optionally clamping invalid allocations. */
+    private void refreshAllocationBounds(CharacterData cd, boolean clampValues) {
+        AbilityResolver.Result resolved = resolvedAbilities(cd);
+        Map<StatKey, Integer> minimums = resolved.statAllocationMinimums();
+        Map<StatKey, Integer> maximums = resolved.statAllocationMaximums();
         for (StatKey stat : STAT_ORDER) {
             boolean lockedCtm = stat == StatKey.CURSED_TECHNIQUE_MASTERY
                 && cd.innateTechniqueName == null;
             int floor = lockedCtm ? 0 : minimums.getOrDefault(stat, STAT_MIN);
-            if (raiseValues && stat.get(cd) < floor) stat.set(cd, floor);
+            int ceiling = lockedCtm ? 0 : maximums.getOrDefault(stat, STAT_MAX);
+            if (clampValues) stat.set(cd, Math.max(floor, Math.min(ceiling, stat.get(cd))));
             if (statFields != null) {
                 statFields[stat.ordinal()].setEffectiveMinimum(floor);
-                if (raiseValues) statFields[stat.ordinal()].setValueProgrammatic(stat.get(cd));
+                statFields[stat.ordinal()].setEffectiveMaximum(ceiling);
+                if (clampValues) statFields[stat.ordinal()].setValueProgrammatic(stat.get(cd));
             }
         }
     }
 
-    private void raiseAllocationsToMinimums(CharacterData cd) {
-        Map<StatKey, Integer> minimums = resolvedAbilities(cd).statAllocationMinimums();
-        for (Map.Entry<StatKey, Integer> entry : minimums.entrySet()) {
-            if (entry.getKey() == StatKey.CURSED_TECHNIQUE_MASTERY
+    private void clampAllocationsToBounds(CharacterData cd) {
+        AbilityResolver.Result resolved = resolvedAbilities(cd);
+        for (StatKey stat : STAT_ORDER) {
+            if (stat == StatKey.CURSED_TECHNIQUE_MASTERY
                 && cd.innateTechniqueName == null) continue;
-            if (entry.getKey().get(cd) < entry.getValue()) {
-                entry.getKey().set(cd, entry.getValue());
-            }
+            int floor = resolved.statAllocationMinimum(stat);
+            int ceiling = resolved.statAllocationMaximum(stat);
+            stat.set(cd, Math.max(floor, Math.min(ceiling, stat.get(cd))));
         }
     }
 
@@ -793,7 +805,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         try {
             AbilityApplicator.ApplicationResult application = AbilityApplicator.apply(
                 cd.toCharacterStats(), resolvedAbilities(cd).toDomainAbilities());
-            CombatStats cs = new CombatStats(application.modifiedStats);
+            CombatStats cs = new CombatStats(
+                application.modifiedStats, application.flags.jujutsuArtSlots);
             // Compute slot usage per category.
             StringBuilder sb = new StringBuilder();
             sb.append("HP: ").append(cs.getMaxHp());
@@ -806,7 +819,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             sb.append("Phys power: ").append(PowerCalculator.physical(application.modifiedStats));
             sb.append("  |  CE power: ").append(PowerCalculator.cursedEnergyBase(application.modifiedStats));
             sb.append('\n');
-            CombatStats baseCombatStats = cd.toCombatStats();
+            CombatStats baseCombatStats = new CombatStats(
+                cd.toCharacterStats(), application.flags.jujutsuArtSlots);
             sb.append("Base move slots  —  Combat Arts: ").append(baseCombatStats.getCombatArtsSlots());
             sb.append("  |  Jujutsu Arts: ").append(baseCombatStats.getJujutsuArtsSlots());
 
@@ -921,7 +935,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             }
 
             @Override public int learnedLimit(MovePool pool) {
-                return SlotBudgetEnforcer.slotBudgetFor(cd.toCombatStats(), pool);
+                return SlotBudgetEnforcer.slotBudgetFor(combatStatsWithAbilitySlots(cd), pool);
             }
         }, game.audio()::play, skin);
     }
@@ -1000,7 +1014,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (move.isFreeMove) return null;
         try {
             MovePool pool = move.derivedPool();
-            int budget = SlotBudgetEnforcer.slotBudgetFor(character.toCombatStats(), pool);
+            int budget = SlotBudgetEnforcer.slotBudgetFor(
+                combatStatsWithAbilitySlots(character), pool);
             int used = SlotBudgetEnforcer.countUsage(
                 getAssignedMovePoolList(character)).getOrDefault(pool, 0);
             boolean withinBudget = alreadyAssigned ? used <= budget : used < budget;
@@ -1083,7 +1098,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 if (cd.abilityIds == null) cd.abilityIds = new ArrayList<>();
                 if (!cd.abilityIds.contains(id)) cd.abilityIds.add(id);
                 autoEquipGrantedAbilities(cd);
-                refreshAllocationMinimums(cd, true);
+                refreshAllocationBounds(cd, true);
                 markDirty();
                 refreshBaseStatTotalLabel(cd);
                 refreshDerivedPreview(cd);
@@ -1095,7 +1110,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
             @Override public void onUnassign(String id) {
                 if (cd.abilityIds != null) cd.abilityIds.remove(id);
-                refreshAllocationMinimums(cd, false);
+                refreshAllocationBounds(cd, false);
                 markDirty();
                 refreshDerivedPreview(cd);
                 refreshBudgetLabel(cd);
@@ -1115,6 +1130,12 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             technique, moveRepo.getAll(), abilityRepo.getAll()));
         return AbilityResolver.resolve(
             cd, abilityRepo, this::isValidMoveDefinition, techniqueRepo);
+    }
+
+    private CombatStats combatStatsWithAbilitySlots(CharacterData cd) {
+        AbilityApplicator.ApplicationResult application = AbilityApplicator.apply(
+            cd.toCharacterStats(), resolvedAbilities(cd).toDomainAbilities());
+        return new CombatStats(cd.toCharacterStats(), application.flags.jujutsuArtSlots);
     }
 
     /**
@@ -1182,7 +1203,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (probe.abilityIds == null) probe.abilityIds = new ArrayList<>();
         if (!probe.abilityIds.contains(abilityId)) probe.abilityIds.add(abilityId);
         try {
-            raiseAllocationsToMinimums(probe);
+            clampAllocationsToBounds(probe);
             probe.toCharacter(moveRepo, abilityRepo, techniqueRepo);
             return null;
         } catch (Exception ex) {

@@ -413,7 +413,7 @@ public class PlanningPanel {
         for (int i = 0; i < cards.size(); i++) {
             MoveCardView card = cards.get(i);
             Move move = card.getMove();
-            card.setDisabled(!plan.fitsBudgets(move, ceCost(move)));
+            card.setDisabled(!plan.canPlace(move, ceCost(move)));
             card.setHovered(i == hoveredCard);
             card.setDragging(move == draggingMove);
         }
@@ -897,7 +897,7 @@ public class PlanningPanel {
                 }
             }
             draggingTick = availableTick > 0 ? availableTick : requestedTick;
-            snapValid = availableTick > 0 && plan.fitsBudgets(move, ceCost(move));
+            snapValid = availableTick > 0 && plan.canPlace(move, ceCost(move));
         }
 
         private void updateHover() {

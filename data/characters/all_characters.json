@@ -119,4 +119,24 @@
   "availableMoveIds" : [ "000033", "000034" ],
   "abilityIds" : [ "000013", "000014" ],
   "availableAbilityIds" : [ "000013", "000014" ]
+}, {
+  "id" : "000006",
+  "name" : "Maki Zenin (Pre-Awakened)",
+  "description" : "Before fully realising her Heavenly Restriction, Maki fights at the summit of grade one through exceptional weapon training, speed, durability, and relentless discipline despite possessing almost no talent for jujutsu.",
+  "spriteAsset" : "assets/sprites/characters/maki_frontsprite.png",
+  "hasWeapon" : true,
+  "vitality" : 75,
+  "strength" : 80,
+  "durability" : 84,
+  "speed" : 84,
+  "cursedEnergyReserves" : 10,
+  "cursedEnergyEfficiency" : 10,
+  "cursedEnergyOutput" : 10,
+  "jujutsuSkill" : 10,
+  "combatAbility" : 135,
+  "cursedTechniqueMastery" : 0,
+  "moveIds" : [ "000000", "000001", "000023", "000024", "000029", "000030", "000031", "000035", "000036", "000037", "000038" ],
+  "availableMoveIds" : [ "000000", "000001", "000023", "000024", "000029", "000030", "000031", "000035", "000036", "000037", "000038" ],
+  "abilityIds" : [ "000015", "000009", "000016", "000017", "000018", "000007" ],
+  "availableAbilityIds" : [ "000015", "000018", "000007" ]
 } ]

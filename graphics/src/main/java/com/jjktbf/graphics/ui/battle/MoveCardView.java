@@ -23,6 +23,7 @@ public class MoveCardView {
     private static final Color ACTIVATION_DOT = new Color(0.075f, 0.080f, 0.100f, 1f);
     private static final Color TIMING_STRIP = new Color(0.270f, 0.305f, 0.375f, 1f);
     private static final Color TIMING_STRIP_EDGE = new Color(0.075f, 0.095f, 0.145f, 1f);
+    private static final Color CURSED_TOOL = new Color(0.545f, 0.000f, 0.000f, 1f);
     private static final float CE_BAR_W = 36f;
     private static final float CE_BAR_H = 38f;
     private static final float ACTION_BAR_MAX_H = 24f;
@@ -86,6 +87,7 @@ public class MoveCardView {
     /** Returns the color from the move's role palette and its underlying nature. */
     public static Color typeColorFor(Move move) {
         if (move == null) return Color.GRAY;
+        if (isCursedTool(move)) return new Color(CURSED_TOOL);
         boolean innate = hasNatureTag(move, MoveTag.INNATE_TECHNIQUE);
         boolean nonInnate = hasNatureTag(move, MoveTag.NON_INNATE_TECHNIQUE);
 
@@ -126,6 +128,7 @@ public class MoveCardView {
         boolean nonInnate = hasNatureTag(move, MoveTag.NON_INNATE_TECHNIQUE);
         boolean cursedEnergy = hasNatureTag(move, MoveTag.CURSED_ENERGY);
 
+        if (isCursedTool(move)) return "CURSED TOOL";
         // Innate technique takes precedence over physical for the category label,
         // so e.g. PHYSICAL + INNATE reads simply as INNATE TECHNIQUE.
         if (innate) return "INNATE TECHNIQUE";
@@ -161,6 +164,12 @@ public class MoveCardView {
     private static boolean hasNatureTag(Move move, MoveTag tag) {
         return move.getTags().contains(tag)
             || move.getCategory() != null && move.getCategory().getTags().contains(tag);
+    }
+
+    private static boolean isCursedTool(Move move) {
+        return hasNatureTag(move, MoveTag.PHYSICAL)
+            && hasNatureTag(move, MoveTag.CURSED_ENERGY)
+            && move.isWeaponRequired();
     }
 
     public void draw(Batch batch, BitmapFont font, BitmapFont statFont,

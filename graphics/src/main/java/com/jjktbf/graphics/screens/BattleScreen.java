@@ -1462,6 +1462,7 @@ public class BattleScreen implements Screen, BattleView {
             .hasCeCost(state.hasCeCost())
             .minCeCost(state.minCeCost())
             .maxCeCost(state.maxCeCost())
+            .moveCap(state.moveCap())
             .prerequisites(prerequisites)
             .freeMove(true);
         if (!state.hitComponents().isEmpty()) {

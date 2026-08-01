@@ -92,7 +92,7 @@ public class MoveData {
 
     /** Block/dodge/parry shared field: duration in AP ticks. 0 = use move's apCost. -1 = end of round. */
     public int     blockDuration = 0;
-    /** Tags this block affects. Null = all damage types. (BLOCK only) */
+    /** Tags this block or parry affects. Null = all damage types. */
     public List<String> blockAffectedTags;
     /** PERCENTAGE block only: percentage of damage reduced (0-100). 100 = full block. */
     public int     blockDamageReduction = 100;
@@ -131,6 +131,9 @@ public class MoveData {
     public String  requiredTechniqueId;
 
     public boolean isFreeMove = false;
+
+    /** Maximum placements per round. 0 means unlimited. */
+    public int moveCap = 0;
 
     /** Cannot be assigned directly; an ability must add this move to the character. */
     public boolean mustBeGranted = false;
@@ -379,7 +382,8 @@ public class MoveData {
             .parryStaggerTicks(parryStaggerTicks)
             .requiredTechniqueId(requiredTechniqueId)
             .freeMove(isFreeMove)
-            .mustBeGranted(mustBeGranted);
+            .mustBeGranted(mustBeGranted)
+            .moveCap(moveCap);
 
         if (!rawTags.isEmpty()) b.tags(rawTags);
         if (hitComponents != null) {
@@ -661,6 +665,7 @@ public class MoveData {
         d.requiredTechniqueId = move.getRequiredTechniqueId();
         d.isFreeMove          = move.isFreeMove();
         d.mustBeGranted       = move.mustBeGranted();
+        d.moveCap             = move.getMoveCap();
         d.prerequisites       = move.getPrerequisites().isEmpty() ? null
                                     : new java.util.LinkedHashMap<>(move.getPrerequisites());
 

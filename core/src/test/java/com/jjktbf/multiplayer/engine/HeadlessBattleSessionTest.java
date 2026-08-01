@@ -114,6 +114,32 @@ class HeadlessBattleSessionTest {
     }
 
     @Test
+    void authoritativePlanRejectsMoveBeyondItsRoundCap() {
+        Move capped = new Move.Builder("CAPPED")
+            .name("Capped")
+            .category(MoveCategory.PHYSICAL)
+            .basePower(10)
+            .neverMiss(true)
+            .apCost(5)
+            .unleashPoint(1)
+            .moveCap(1)
+            .freeMove(true)
+            .build();
+        HeadlessBattleSession session = session(111L, capped, capped);
+        MatchState before = session.snapshot();
+
+        CommandResult result = session.applyCommand(
+            "player-1",
+            command(session, "over-cap",
+                new PlanPlacement(capped.getId(), 1),
+                new PlanPlacement(capped.getId(), 6)));
+
+        assertFalse(result.accepted());
+        assertEquals("MOVE_CAP_REACHED", result.error().code());
+        assertEquals(before, session.snapshot());
+    }
+
+    @Test
     void planOwnershipAndOneSubmissionPerRoundAreEnforced() {
         Move playerOneMove = physicalAttack("PLAYER_ONE_MOVE", 10, true);
         Move playerTwoMove = physicalAttack("PLAYER_TWO_MOVE", 10, true);

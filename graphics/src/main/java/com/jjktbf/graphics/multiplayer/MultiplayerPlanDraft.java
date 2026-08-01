@@ -15,6 +15,7 @@ public final class MultiplayerPlanDraft {
         ADDED,
         INVALID_MOVE,
         MOVE_RESTRICTED,
+        MOVE_CAP_REACHED,
         INSUFFICIENT_AP,
         INSUFFICIENT_CE,
         BOARD_FULL
@@ -87,6 +88,9 @@ public final class MultiplayerPlanDraft {
         if (!move.available()) {
             return new AddResult(AddStatus.MOVE_RESTRICTED, null);
         }
+        if (!hasRemainingUses(move)) {
+            return new AddResult(AddStatus.MOVE_CAP_REACHED, null);
+        }
         if (apUsed + move.apCost() > apBudget) {
             return new AddResult(AddStatus.INSUFFICIENT_AP, null);
         }
@@ -109,7 +113,7 @@ public final class MultiplayerPlanDraft {
     }
 
     public boolean canAdd(MoveState move) {
-        if (!valid(move) || !move.available()
+        if (!valid(move) || !move.available() || !hasRemainingUses(move)
             || apUsed + move.apCost() > apBudget
             || ceUsed + move.effectiveCeCost() > ceBudget) {
             return false;
@@ -173,6 +177,14 @@ public final class MultiplayerPlanDraft {
 
     public int remainingCe() {
         return ceBudget - ceUsed;
+    }
+
+    private boolean hasRemainingUses(MoveState move) {
+        if (move.moveCap() == 0) return true;
+        long selected = placements.stream()
+            .filter(placement -> move.moveId().equals(placement.move().moveId()))
+            .count();
+        return selected < move.moveCap();
     }
 
     private boolean rangeFree(PlanBoard board, int startTick, int endTick) {

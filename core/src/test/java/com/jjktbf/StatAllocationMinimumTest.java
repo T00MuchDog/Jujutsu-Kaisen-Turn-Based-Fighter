@@ -9,6 +9,8 @@ import com.jjktbf.model.character.AbilityResolver;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.StatKey;
+import com.jjktbf.model.character.SorcererCharacter;
+import com.jjktbf.model.combat.BattleCombatant;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -70,6 +72,43 @@ class StatAllocationMinimumTest {
         assertFalse(AbilityEffectType.STAT_ALLOCATION_MINIMUM.requiresActivation());
         assertTrue(AbilityEffectType.POISON_IMMUNITY.isPassiveOnly());
         assertTrue(AbilityEffectType.SOUL_AWARE_ATTACKS.isPassiveOnly());
+    }
+
+    @Test
+    void allocationMaximumsUseLowestCeilingAndValidateRawStats() {
+        AbilityData cap = ability("CAP", List.of(
+            AbilityEffectData.statAllocationMaximum("jujutsuSkill", 20),
+            AbilityEffectData.statAllocationMaximum("jujutsuSkill", 10)));
+        CharacterData character = new CharacterData();
+        character.abilityIds = List.of("CAP");
+        character.moveIds = List.of();
+        AbilityResolver.Result resolved = AbilityResolver.resolve(character, List.of(cap));
+
+        assertEquals(10, resolved.statAllocationMaximum(StatKey.JUJUTSU_SKILL));
+        character.jujutsuSkill = 20;
+        assertThrows(IllegalArgumentException.class,
+            () -> character.validateStatAllocationMaximums(resolved));
+        character.jujutsuSkill = 10;
+        assertDoesNotThrow(() -> character.validateStatAllocationMaximums(resolved));
+    }
+
+    @Test
+    void passiveCanRemoveJujutsuSlotsAndReplaceDefenseFormula() {
+        AbilityEffectData slots = new AbilityEffectData();
+        slots.type = AbilityEffectType.SET_JUJUTSU_ART_SLOTS.name();
+        slots.intValue = 0;
+        AbilityEffectData defense = new AbilityEffectData();
+        defense.type = AbilityEffectType.DEFENSE_FROM_DURABILITY.name();
+        defense.doubleValue = 4.0 / 3.0;
+        AbilityData restriction = ability("RESTRICTION", List.of(slots, defense));
+        CharacterStats stats = new CharacterStats.Builder().durability(84).build();
+        SorcererCharacter character = new SorcererCharacter(
+            "MAKI", "Maki", stats, null, List.of(), List.of(new Ability(restriction)));
+        BattleCombatant combatant = new BattleCombatant(character);
+
+        assertEquals(0, character.getCombatStats().getJujutsuArtsSlots());
+        assertEquals(0, combatant.getEffectiveCombatStats().getJujutsuArtsSlots());
+        assertEquals(108, combatant.computeCurrentDefense(1));
     }
 
     private static AbilityData ability(String id, List<AbilityEffectData> effects) {

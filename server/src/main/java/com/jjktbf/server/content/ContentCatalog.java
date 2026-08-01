@@ -228,9 +228,10 @@ public final class ContentCatalog {
                 definition, abilityDefinitions, movesById::containsKey, techniqueDefinitions);
             try {
                 definition.validateStatAllocationMinimums(resolved);
+                definition.validateStatAllocationMaximums(resolved);
             } catch (IllegalArgumentException exception) {
                 throw invalid(CHARACTERS_RESOURCE,
-                    "character " + definition.id + " violates an ability allocation minimum: "
+                    "character " + definition.id + " violates an ability allocation bound: "
                         + exception.getMessage(), exception);
             }
             if (definition.abilityIds != null) {
