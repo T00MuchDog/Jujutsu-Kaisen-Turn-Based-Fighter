@@ -17,6 +17,7 @@ import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.move.MoveData;
+import com.jjktbf.model.progression.TechniqueMasteryProgressions;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,6 +34,7 @@ public final class ConditionListEditor extends Table {
     private final Consumer<SoundCue> soundPlayer;
     private final Skin skin;
     private final Container<Actor> cards = new Container<>();
+    private final boolean masteryEligible;
 
     public ConditionListEditor(
         List<AbilityConditionRuleData> rules,
@@ -40,6 +42,7 @@ public final class ConditionListEditor extends Table {
         List<MoveData> moves,
         Runnable onDirty,
         Consumer<SoundCue> soundPlayer,
+        boolean masteryEligible,
         Skin skin
     ) {
         super(skin);
@@ -49,6 +52,7 @@ public final class ConditionListEditor extends Table {
         this.onDirty = onDirty;
         this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
         this.skin = skin;
+        this.masteryEligible = masteryEligible;
         defaults().left().pad(4f).growX();
         cards.fill(true, false);
         add(cards).growX().row();
@@ -108,6 +112,7 @@ public final class ConditionListEditor extends Table {
             moves,
             onDirty,
             soundPlayer,
+            masteryEligible,
             skin)).growX().row();
 
         CheckBox sameTrigger = new CheckBox(
@@ -131,6 +136,10 @@ public final class ConditionListEditor extends Table {
             soundPlayer.accept(SoundCue.UI_TOGGLE);
             rule.activationChanceEnabled = chanceEnabled.isChecked();
             if (rule.activationChance == null) rule.activationChance = 1.0;
+            if (!chanceEnabled.isChecked() && rule.masteryProgression != null) {
+                rule.masteryProgression.remove(TechniqueMasteryProgressions.ACTIVATION_CHANCE);
+                if (rule.masteryProgression.isEmpty()) rule.masteryProgression = null;
+            }
             chance.setDisabled(!chanceEnabled.isChecked());
             dirty();
         }));
@@ -144,6 +153,16 @@ public final class ConditionListEditor extends Table {
         chanceRow.add(new Label("Activation chance %", skin)).padRight(8f);
         chanceRow.add(chance).growX();
         card.add(chanceRow).growX().row();
+        if (masteryEligible && chanceEnabled.isChecked()) {
+            card.add(new MasteryProgressionEditor(
+                TechniqueMasteryProgressions.ACTIVATION_CHANCE,
+                () -> (int) Math.floor((rule.activationChance == null
+                    ? 1.0 : rule.activationChance) * 100.0),
+                () -> rule.masteryProgression,
+                value -> rule.masteryProgression = value,
+                onDirty,
+                skin)).growX().row();
+        }
 
         Label then = new Label("THEN ACTIVATE", skin, "small");
         then.setColor(Color.GOLD);

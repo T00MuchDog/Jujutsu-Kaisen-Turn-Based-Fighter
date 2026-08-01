@@ -1,5 +1,7 @@
 package com.jjktbf.model.character;
 
+import com.jjktbf.model.progression.TechniqueMasteryResolver;
+
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -42,14 +44,21 @@ public final class AbilityApplicator {
         }
 
         AbilityFlags flags = new AbilityFlags();
+        int progressionMastery = passiveMastery(baseStats, abilities);
 
         for (Ability ability : abilities == null ? List.<Ability>of() : abilities) {
             if (ability == null || !ability.isPassive()) continue;
-            for (AbilityEffectData eff : ability.getEffects()) {
-                if (eff == null || eff.type == null) {
+            for (AbilityEffectData authored : ability.getEffects()) {
+                if (authored == null || authored.type == null) {
                     System.err.println("[WARN] AbilityApplicator: missing ability effect type");
                     continue;
                 }
+                boolean modifiesMastery = StatKey.CURSED_TECHNIQUE_MASTERY.fieldName
+                    .equalsIgnoreCase(authored.stat);
+                AbilityEffectData eff = "TECHNIQUE".equalsIgnoreCase(ability.getSourceType())
+                    && !modifiesMastery
+                    ? TechniqueMasteryResolver.resolve(authored, progressionMastery)
+                    : authored;
                 AbilityEffectType type;
                 try {
                     type = AbilityEffectType.fromName(eff.type);
@@ -186,6 +195,40 @@ public final class AbilityApplicator {
         );
 
         return new ApplicationResult(modified, flags);
+    }
+
+    /** Resolve literal passive CTM modifiers before deriving other passive values from CTM. */
+    private static int passiveMastery(CharacterStats baseStats, List<Ability> abilities) {
+        Integer override = null;
+        int addition = 0;
+        double multiplier = 1.0;
+        for (Ability ability : abilities == null ? List.<Ability>of() : abilities) {
+            if (ability == null || !ability.isPassive()) continue;
+            for (AbilityEffectData effect : ability.getEffects()) {
+                if (effect == null || effect.type == null
+                    || !StatKey.CURSED_TECHNIQUE_MASTERY.fieldName.equalsIgnoreCase(effect.stat)) {
+                    continue;
+                }
+                AbilityEffectType type;
+                try { type = AbilityEffectType.fromName(effect.type); }
+                catch (IllegalArgumentException ignored) { continue; }
+                switch (type) {
+                    case STAT_SET_MIN -> override = 0;
+                    case STAT_SET_VALUE -> override = nvl(effect.intValue, 0);
+                    case STAT_ADD -> addition += nvl(effect.intValue, 0);
+                    case STAT_MULTIPLY -> multiplier *= nvl(effect.doubleValue, 1.0);
+                    case STAT_DIVIDE -> {
+                        double divisor = effect.doubleValue != null && effect.doubleValue != 0
+                            ? effect.doubleValue : 1.0;
+                        multiplier /= divisor;
+                    }
+                    default -> { }
+                }
+            }
+        }
+        int starting = override == null
+            ? baseStats.getCursedTechniqueMastery() : override;
+        return Math.max(0, (int) Math.round((starting + addition) * multiplier));
     }
 
     /** Apply battle-time character-stat effects without the character-editor clamp. */

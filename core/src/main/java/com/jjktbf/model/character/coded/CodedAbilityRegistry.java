@@ -20,6 +20,15 @@ public final class CodedAbilityRegistry {
     public record AbilityFeature(String key, String feature, String label) { }
     public record EffectAction(String key, String action, String label) { }
     public record StateKey(String key, String label) { }
+    public enum ParameterUnit { INTEGER, PERCENT }
+    public record CodedParameter(
+        String key,
+        String label,
+        ParameterUnit unit,
+        int minimum,
+        int maximum,
+        int defaultValue
+    ) { }
 
     private CodedAbilityRegistry() {
     }
@@ -56,6 +65,9 @@ public final class CodedAbilityRegistry {
                 if (move == null) continue;
                 List<StatusEffect> effects = new ArrayList<>(move.getOnHitEffects());
                 effects.addAll(move.getSelfEffects());
+                effects.addAll(move.getOnBlockEffects());
+                effects.addAll(move.getOnParryEffects());
+                effects.addAll(move.getOnDodgeEffects());
                 for (StatusEffect effect : effects) {
                     if (effect == null || !effect.isCoded()
                         || !supportsEffect(
@@ -75,9 +87,11 @@ public final class CodedAbilityRegistry {
         for (Map.Entry<String, Set<String>> entry : featuresByKey.entrySet()) {
             CodedAbilityRuntime runtime = null;
             if (MiraclesAbility.KEY.equals(entry.getKey())) {
-                runtime = new MiraclesAbility(owner, entry.getValue());
+                runtime = new MiraclesAbility(
+                    owner, entry.getValue(), bindingsByKey.getOrDefault(entry.getKey(), Map.of()));
             } else if (RatioAbility.KEY.equals(entry.getKey())) {
-                runtime = new RatioAbility(owner, entry.getValue());
+                runtime = new RatioAbility(
+                    owner, entry.getValue(), bindingsByKey.getOrDefault(entry.getKey(), Map.of()));
             } else if (NewShadowStyleAbility.KEY.equals(entry.getKey())) {
                 runtime = new NewShadowStyleAbility(owner, entry.getValue());
             }
@@ -123,6 +137,95 @@ public final class CodedAbilityRegistry {
             new StateKey(RatioAbility.KEY, "Ratio stacks"),
             new StateKey(NewShadowStyleAbility.KEY, "Simple Domain")
         );
+    }
+
+    public static List<CodedParameter> abilityParameters(String key, String feature) {
+        String normalizedKey = normalize(key);
+        String normalizedFeature = normalize(feature);
+        if (MiraclesAbility.KEY.equals(normalizedKey)) {
+            return switch (normalizedFeature) {
+                case MiraclesAbility.RESERVOIR -> List.of(
+                    integer(MiraclesAbility.CAPACITY, "Miracle capacity", 1, 99,
+                        MiraclesAbility.MAX_MIRACLES),
+                    integer(MiraclesAbility.STARTING_AMOUNT, "Starting Miracles", 0, 99,
+                        MiraclesAbility.MAX_MIRACLES));
+                case MiraclesAbility.FATEFUL_REPRIEVE -> List.of(
+                    integer(MiraclesAbility.COST, "Miracles spent", 1, 99, 1));
+                case MiraclesAbility.FORTUNE_RECLAIMED -> List.of(
+                    integer(MiraclesAbility.GAIN, "Miracles gained", 1, 99, 1));
+                default -> List.of();
+            };
+        }
+        if (RatioAbility.KEY.equals(normalizedKey)
+            && RatioAbility.REINFORCEMENT_RATIO.equals(normalizedFeature)) {
+            return List.of(
+                integer(RatioAbility.STACK_CAPACITY, "Ratio stack capacity", 1, 99,
+                    RatioAbility.MAX_STACKS),
+                percent(RatioAbility.DEFENSE_PERCENT, "Defense remaining %", 1, 100, 30));
+        }
+        return List.of();
+    }
+
+    public static List<CodedParameter> effectParameters(
+        String key,
+        String action,
+        String target
+    ) {
+        String normalizedKey = normalize(key);
+        String normalizedAction = normalize(action);
+        String normalizedTarget = normalize(target);
+        if (MiraclesAbility.KEY.equals(normalizedKey)
+            && MiraclesAbility.CREATE.equals(normalizedAction)) {
+            return List.of(integer(MiraclesAbility.GAIN, "Miracles gained", 1, 99, 1));
+        }
+        if (RatioAbility.KEY.equals(normalizedKey)
+            && RatioAbility.RATIO_EFFECT.equals(normalizedAction)) {
+            if (RatioAbility.CREATE_STACKS.equals(normalizedTarget)) {
+                return List.of(
+                    integer(RatioAbility.STACK_DURATION_PARAMETER, "Stack duration ticks", 1, 300,
+                        RatioAbility.STACK_DURATION_TICKS),
+                    percent(RatioAbility.TRIGGER_CHANCE_PERCENT, "Stack trigger chance %", 0, 100,
+                        (int) Math.round(RatioAbility.STACK_TRIGGER_CHANCE * 100)),
+                    percent(RatioAbility.DEFENSE_PERCENT, "Defense remaining %", 1, 100, 30));
+            }
+            if (RatioAbility.APPLY_TO_MOVE.equals(normalizedTarget)) {
+                return List.of(
+                    percent(RatioAbility.TRIGGER_CHANCE_PERCENT, "Ratio chance %", 0, 100, 100),
+                    percent(RatioAbility.DEFENSE_PERCENT, "Defense remaining %", 1, 100, 30));
+            }
+        }
+        return List.of();
+    }
+
+    public static void prepareAbilityParameters(AbilityEffectData effect) {
+        if (effect == null) return;
+        effect.codedParameters = prepareParameters(
+            effect.codedParameters, abilityParameters(effect.codedAbilityKey, effect.codedFeature));
+    }
+
+    public static Map<String, Integer> prepareEffectParameters(
+        Map<String, Integer> values,
+        String key,
+        String action,
+        String target
+    ) {
+        return prepareParameters(values, effectParameters(key, action, target));
+    }
+
+    public static String abilityParameterValidationError(AbilityEffectData effect) {
+        return parameterValidationError(
+            effect == null ? null : effect.codedParameters,
+            effect == null ? List.of()
+                : abilityParameters(effect.codedAbilityKey, effect.codedFeature));
+    }
+
+    public static String effectParameterValidationError(
+        String key,
+        String action,
+        String target,
+        Map<String, Integer> values
+    ) {
+        return parameterValidationError(values, effectParameters(key, action, target));
     }
 
     public static boolean supportsStateKey(String key) {
@@ -180,5 +283,57 @@ public final class CodedAbilityRegistry {
 
     static String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static CodedParameter integer(
+        String key, String label, int minimum, int maximum, int defaultValue
+    ) {
+        return new CodedParameter(
+            key, label, ParameterUnit.INTEGER, minimum, maximum, defaultValue);
+    }
+
+    private static CodedParameter percent(
+        String key, String label, int minimum, int maximum, int defaultValue
+    ) {
+        return new CodedParameter(
+            key, label, ParameterUnit.PERCENT, minimum, maximum, defaultValue);
+    }
+
+    private static Map<String, Integer> prepareParameters(
+        Map<String, Integer> values,
+        List<CodedParameter> definitions
+    ) {
+        if (definitions.isEmpty()) return null;
+        Map<String, Integer> prepared = new LinkedHashMap<>();
+        for (CodedParameter definition : definitions) {
+            prepared.put(definition.key(), values == null
+                ? definition.defaultValue()
+                : values.getOrDefault(definition.key(), definition.defaultValue()));
+        }
+        return prepared;
+    }
+
+    private static String parameterValidationError(
+        Map<String, Integer> values,
+        List<CodedParameter> definitions
+    ) {
+        Set<String> allowed = definitions.stream()
+            .map(CodedParameter::key)
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (values != null) {
+            for (String key : values.keySet()) {
+                if (!allowed.contains(key)) return "Unsupported coded parameter: " + key;
+            }
+        }
+        for (CodedParameter definition : definitions) {
+            int value = values == null
+                ? definition.defaultValue()
+                : values.getOrDefault(definition.key(), definition.defaultValue());
+            if (value < definition.minimum() || value > definition.maximum()) {
+                return definition.label() + " must be between "
+                    + definition.minimum() + " and " + definition.maximum() + ".";
+            }
+        }
+        return null;
     }
 }

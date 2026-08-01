@@ -43,7 +43,8 @@ public final class RatioMeter {
             return;
         }
         visible = true;
-        stackCount = Math.max(1, Math.min(RatioAbility.MAX_STACKS, state.currentValue()));
+        stackCount = Math.max(1,
+            Math.min(Math.max(1, state.maximumValue()), state.currentValue()));
     }
 
     public void clear() {

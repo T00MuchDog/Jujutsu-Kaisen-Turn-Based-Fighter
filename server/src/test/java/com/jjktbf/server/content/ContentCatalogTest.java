@@ -12,7 +12,8 @@ class ContentCatalogTest {
     void loadsCanonicalClasspathDefinitionsIntoDomainCharacters() {
         ContentCatalog catalog = ContentCatalog.load();
 
-        assertEquals(5, catalog.characterSummaries().size());
+        assertEquals(6, catalog.characterSummaries().size());
+        assertTrue(catalog.findCharacter("000005").isPresent());
         assertTrue(catalog.findCharacter("000000").isPresent());
         assertTrue(catalog.findCharacter("000003").orElseThrow().getKnownMoves().stream()
             .anyMatch(move -> "Simple Domain".equals(move.getName())));

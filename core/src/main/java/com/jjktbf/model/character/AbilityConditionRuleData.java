@@ -3,6 +3,8 @@ package com.jjktbf.model.character;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.jjktbf.model.progression.TechniqueMasteryProgressionData;
+import com.jjktbf.model.progression.TechniqueMasteryProgressions;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -31,6 +33,9 @@ public class AbilityConditionRuleData {
     /** When true, event leaves in an AND group must match the current trigger. */
     public Boolean matchSameTrigger;
 
+    /** Optional progression for rule-level numeric fields such as activation chance. */
+    public Map<String, TechniqueMasteryProgressionData> masteryProgression;
+
     public static AbilityConditionRuleData allEffects(AbilityConditionData condition) {
         AbilityConditionRuleData rule = new AbilityConditionRuleData();
         rule.condition = condition == null
@@ -46,6 +51,7 @@ public class AbilityConditionRuleData {
         copy.activationChanceEnabled = activationChanceEnabled;
         copy.activationChance = activationChance;
         copy.matchSameTrigger = matchSameTrigger;
+        copy.masteryProgression = TechniqueMasteryProgressions.copy(masteryProgression);
         return copy;
     }
 
@@ -91,6 +97,29 @@ public class AbilityConditionRuleData {
                 && (rule.activationChance == null || !Double.isFinite(rule.activationChance)
                     || rule.activationChance < 0 || rule.activationChance > 1)) {
                 return prefix + " activation chance must be between 0% and 100%.";
+            }
+            String progressionError = TechniqueMasteryProgressions.validationError(
+                rule.masteryProgression,
+                Boolean.TRUE.equals(rule.activationChanceEnabled)
+                    ? Set.of(TechniqueMasteryProgressions.ACTIVATION_CHANCE) : Set.of());
+            if (progressionError != null) return prefix + ": " + progressionError;
+            if (rule.masteryProgression != null) {
+                for (int mastery = 0; mastery <= CharacterStats.MAX_STAT; mastery++) {
+                    double chance;
+                    try {
+                        chance = TechniqueMasteryProgressions.resolvePercent(
+                            rule.masteryProgression,
+                            TechniqueMasteryProgressions.ACTIVATION_CHANCE,
+                            rule.effectiveActivationChance(), mastery);
+                    } catch (RuntimeException exception) {
+                        return prefix + " has invalid activation chance progression at CTM "
+                            + mastery + ".";
+                    }
+                    if (chance < 0 || chance > 1) {
+                        return prefix + " activation chance is outside 0%-100% at CTM "
+                            + mastery + ".";
+                    }
+                }
             }
 
             Set<String> targets = rule.targetEffectIds == null

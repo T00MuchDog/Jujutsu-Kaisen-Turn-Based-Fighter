@@ -8,11 +8,13 @@ import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.StatusEffect;
+import com.jjktbf.model.progression.TechniqueMasteryResolver;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.Map;
 import java.util.function.Predicate;
 
 /** Runtime implementation for the Ratio cursed technique. */
@@ -28,12 +30,23 @@ public final class RatioAbility implements CodedAbilityRuntime {
     public static final int STACK_DURATION_TICKS = 50;
     public static final double STACK_TRIGGER_CHANCE = 0.70;
     public static final double DEFENSE_MULTIPLIER = 0.3;
+    public static final String STACK_CAPACITY = "stackCapacity";
+    public static final String STACK_DURATION_PARAMETER = "stackDurationTicks";
+    public static final String TRIGGER_CHANCE_PERCENT = "triggerChancePercent";
+    public static final String DEFENSE_PERCENT = "defensePercent";
 
     private final BattleCombatant owner;
+    private final Map<String, List<CodedAbilityBinding>> bindingsByFeature;
     private final List<RatioStack> stacks = new ArrayList<>();
+    private Integer maximumStacks;
 
-    RatioAbility(BattleCombatant owner, Set<String> features) {
+    RatioAbility(
+        BattleCombatant owner,
+        Set<String> features,
+        Map<String, List<CodedAbilityBinding>> bindingsByFeature
+    ) {
         this.owner = owner;
+        this.bindingsByFeature = bindingsByFeature == null ? Map.of() : bindingsByFeature;
     }
 
     @Override
@@ -42,6 +55,9 @@ public final class RatioAbility implements CodedAbilityRuntime {
         AbilityTrigger trigger,
         Predicate<String> featureActive
     ) {
+        if (trigger.type() == AbilityTrigger.Type.BATTLE_START) {
+            maximumStacks = configuredCapacity();
+        }
         return List.of();
     }
 
@@ -58,10 +74,20 @@ public final class RatioAbility implements CodedAbilityRuntime {
             return List.of();
         }
 
+        int capacity = ensureCapacity();
+        if (capacity <= 0) return List.of();
         int requested = effect.getCodedStackCount() == null ? 1 : effect.getCodedStackCount();
+        int duration = TechniqueMasteryResolver.codedParameter(
+            effect.getCodedParameters(), STACK_DURATION_PARAMETER, STACK_DURATION_TICKS);
+        int triggerChance = TechniqueMasteryResolver.codedParameter(
+            effect.getCodedParameters(), TRIGGER_CHANCE_PERCENT,
+            (int) Math.round(STACK_TRIGGER_CHANCE * 100));
+        int defensePercent = TechniqueMasteryResolver.codedParameter(
+            effect.getCodedParameters(), DEFENSE_PERCENT,
+            (int) Math.round(DEFENSE_MULTIPLIER * 100));
         int created = 0;
-        while (created < requested && stacks.size() < MAX_STACKS) {
-            stacks.add(new RatioStack(defender, STACK_DURATION_TICKS));
+        while (created < requested && stacks.size() < capacity) {
+            stacks.add(new RatioStack(defender, duration, triggerChance, defensePercent));
             created++;
         }
         if (created == 0) return List.of();
@@ -69,7 +95,7 @@ public final class RatioAbility implements CodedAbilityRuntime {
         String targetName = defender.getCharacter().getName();
         return List.of(event(tick, defender, owner.getCharacter().getName()
             + " marks " + targetName + " with " + created + " Ratio stack"
-            + (created == 1 ? "" : "s") + " (" + stacks.size() + "/" + MAX_STACKS + ")."));
+            + (created == 1 ? "" : "s") + " (" + stacks.size() + "/" + capacity + ")."));
     }
 
     @Override
@@ -87,11 +113,19 @@ public final class RatioAbility implements CodedAbilityRuntime {
         // Ratio's APPLY_TO_MOVE effect now lives on a specific HitComponent;
         // directRatio fires only for the component that carries it. The
         // move-level self effects (cast-time Ratio) still apply move-wide.
-        boolean directRatio = appliesRatioToMove(component.getOnHitEffects())
-            || appliesRatioToMove(move.getSelfEffects());
+        StatusEffect directEffect = ratioMoveEffect(component.getOnHitEffects());
+        if (directEffect == null) directEffect = ratioMoveEffect(move.getSelfEffects());
+        directEffect = TechniqueMasteryResolver.resolve(
+            directEffect, TechniqueMasteryResolver.masteryOf(owner));
+        int directChance = directEffect == null ? 0 : TechniqueMasteryResolver.codedParameter(
+            directEffect.getCodedParameters(), TRIGGER_CHANCE_PERCENT, 100);
+        boolean directRatio = directEffect != null && (directChance >= 100
+            || (directChance > 0 && rng.nextDouble() < directChance / 100.0));
 
-        boolean consumedStack = consumeStackFor(defender);
-        boolean stackRatio = consumedStack && rng.nextDouble() < STACK_TRIGGER_CHANCE;
+        RatioStack consumed = consumeStackFor(defender);
+        boolean consumedStack = consumed != null;
+        boolean stackRatio = consumedStack
+            && rng.nextDouble() < consumed.triggerChancePercent / 100.0;
 
         boolean reinforcementRatio = featureActive.test(REINFORCEMENT_RATIO);
 
@@ -111,8 +145,15 @@ public final class RatioAbility implements CodedAbilityRuntime {
             defender,
             message
         ));
+        int defensePercent = 100;
+        if (directRatio) defensePercent = Math.min(defensePercent,
+            TechniqueMasteryResolver.codedParameter(
+                directEffect.getCodedParameters(), DEFENSE_PERCENT, 30));
+        if (stackRatio) defensePercent = Math.min(defensePercent, consumed.defensePercent);
+        if (reinforcementRatio) defensePercent = Math.min(defensePercent,
+            featureParameter(REINFORCEMENT_RATIO, DEFENSE_PERCENT, 30));
         return ratioApplied
-            ? new CodedHitModifiers(true, DEFENSE_MULTIPLIER, events)
+            ? new CodedHitModifiers(true, defensePercent / 100.0, events)
             : new CodedHitModifiers(false, 1.0, events);
     }
 
@@ -148,7 +189,8 @@ public final class RatioAbility implements CodedAbilityRuntime {
 
     @Override
     public CodedAbilityState state() {
-        return new CodedAbilityState(KEY, "Ratio", stacks.size(), MAX_STACKS);
+        int capacity = maximumStacks == null ? configuredCapacity() : maximumStacks;
+        return new CodedAbilityState(KEY, "Ratio", stacks.size(), Math.max(0, capacity));
     }
 
     public static boolean supportsFeature(String feature) {
@@ -158,17 +200,18 @@ public final class RatioAbility implements CodedAbilityRuntime {
     public static boolean supportsTarget(String target, Integer stackCount) {
         if (APPLY_TO_MOVE.equals(target)) return stackCount == null;
         return CREATE_STACKS.equals(target)
-            && stackCount != null && stackCount >= 1 && stackCount <= MAX_STACKS;
+            && stackCount != null && stackCount >= 1 && stackCount <= 99;
     }
 
-    private boolean consumeStackFor(BattleCombatant defender) {
+    private RatioStack consumeStackFor(BattleCombatant defender) {
         for (Iterator<RatioStack> iterator = stacks.iterator(); iterator.hasNext(); ) {
-            if (iterator.next().target == defender) {
+            RatioStack stack = iterator.next();
+            if (stack.target == defender) {
                 iterator.remove();
-                return true;
+                return stack;
             }
         }
-        return false;
+        return null;
     }
 
     private static boolean isRatioEffect(StatusEffect effect) {
@@ -177,9 +220,10 @@ public final class RatioAbility implements CodedAbilityRuntime {
             && RATIO_EFFECT.equalsIgnoreCase(effect.getCodedAction());
     }
 
-    private static boolean appliesRatioToMove(List<StatusEffect> effects) {
-        return effects.stream().anyMatch(effect -> isRatioEffect(effect)
-            && APPLY_TO_MOVE.equalsIgnoreCase(effect.getCodedTarget()));
+    private static StatusEffect ratioMoveEffect(List<StatusEffect> effects) {
+        return effects.stream().filter(effect -> isRatioEffect(effect)
+            && APPLY_TO_MOVE.equalsIgnoreCase(effect.getCodedTarget()))
+            .findFirst().orElse(null);
     }
 
     private CombatEvent event(int tick, BattleCombatant target, String message) {
@@ -202,10 +246,38 @@ public final class RatioAbility implements CodedAbilityRuntime {
     private static final class RatioStack {
         private final BattleCombatant target;
         private int remainingTicks;
+        private final int triggerChancePercent;
+        private final int defensePercent;
 
-        private RatioStack(BattleCombatant target, int remainingTicks) {
+        private RatioStack(
+            BattleCombatant target,
+            int remainingTicks,
+            int triggerChancePercent,
+            int defensePercent
+        ) {
             this.target = target;
             this.remainingTicks = remainingTicks;
+            this.triggerChancePercent = triggerChancePercent;
+            this.defensePercent = defensePercent;
         }
+    }
+
+    private int ensureCapacity() {
+        if (maximumStacks == null) maximumStacks = configuredCapacity();
+        return maximumStacks;
+    }
+
+    private int configuredCapacity() {
+        return bindingsByFeature.containsKey(REINFORCEMENT_RATIO)
+            ? featureParameter(REINFORCEMENT_RATIO, STACK_CAPACITY, MAX_STACKS) : 0;
+    }
+
+    private int featureParameter(String feature, String parameter, int fallback) {
+        List<CodedAbilityBinding> bindings = bindingsByFeature.getOrDefault(feature, List.of());
+        if (bindings.isEmpty() || bindings.get(0).effect() == null) return fallback;
+        var resolved = TechniqueMasteryResolver.resolve(
+            bindings.get(0).effect(), TechniqueMasteryResolver.masteryOf(owner));
+        return TechniqueMasteryResolver.codedParameter(
+            resolved.codedParameters, parameter, fallback);
     }
 }

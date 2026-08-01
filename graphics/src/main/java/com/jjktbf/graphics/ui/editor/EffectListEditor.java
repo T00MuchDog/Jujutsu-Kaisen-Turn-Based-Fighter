@@ -6,6 +6,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
@@ -26,6 +27,7 @@ import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffectType;
 import com.jjktbf.model.technique.InnateTechniqueData;
+import com.jjktbf.model.progression.TechniqueMasteryProgressions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,6 +53,8 @@ public class EffectListEditor extends Table {
     private final Runnable requestRebuild;
     private final Consumer<SoundCue> soundPlayer;
     private final Container<Actor> listContainer;
+    private final boolean masteryEligible;
+    private final boolean passiveAbility;
 
     public EffectListEditor(
         List<AbilityEffectData> effects,
@@ -60,6 +64,8 @@ public class EffectListEditor extends Table {
         Runnable onDirty,
         Runnable requestRebuild,
         Consumer<SoundCue> soundPlayer,
+        boolean masteryEligible,
+        boolean passiveAbility,
         Skin skin
     ) {
         super(skin);
@@ -71,6 +77,8 @@ public class EffectListEditor extends Table {
         this.onDirty = onDirty;
         this.requestRebuild = requestRebuild;
         this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
+        this.masteryEligible = masteryEligible;
+        this.passiveAbility = passiveAbility;
 
         listContainer = new Container<>();
         listContainer.fill(true, false);
@@ -167,7 +175,9 @@ public class EffectListEditor extends Table {
         content.add(new Label("Effect", skin)).padRight(8);
         content.add(typeBox).growX().row();
         content.add(hint).colspan(2).width(440).growX().row();
-        content.add(fieldsContainer).colspan(2).growX().row();
+        ScrollPane fieldsScroll = verticalScrollPane(fieldsContainer);
+        content.add(fieldsScroll).colspan(2).minHeight(120f)
+            .maxHeight(effectDialogScrollHeight()).growX().row();
         content.add(error).colspan(2).width(440).growX().row();
 
         TextButton done = new TextButton("Done", skin);
@@ -221,6 +231,20 @@ public class EffectListEditor extends Table {
         dialog.show(getStage());
     }
 
+    private ScrollPane verticalScrollPane(Actor content) {
+        ScrollPane scroll = new AxisLockedScrollPane(content, skin);
+        scroll.setScrollingDisabled(true, false);
+        scroll.setFadeScrollBars(false);
+        scroll.setOverscroll(false, false);
+        scroll.setForceScroll(false, false);
+        return scroll;
+    }
+
+    private float effectDialogScrollHeight() {
+        float viewportHeight = getStage() == null ? 720f : getStage().getHeight();
+        return Math.max(180f, Math.min(560f, viewportHeight - 220f));
+    }
+
     private Actor buildFields(
         AbilityEffectData effect,
         AbilityEffectType type,
@@ -247,6 +271,7 @@ public class EffectListEditor extends Table {
             featureBox.setSelected(selected.label());
             effect.codedAbilityKey = selected.key();
             effect.codedFeature = selected.feature();
+            CodedAbilityRegistry.prepareAbilityParameters(effect);
             featureBox.addListener(new ChangeListener() {
                 @Override public void changed(ChangeEvent event, Actor actor) {
                     CodedAbilityRegistry.AbilityFeature feature = features.stream()
@@ -254,9 +279,26 @@ public class EffectListEditor extends Table {
                         .findFirst().orElse(features.get(0));
                     effect.codedAbilityKey = feature.key();
                     effect.codedFeature = feature.feature();
+                    CodedAbilityRegistry.prepareAbilityParameters(effect);
+                    refreshFields.run();
                 }
             });
             addRow(fields, "Coded effect", featureBox);
+            for (CodedAbilityRegistry.CodedParameter parameter
+                : CodedAbilityRegistry.abilityParameters(
+                    effect.codedAbilityKey, effect.codedFeature)) {
+                TextField value = integerField(effect.codedParameters.get(parameter.key()));
+                value.addListener(new ChangeListener() {
+                    @Override public void changed(ChangeEvent event, Actor actor) {
+                        Integer parsed = parseInteger(value.getText());
+                        if (parsed != null) effect.codedParameters.put(parameter.key(), parsed);
+                    }
+                });
+                addRow(fields, parameter.label(), value);
+                addMasteryProgression(fields, effect, parameter.key(),
+                    () -> effect.codedParameters.getOrDefault(
+                        parameter.key(), parameter.defaultValue()));
+            }
         }
 
         if (type.uses(AbilityEffectParameter.STAT)) {
@@ -309,6 +351,8 @@ public class EffectListEditor extends Table {
                 }
             });
             addRow(fields, integerLabel(type), integer);
+            addMasteryProgression(fields, effect, TechniqueMasteryProgressions.INT_VALUE,
+                () -> effect.intValue == null ? 0 : effect.intValue);
         }
 
         if (type.uses(AbilityEffectParameter.DECIMAL)) {
@@ -323,6 +367,8 @@ public class EffectListEditor extends Table {
                 }
             });
             addRow(fields, decimalLabel(type), decimal);
+            addMasteryProgression(fields, effect, TechniqueMasteryProgressions.DOUBLE_VALUE,
+                () -> masteryDecimalLiteral(type, effect.doubleValue));
         }
 
         if (type.uses(AbilityEffectParameter.MOVE_ID)) {
@@ -447,6 +493,9 @@ public class EffectListEditor extends Table {
                     }
                 });
                 addRow(fields, "Stagger duration (AP ticks)", durationTicksField);
+                addMasteryProgression(fields, effect,
+                    TechniqueMasteryProgressions.DURATION_TICKS,
+                    () -> effect.durationTicks == null ? 0 : effect.durationTicks);
             } else if (roundOnlyStatus) {
                 effect.durationTicks = 0;
                 durationField.addListener(new ChangeListener() {
@@ -455,6 +504,9 @@ public class EffectListEditor extends Table {
                     }
                 });
                 addRow(fields, "Duration rounds (-1 = permanent)", durationField);
+                addMasteryProgression(fields, effect,
+                    TechniqueMasteryProgressions.DURATION_ROUNDS,
+                    () -> effect.durationRounds == null ? 0 : effect.durationRounds);
             } else {
                 durationField.addListener(new ChangeListener() {
                     @Override public void changed(ChangeEvent event, Actor actor) {
@@ -467,7 +519,13 @@ public class EffectListEditor extends Table {
                     }
                 });
                 addRow(fields, "Duration rounds (-1 = permanent)", durationField);
+                addMasteryProgression(fields, effect,
+                    TechniqueMasteryProgressions.DURATION_ROUNDS,
+                    () -> effect.durationRounds == null ? 0 : effect.durationRounds);
                 addRow(fields, "Duration ticks", durationTicksField);
+                addMasteryProgression(fields, effect,
+                    TechniqueMasteryProgressions.DURATION_TICKS,
+                    () -> effect.durationTicks == null ? 0 : effect.durationTicks);
             }
         }
 
@@ -479,6 +537,8 @@ public class EffectListEditor extends Table {
                 }
             });
             addRow(fields, roundOnlyStatus ? "Damage per round" : "Amount (flat points)", magnitude);
+            addMasteryProgression(fields, effect, TechniqueMasteryProgressions.MAGNITUDE,
+                () -> effect.magnitude == null ? 0 : (int) Math.round(effect.magnitude));
         }
 
         if (type.uses(AbilityEffectParameter.USES)) {
@@ -489,9 +549,41 @@ public class EffectListEditor extends Table {
                 }
             });
             addRow(fields, "Uses (-1 = unlimited)", uses);
+            addMasteryProgression(fields, effect, TechniqueMasteryProgressions.USES,
+                () -> effect.uses == null ? 0 : effect.uses);
         }
 
         return fields;
+    }
+
+    private void addMasteryProgression(
+        Table fields,
+        AbilityEffectData effect,
+        String field,
+        java.util.function.IntSupplier literal
+    ) {
+        if (!masteryEligible) return;
+        AbilityEffectType type = safeType(effect.type);
+        if (!type.masteryProgressionFields(effect).contains(field)) return;
+        if (passiveAbility
+            && StatKey.CURSED_TECHNIQUE_MASTERY.fieldName.equalsIgnoreCase(effect.stat)) {
+            return;
+        }
+        MasteryProgressionEditor editor = new MasteryProgressionEditor(
+            field,
+            literal,
+            () -> effect.masteryProgression,
+            value -> effect.masteryProgression = value,
+            onDirty,
+            skin);
+        fields.add(editor).colspan(2).growX().row();
+    }
+
+    private static int masteryDecimalLiteral(AbilityEffectType type, Double value) {
+        if (value == null) return 0;
+        return type == AbilityEffectType.BATTLE_STAT_ADD
+            ? (int) Math.floor(value)
+            : (int) Math.floor(value * 100.0);
     }
 
     private void dirtyAndRebuild() {

@@ -859,26 +859,26 @@ CodedAbilityRuntime hooks (all optional except the first two):
 Shipped coded abilities (keys / features / actions):
 
   MIRACLES                              (MiraclesAbility)
-    KEY = "MIRACLES". MAX_MIRACLES = 6.
+    KEY = "MIRACLES". Legacy defaults remain six; coded effect parameters and
+    CTM progression define the live capacity and starting amount.
     Features:
-      RESERVOIR          Gain 6 Miracles at fight start; store up to 6.
+      RESERVOIR          Gain a configured starting amount; capacity scales with CTM.
       FATEFUL_REPRIEVE   Expend 1 Miracle to negate fatal damage (preventFatalDamage).
       FORTUNE_RECLAIMED  Gain 1 Miracle when the enemy misses or on your Black Flash.
     Effect action: CREATE — a coded self-effect that creates a Miracle on unleash
                    (used by the Miracle Creation move).
 
   RATIO                                 (RatioAbility)
-    KEY = "RATIO". MAX_STACKS = 3. STACK_DURATION_TICKS = 50.
-    STACK_TRIGGER_CHANCE = 0.70. REINFORCEMENT_TRIGGER_CHANCE = 0.05.
-    DEFENSE_MULTIPLIER = 0.3.
+    KEY = "RATIO". Legacy defaults are 3 stacks, 50 ticks, 70% trigger chance,
+    and 30% Defense. Coded parameters and CTM progression define live values.
     Features:
-      REINFORCEMENT_RATIO  On a reinforcement hit, 5% chance to apply a Ratio
-                           stack that bypasses BLOCK and reduces Defense to 30% (×0.3).
-      APPLY_TO_MOVE        Apply created stacks to a specific move (coded target = move id).
-      CREATE_STACKS        Create stacks from a coded effect row.
-    Effect action: RATIO_EFFECT — a coded on-hit effect that creates stacks on a
-                   target move; the row carries codedTarget (move id) and
-                   codedStackCount (1..MAX_STACKS).
+      REINFORCEMENT_RATIO  Gives connected reinforcement hits a CTM-scaled chance
+                           to apply Ratio directly and owns total stack capacity.
+      APPLY_TO_MOVE        Apply Ratio directly for the current connected hit.
+      CREATE_STACKS        Create target-bound stacks from a coded effect row.
+    Effect action: RATIO_EFFECT — a coded effect whose target mode is
+                   APPLY_TO_MOVE or CREATE_STACKS. Stack rows configure count,
+                   duration, trigger chance, and Defense remaining.
 
   NEW_SHADOW_STYLE                      (NewShadowStyleAbility)
     KEY = "NEW_SHADOW_STYLE".

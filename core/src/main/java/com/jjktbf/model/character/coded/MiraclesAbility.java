@@ -5,10 +5,12 @@ import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.move.StatusEffect;
+import com.jjktbf.model.progression.TechniqueMasteryResolver;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.Map;
 import java.util.function.Predicate;
 
 /** Runtime implementation for the Miracles cursed technique. */
@@ -20,15 +22,26 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
     public static final String FORTUNE_RECLAIMED = "FORTUNE_RECLAIMED";
     public static final String CREATE = "CREATE";
     public static final int MAX_MIRACLES = 6;
+    public static final String CAPACITY = "capacity";
+    public static final String STARTING_AMOUNT = "startingAmount";
+    public static final String GAIN = "gain";
+    public static final String COST = "cost";
 
     private final BattleCombatant owner;
     private final Set<String> features;
+    private final Map<String, List<CodedAbilityBinding>> bindingsByFeature;
     private int miracles;
+    private int capacity = MAX_MIRACLES;
     private final List<Integer> pendingFatalAversions = new ArrayList<>();
 
-    MiraclesAbility(BattleCombatant owner, Set<String> features) {
+    MiraclesAbility(
+        BattleCombatant owner,
+        Set<String> features,
+        Map<String, List<CodedAbilityBinding>> bindingsByFeature
+    ) {
         this.owner = owner;
         this.features = Set.copyOf(features);
+        this.bindingsByFeature = bindingsByFeature == null ? Map.of() : bindingsByFeature;
     }
 
     @Override
@@ -39,12 +52,16 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
     ) {
         if (trigger.type() == AbilityTrigger.Type.BATTLE_START
             && featureActive.test(RESERVOIR)) {
-            miracles = MAX_MIRACLES;
-            return List.of(event(trigger.tick(), gainMessage(MAX_MIRACLES)));
+            capacity = featureParameter(RESERVOIR, CAPACITY, MAX_MIRACLES);
+            int startingAmount = Math.min(capacity,
+                featureParameter(RESERVOIR, STARTING_AMOUNT, MAX_MIRACLES));
+            miracles = startingAmount;
+            return List.of(event(trigger.tick(), gainMessage(startingAmount)));
         }
         if (!featureActive.test(FORTUNE_RECLAIMED)) return List.of();
-        if (!addMiracle()) return List.of();
-        return List.of(event(trigger.tick(), gainMessage(1)));
+        int gained = addMiracles(featureParameter(FORTUNE_RECLAIMED, GAIN, 1));
+        if (gained <= 0) return List.of();
+        return List.of(event(trigger.tick(), gainMessage(gained)));
     }
 
     @Override
@@ -60,22 +77,26 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
         // hardcoded "create a miracle" behaviour, gated on the Reservoir feature.
         if (!hasFeature(RESERVOIR)
             || !KEY.equalsIgnoreCase(effect.getCodedAbilityKey())
-            || !CREATE.equalsIgnoreCase(effect.getCodedAction())
-            || !addMiracle()) {
+            || !CREATE.equalsIgnoreCase(effect.getCodedAction())) {
             return List.of();
         }
+        int gained = addMiracles(TechniqueMasteryResolver.codedParameter(
+            effect.getCodedParameters(), GAIN, 1));
+        if (gained <= 0) return List.of();
         return List.of(CombatEvent.of(CombatEvent.Type.ABILITY_ACTIVATED)
             .source(owner).target(owner).tick(tick)
             .codedAbilityState(state())
-            .message(owner.getCharacter().getName() + " gains 1 Miracle through Miracle Creation ("
+            .message(owner.getCharacter().getName() + " gains " + gained
+                + (gained == 1 ? " Miracle" : " Miracles") + " through Miracle Creation ("
                 + remainingText(miracles) + ").")
             .build());
     }
 
     @Override
     public boolean preventFatalDamage(Predicate<String> featureActive) {
-        if (!featureActive.test(FATEFUL_REPRIEVE) || miracles <= 0) return false;
-        miracles--;
+        int cost = featureParameter(FATEFUL_REPRIEVE, COST, 1);
+        if (!featureActive.test(FATEFUL_REPRIEVE) || miracles < cost) return false;
+        miracles -= cost;
         pendingFatalAversions.add(miracles);
         return true;
     }
@@ -86,7 +107,8 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
         List<CombatEvent> events = new ArrayList<>();
         for (int remaining : pendingFatalAversions) {
             events.add(event(tick, owner.getCharacter().getName()
-                + " uses 1 Miracle to avert a fatal blow (" + remainingText(remaining) + ").", remaining));
+                + " uses " + featureParameter(FATEFUL_REPRIEVE, COST, 1)
+                + " Miracle to avert a fatal blow (" + remainingText(remaining) + ").", remaining));
         }
         pendingFatalAversions.clear();
         return events;
@@ -107,10 +129,10 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
         return features.contains(feature);
     }
 
-    private boolean addMiracle() {
-        if (miracles >= MAX_MIRACLES) return false;
-        miracles++;
-        return true;
+    private int addMiracles(int requested) {
+        int gained = Math.max(0, Math.min(requested, capacity - miracles));
+        miracles += gained;
+        return gained;
     }
 
     private String gainMessage(int gained) {
@@ -118,12 +140,12 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
             + (gained == 1 ? "" : "s") + " (" + remainingText(miracles) + ").";
     }
 
-    private static String remainingText(int remaining) {
-        return remaining + "/" + MAX_MIRACLES + " remaining";
+    private String remainingText(int remaining) {
+        return remaining + "/" + capacity + " remaining";
     }
 
-    private static CodedAbilityState miracleState(int value) {
-        return new CodedAbilityState(KEY, "Miracles", value, MAX_MIRACLES);
+    private CodedAbilityState miracleState(int value) {
+        return new CodedAbilityState(KEY, "Miracles", value, capacity);
     }
 
     private CombatEvent event(int tick, String message) {
@@ -136,5 +158,14 @@ public final class MiraclesAbility implements CodedAbilityRuntime {
             .codedAbilityState(miracleState(remaining))
             .message(message)
             .build();
+    }
+
+    private int featureParameter(String feature, String parameter, int fallback) {
+        List<CodedAbilityBinding> bindings = bindingsByFeature.getOrDefault(feature, List.of());
+        if (bindings.isEmpty() || bindings.get(0).effect() == null) return fallback;
+        var resolved = TechniqueMasteryResolver.resolve(
+            bindings.get(0).effect(), TechniqueMasteryResolver.masteryOf(owner));
+        return TechniqueMasteryResolver.codedParameter(
+            resolved.codedParameters, parameter, fallback);
     }
 }

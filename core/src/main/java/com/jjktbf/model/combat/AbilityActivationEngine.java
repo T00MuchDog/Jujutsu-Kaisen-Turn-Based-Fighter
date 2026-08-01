@@ -6,6 +6,8 @@ import com.jjktbf.model.character.coded.CodedHitModifiers;
 import com.jjktbf.model.character.coded.CodedMoveResponse;
 import com.jjktbf.model.move.StatusEffect;
 import com.jjktbf.model.move.StatusEffectType;
+import com.jjktbf.model.progression.TechniqueMasteryProgressions;
+import com.jjktbf.model.progression.TechniqueMasteryResolver;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -201,7 +203,11 @@ public final class AbilityActivationEngine {
                     .build());
 
                 for (AbilityEffectData effect : targetedEffects) {
-                    applyEffect(state, owner, enemy, effect, trigger.tick(), events, followUps);
+                    AbilityEffectData resolved = "TECHNIQUE".equalsIgnoreCase(ability.getSourceType())
+                        ? TechniqueMasteryResolver.resolve(
+                            effect, TechniqueMasteryResolver.masteryOf(owner))
+                        : effect;
+                    applyEffect(state, owner, enemy, resolved, trigger.tick(), events, followUps);
                 }
             }
         }
@@ -278,7 +284,12 @@ public final class AbilityActivationEngine {
             owner.setAbilityConditionTrue(
                 key, evaluate(rule.condition, owner, enemy, state, trigger, List.of()));
         }
-        double chance = rule.effectiveActivationChance();
+        double chance = TechniqueMasteryResolver.resolvePercent(
+            rule.masteryProgression,
+            TechniqueMasteryProgressions.ACTIVATION_CHANCE,
+            rule.effectiveActivationChance(),
+            TechniqueMasteryResolver.masteryOf(owner));
+        chance = Math.max(0.0, Math.min(1.0, chance));
         return chance > 0.0 && (chance >= 1.0 || rng.nextDouble() < chance);
     }
 
@@ -310,41 +321,45 @@ public final class AbilityActivationEngine {
             case MANUAL_ACTIVATION, BATTLE_STARTED -> history.stream().anyMatch(candidate ->
                 eventLeafMatches(type, condition, owner, enemy, state, candidate));
             case HP_PERCENT_AT_OR_BELOW -> anyActor(condition, owner, enemy,
-                combatant -> ratio(combatant.getCurrentHp(), combatant.getMaxHp()) <= value(condition.percentage));
+                combatant -> ratio(combatant.getCurrentHp(), combatant.getMaxHp())
+                    <= conditionPercent(condition, owner));
             case HP_PERCENT_AT_OR_ABOVE -> anyActor(condition, owner, enemy,
-                combatant -> ratio(combatant.getCurrentHp(), combatant.getMaxHp()) >= value(condition.percentage));
+                combatant -> ratio(combatant.getCurrentHp(), combatant.getMaxHp())
+                    >= conditionPercent(condition, owner));
             case HP_VALUE_AT_OR_BELOW -> anyActor(condition, owner, enemy,
-                combatant -> combatant.getCurrentHp() <= value(condition.amount));
+                combatant -> combatant.getCurrentHp() <= conditionAmount(condition, owner));
             case HP_VALUE_AT_OR_ABOVE -> anyActor(condition, owner, enemy,
-                combatant -> combatant.getCurrentHp() >= value(condition.amount));
+                combatant -> combatant.getCurrentHp() >= conditionAmount(condition, owner));
             case CE_PERCENT_AT_OR_BELOW -> anyActor(condition, owner, enemy,
-                combatant -> ratio(combatant.getCurrentCe(), combatant.getMaxCursedEnergy()) <= value(condition.percentage));
+                combatant -> ratio(combatant.getCurrentCe(), combatant.getMaxCursedEnergy())
+                    <= conditionPercent(condition, owner));
             case CE_PERCENT_AT_OR_ABOVE -> anyActor(condition, owner, enemy,
-                combatant -> ratio(combatant.getCurrentCe(), combatant.getMaxCursedEnergy()) >= value(condition.percentage));
+                combatant -> ratio(combatant.getCurrentCe(), combatant.getMaxCursedEnergy())
+                    >= conditionPercent(condition, owner));
             case CE_VALUE_AT_OR_BELOW -> anyActor(condition, owner, enemy,
-                combatant -> combatant.getCurrentCe() <= value(condition.amount));
+                combatant -> combatant.getCurrentCe() <= conditionAmount(condition, owner));
             case CE_VALUE_AT_OR_ABOVE -> anyActor(condition, owner, enemy,
-                combatant -> combatant.getCurrentCe() >= value(condition.amount));
+                combatant -> combatant.getCurrentCe() >= conditionAmount(condition, owner));
             case BLACK_FLASH_HIT -> history.stream().anyMatch(candidate ->
                 eventLeafMatches(type, condition, owner, enemy, state, candidate));
             case IN_BLACK_FLASH_STATE -> anyActor(condition, owner, enemy, BattleCombatant::isInBlackFlashState);
             case BLACK_FLASH_STREAK_AT_LEAST -> anyActor(condition, owner, enemy,
-                combatant -> combatant.getConsecutiveBfsHits() >= value(condition.amount));
+                combatant -> combatant.getConsecutiveBfsHits() >= conditionAmount(condition, owner));
             case MOVE_USED, MOVE_TAG_USED, ATTACK_HIT, ATTACK_MISSED, MOVE_BLOCKED,
                   TIMELINE_POINT_REACHED -> history.stream().anyMatch(candidate ->
                 eventLeafMatches(type, condition, owner, enemy, state, candidate));
             case ATTACK_CONNECTED, CONNECTED_HIT_HAS_TAG, FATAL_DAMAGE ->
                 eventLeafMatches(type, condition, owner, enemy, state, trigger);
-            case ROUND_REACHED -> state.getRoundNumber() >= value(condition.round);
+            case ROUND_REACHED -> state.getRoundNumber() >= conditionRound(condition, owner);
             case TIMELINE_POINT_ON_ROUND, EVERY_N_ROUNDS, PHASE_REACHED, HEALED,
                  DAMAGE_DEALT_AT_LEAST, DAMAGE_TAKEN_AT_LEAST, CE_SPENT_AT_LEAST,
                  CE_LOST_AT_LEAST,
                  CE_RESTORED_AT_LEAST -> history.stream().anyMatch(candidate ->
                 eventLeafMatches(type, condition, owner, enemy, state, candidate));
             case STAT_AT_OR_ABOVE -> anyActor(condition, owner, enemy,
-                combatant -> statValue(combatant, condition.stat) >= value(condition.amount));
+                combatant -> statValue(combatant, condition.stat) >= conditionAmount(condition, owner));
             case STAT_AT_OR_BELOW -> anyActor(condition, owner, enemy,
-                combatant -> statValue(combatant, condition.stat) <= value(condition.amount));
+                combatant -> statValue(combatant, condition.stat) <= conditionAmount(condition, owner));
             case HAS_STATUS -> statusPredicate(condition, owner, enemy, false);
             case DOES_NOT_HAVE_STATUS -> statusPredicate(condition, owner, enemy, true);
             case STATUS_APPLIED, STATUS_REMOVED -> history.stream().anyMatch(candidate ->
@@ -617,31 +632,32 @@ public final class AbilityActivationEngine {
             case FATAL_DAMAGE -> trigger.type() == AbilityTrigger.Type.FATAL_DAMAGE
                 && eventActorMatches(condition, owner, enemy, trigger.target());
             case TIMELINE_POINT_REACHED -> trigger.type() == AbilityTrigger.Type.TIMELINE_TICK
-                && trigger.tick() == value(condition.tick);
+                && trigger.tick() == conditionTick(condition, owner);
             case TIMELINE_POINT_ON_ROUND -> trigger.type() == AbilityTrigger.Type.TIMELINE_TICK
-                && trigger.tick() == value(condition.tick) && state.getRoundNumber() == value(condition.round);
+                && trigger.tick() == conditionTick(condition, owner)
+                && state.getRoundNumber() == conditionRound(condition, owner);
             case EVERY_N_ROUNDS -> trigger.type() == AbilityTrigger.Type.ROUND_START
-                && state.getRoundNumber() % Math.max(1, value(condition.round)) == 0;
+                && state.getRoundNumber() % Math.max(1, conditionRound(condition, owner)) == 0;
             case PHASE_REACHED -> trigger.type() == AbilityTrigger.Type.PHASE_REACHED
                 && trigger.phase() != null && trigger.phase().name().equals(condition.phase);
             case HEALED -> trigger.type() == AbilityTrigger.Type.HEALED
                 && eventActorMatches(condition, owner, enemy, trigger.actor())
-                && trigger.amount() >= value(condition.amount);
+                && trigger.amount() >= conditionAmount(condition, owner);
             case DAMAGE_DEALT_AT_LEAST -> trigger.type() == AbilityTrigger.Type.DAMAGE
                 && eventActorMatches(condition, owner, enemy, trigger.actor())
-                && trigger.amount() >= value(condition.amount);
+                && trigger.amount() >= conditionAmount(condition, owner);
             case DAMAGE_TAKEN_AT_LEAST -> trigger.type() == AbilityTrigger.Type.DAMAGE
                 && eventActorMatches(condition, owner, enemy, trigger.target())
-                && trigger.amount() >= value(condition.amount);
+                && trigger.amount() >= conditionAmount(condition, owner);
             case CE_SPENT_AT_LEAST -> trigger.type() == AbilityTrigger.Type.CE_SPENT
                 && eventActorMatches(condition, owner, enemy, trigger.actor())
-                && trigger.amount() >= value(condition.amount);
+                && trigger.amount() >= conditionAmount(condition, owner);
             case CE_LOST_AT_LEAST -> trigger.type() == AbilityTrigger.Type.CE_LOST
                 && eventActorMatches(condition, owner, enemy, trigger.actor())
-                && trigger.amount() >= value(condition.amount);
+                && trigger.amount() >= conditionAmount(condition, owner);
             case CE_RESTORED_AT_LEAST -> trigger.type() == AbilityTrigger.Type.CE_RESTORED
                 && eventActorMatches(condition, owner, enemy, trigger.actor())
-                && trigger.amount() >= value(condition.amount);
+                && trigger.amount() >= conditionAmount(condition, owner);
             case STATUS_APPLIED -> trigger.type() == AbilityTrigger.Type.STATUS_APPLIED
                 && eventActorMatches(condition, owner, enemy, trigger.actor())
                 && StatusEffectType.referencedTypes(condition.statusType)
@@ -692,9 +708,36 @@ public final class AbilityActivationEngine {
         return anyActor(condition, owner, enemy, combatant ->
             combatant.getCodedAbilities().state(condition.codedAbilityKey)
                 .map(state -> atOrAbove
-                    ? state.currentValue() >= value(condition.amount)
-                    : state.currentValue() <= value(condition.amount))
+                    ? state.currentValue() >= conditionAmount(condition, owner)
+                    : state.currentValue() <= conditionAmount(condition, owner))
                 .orElse(false));
+    }
+
+    private static int conditionAmount(AbilityConditionData condition, BattleCombatant owner) {
+        return TechniqueMasteryResolver.resolveInt(
+            condition.masteryProgression, TechniqueMasteryProgressions.AMOUNT,
+            condition.amount, TechniqueMasteryResolver.masteryOf(owner));
+    }
+
+    private static int conditionTick(AbilityConditionData condition, BattleCombatant owner) {
+        return TechniqueMasteryResolver.resolveInt(
+            condition.masteryProgression, TechniqueMasteryProgressions.TICK,
+            condition.tick, TechniqueMasteryResolver.masteryOf(owner));
+    }
+
+    private static int conditionRound(AbilityConditionData condition, BattleCombatant owner) {
+        return TechniqueMasteryResolver.resolveInt(
+            condition.masteryProgression, TechniqueMasteryProgressions.ROUND,
+            condition.round, TechniqueMasteryResolver.masteryOf(owner));
+    }
+
+    private static double conditionPercent(
+        AbilityConditionData condition,
+        BattleCombatant owner
+    ) {
+        return TechniqueMasteryResolver.resolvePercent(
+            condition.masteryProgression, TechniqueMasteryProgressions.PERCENTAGE,
+            condition.percentage, TechniqueMasteryResolver.masteryOf(owner));
     }
 
     private static boolean connectedHitHasTag(AbilityTrigger trigger, String tagName) {

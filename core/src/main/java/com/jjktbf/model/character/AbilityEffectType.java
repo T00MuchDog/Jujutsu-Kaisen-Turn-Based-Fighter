@@ -4,10 +4,13 @@ import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffect;
 import com.jjktbf.model.move.StatusEffectType;
+import com.jjktbf.model.progression.TechniqueMasteryProgressions;
+import com.jjktbf.model.progression.TechniqueMasteryResolver;
 
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.LinkedHashSet;
 
 import static com.jjktbf.model.character.AbilityEffectParameter.DECIMAL;
 import static com.jjktbf.model.character.AbilityEffectParameter.DURATION;
@@ -306,6 +309,7 @@ public enum AbilityEffectType {
         effect.type = name();
         effect.codedAbilityKey = null;
         effect.codedFeature = null;
+        effect.codedParameters = null;
         effect.stat = null;
         effect.intValue = null;
         effect.doubleValue = null;
@@ -319,6 +323,7 @@ public enum AbilityEffectType {
         effect.durationTicks = null;
         effect.magnitude = null;
         effect.uses = null;
+        effect.masteryProgression = null;
 
         if (uses(STAT)) effect.stat = StatKey.VITALITY.fieldName;
         if (uses(TARGET)) effect.target = AbilityEffectTarget.SELF.name();
@@ -430,6 +435,7 @@ public enum AbilityEffectType {
             effect.codedAbilityKey = defaults.codedAbilityKey;
             effect.codedFeature = defaults.codedFeature;
         }
+        if (uses(CODED_FEATURE)) CodedAbilityRegistry.prepareAbilityParameters(effect);
         if (uses(STAT) && isBlank(effect.stat)) effect.stat = defaults.stat;
         if (uses(INTEGER) && effect.intValue == null) effect.intValue = defaults.intValue;
         if (uses(DECIMAL) && effect.doubleValue == null) effect.doubleValue = defaults.doubleValue;
@@ -461,6 +467,7 @@ public enum AbilityEffectType {
         if (!uses(CODED_FEATURE)) {
             effect.codedAbilityKey = null;
             effect.codedFeature = null;
+            effect.codedParameters = null;
         }
         if (!uses(STAT)) effect.stat = null;
         if (!uses(INTEGER)) effect.intValue = null;
@@ -478,6 +485,17 @@ public enum AbilityEffectType {
         if (!uses(MAGNITUDE)) effect.magnitude = null;
         if (!uses(USES)) effect.uses = null;
         if (!uses(BATTLE_STAT) && !uses(TECHNIQUE) && !uses(STATUS_TYPE)) effect.stringValue = null;
+        Set<String> allowedProgressions = masteryProgressionFields(effect);
+        if (effect.masteryProgression != null) {
+            effect.masteryProgression = effect.masteryProgression.entrySet().stream()
+                .filter(entry -> allowedProgressions.contains(entry.getKey()))
+                .collect(java.util.stream.Collectors.toMap(
+                    java.util.Map.Entry::getKey,
+                    java.util.Map.Entry::getValue,
+                    (left, right) -> left,
+                    java.util.LinkedHashMap::new));
+            if (effect.masteryProgression.isEmpty()) effect.masteryProgression = null;
+        }
     }
 
     /** Return a user-facing validation error, or {@code null} when valid. */
@@ -561,8 +579,13 @@ public enum AbilityEffectType {
             effect.codedAbilityKey, effect.codedFeature)) {
             return "Choose a supported coded effect.";
         }
+        if (uses(CODED_FEATURE)) {
+            String codedParameterError =
+                CodedAbilityRegistry.abilityParameterValidationError(effect);
+            if (codedParameterError != null) return codedParameterError;
+        }
 
-        return switch (this) {
+        String literalError = switch (this) {
             case STAT_ADD, STAT_BONUS_POINTS,
                  MOVE_ACCURACY_ADD, OPPONENT_ACCURACY_ADD,
                   MODIFY_AP_BAR, TEMP_STAT_ADD -> effect.intValue == 0 ? "Enter a non-zero amount." : null;
@@ -596,6 +619,46 @@ public enum AbilityEffectType {
                 ? "Enter a non-zero amount." : null;
             default -> null;
         };
+        if (literalError != null) return literalError;
+
+        String progressionError = TechniqueMasteryProgressions.validationError(
+            effect.masteryProgression, masteryProgressionFields(effect));
+        if (progressionError != null) return progressionError;
+        if (effect.masteryProgression != null && !effect.masteryProgression.isEmpty()) {
+            for (int mastery = 0; mastery <= CharacterStats.MAX_STAT; mastery++) {
+                AbilityEffectData resolved;
+                try {
+                    resolved = TechniqueMasteryResolver.resolve(effect, mastery);
+                } catch (RuntimeException exception) {
+                    return "Invalid mastery progression at CTM " + mastery + ": "
+                        + exception.getMessage();
+                }
+                resolved.masteryProgression = null;
+                String error = validationError(resolved);
+                if (error != null) {
+                    return "At CTM " + mastery + ": " + error;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Numeric fields that may derive their value from CTM for this effect row. */
+    public Set<String> masteryProgressionFields(AbilityEffectData effect) {
+        if (this == STAT_ALLOCATION_MINIMUM || this == STAT_BONUS_POINTS) return Set.of();
+        Set<String> fields = new LinkedHashSet<>();
+        if (uses(INTEGER)) fields.add(TechniqueMasteryProgressions.INT_VALUE);
+        if (uses(DECIMAL)) fields.add(TechniqueMasteryProgressions.DOUBLE_VALUE);
+        if (uses(DURATION)) {
+            fields.add(TechniqueMasteryProgressions.DURATION_ROUNDS);
+            fields.add(TechniqueMasteryProgressions.DURATION_TICKS);
+        }
+        if (uses(MAGNITUDE)) fields.add(TechniqueMasteryProgressions.MAGNITUDE);
+        if (uses(USES)) fields.add(TechniqueMasteryProgressions.USES);
+        if (uses(CODED_FEATURE) && effect != null && effect.codedParameters != null) {
+            fields.addAll(effect.codedParameters.keySet());
+        }
+        return Collections.unmodifiableSet(fields);
     }
 
     /** True when an effect needs an active ability condition to run at battle time. */

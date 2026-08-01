@@ -368,6 +368,9 @@ public final class ContentCatalog {
         List<MoveData.StatusEffectData> rows = new ArrayList<>();
         addCodedEffects(rows, move.selfEffects);
         addCodedEffects(rows, move.onHitEffects);
+        addCodedEffects(rows, move.onBlockEffects);
+        addCodedEffects(rows, move.onParryEffects);
+        addCodedEffects(rows, move.onDodgeEffects);
         if (move.hitComponents != null) {
             for (MoveData.HitComponentData component : move.hitComponents) {
                 if (component != null) {

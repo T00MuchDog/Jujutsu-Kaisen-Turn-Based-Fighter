@@ -8,6 +8,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
@@ -20,6 +21,7 @@ import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.ContentSizedDialog;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
+import com.jjktbf.graphics.ui.editor.AxisLockedScrollPane;
 import com.jjktbf.graphics.ui.editor.EnumSelectBox;
 import com.jjktbf.graphics.ui.editor.HoverTextField;
 import com.jjktbf.graphics.ui.editor.TagPicker;
@@ -44,6 +46,8 @@ import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveRepository;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffectType;
+import com.jjktbf.model.progression.TechniqueMasteryProgressions;
+import com.jjktbf.graphics.ui.editor.MasteryProgressionEditor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -243,6 +247,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             c.codedAction     = e.codedAction;
             c.codedTarget     = e.codedTarget;
             c.codedStackCount = e.codedStackCount;
+            c.codedParameters = TechniqueMasteryProgressions.copyIntegers(e.codedParameters);
+            c.masteryProgression = TechniqueMasteryProgressions.copy(e.masteryProgression);
             return c;
         }
         StatusEffectType type;
@@ -258,6 +264,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         c.magnitude       = type.usesMagnitude()
             ? type.signedMagnitude(StatusEffectType.normalizeStoredMagnitude(e.type, e.magnitude))
             : 0.0;
+        c.masteryProgression = TechniqueMasteryProgressions.copy(e.masteryProgression);
         return c;
     }
 
@@ -653,6 +660,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             boolean typeTagsChanged = !selectedTypeTags.equals(previousTypeTags);
             d.tags = tags.stream().map(MoveTag::name)
                 .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+            if (!tags.contains(MoveTag.INNATE_TECHNIQUE)) {
+                clearMasteryProgression(d);
+            }
             if (d.hitComponents != null && tags.contains(MoveTag.ATTACK)) {
                 if (typeTagsChanged && !selectedTypeTags.isEmpty()) {
                     applyMoveDamageTagsToComponents(d, selectedTypeTags);
@@ -1047,7 +1057,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 component.onHitEffects = new ArrayList<>();
             }
             card.add(new Label("ON-HIT EFFECTS", skin, "small")).padTop(4f).left().row();
-            card.add(buildEffectsEditor(component.onHitEffects)).growX().row();
+            card.add(buildEffectsEditor(component.onHitEffects, masteryEligible(d))).growX().row();
             editor.add(card).growX().padBottom(5f).row();
         }
 
@@ -1570,14 +1580,17 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 default:        d.selfEffects = raw;    break;
             }
         }
-        return buildEffectsEditor(raw);
+        return buildEffectsEditor(raw, masteryEligible(d));
     }
 
     /**
      * Render an editable list of status effects. Used by the move-level
      * self/block/parry/dodge editors and the per-hit-component on-hit editor.
      */
-    private Actor buildEffectsEditor(List<MoveData.StatusEffectData> raw) {
+    private Actor buildEffectsEditor(
+        List<MoveData.StatusEffectData> raw,
+        boolean masteryEligible
+    ) {
         final List<MoveData.StatusEffectData> list = raw;
 
         Table t = new Table(skin);
@@ -1604,7 +1617,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 editBtn.addListener(new ChangeListener() {
                     @Override public void changed(ChangeEvent event, Actor actor) {
                         game.audio().play(SoundCue.UI_CONFIRM);
-                        showEffectEditor(eff, updated -> list.set(idx, updated));
+                        showEffectEditor(eff, masteryEligible, updated -> list.set(idx, updated));
                     }
                 });
                 TextButton rmBtn = new TextButton("X", skin);
@@ -1631,7 +1644,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 eff.durationRounds = 1;
                 eff.durationTicks = 0;
                 eff.magnitude = 10.0;
-                showEffectEditor(eff, list::add);
+                showEffectEditor(eff, masteryEligible, list::add);
             }
         });
         t.add(addBtn).colspan(5).padTop(4).row();
@@ -1641,6 +1654,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     /** Modal editor for a single StatusEffectData row. */
     private void showEffectEditor(
         MoveData.StatusEffectData source,
+        boolean masteryEligible,
         Consumer<MoveData.StatusEffectData> commit
     ) {
         MoveData.StatusEffectData eff = copyEffect(source);
@@ -1691,6 +1705,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             @Override public void changed(ChangeEvent event, Actor actor) {
                 game.audio().play(SoundCue.UI_TOGGLE);
                 boolean nowCoded = !eff.isCoded();
+                eff.masteryProgression = null;
                 if (nowCoded) {
                     if (eff.codedAbilityKey == null || eff.codedAbilityKey.isBlank()) {
                         eff.codedAbilityKey = codedOptions.get(0).key();
@@ -1703,6 +1718,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                     eff.codedAction = null;
                     eff.codedTarget = null;
                     eff.codedStackCount = null;
+                    eff.codedParameters = null;
+                    eff.masteryProgression = null;
                     if (eff.type == null) eff.type = StatusEffectType.STRENGTH_INCREASE.name();
                 }
                 applyMode[0].run();
@@ -1719,6 +1736,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                         eff.codedAbilityKey = codedOptions.get(idx).key();
                         eff.codedAction     = codedOptions.get(idx).action();
                         normalizeCodedSettings(eff);
+                        eff.masteryProgression = null;
                     }
                     applyMode[0].run(); // refresh coded-action options below
                 } else {
@@ -1769,12 +1787,13 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                     }
                     typeBox.setSelected(idx >= 0 ? codedLabels.get(idx) : codedLabels.get(0));
                     normalizeCodedSettings(eff);
-                    customRow.setActor(buildCodedEffectFields(eff, applyMode[0]));
+                    customRow.setActor(buildCodedEffectFields(
+                        eff, applyMode[0], masteryEligible));
                 } else {
                     toggleBtn.setText("Coded");
                     typeBox.setItems(statusLabels.toArray(new String[0]));
                     typeBox.setSelected(statusLabel(eff.type, eff.magnitude));
-                    customRow.setActor(buildStatusEffectFields(eff));
+                    customRow.setActor(buildStatusEffectFields(eff, masteryEligible));
                 }
             } finally {
                 syncing[0] = false;
@@ -1782,13 +1801,23 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         };
         applyMode[0].run();
 
-        dlg.getContentTable().add(content).grow().row();
+        ScrollPane scroll = new AxisLockedScrollPane(content, skin);
+        scroll.setScrollingDisabled(true, false);
+        scroll.setFadeScrollBars(false);
+        scroll.setOverscroll(false, false);
+        scroll.setForceScroll(false, false);
+        float viewportHeight = stage == null ? 720f : stage.getHeight();
+        float maxHeight = Math.max(180f, Math.min(560f, viewportHeight - 180f));
+        dlg.getContentTable().add(scroll).minHeight(140f).maxHeight(maxHeight).growX().row();
         dlg.button("Done", true);
         dlg.button("Cancel", false);
         dlg.show(stage);
     }
 
-    private Actor buildStatusEffectFields(MoveData.StatusEffectData effect) {
+    private Actor buildStatusEffectFields(
+        MoveData.StatusEffectData effect,
+        boolean masteryEligible
+    ) {
         Table fields = new Table(skin);
         fields.defaults().pad(4).left();
         StatusEffectType type;
@@ -1812,6 +1841,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             });
             fields.add(new Label("Stagger duration (AP ticks)", skin)).padRight(8);
             fields.add(ticksField).growX().row();
+            addMoveProgression(fields, effect, TechniqueMasteryProgressions.DURATION_TICKS,
+                () -> effect.durationTicks, masteryEligible);
             return fields;
         }
 
@@ -1832,6 +1863,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         });
         fields.add(new Label("Duration rounds (-1 = permanent)", skin)).padRight(8);
         fields.add(roundsField).growX().row();
+        addMoveProgression(fields, effect, TechniqueMasteryProgressions.DURATION_ROUNDS,
+            () -> effect.durationRounds, masteryEligible);
 
         if (!type.requiresRoundDuration()) {
             TextField ticksField = new HoverTextField(String.valueOf(effect.durationTicks), skin);
@@ -1844,6 +1877,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             });
             fields.add(new Label("Duration ticks", skin)).padRight(8);
             fields.add(ticksField).growX().row();
+            addMoveProgression(fields, effect, TechniqueMasteryProgressions.DURATION_TICKS,
+                () -> effect.durationTicks, masteryEligible);
         }
 
         TextField magnitudeField = new HoverTextField(String.valueOf(effect.magnitude), skin);
@@ -1857,12 +1892,17 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         fields.add(new Label(type.requiresRoundDuration()
             ? "Damage per round" : "Amount (+/- flat points)", skin)).padRight(8);
         fields.add(magnitudeField).growX().row();
+        if (type.usesMagnitude()) {
+            addMoveProgression(fields, effect, TechniqueMasteryProgressions.MAGNITUDE,
+                () -> (int) Math.floor(Math.abs(effect.magnitude)), masteryEligible);
+        }
         return fields;
     }
 
     private Actor buildCodedEffectFields(
         MoveData.StatusEffectData effect,
-        Runnable refresh
+        Runnable refresh,
+        boolean masteryEligible
     ) {
         Table fields = new Table(skin);
         fields.defaults().pad(4).left();
@@ -1897,7 +1937,10 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             return fields;
         }
 
-        if (!RatioAbility.KEY.equalsIgnoreCase(effect.codedAbilityKey)) return fields;
+        if (!RatioAbility.KEY.equalsIgnoreCase(effect.codedAbilityKey)) {
+            addCodedParameterFields(fields, effect, masteryEligible);
+            return fields;
+        }
 
         SelectBox<String> targetBox = new DynamicSelectBox<>(skin);
         String applyLabel = "Apply to this move";
@@ -1912,6 +1955,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 effect.codedStackCount = RatioAbility.CREATE_STACKS.equals(effect.codedTarget)
                     ? effect.codedStackCount == null ? 1 : effect.codedStackCount
                     : null;
+                effect.masteryProgression = null;
                 refresh.run();
             }
         });
@@ -1928,11 +1972,46 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                     catch (NumberFormatException ignored) { }
                 }
             });
-            fields.add(new Label("Stacks to create (1-" + RatioAbility.MAX_STACKS + ")", skin))
+            fields.add(new Label("Stacks to create (1-99)", skin))
                 .padRight(8);
             fields.add(countField).growX().row();
+            addMoveProgression(fields, effect,
+                TechniqueMasteryProgressions.CODED_STACK_COUNT,
+                () -> effect.codedStackCount == null ? 1 : effect.codedStackCount,
+                masteryEligible);
         }
+        addCodedParameterFields(fields, effect, masteryEligible);
         return fields;
+    }
+
+    private void addCodedParameterFields(
+        Table fields,
+        MoveData.StatusEffectData effect,
+        boolean masteryEligible
+    ) {
+        effect.codedParameters = CodedAbilityRegistry.prepareEffectParameters(
+            effect.codedParameters, effect.codedAbilityKey,
+            effect.codedAction, effect.codedTarget);
+        for (CodedAbilityRegistry.CodedParameter parameter
+            : CodedAbilityRegistry.effectParameters(
+                effect.codedAbilityKey, effect.codedAction, effect.codedTarget)) {
+            TextField value = new HoverTextField(
+                String.valueOf(effect.codedParameters.get(parameter.key())), skin);
+            value.setTextFieldFilter((tf, c) -> Character.isDigit(c) || c == '-');
+            value.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    try {
+                        effect.codedParameters.put(
+                            parameter.key(), Integer.parseInt(value.getText()));
+                    } catch (NumberFormatException ignored) { }
+                }
+            });
+            fields.add(new Label(parameter.label(), skin)).padRight(8);
+            fields.add(value).growX().row();
+            addMoveProgression(fields, effect, parameter.key(),
+                () -> effect.codedParameters.getOrDefault(
+                    parameter.key(), parameter.defaultValue()), masteryEligible);
+        }
     }
 
     private void normalizeCodedSettings(MoveData.StatusEffectData effect) {
@@ -1965,6 +2044,53 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             effect.codedTarget = null;
             effect.codedStackCount = null;
         }
+        effect.codedParameters = CodedAbilityRegistry.prepareEffectParameters(
+            effect.codedParameters, effect.codedAbilityKey,
+            effect.codedAction, effect.codedTarget);
+    }
+
+    private void addMoveProgression(
+        Table fields,
+        MoveData.StatusEffectData effect,
+        String field,
+        java.util.function.IntSupplier literal,
+        boolean masteryEligible
+    ) {
+        if (!masteryEligible) return;
+        fields.add(new MasteryProgressionEditor(
+            field,
+            literal,
+            () -> effect.masteryProgression,
+            value -> effect.masteryProgression = value,
+            this::markDirty,
+            skin)).colspan(2).growX().row();
+    }
+
+    private static boolean masteryEligible(MoveData move) {
+        return move != null && move.tags != null && move.tags.stream()
+            .anyMatch(tag -> MoveTag.INNATE_TECHNIQUE.name().equalsIgnoreCase(tag));
+    }
+
+    private static void clearMasteryProgression(MoveData move) {
+        if (move == null) return;
+        clearMasteryProgression(move.onHitEffects);
+        clearMasteryProgression(move.selfEffects);
+        clearMasteryProgression(move.onBlockEffects);
+        clearMasteryProgression(move.onParryEffects);
+        clearMasteryProgression(move.onDodgeEffects);
+        if (move.hitComponents != null) {
+            for (MoveData.HitComponentData component : move.hitComponents) {
+                if (component != null) clearMasteryProgression(component.onHitEffects);
+            }
+        }
+    }
+
+    private static void clearMasteryProgression(
+        List<MoveData.StatusEffectData> effects
+    ) {
+        if (effects == null) return;
+        effects.stream().filter(java.util.Objects::nonNull)
+            .forEach(effect -> effect.masteryProgression = null);
     }
 
     private static String moveLabel(MoveData move) {

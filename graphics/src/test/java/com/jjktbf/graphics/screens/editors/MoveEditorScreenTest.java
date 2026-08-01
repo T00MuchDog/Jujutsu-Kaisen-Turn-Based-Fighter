@@ -5,6 +5,8 @@ import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffectType;
+import com.jjktbf.model.progression.TechniqueMasteryProgressionData;
+import com.jjktbf.model.progression.TechniqueMasteryProgressions;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -42,6 +44,31 @@ class MoveEditorScreenTest {
         assertEquals(List.of(MoveTag.CURSED_ENERGY.name()),
             draft.hitComponents.get(1).tags);
         assertEquals(999, draft.basePower);
+    }
+
+    @Test
+    void saveCopyDeepCopiesMoveEffectMasteryProgression() {
+        MoveData draft = new MoveData();
+        draft.tags = new ArrayList<>(List.of(
+            MoveTag.UTILITY.name(), MoveTag.INNATE_TECHNIQUE.name(),
+            MoveTag.CURSED_ENERGY.name()));
+        MoveData.StatusEffectData effect = effect("STRENGTH_INCREASE", 10);
+        TechniqueMasteryProgressionData progression = new TechniqueMasteryProgressionData();
+        progression.mode = TechniqueMasteryProgressionData.FORMULA;
+        progression.formula = "10 + ctm / 20";
+        effect.masteryProgression = Map.of(
+            TechniqueMasteryProgressions.MAGNITUDE, progression);
+        draft.selfEffects = new ArrayList<>(List.of(effect));
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(draft);
+
+        assertNotSame(draft.selfEffects.get(0).masteryProgression,
+            saved.selfEffects.get(0).masteryProgression);
+        assertNotSame(progression,
+            saved.selfEffects.get(0).masteryProgression
+                .get(TechniqueMasteryProgressions.MAGNITUDE));
+        assertEquals(15, saved.selfEffects.get(0).masteryProgression
+            .get(TechniqueMasteryProgressions.MAGNITUDE).resolve(100));
     }
 
     @Test

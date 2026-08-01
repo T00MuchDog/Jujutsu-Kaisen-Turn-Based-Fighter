@@ -13,6 +13,7 @@ import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffectType;
+import com.jjktbf.model.progression.TechniqueMasteryProgressions;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,6 +30,7 @@ public class ConditionTreeEditor extends Table {
     private final Runnable onDirty;
     private final Consumer<SoundCue> soundPlayer;
     private final Skin skin;
+    private final boolean masteryEligible;
     private final Container<Actor> treeContainer = new Container<>();
 
     public ConditionTreeEditor(
@@ -36,6 +38,7 @@ public class ConditionTreeEditor extends Table {
         List<MoveData> moves,
         Runnable onDirty,
         Consumer<SoundCue> soundPlayer,
+        boolean masteryEligible,
         Skin skin
     ) {
         super(skin);
@@ -44,6 +47,7 @@ public class ConditionTreeEditor extends Table {
         this.onDirty = onDirty;
         this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
         this.skin = skin;
+        this.masteryEligible = masteryEligible;
         treeContainer.fill(true, false);
         add(treeContainer).growX().row();
         rebuild();
@@ -236,11 +240,16 @@ public class ConditionTreeEditor extends Table {
                 condition.percentage = value == null ? null : value / 100.0;
             }));
             addRow(fields, "Percentage", field);
+            addMasteryProgression(fields, condition, TechniqueMasteryProgressions.PERCENTAGE,
+                () -> condition.percentage == null
+                    ? 0 : (int) Math.floor(condition.percentage * 100.0));
         }
         if (type.uses(AbilityConditionParameter.AMOUNT)) {
             TextField field = integerField(condition.amount);
             field.addListener(change(() -> condition.amount = parseInteger(field.getText())));
             addRow(fields, type == AbilityConditionType.HEALED ? "Minimum (0 = any)" : "Value", field);
+            addMasteryProgression(fields, condition, TechniqueMasteryProgressions.AMOUNT,
+                () -> condition.amount == null ? 0 : condition.amount);
         }
         if (type.uses(AbilityConditionParameter.MOVE_ID)) {
             SelectBox<String> box = new DynamicSelectBox<>(skin);
@@ -307,11 +316,15 @@ public class ConditionTreeEditor extends Table {
             TextField field = integerField(condition.tick);
             field.addListener(change(() -> condition.tick = parseInteger(field.getText())));
             addRow(fields, "Timeline point", field);
+            addMasteryProgression(fields, condition, TechniqueMasteryProgressions.TICK,
+                () -> condition.tick == null ? 1 : condition.tick);
         }
         if (type.uses(AbilityConditionParameter.ROUND)) {
             TextField field = integerField(condition.round);
             field.addListener(change(() -> condition.round = parseInteger(field.getText())));
             addRow(fields, type == AbilityConditionType.EVERY_N_ROUNDS ? "Every N rounds" : "Round", field);
+            addMasteryProgression(fields, condition, TechniqueMasteryProgressions.ROUND,
+                () -> condition.round == null ? 1 : condition.round);
         }
         if (type.uses(AbilityConditionParameter.PHASE)) {
             BattleState.Phase[] phases = {
@@ -323,6 +336,22 @@ public class ConditionTreeEditor extends Table {
             addRow(fields, "Phase", box);
         }
         return fields;
+    }
+
+    private void addMasteryProgression(
+        Table fields,
+        AbilityConditionData condition,
+        String field,
+        java.util.function.IntSupplier literal
+    ) {
+        if (!masteryEligible) return;
+        fields.add(new MasteryProgressionEditor(
+            field,
+            literal,
+            () -> condition.masteryProgression,
+            value -> condition.masteryProgression = value,
+            onDirty,
+            skin)).colspan(2).growX().row();
     }
 
     private <E extends Enum<E>> SelectBox<String> enumBox(E[] values, String selected, java.util.function.Consumer<String> onChange) {

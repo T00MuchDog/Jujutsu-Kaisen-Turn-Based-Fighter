@@ -18,13 +18,17 @@ import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.CombatResolver;
 import com.jjktbf.model.combat.AbilityActivationEngine;
 import com.jjktbf.model.combat.SeededRandomSource;
+import com.jjktbf.model.combat.Timeline;
+import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.MoveCategory;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MiraclesTechniqueTest {
@@ -89,6 +93,72 @@ class MiraclesTechniqueTest {
     }
 
     @Test
+    void dodgeDoesNotGrantAMiracleOnlyNaturalMissesDo() {
+        // Fortune Reclaimed (without Reservoir) starts at 0 Miracles. A DODGE
+        // move that avoids an attack must NOT fire ATTACK_MISSED, so it grants
+        // nothing; a genuine natural miss still grants one. Drives the full
+        // CombatResolver end-to-end so the dodge-vs-miss distinction is real,
+        // not asserted by hand-firing a trigger. The defender is faster so its
+        // same-tick instant dodge is already fired when the attack resolves
+        // (the resolver only lets a defense contest an attack after it fires).
+        Move attack = new Move.Builder("ATTACK")
+            .name("Attack")
+            .basePower(10)
+            .neverMiss(true)
+            .apCost(10)
+            .unleashPoint(1)
+            .build();
+        Move dodge = new Move.Builder("DODGE")
+            .name("Dodge")
+            .category(MoveCategory.DEFENSIVE)
+            .defenseType(DefenseType.DODGE)
+            .dodgeChance(100)
+            .dodgeScope("BOTH")
+            .apCost(10)
+            .unleashPoint(1)
+            .build();
+
+        // --- (a) Dodge: no miracle granted. ---
+        BattleCombatant ownerDodge = miracleCombatantWithFortuneOnly(dodge);
+        BattleCombatant enemyDodge = combatant("ENEMY", List.of(attack), List.of());
+        Timeline enemyTlDodge = new Timeline(30);
+        assertNotNull(enemyTlDodge.placeAt(attack, 1, 0));
+        enemyDodge.setTimeline(enemyTlDodge);
+        BattleState dodgeState = new BattleState(ownerDodge, enemyDodge);
+        dodgeState.transitionTo(BattleState.Phase.RESOLUTION);
+        List<CombatEvent> dodgeEvents = new CombatResolver(new FixedRandom()).resolveRound(dodgeState);
+
+        assertTrue(dodgeEvents.stream().anyMatch(e -> e.getType() == CombatEvent.Type.MOVE_DODGED),
+            "A dodge should produce a MOVE_DODGED event.");
+        assertEquals(0, miracleCount(ownerDodge),
+            "A dodge-move miss must NOT grant a miracle (only a natural miss should).");
+
+        // --- (b) Natural miss: a miracle is granted. ---
+        // Remove the dodge so the only way to avoid is the hit roll, and force a
+        // natural miss with a zero-accuracy attack (RNG-independent).
+        Move missableAttack = new Move.Builder("MISSABLE")
+            .name("Missable")
+            .basePower(10)
+            .baseAccuracy(0.0)
+            .apCost(10)
+            .unleashPoint(1)
+            .build();
+        BattleCombatant ownerMiss = miracleCombatantWithFortuneOnly(null);
+        BattleCombatant enemyMiss = combatant("ENEMY", List.of(missableAttack), List.of());
+        Timeline enemyTlMiss = new Timeline(30);
+        assertNotNull(enemyTlMiss.placeAt(missableAttack, 1, 0));
+        enemyMiss.setTimeline(enemyTlMiss);
+        BattleState missState = new BattleState(ownerMiss, enemyMiss);
+        missState.transitionTo(BattleState.Phase.RESOLUTION);
+        List<CombatEvent> missEvents = new CombatResolver(new FixedRandom()).resolveRound(missState);
+
+        assertTrue(missEvents.stream().anyMatch(e -> e.getType() == CombatEvent.Type.MOVE_MISSED),
+            "A zero-accuracy attack should naturally miss.");
+        assertEquals(1, miracleCount(ownerMiss),
+            "A natural miss must still grant a miracle.");
+    }
+
+    @Test
     void eachCombatantGetsAnIndependentMiraclesRuntime() {
         Character sharedCharacter = new SorcererCharacter(
             "MIRACLE_USER", "Miracle User", new CharacterStats.Builder().build(),
@@ -119,8 +189,31 @@ class MiraclesTechniqueTest {
         return new BattleCombatant(character);
     }
 
-    private static List<Ability> miracleAbilities() {
-        return List.of(
+    /**
+     * A Miracles wielder with Fortune Reclaimed ONLY (no Reservoir), so it starts
+     * the battle at 0/6 Miracles and must earn them through Fortune Reclaimed.
+     * Faster than the default enemy (BASELINE speed) so an instant same-tick
+     * dodge has already fired before the attack resolves. An optional dodge move,
+     * when supplied, is placed on its own timeline.
+     */
+    private static BattleCombatant miracleCombatantWithFortuneOnly(Move dodge) {
+        List<Move> moves = dodge == null ? List.of() : List.of(dodge);
+        Character character = new SorcererCharacter(
+            "OWNER", "Owner",
+            new CharacterStats.Builder().vitality(300).speed(120).build(),
+            "Miracles", moves,
+            List.of(codedAbility("Fortune Reclaimed", "FORTUNE_RECLAIMED",
+                MiraclesAbility.FORTUNE_RECLAIMED, "ACTIVE", fortuneCondition())));
+        BattleCombatant owner = new BattleCombatant(character);
+        if (dodge != null) {
+            Timeline tl = new Timeline(30);
+            assertNotNull(tl.placeAt(dodge, 1, 0));
+            owner.setTimeline(tl);
+        }
+        return owner;
+    }
+
+    private static List<Ability> miracleAbilities() {        return List.of(
             codedAbility("Miracle Reservoir", "MIRACLE_RESERVOIR",
                 MiraclesAbility.RESERVOIR, "PASSIVE", null),
             codedAbility("Fateful Reprieve", "FATEFUL_REPRIEVE",

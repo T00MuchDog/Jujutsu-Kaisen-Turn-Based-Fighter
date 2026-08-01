@@ -1,6 +1,8 @@
 package com.jjktbf.graphics.screens.editors;
 
 import com.jjktbf.graphics.ui.editor.AssignmentPanel;
+import com.jjktbf.model.character.CharacterData;
+import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MovePool;
 import org.junit.jupiter.api.Test;
@@ -37,6 +39,15 @@ class CharacterEditorScreenTest {
             move(), "PHYSICAL", MovePool.COMBAT_ARTS, null);
 
         assertFalse(item.locked);
+    }
+
+    @Test
+    void characterRecordSectionsUseTheCanonicalBaseStatTier() {
+        CharacterData character = new CharacterData();
+        assertEquals("GRADE 2", CharacterEditorScreen.characterTierSection(character));
+
+        for (StatKey stat : StatKey.values()) stat.set(character, 300);
+        assertEquals("CALAMITY", CharacterEditorScreen.characterTierSection(character));
     }
 
     private static MoveData move() {

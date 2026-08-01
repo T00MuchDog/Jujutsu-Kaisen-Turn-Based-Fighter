@@ -526,6 +526,9 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             value -> {
                 ability.sourceType = value;
                 initialiseSourceDefaults(ability);
+                if (safeSource(ability.sourceType) != SourceTypeEnum.TECHNIQUE) {
+                    clearMasteryProgression(ability);
+                }
                 refreshConditionalSections(ability);
             }, skin))).growX().row();
         sourceValueContainer = new Container<>();
@@ -617,6 +620,8 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             this::markDirty,
             this::rebuildDetail,
             game.audio()::play,
+            safeSource(ability.sourceType) == SourceTypeEnum.TECHNIQUE,
+            ability.isPassive(),
             skin);
     }
 
@@ -630,6 +635,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             moveRepo.getAll(),
             this::markDirty,
             game.audio()::play,
+            safeSource(ability.sourceType) == SourceTypeEnum.TECHNIQUE,
             skin)).growX().row();
         table.add(formHint(
             "Nest AND/OR groups inside each condition. Link a condition to all effects or select "
@@ -651,6 +657,28 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         ability.sourceValue = source == SourceTypeEnum.STAT_THRESHOLD
             ? new AbilityResolver.StatRequirement(StatKey.VITALITY, 80).expression()
             : null;
+    }
+
+    private static void clearMasteryProgression(AbilityData ability) {
+        if (ability.effects != null) {
+            ability.effects.stream().filter(java.util.Objects::nonNull)
+                .forEach(effect -> effect.masteryProgression = null);
+        }
+        if (ability.activationConditions != null) {
+            for (AbilityConditionRuleData rule : ability.activationConditions) {
+                if (rule == null) continue;
+                rule.masteryProgression = null;
+                clearMasteryProgression(rule.condition);
+            }
+        }
+    }
+
+    private static void clearMasteryProgression(AbilityConditionData condition) {
+        if (condition == null) return;
+        condition.masteryProgression = null;
+        if (condition.children != null) {
+            condition.children.forEach(AbilityEditorScreen::clearMasteryProgression);
+        }
     }
 
     static void initialiseCategoryDefaults(AbilityData ability) {

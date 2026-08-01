@@ -29,11 +29,11 @@
   "selfEffects" : [ ],
   "isFreeMove" : true,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000001",
   "name" : "Basic Block",
@@ -70,11 +70,11 @@
   "onDodgeEffects" : [ ],
   "isFreeMove" : true,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000002",
   "name" : "Jab",
@@ -111,11 +111,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000003",
   "name" : "Elbow Strike",
@@ -152,11 +152,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000004",
   "name" : "Body Blow",
@@ -193,11 +193,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000005",
   "name" : "Sweeping Kick",
@@ -234,11 +234,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000006",
   "name" : "Knee Strike",
@@ -276,11 +276,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000007",
   "name" : "Overhand Punch",
@@ -320,11 +320,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000008",
   "name" : "Reinforced Jab",
@@ -368,11 +368,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000009",
   "name" : "Reinforced Elbow",
@@ -412,11 +412,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000010",
   "name" : "Reinforced Knee",
@@ -460,11 +460,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000011",
   "name" : "Cursed Energy Burst",
@@ -502,11 +502,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000012",
   "name" : "Cursed Energy Blast",
@@ -547,11 +547,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000013",
   "name" : "Deflection",
@@ -594,11 +594,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000014",
   "name" : "Reinforced Deflection",
@@ -645,11 +645,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000015",
   "name" : "Cross Guard",
@@ -688,11 +688,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000016",
   "name" : "Reinforced Cross Guard",
@@ -734,11 +734,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000017",
   "name" : "Braced Guard",
@@ -781,11 +781,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000018",
   "name" : "Reinforced Braced Guard",
@@ -830,11 +830,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000019",
   "name" : "Reinforced Basic Block",
@@ -875,11 +875,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : true
+  "anyBlock" : true,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000020",
   "name" : "Cursed Energy Focus",
@@ -926,11 +926,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000021",
   "name" : "Cursed Energy Surge",
@@ -973,15 +973,15 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000022",
   "name" : "Miracle Creation",
-  "description" : "With MIRACLE RESERVOIR, create 1 MIRACLE, up to 6.",
+  "description" : "With MIRACLE RESERVOIR, create 1 MIRACLE, or 2 at CTM 225+, up to your capacity.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -1012,7 +1012,22 @@
     "durationTicks" : 0,
     "magnitude" : 1.0,
     "codedAbilityKey" : "MIRACLES",
-    "codedAction" : "CREATE"
+    "codedAction" : "CREATE",
+    "codedParameters" : {
+      "gain" : 1
+    },
+    "masteryProgression" : {
+      "gain" : {
+        "mode" : "BENCHMARKS",
+        "benchmarks" : [ {
+          "mastery" : 0,
+          "value" : 1
+        }, {
+          "mastery" : 225,
+          "value" : 2
+        } ]
+      }
+    }
   } ],
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
@@ -1027,11 +1042,11 @@
   "requiredTechniqueId" : "Miracles",
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000023",
   "name" : "Sword Slash",
@@ -1071,11 +1086,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000024",
   "name" : "Sword Throw",
@@ -1115,15 +1130,15 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000025",
   "name" : "Ratio Mark",
-  "description" : "Create 1 RATIO STACK on the target for up to 50 AP ticks, to a maximum of 3.",
+  "description" : "With RATIO REINFORCEMENT, create 1 RATIO STACK, or 2 at CTM 200+, with CTM-scaled duration and trigger chance.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -1155,7 +1170,53 @@
     "codedAbilityKey" : "RATIO",
     "codedAction" : "RATIO_EFFECT",
     "codedTarget" : "CREATE_STACKS",
-    "codedStackCount" : 1
+    "codedStackCount" : 1,
+    "codedParameters" : {
+      "stackDurationTicks" : 50,
+      "triggerChancePercent" : 70,
+      "defensePercent" : 30
+    },
+    "masteryProgression" : {
+      "codedStackCount" : {
+        "mode" : "BENCHMARKS",
+        "benchmarks" : [ {
+          "mastery" : 0,
+          "value" : 1
+        }, {
+          "mastery" : 200,
+          "value" : 2
+        } ]
+      },
+      "stackDurationTicks" : {
+        "mode" : "BENCHMARKS",
+        "benchmarks" : [ {
+          "mastery" : 0,
+          "value" : 45
+        }, {
+          "mastery" : 50,
+          "value" : 50
+        }, {
+          "mastery" : 100,
+          "value" : 55
+        }, {
+          "mastery" : 150,
+          "value" : 60
+        }, {
+          "mastery" : 200,
+          "value" : 65
+        }, {
+          "mastery" : 250,
+          "value" : 70
+        }, {
+          "mastery" : 300,
+          "value" : 75
+        } ]
+      },
+      "triggerChancePercent" : {
+        "mode" : "FORMULA",
+        "formula" : "min(80, 68 + ctm / 25)"
+      }
+    }
   } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 30,
@@ -1167,11 +1228,11 @@
   "requiredTechniqueId" : "Ratio",
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000026",
   "name" : "Ratio Strike",
@@ -1205,7 +1266,11 @@
     "magnitude" : 1.0,
     "codedAbilityKey" : "RATIO",
     "codedAction" : "RATIO_EFFECT",
-    "codedTarget" : "APPLY_TO_MOVE"
+    "codedTarget" : "APPLY_TO_MOVE",
+    "codedParameters" : {
+      "triggerChancePercent" : 100,
+      "defensePercent" : 30
+    }
   } ],
   "selfEffects" : [ ],
   "onBlockEffects" : [ ],
@@ -1218,11 +1283,11 @@
   "requiredTechniqueId" : "Ratio",
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000027",
   "name" : "Batto Sword Drawing",
@@ -1265,11 +1330,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000028",
   "name" : "Simple Domain",
@@ -1318,11 +1383,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000029",
   "name" : "Sidestep",
@@ -1348,7 +1413,7 @@
   "blockDuration" : 8,
   "blockDamageReduction" : 100,
   "blockFlatReduction" : 0,
-  "dodgeChance" : 60,
+  "dodgeChance" : 30,
   "dodgeScope" : "MELEE",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
@@ -1362,11 +1427,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : true,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000030",
   "name" : "Weapon Parry",
@@ -1407,11 +1472,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : true,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000031",
   "name" : "Evasive Dash",
@@ -1451,11 +1516,11 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : true,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000032",
   "name" : "Divergent Fist",
@@ -1516,9 +1581,102 @@
   },
   "isFreeMove" : false,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "parry" : false,
   "dodge" : false,
-  "anyBlock" : false
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
+}, {
+  "id" : "000033",
+  "name" : "Broom Swoop",
+  "description" : "Dart aside on the broom for a 60% chance to DODGE MELEE attacks For DURATION 14",
+  "tags" : [ "DEFENSIVE", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
+  "basePower" : 0,
+  "hitComponents" : [ ],
+  "baseAccuracy" : 1.0,
+  "neverMiss" : false,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 8,
+  "unleashPoint" : 1,
+  "baseCeCost" : 14,
+  "hasCeCost" : true,
+  "minCeCost" : 7,
+  "maxCeCost" : 24,
+  "defenseType" : "DODGE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 14,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 60,
+  "dodgeScope" : "MELEE",
+  "parryStaggerTicks" : 0,
+  "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "prerequisites" : {
+    "cursedTechniqueMastery" : 30,
+    "speed" : 30,
+    "cursedEnergyOutput" : 25,
+    "jujutsuSkill" : 30
+  },
+  "requiredTechniqueId" : "Tool Manipulation",
+  "isFreeMove" : false,
+  "mustBeGranted" : false,
+  "parry" : false,
+  "dodge" : true,
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
+}, {
+  "id" : "000034",
+  "name" : "Gust of Wind",
+  "description" : "Launch a POTENCY 2 CURSED ENERGY RANGED ATTACK by sweeping a gust off the broom. Reliable but weak.",
+  "tags" : [ "CURSED_ENERGY", "INNATE_TECHNIQUE", "ATTACK", "RANGED" ],
+  "basePower" : 20,
+  "baseAccuracy" : 0.95,
+  "neverMiss" : false,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 2,
+  "weaponRequired" : false,
+  "apCost" : 12,
+  "unleashPoint" : 6,
+  "baseCeCost" : 20,
+  "hasCeCost" : true,
+  "minCeCost" : 10,
+  "maxCeCost" : 34,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "prerequisites" : {
+    "cursedTechniqueMastery" : 35,
+    "cursedEnergyOutput" : 30,
+    "cursedEnergyEfficiency" : 30,
+    "jujutsuSkill" : 30
+  },
+  "requiredTechniqueId" : "Tool Manipulation",
+  "isFreeMove" : false,
+  "mustBeGranted" : false,
+  "parry" : false,
+  "dodge" : false,
+  "anyBlock" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 } ]

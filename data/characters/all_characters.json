@@ -98,4 +98,25 @@
   "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000004", "000007", "000029", "000032" ],
   "abilityIds" : [ "000008", "000010", "000011", "000012", "000009" ],
   "availableAbilityIds" : [ "000008" ]
+}, {
+  "id" : "000005",
+  "name" : "Momo Nishimiya",
+  "description" : "A grade 3 sorcerer whose frail body and unpolished cursed-energy control would leave her outclassed on the ground. She is carried by her Tool Manipulation technique, riding her broom to scout from the sky and sweep gusts of wind down on foes she could never trade blows with.",
+  "spriteAsset" : "assets/sprites/characters/momo_frontsprite.png",
+  "innateTechniqueName" : "Tool Manipulation",
+  "hasWeapon" : false,
+  "vitality" : 26,
+  "strength" : 17,
+  "durability" : 24,
+  "speed" : 66,
+  "cursedEnergyReserves" : 46,
+  "cursedEnergyEfficiency" : 51,
+  "cursedEnergyOutput" : 36,
+  "jujutsuSkill" : 40,
+  "combatAbility" : 24,
+  "cursedTechniqueMastery" : 38,
+  "moveIds" : [ "000000", "000001", "000019", "000034", "000033" ],
+  "availableMoveIds" : [ "000033", "000034" ],
+  "abilityIds" : [ "000013", "000014" ],
+  "availableAbilityIds" : [ "000013", "000014" ]
 } ]

@@ -561,7 +561,7 @@ public class BattleScreen implements Screen, BattleView {
             enemyPanel.draw(batch, assets.fontMedium, assets.fontSmall, enemyCharacterName(), frameDelta);
         if (playerPanel != null && hasPlayerRenderState()) {
             playerPanel.draw(batch, assets.fontMedium, assets.fontSmall, playerCharacterName(), frameDelta);
-            miraclesMeter.draw(batch, assets.battleUi);
+            miraclesMeter.draw(batch, assets.battleUi, assets.fontLarge);
             ratioMeter.draw(batch, assets.battleUi, assets.fontLarge);
         }
         drawLog(sw, sh);

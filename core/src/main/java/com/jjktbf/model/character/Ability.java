@@ -43,10 +43,27 @@ public class Ability {
             : new java.util.ArrayList<>();
         AbilityData.ensureEffectIds(copiedEffects);
         this.effects = List.copyOf(copiedEffects);
+        boolean techniqueSource = "TECHNIQUE".equalsIgnoreCase(sourceType);
         for (AbilityEffectData effect : effects) {
             AbilityEffectType type;
             try { type = AbilityEffectType.fromName(effect.type); }
             catch (IllegalArgumentException ignored) { continue; }
+            if (!techniqueSource && effect.masteryProgression != null
+                && !effect.masteryProgression.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "Only TECHNIQUE abilities may use mastery progression.");
+            }
+            if (isPassive()
+                && StatKey.CURSED_TECHNIQUE_MASTERY.fieldName.equalsIgnoreCase(effect.stat)
+                && effect.masteryProgression != null && !effect.masteryProgression.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "A passive CTM-changing effect cannot derive its value from CTM.");
+            }
+            String effectError = type.validationError(effect);
+            if (effectError != null) {
+                throw new IllegalArgumentException(
+                    "Invalid effect in ability '" + name + "': " + effectError);
+            }
             if (!type.uses(AbilityEffectParameter.DURATION)) continue;
             int rounds = effect.durationRounds == null ? -1 : effect.durationRounds;
             int ticks = effect.durationTicks == null ? 0 : effect.durationTicks;
@@ -65,6 +82,26 @@ public class Ability {
         }
         this.activationConditions = isActive()
             ? List.copyOf(data.resolvedActivationConditions()) : List.of();
+        if (!techniqueSource && activationConditions.stream().anyMatch(
+            Ability::hasMasteryProgression)) {
+            throw new IllegalArgumentException(
+                "Only TECHNIQUE abilities may use condition mastery progression.");
+        }
+    }
+
+    private static boolean hasMasteryProgression(AbilityConditionRuleData rule) {
+        if (rule == null) return false;
+        if (rule.masteryProgression != null && !rule.masteryProgression.isEmpty()) return true;
+        return hasMasteryProgression(rule.condition);
+    }
+
+    private static boolean hasMasteryProgression(AbilityConditionData condition) {
+        if (condition == null) return false;
+        if (condition.masteryProgression != null && !condition.masteryProgression.isEmpty()) {
+            return true;
+        }
+        return condition.children != null
+            && condition.children.stream().anyMatch(Ability::hasMasteryProgression);
     }
 
     // -------------------------------------------------------------------------

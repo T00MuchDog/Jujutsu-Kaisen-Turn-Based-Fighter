@@ -6,6 +6,7 @@ import com.jjktbf.model.character.AbilityEffectTarget;
 import com.jjktbf.model.character.AbilityEffectTiming;
 import com.jjktbf.model.character.coded.CodedMoveResponse;
 import com.jjktbf.model.move.*;
+import com.jjktbf.model.progression.TechniqueMasteryResolver;
 
 import java.util.*;
 
@@ -771,19 +772,25 @@ public class CombatResolver {
         }
 
         if (result.isDodged()) {
+            Move defenseMove = defenseMove(result);
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_DODGED)
                 .source(attacker).target(defender).move(move).componentIndex(componentIndex)
                 .tick(tick)
                 .message(defender.getCharacter().getName() + " dodged " + move.getName() + "!")
                 .build());
-            applyDefenseEffects(state, defender, attacker, move,
-                move.getOnDodgeEffects(), componentIndex, tick, events);
-            events.addAll(abilityActivations.process(state, AbilityTrigger.move(
-                AbilityTrigger.Type.ATTACK_MISSED, attacker, defender, move, tick)));
+            applyDefenseEffects(state, defender, attacker, defenseMove,
+                defenseMove == null ? List.of() : defenseMove.getOnDodgeEffects(),
+                componentIndex, tick, events);
+            // A dodge is NOT a miss: do not fire ATTACK_MISSED here. The dodge
+            // outcome is already fully represented by the MOVE_DODGED event and
+            // onDodgeEffects above. Firing ATTACK_MISSED would let abilities that
+            // key off a miss (e.g. Fortune Reclaimed) trigger on an active dodge,
+            // which they must not — only a natural miss (result.isMiss()) fires it.
             return false;
         }
 
         if (result.isParried()) {
+            Move defenseMove = defenseMove(result);
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_PARRIED)
                 .source(attacker).target(defender).move(move).componentIndex(componentIndex)
                 .tick(tick)
@@ -802,21 +809,24 @@ public class CombatResolver {
                     .build());
                 stunActiveSegments(attacker, tick, false);
             }
-            applyDefenseEffects(state, defender, attacker, move,
-                move.getOnParryEffects(), componentIndex, tick, events);
+            applyDefenseEffects(state, defender, attacker, defenseMove,
+                defenseMove == null ? List.of() : defenseMove.getOnParryEffects(),
+                componentIndex, tick, events);
             events.addAll(abilityActivations.process(state, AbilityTrigger.move(
                 AbilityTrigger.Type.MOVE_BLOCKED, attacker, defender, move, tick)));
             return false;
         }
 
         if (result.isBlocked()) {
+            Move defenseMove = defenseMove(result);
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_BLOCKED)
                 .source(attacker).target(defender).move(move).componentIndex(componentIndex)
                 .tick(tick)
                 .message(defender.getCharacter().getName() + " blocked " + move.getName() + "!")
                 .build());
-            applyDefenseEffects(state, defender, attacker, move,
-                move.getOnBlockEffects(), componentIndex, tick, events);
+            applyDefenseEffects(state, defender, attacker, defenseMove,
+                defenseMove == null ? List.of() : defenseMove.getOnBlockEffects(),
+                componentIndex, tick, events);
             events.addAll(abilityActivations.process(state, AbilityTrigger.move(
                 AbilityTrigger.Type.MOVE_BLOCKED, attacker, defender, move, tick)));
             return true;
@@ -839,6 +849,10 @@ public class CombatResolver {
                          + " blocked " + move.getName() + "! (damage reduced)"
                          + hitQualifier(move, componentIndex))
                 .build());
+            Move defenseMove = defenseMove(result);
+            applyDefenseEffects(state, defender, attacker, defenseMove,
+                defenseMove == null ? List.of() : defenseMove.getOnBlockEffects(),
+                componentIndex, tick, events);
         }
 
         events.add(CombatEvent.of(appliedDamage == 0
@@ -906,6 +920,11 @@ public class CombatResolver {
         if (move == null || move.getHitComponents().size() <= 1) return "";
         if (componentIndex <= 0) return "";
         return " (hit " + (componentIndex + 1) + ")";
+    }
+
+    private static Move defenseMove(DamageCalculator.DamageResult result) {
+        return result == null || result.getDefenseSegment() == null
+            ? null : result.getDefenseSegment().getMove();
     }
 
     // -------------------------------------------------------------------------
@@ -1135,7 +1154,9 @@ public class CombatResolver {
         int             tick,
         List<CombatEvent> events
     ) {
-        for (StatusEffect effect : component.getOnHitEffects()) {
+        for (StatusEffect authored : component.getOnHitEffects()) {
+            StatusEffect effect = TechniqueMasteryResolver.resolve(
+                authored, TechniqueMasteryResolver.masteryOf(attacker));
             // A coded on-hit row is dispatched to the matching compiled runtime
             // instead of being applied as a status — this is how a technique move's
             // hardcoded on-hit behaviour is stored on an editable effect row.
@@ -1169,7 +1190,9 @@ public class CombatResolver {
         int tick,
         List<CombatEvent> events
     ) {
-        for (StatusEffect effect : move.getSelfEffects()) {
+        for (StatusEffect authored : move.getSelfEffects()) {
+            StatusEffect effect = TechniqueMasteryResolver.resolve(
+                authored, TechniqueMasteryResolver.masteryOf(combatant));
             // A coded self row is dispatched to the matching compiled runtime
             // (fires on unleash, hit/miss/block agnostic) instead of being applied
             // as a status — this is how a technique move's hardcoded self/cast
@@ -1213,7 +1236,9 @@ public class CombatResolver {
         List<CombatEvent> events
     ) {
         if (effects == null || effects.isEmpty()) return;
-        for (StatusEffect effect : effects) {
+        for (StatusEffect authored : effects) {
+            StatusEffect effect = TechniqueMasteryResolver.resolve(
+                authored, TechniqueMasteryResolver.masteryOf(defender));
             if (effect.isCoded()) {
                 events.addAll(defender.getCodedAbilities().onEffectFired(
                     state, effect, defender, attacker, tick));

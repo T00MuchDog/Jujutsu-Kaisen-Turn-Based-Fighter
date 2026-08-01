@@ -4,10 +4,13 @@ import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffectType;
+import com.jjktbf.model.progression.TechniqueMasteryProgressions;
+import com.jjktbf.model.progression.TechniqueMasteryResolver;
 
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.LinkedHashSet;
 
 import static com.jjktbf.model.character.AbilityConditionParameter.*;
 
@@ -93,6 +96,7 @@ public enum AbilityConditionType {
 
     public void reset(AbilityConditionData condition) {
         condition.type = name();
+        condition.masteryProgression = null;
         condition.actor = uses(ACTOR) ? AbilityConditionActor.SELF.name() : null;
         condition.percentage = uses(PERCENTAGE) ? 0.5 : null;
         condition.amount = uses(AMOUNT) ? defaultAmount() : null;
@@ -126,6 +130,17 @@ public enum AbilityConditionType {
         if (!uses(ROUND)) condition.round = null;
         if (!uses(PHASE)) condition.phase = null;
         if (!isGroup()) condition.children = null;
+        Set<String> allowedProgressions = masteryProgressionFields();
+        if (condition.masteryProgression != null) {
+            condition.masteryProgression = condition.masteryProgression.entrySet().stream()
+                .filter(entry -> allowedProgressions.contains(entry.getKey()))
+                .collect(java.util.stream.Collectors.toMap(
+                    java.util.Map.Entry::getKey,
+                    java.util.Map.Entry::getValue,
+                    (left, right) -> left,
+                    java.util.LinkedHashMap::new));
+            if (condition.masteryProgression.isEmpty()) condition.masteryProgression = null;
+        }
     }
 
     public static String validationError(AbilityConditionData root) {
@@ -196,7 +211,33 @@ public enum AbilityConditionType {
                 return path + " needs a valid battle phase.";
             }
         }
+        String progressionError = TechniqueMasteryProgressions.validationError(
+            condition.masteryProgression, type.masteryProgressionFields());
+        if (progressionError != null) return path + ": " + progressionError;
+        if (condition.masteryProgression != null && !condition.masteryProgression.isEmpty()) {
+            for (int mastery = 0; mastery <= CharacterStats.MAX_STAT; mastery++) {
+                AbilityConditionData resolved;
+                try {
+                    resolved = TechniqueMasteryResolver.resolve(condition, mastery);
+                } catch (RuntimeException exception) {
+                    return path + " has invalid mastery progression at CTM " + mastery + ".";
+                }
+                resolved.masteryProgression = null;
+                String error = validationError(resolved, path);
+                if (error != null) return "At CTM " + mastery + ": " + error;
+            }
+        }
         return null;
+    }
+
+    /** Numeric fields available for CTM progression on this condition type. */
+    public Set<String> masteryProgressionFields() {
+        Set<String> fields = new LinkedHashSet<>();
+        if (uses(PERCENTAGE)) fields.add(TechniqueMasteryProgressions.PERCENTAGE);
+        if (uses(AMOUNT)) fields.add(TechniqueMasteryProgressions.AMOUNT);
+        if (uses(TICK)) fields.add(TechniqueMasteryProgressions.TICK);
+        if (uses(ROUND)) fields.add(TechniqueMasteryProgressions.ROUND);
+        return Collections.unmodifiableSet(fields);
     }
 
     private int defaultAmount() {

@@ -123,6 +123,7 @@ public abstract class Character extends Entity {
         List<Move> validatedMoves = validateAndBuildMoveList(
             knownMoves, baseStats, combatStats, accessibleTechniques,
             availableMoveIds, forcedMoves, lockedMoveTagsOf(abilities), hasWeapon);
+        validatedMoves = filterMovesByAssignedCodedFeatures(validatedMoves, abilities);
         validateCodedMoveReferences(validatedMoves);
         this.knownMoves = Collections.unmodifiableList(validatedMoves);
         this.forcedMoveIds = Collections.unmodifiableSet(forcedMoves);
@@ -136,6 +137,9 @@ public abstract class Character extends Entity {
         for (Move move : moves) {
             List<com.jjktbf.model.move.StatusEffect> effects = new ArrayList<>(move.getOnHitEffects());
             effects.addAll(move.getSelfEffects());
+            effects.addAll(move.getOnBlockEffects());
+            effects.addAll(move.getOnParryEffects());
+            effects.addAll(move.getOnDodgeEffects());
             for (var effect : effects) {
                 String target = effect.getCodedTarget();
                 if (!effect.isCoded() || target == null || !target.matches("\\d{6}")) continue;
@@ -145,6 +149,39 @@ public abstract class Character extends Entity {
                 }
             }
         }
+    }
+
+    private static List<Move> filterMovesByAssignedCodedFeatures(
+        List<Move> moves,
+        List<Ability> abilities
+    ) {
+        boolean hasRatioReinforcement = abilities != null && abilities.stream()
+            .filter(java.util.Objects::nonNull)
+            .flatMap(ability -> ability.getEffects().stream())
+            .anyMatch(effect -> effect != null && effect.isCoded()
+                && com.jjktbf.model.character.coded.RatioAbility.KEY.equalsIgnoreCase(
+                    effect.codedAbilityKey)
+                && com.jjktbf.model.character.coded.RatioAbility.REINFORCEMENT_RATIO
+                    .equalsIgnoreCase(effect.codedFeature));
+        if (hasRatioReinforcement) return moves;
+        return moves.stream().filter(move -> move == null || !moveEffects(move).stream()
+            .anyMatch(effect -> effect != null && effect.isCoded()
+                && com.jjktbf.model.character.coded.RatioAbility.KEY.equalsIgnoreCase(
+                    effect.getCodedAbilityKey())
+                && com.jjktbf.model.character.coded.RatioAbility.RATIO_EFFECT.equalsIgnoreCase(
+                    effect.getCodedAction())
+                && com.jjktbf.model.character.coded.RatioAbility.CREATE_STACKS.equalsIgnoreCase(
+                    effect.getCodedTarget())))
+            .toList();
+    }
+
+    private static List<com.jjktbf.model.move.StatusEffect> moveEffects(Move move) {
+        List<com.jjktbf.model.move.StatusEffect> effects = new ArrayList<>(move.getSelfEffects());
+        effects.addAll(move.getOnHitEffects());
+        effects.addAll(move.getOnBlockEffects());
+        effects.addAll(move.getOnParryEffects());
+        effects.addAll(move.getOnDodgeEffects());
+        return effects;
     }
 
     /**

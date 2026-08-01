@@ -1,5 +1,10 @@
 package com.jjktbf.model.move;
 
+import com.jjktbf.model.progression.TechniqueMasteryProgressionData;
+import com.jjktbf.model.progression.TechniqueMasteryProgressions;
+
+import java.util.Map;
+
 /**
  * An instance of a status effect as it exists on a combatant mid-battle.
  * Immutable descriptor — the combat engine tracks duration countdown separately.
@@ -44,6 +49,12 @@ public class StatusEffect {
     /** Number of Ratio stacks created by a configured coded action. */
     private final Integer codedStackCount;
 
+    /** Allow-listed integer parameters owned by a coded action. */
+    private final Map<String, Integer> codedParameters;
+
+    /** Optional per-field CTM formulas or benchmark tables. */
+    private final Map<String, TechniqueMasteryProgressionData> masteryProgression;
+
     public StatusEffect(StatusEffectType type, int durationRounds, double magnitude) {
         this(type, durationRounds, 0, magnitude);
     }
@@ -54,7 +65,19 @@ public class StatusEffect {
         int durationTicks,
         double magnitude
     ) {
-        this(type, durationRounds, durationTicks, magnitude, null, null, null, null);
+        this(type, durationRounds, durationTicks, magnitude,
+            null, null, null, null, null, null);
+    }
+
+    public StatusEffect(
+        StatusEffectType type,
+        int durationRounds,
+        int durationTicks,
+        double magnitude,
+        Map<String, TechniqueMasteryProgressionData> masteryProgression
+    ) {
+        this(type, durationRounds, durationTicks, magnitude,
+            null, null, null, null, null, masteryProgression);
     }
 
     /**
@@ -71,7 +94,7 @@ public class StatusEffect {
         String codedAction
     ) {
         this(type, durationRounds, durationTicks, magnitude,
-            codedAbilityKey, codedAction, null, null);
+            codedAbilityKey, codedAction, null, null, null, null);
     }
 
     public StatusEffect(
@@ -83,6 +106,22 @@ public class StatusEffect {
         String codedAction,
         String codedTarget,
         Integer codedStackCount
+    ) {
+        this(type, durationRounds, durationTicks, magnitude,
+            codedAbilityKey, codedAction, codedTarget, codedStackCount, null, null);
+    }
+
+    public StatusEffect(
+        StatusEffectType type,
+        int durationRounds,
+        int durationTicks,
+        double magnitude,
+        String codedAbilityKey,
+        String codedAction,
+        String codedTarget,
+        Integer codedStackCount,
+        Map<String, Integer> codedParameters,
+        Map<String, TechniqueMasteryProgressionData> masteryProgression
     ) {
         boolean coded = codedAbilityKey != null && !codedAbilityKey.isBlank();
         if (type == null && !coded) {
@@ -102,6 +141,11 @@ public class StatusEffect {
         this.codedAction     = codedAction;
         this.codedTarget     = codedTarget;
         this.codedStackCount = codedStackCount;
+        this.codedParameters = codedParameters == null ? Map.of() : Map.copyOf(codedParameters);
+        Map<String, TechniqueMasteryProgressionData> copiedProgression =
+            TechniqueMasteryProgressions.copy(masteryProgression);
+        this.masteryProgression = copiedProgression == null
+            ? Map.of() : Map.copyOf(copiedProgression);
     }
 
     /** Build a coded-action effect row bound to the given ability key/action. */
@@ -118,6 +162,19 @@ public class StatusEffect {
     ) {
         return new StatusEffect(null, 0, 0, 0,
             codedAbilityKey, codedAction, codedTarget, codedStackCount);
+    }
+
+    public static StatusEffect coded(
+        String codedAbilityKey,
+        String codedAction,
+        String codedTarget,
+        Integer codedStackCount,
+        Map<String, Integer> codedParameters,
+        Map<String, TechniqueMasteryProgressionData> masteryProgression
+    ) {
+        return new StatusEffect(null, 0, 0, 0,
+            codedAbilityKey, codedAction, codedTarget, codedStackCount,
+            codedParameters, masteryProgression);
     }
 
     /** Create a round-duration poison descriptor for future poison resolution. */
@@ -157,6 +214,10 @@ public class StatusEffect {
     public String getCodedAction()        { return codedAction; }
     public String getCodedTarget()        { return codedTarget; }
     public Integer getCodedStackCount()   { return codedStackCount; }
+    public Map<String, Integer> getCodedParameters() { return codedParameters; }
+    public Map<String, TechniqueMasteryProgressionData> getMasteryProgression() {
+        return masteryProgression;
+    }
 
     /** True when this row carries a coded action (and is therefore not a status effect). */
     public boolean isCoded() {

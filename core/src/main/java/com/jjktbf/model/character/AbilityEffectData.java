@@ -3,6 +3,10 @@ package com.jjktbf.model.character;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.jjktbf.model.progression.TechniqueMasteryProgressionData;
+import com.jjktbf.model.progression.TechniqueMasteryProgressions;
+
+import java.util.Map;
 
 import static com.jjktbf.model.character.CharacterStats.MAX_STAT;
 
@@ -32,6 +36,9 @@ public class AbilityEffectData {
 
     /** Feature enabled on {@link #codedAbilityKey}. */
     public String codedFeature;
+
+    /** Allow-listed integer parameters owned by the selected coded feature. */
+    public Map<String, Integer> codedParameters;
 
     // ── Stat-related ─────────────────────────────────────────────────────────
     /** Stat name (lowercase, e.g. "cursedEnergyEfficiency"). */
@@ -84,6 +91,9 @@ public class AbilityEffectData {
     /** Number of times a consumable effect may be used. -1 means unlimited. */
     public Integer uses;
 
+    /** Optional per-field CTM formulas or benchmark tables. */
+    public Map<String, TechniqueMasteryProgressionData> masteryProgression;
+
     @JsonIgnore
     public boolean isCoded() {
         return AbilityEffectType.CODED.name().equalsIgnoreCase(type);
@@ -102,6 +112,7 @@ public class AbilityEffectData {
         this.type = source.type;
         this.codedAbilityKey = source.codedAbilityKey;
         this.codedFeature = source.codedFeature;
+        this.codedParameters = TechniqueMasteryProgressions.copyIntegers(source.codedParameters);
         this.stat = source.stat;
         this.intValue = source.intValue;
         this.doubleValue = source.doubleValue;
@@ -115,6 +126,7 @@ public class AbilityEffectData {
         this.durationTicks = source.durationTicks;
         this.magnitude = source.magnitude;
         this.uses = source.uses;
+        this.masteryProgression = TechniqueMasteryProgressions.copy(source.masteryProgression);
     }
 
     // ── Convenience constructors for editor use ───────────────────────────────

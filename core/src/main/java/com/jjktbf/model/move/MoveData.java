@@ -3,6 +3,8 @@ package com.jjktbf.model.move;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.jjktbf.model.progression.TechniqueMasteryProgressionData;
+import com.jjktbf.model.progression.TechniqueMasteryProgressions;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -232,6 +234,12 @@ public class MoveData {
         /** Number of stacks to create when the coded target supports stacking. */
         public Integer codedStackCount;
 
+        /** Allow-listed integer parameters owned by the selected coded action. */
+        public Map<String, Integer> codedParameters;
+
+        /** Optional per-field CTM formulas or benchmark tables. */
+        public Map<String, TechniqueMasteryProgressionData> masteryProgression;
+
         @JsonIgnore
         public boolean isCoded() {
             return codedAbilityKey != null && !codedAbilityKey.isBlank();
@@ -339,6 +347,7 @@ public class MoveData {
     public Move toMove() {
         MoveCategory cat = derivedCategory();
         Set<MoveTag> rawTags = parsedTags();
+        validateProgressionEligibility(rawTags);
 
         Move.Builder b = new Move.Builder(id)
             .name(name)
@@ -467,6 +476,31 @@ public class MoveData {
         return parsed;
     }
 
+    private void validateProgressionEligibility(Set<MoveTag> rawTags) {
+        if (rawTags.contains(MoveTag.INNATE_TECHNIQUE)) return;
+        List<StatusEffectData> effects = new java.util.ArrayList<>();
+        if (onHitEffects != null) effects.addAll(onHitEffects);
+        if (selfEffects != null) effects.addAll(selfEffects);
+        if (onBlockEffects != null) effects.addAll(onBlockEffects);
+        if (onParryEffects != null) effects.addAll(onParryEffects);
+        if (onDodgeEffects != null) effects.addAll(onDodgeEffects);
+        if (hitComponents != null) {
+            for (HitComponentData component : hitComponents) {
+                if (component != null && component.onHitEffects != null) {
+                    effects.addAll(component.onHitEffects);
+                }
+            }
+        }
+        boolean hasProgression = effects.stream()
+            .filter(java.util.Objects::nonNull)
+            .anyMatch(effect -> effect.masteryProgression != null
+                && !effect.masteryProgression.isEmpty());
+        if (hasProgression) {
+            throw new IllegalArgumentException(
+                "Only INNATE_TECHNIQUE moves may use mastery progression.");
+        }
+    }
+
     private static List<StatusEffect> toStatusEffects(List<StatusEffectData> dtos) {
         if (dtos == null) return List.of();
         java.util.ArrayList<StatusEffect> effects = new java.util.ArrayList<>();
@@ -479,8 +513,21 @@ public class MoveData {
                     throw new IllegalArgumentException("Invalid coded effect "
                         + d.codedAbilityKey + "/" + d.codedAction);
                 }
-                effects.add(StatusEffect.coded(
-                    d.codedAbilityKey, d.codedAction, d.codedTarget, d.codedStackCount));
+                String parameterError = com.jjktbf.model.character.coded.CodedAbilityRegistry
+                    .effectParameterValidationError(
+                        d.codedAbilityKey, d.codedAction, d.codedTarget, d.codedParameters);
+                if (parameterError != null) throw new IllegalArgumentException(parameterError);
+                Set<String> allowed = new java.util.LinkedHashSet<>();
+                if (d.codedStackCount != null) {
+                    allowed.add(TechniqueMasteryProgressions.CODED_STACK_COUNT);
+                }
+                if (d.codedParameters != null) allowed.addAll(d.codedParameters.keySet());
+                validateEffectProgression(d, allowed);
+                StatusEffect effect = StatusEffect.coded(
+                    d.codedAbilityKey, d.codedAction, d.codedTarget, d.codedStackCount,
+                    d.codedParameters, d.masteryProgression);
+                validateResolvedEffect(effect);
+                effects.add(effect);
                 continue;
             }
             if (d.type == null || d.type.isBlank()) continue;
@@ -491,10 +538,59 @@ public class MoveData {
                 // Removed one-off and unknown statuses do not invalidate the move.
                 continue;
             }
-            effects.add(new StatusEffect(type, d.durationRounds, d.durationTicks,
-                StatusEffectType.normalizeStoredMagnitude(d.type, d.magnitude)));
+            Set<String> allowed = new java.util.LinkedHashSet<>();
+            if (type.requiresTickDuration()) {
+                allowed.add(TechniqueMasteryProgressions.DURATION_TICKS);
+            } else {
+                allowed.add(TechniqueMasteryProgressions.DURATION_ROUNDS);
+                if (!type.requiresRoundDuration()) {
+                    allowed.add(TechniqueMasteryProgressions.DURATION_TICKS);
+                }
+            }
+            if (type.usesMagnitude()) allowed.add(TechniqueMasteryProgressions.MAGNITUDE);
+            validateEffectProgression(d, allowed);
+            StatusEffect effect = new StatusEffect(type, d.durationRounds, d.durationTicks,
+                StatusEffectType.normalizeStoredMagnitude(d.type, d.magnitude),
+                d.masteryProgression);
+            validateResolvedEffect(effect);
+            effects.add(effect);
         }
         return effects;
+    }
+
+    private static void validateEffectProgression(StatusEffectData data, Set<String> allowed) {
+        String error = TechniqueMasteryProgressions.validationError(
+            data.masteryProgression, allowed);
+        if (error != null) throw new IllegalArgumentException(error);
+    }
+
+    private static void validateResolvedEffect(StatusEffect effect) {
+        if (effect.getMasteryProgression().isEmpty()) return;
+        for (int mastery = 0; mastery <= 300; mastery++) {
+            try {
+                StatusEffect resolved =
+                    com.jjktbf.model.progression.TechniqueMasteryResolver.resolve(effect, mastery);
+                if (resolved.isCoded()) {
+                    String parameterError = com.jjktbf.model.character.coded.CodedAbilityRegistry
+                        .effectParameterValidationError(
+                            resolved.getCodedAbilityKey(), resolved.getCodedAction(),
+                            resolved.getCodedTarget(), resolved.getCodedParameters());
+                    if (parameterError != null) {
+                        throw new IllegalArgumentException(parameterError);
+                    }
+                    if (resolved.getCodedStackCount() != null
+                        && !com.jjktbf.model.character.coded.CodedAbilityRegistry.supportsEffect(
+                            resolved.getCodedAbilityKey(), resolved.getCodedAction(),
+                            resolved.getCodedTarget(), resolved.getCodedStackCount())) {
+                        throw new IllegalArgumentException("Invalid resolved coded stack count");
+                    }
+                }
+            } catch (RuntimeException exception) {
+                throw new IllegalArgumentException(
+                    "Invalid move-effect mastery progression at CTM " + mastery + ": "
+                        + exception.getMessage(), exception);
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -597,12 +693,15 @@ public class MoveData {
             sd.codedAction     = e.getCodedAction();
             sd.codedTarget     = e.getCodedTarget();
             sd.codedStackCount = e.getCodedStackCount();
+            sd.codedParameters = TechniqueMasteryProgressions.copyIntegers(e.getCodedParameters());
+            sd.masteryProgression = TechniqueMasteryProgressions.copy(e.getMasteryProgression());
             return sd;
         }
         sd.type           = e.getType().name();
         sd.durationRounds = e.getDurationRounds();
         sd.durationTicks  = e.getDurationTicks();
         sd.magnitude      = e.getMagnitude();
+        sd.masteryProgression = TechniqueMasteryProgressions.copy(e.getMasteryProgression());
         return sd;
     }
 }

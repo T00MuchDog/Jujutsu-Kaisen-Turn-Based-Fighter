@@ -105,7 +105,7 @@
   },
   {
     "term": "MIRACLES",
-    "description": "An innate technique whose stored Miracles resource has a maximum capacity of six."
+    "description": "An innate technique whose stored Miracles capacity increases from five to eight with Cursed Technique Mastery."
   },
   {
     "term": "NON-INNATE TECHNIQUE",
@@ -137,11 +137,11 @@
   },
   {
     "term": "RATIO",
-    "description": "The Ratio technique's 7:3 weak point, which bypasses Block and reduces Defense for one hit."
+    "description": "The Ratio technique's 7:3 weak point, which bypasses Block and calculates one hit against 30% Defense."
   },
   {
     "term": "RATIO STACK",
-    "description": "A stored Ratio mark consumed by the next connected attack for a 70% chance to trigger Ratio."
+    "description": "A stored Ratio mark consumed by the next connected attack for a CTM-scaled 68%-80% chance to trigger Ratio."
   },
   {
     "term": "REINFORCEMENT",
@@ -345,7 +345,7 @@
   },
   {
     "term": "Miracle Reservoir",
-    "description": "A Miracles ability that fills and caps the Miracle resource at six."
+    "description": "A Miracles ability that starts with up to six Miracles and scales maximum capacity from five to eight with CTM."
   },
   {
     "term": "Fateful Reprieve",
@@ -357,7 +357,7 @@
   },
   {
     "term": "Ratio Reinforcement",
-    "description": "A Ratio ability that gives reinforcement hits a small chance to find the 7:3 point."
+    "description": "A Ratio ability that scales stack capacity and gives reinforcement hits a CTM-scaled chance to find the 7:3 point."
   },
   {
     "term": "New Shadow Style",

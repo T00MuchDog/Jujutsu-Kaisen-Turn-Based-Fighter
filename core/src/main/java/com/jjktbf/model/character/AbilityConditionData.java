@@ -2,9 +2,12 @@ package com.jjktbf.model.character;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.jjktbf.model.progression.TechniqueMasteryProgressionData;
+import com.jjktbf.model.progression.TechniqueMasteryProgressions;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Recursive predicate used to activate an active ability.
@@ -30,6 +33,8 @@ public class AbilityConditionData {
     public Integer round;
     public String phase;
     public List<AbilityConditionData> children;
+    /** Optional per-field CTM formulas or benchmark tables. */
+    public Map<String, TechniqueMasteryProgressionData> masteryProgression;
 
     public static AbilityConditionData always() {
         return AbilityConditionType.ALWAYS.createDefault();
@@ -70,6 +75,7 @@ public class AbilityConditionData {
         tick = source.tick;
         round = source.round;
         phase = source.phase;
+        masteryProgression = TechniqueMasteryProgressions.copy(source.masteryProgression);
         children = copyChildren(source.children);
     }
 

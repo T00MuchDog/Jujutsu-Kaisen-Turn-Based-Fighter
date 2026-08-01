@@ -16,7 +16,7 @@
   "id" : "000001",
   "name" : "Miracle Reservoir",
   "flavourText" : "The technique quietly removes the tiny coincidences that once made life feel impossible, keeping them beyond memory until they are needed.",
-  "mechanicText" : "At BATTLE START, gain 6 MIRACLES and store up to 6.",
+  "mechanicText" : "Store 5 MIRACLES, increasing to 6 at CTM 15, 7 at CTM 120, and 8 at CTM 225. At BATTLE START, gain up to 6 MIRACLES, limited by capacity.",
   "category" : "PASSIVE",
   "sourceType" : "TECHNIQUE",
   "sourceValue" : "Miracles",
@@ -24,7 +24,39 @@
     "effectId" : "effect-000000",
     "type" : "CODED",
     "codedAbilityKey" : "MIRACLES",
-    "codedFeature" : "RESERVOIR"
+    "codedFeature" : "RESERVOIR",
+    "codedParameters" : {
+      "capacity" : 6,
+      "startingAmount" : 6
+    },
+    "masteryProgression" : {
+      "capacity" : {
+        "mode" : "BENCHMARKS",
+        "benchmarks" : [ {
+          "mastery" : 0,
+          "value" : 5
+        }, {
+          "mastery" : 15,
+          "value" : 6
+        }, {
+          "mastery" : 120,
+          "value" : 7
+        }, {
+          "mastery" : 225,
+          "value" : 8
+        } ]
+      },
+      "startingAmount" : {
+        "mode" : "BENCHMARKS",
+        "benchmarks" : [ {
+          "mastery" : 0,
+          "value" : 5
+        }, {
+          "mastery" : 15,
+          "value" : 6
+        } ]
+      }
+    }
   } ],
   "masteryThreshold" : 0
 }, {
@@ -55,35 +87,30 @@
     "effectId" : "effect-000000",
     "type" : "CODED",
     "codedAbilityKey" : "MIRACLES",
-    "codedFeature" : "FATEFUL_REPRIEVE"
+    "codedFeature" : "FATEFUL_REPRIEVE",
+    "codedParameters" : {
+      "cost" : 1
+    }
   } ],
   "masteryThreshold" : 0
 }, {
   "id" : "000003",
   "name" : "Fortune Reclaimed",
   "flavourText" : "A near miss or a perfectly timed strike leaves another small impossibility behind to be collected.",
-  "mechanicText" : "Gain 1 MIRACLE when an enemy ATTACK misses you, including through DODGE, or when you land a BLACK FLASH, up to 6.",
+  "mechanicText" : "Gain 1 MIRACLE when an enemy ATTACK misses you, or when you land a BLACK FLASH, up to your MIRACLE capacity.",
   "category" : "ACTIVE",
   "sourceType" : "TECHNIQUE",
   "sourceValue" : "Miracles",
   "activationConditions" : [ {
     "condition" : {
-      "type" : "ALL",
+      "type" : "ANY",
       "children" : [ {
-        "type" : "CODED_STATE_AT_OR_BELOW",
-        "actor" : "SELF",
-        "amount" : 5,
-        "codedAbilityKey" : "MIRACLES"
-      }, {
-        "type" : "ANY",
-        "children" : [ {
           "type" : "ATTACK_MISSED",
           "actor" : "ENEMY"
         }, {
           "type" : "BLACK_FLASH_HIT",
           "actor" : "SELF"
         } ]
-      } ]
     },
     "targetEffectIds" : [ "effect-000000" ],
     "matchSameTrigger" : true
@@ -92,14 +119,17 @@
     "effectId" : "effect-000000",
     "type" : "CODED",
     "codedAbilityKey" : "MIRACLES",
-    "codedFeature" : "FORTUNE_RECLAIMED"
+    "codedFeature" : "FORTUNE_RECLAIMED",
+    "codedParameters" : {
+      "gain" : 1
+    }
   } ],
   "masteryThreshold" : 0
 }, {
   "id" : "000004",
   "name" : "Ratio Reinforcement",
   "flavourText" : "Even ordinary cursed-energy reinforcement can briefly reveal the seven-to-three weak point.",
-  "mechanicText" : "Each connected REINFORCEMENT ATTACK has a 5% chance to apply RATIO, bypassing BLOCK and reducing DEFENSE to 30% for that hit.",
+  "mechanicText" : "RATIO STACK capacity increases from 2 to 5 with CTM. Connected REINFORCEMENT ATTACKS have a CTM-scaled 3%-15% chance to apply RATIO, bypassing BLOCK and reducing DEFENSE to 30% for that hit.",
   "category" : "ACTIVE",
   "sourceType" : "TECHNIQUE",
   "sourceValue" : "Ratio",
@@ -122,13 +152,41 @@
     "targetEffectIds" : [ "effect-000000" ],
     "activationChanceEnabled" : true,
     "activationChance" : 0.05,
-    "matchSameTrigger" : true
+    "matchSameTrigger" : true,
+    "masteryProgression" : {
+      "activationChance" : {
+        "mode" : "FORMULA",
+        "formula" : "min(15, 3 + ctm / 25)"
+      }
+    }
   } ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "CODED",
     "codedAbilityKey" : "RATIO",
-    "codedFeature" : "REINFORCEMENT_RATIO"
+    "codedFeature" : "REINFORCEMENT_RATIO",
+    "codedParameters" : {
+      "stackCapacity" : 3,
+      "defensePercent" : 30
+    },
+    "masteryProgression" : {
+      "stackCapacity" : {
+        "mode" : "BENCHMARKS",
+        "benchmarks" : [ {
+          "mastery" : 0,
+          "value" : 2
+        }, {
+          "mastery" : 50,
+          "value" : 3
+        }, {
+          "mastery" : 150,
+          "value" : 4
+        }, {
+          "mastery" : 250,
+          "value" : 5
+        } ]
+      }
+    }
   } ],
   "masteryThreshold" : 0
 }, {
@@ -265,6 +323,36 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "SOUL_AWARE_ATTACKS"
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000013",
+  "name" : "Aerial Recon",
+  "flavourText" : "From her perch high above the fight, Momo reads every movement below long before her broom carries a strike down to meet it.",
+  "mechanicText" : "Gain 10 ACCURACY on RANGED attacks while flying on her broom.",
+  "category" : "PASSIVE",
+  "sourceType" : "TECHNIQUE",
+  "sourceValue" : "Tool Manipulation",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "MOVE_ACCURACY_ADD",
+    "moveTag" : "RANGED",
+    "intValue" : 10
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000014",
+  "name" : "Skyborne",
+  "flavourText" : "A grounded opponent swings at empty air as the broom lifts Momo far beyond the reach of any mere fist or blade.",
+  "mechanicText" : "Enemy MELEE attacks have 15% lower ACCURACY against Momo.",
+  "category" : "PASSIVE",
+  "sourceType" : "TECHNIQUE",
+  "sourceValue" : "Tool Manipulation",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "OPPONENT_ACCURACY_MULTIPLY",
+    "moveTag" : "MELEE",
+    "doubleValue" : 0.85
   } ],
   "masteryThreshold" : 0
 } ]

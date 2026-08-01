@@ -441,7 +441,7 @@ public class PlanningPanel {
         refresh();
         batch.begin();
         drawHeader(batch, font, titleFont);
-        miraclesMeter.draw(batch, ui);
+        miraclesMeter.draw(batch, ui, statFont);
         drawTimelineLabel(batch, font, offensiveBar, "OFFENSE", ui.offenseIcon, BattleUiAssets.OFFENSE);
         drawTimelineLabel(batch, font, defensiveBar, "DEFENSE", ui.defenseIcon, BattleUiAssets.DEFENSE);
 

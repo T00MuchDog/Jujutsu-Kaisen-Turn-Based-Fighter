@@ -257,6 +257,22 @@ class RatioTechniqueTest {
     }
 
     @Test
+    void ratioMarkIsUnavailableWithoutRatioReinforcement() {
+        Move mark = new Move.Builder("MARK_ONLY")
+            .name("Mark Only")
+            .category(MoveCategory.UTILITY)
+            .apCost(1)
+            .unleashPoint(1)
+            .selfEffects(List.of(ratioEffect(RatioAbility.CREATE_STACKS, 1)))
+            .build();
+
+        BattleCombatant owner = combatant("OWNER", List.of(mark));
+
+        assertFalse(owner.getCharacter().getKnownMoves().stream()
+            .anyMatch(move -> "MARK_ONLY".equals(move.getId())));
+    }
+
+    @Test
     void ratioStacksExpireAfterExactlyFiftyUniversalTicksIndependently() {
         BattleCombatant owner = ratioCombatant("OWNER", List.of());
         BattleCombatant target = combatant("TARGET", List.of());
@@ -290,7 +306,7 @@ class RatioTechniqueTest {
             .unleashPoint(1)
             .selfEffects(List.of(ratioEffect(RatioAbility.CREATE_STACKS, 1)))
             .build();
-        BattleCombatant owner = combatant("OWNER", List.of(codedMove));
+        BattleCombatant owner = ratioCombatant("OWNER", List.of(codedMove));
         BattleCombatant target = combatant("TARGET", List.of());
         BattleState state = new BattleState(owner, target);
         owner.getCodedAbilities().onEffectFired(

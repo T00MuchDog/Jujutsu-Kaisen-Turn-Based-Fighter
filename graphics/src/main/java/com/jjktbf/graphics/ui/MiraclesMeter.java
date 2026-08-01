@@ -2,6 +2,8 @@ package com.jjktbf.graphics.ui;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 import com.jjktbf.model.character.coded.CodedAbilityState;
 import com.jjktbf.model.character.coded.MiraclesAbility;
@@ -15,6 +17,8 @@ public final class MiraclesMeter {
     private float y;
     private float size;
     private int imageIndex;
+    private int currentValue;
+    private int maximumValue;
     private boolean visible;
 
     /** Returns the responsive height used by planner timeline bars. */
@@ -41,12 +45,16 @@ public final class MiraclesMeter {
             return;
         }
         visible = true;
-        imageIndex = Math.max(0, Math.min(MiraclesAbility.MAX_MIRACLES, state.currentValue()));
+        maximumValue = Math.max(0, state.maximumValue());
+        currentValue = Math.max(0, Math.min(maximumValue, state.currentValue()));
+        imageIndex = Math.min(MiraclesAbility.MAX_MIRACLES, currentValue);
     }
 
     public void clear() {
         visible = false;
         imageIndex = 0;
+        currentValue = 0;
+        maximumValue = 0;
     }
 
     public boolean isVisible() {
@@ -57,13 +65,26 @@ public final class MiraclesMeter {
         return imageIndex;
     }
 
+    int currentValue() { return currentValue; }
+    int maximumValue() { return maximumValue; }
+
     /** Draws the supplied 0-6 Miracles graphic selected from the live ability state. */
-    public void draw(Batch batch, BattleUiAssets ui) {
+    public void draw(Batch batch, BattleUiAssets ui, BitmapFont font) {
         if (!visible) return;
 
         Color previousBatchColor = new Color(batch.getColor());
+        Color previousFontColor = new Color(font.getColor());
         batch.setColor(Color.WHITE);
         batch.draw(ui.miracleCounter(imageIndex), x, y, size, size);
+        String value = currentValue + "/" + maximumValue;
+        GlyphLayout layout = new GlyphLayout(font, value);
+        float labelX = x + (size - layout.width) / 2f;
+        float labelY = y + Math.max(font.getCapHeight(), size * 0.12f);
+        font.setColor(Color.BLACK);
+        font.draw(batch, value, labelX + 2f, labelY - 2f);
+        font.setColor(Color.WHITE);
+        font.draw(batch, value, labelX, labelY);
+        font.setColor(previousFontColor);
         batch.setColor(previousBatchColor);
     }
 }

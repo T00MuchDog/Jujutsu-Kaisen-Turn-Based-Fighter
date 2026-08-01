@@ -24,7 +24,7 @@ class RatioMeterTest {
         assertTrue(meter.isVisible());
         assertEquals(2, meter.stackCount());
 
-        meter.setState(new CodedAbilityState(RatioAbility.KEY, "Ratio", 9, 3));
-        assertEquals(RatioAbility.MAX_STACKS, meter.stackCount());
+        meter.setState(new CodedAbilityState(RatioAbility.KEY, "Ratio", 5, 5));
+        assertEquals(5, meter.stackCount());
     }
 }

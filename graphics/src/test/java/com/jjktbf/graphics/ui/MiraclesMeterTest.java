@@ -21,8 +21,10 @@ class MiraclesMeterTest {
         assertTrue(meter.isVisible());
         assertEquals(4, meter.imageIndex());
 
-        meter.setState(new CodedAbilityState(MiraclesAbility.KEY, "Miracles", 9, 6));
+        meter.setState(new CodedAbilityState(MiraclesAbility.KEY, "Miracles", 8, 8));
         assertEquals(MiraclesAbility.MAX_MIRACLES, meter.imageIndex());
+        assertEquals(8, meter.currentValue());
+        assertEquals(8, meter.maximumValue());
 
         meter.setState(new CodedAbilityState(MiraclesAbility.KEY, "Miracles", -1, 6));
         assertEquals(0, meter.imageIndex());

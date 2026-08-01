@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -75,6 +76,9 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         StatKey.CURSED_ENERGY_EFFICIENCY, StatKey.CURSED_ENERGY_OUTPUT,
         StatKey.JUJUTSU_SKILL, StatKey.CURSED_TECHNIQUE_MASTERY
     };
+    private static final List<String> TIER_SECTIONS = List.of(StatTier.values()).stream()
+        .map(CharacterEditorScreen::tierSectionName)
+        .toList();
 
     private static final int STAT_MIN = 10;
     private static final int STAT_MAX = 300;
@@ -193,6 +197,24 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     @Override protected String listLabel(CharacterData r) {
         String tech = r.innateTechniqueName != null ? " [" + r.innateTechniqueName + "]" : "";
         return r.name + tech;
+    }
+
+    @Override protected List<String> recordSections() {
+        return TIER_SECTIONS;
+    }
+
+    @Override protected String recordSection(CharacterData record) {
+        return characterTierSection(record);
+    }
+
+    static String characterTierSection(CharacterData record) {
+        int total = 0;
+        for (StatKey stat : STAT_ORDER) total += stat.get(record);
+        return tierSectionName(StatTier.forBaseStatTotal(total));
+    }
+
+    private static String tierSectionName(StatTier tier) {
+        return tier.displayName().toUpperCase(Locale.ROOT);
     }
 
     @Override protected boolean isNewDraft(CharacterData draft) {

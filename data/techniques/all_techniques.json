@@ -124,4 +124,82 @@
     "y" : 221.0,
     "prerequisites" : [ ]
   } ]
+}, {
+  "id" : "000002",
+  "name" : "Tool Manipulation",
+  "description" : "A cursed technique that grants fine control over a chosen tool. Momo Nishimiya channels it through her broom to fly, scout from the air, and unleash concentrated gusts of wind.",
+  "skillTree" : [ {
+    "id" : "node-000000",
+    "contentType" : "ABILITY",
+    "contentId" : "000013",
+    "x" : 47.0,
+    "y" : 221.0,
+    "prerequisites" : [ ]
+  }, {
+    "id" : "node-000001",
+    "contentType" : "ABILITY",
+    "contentId" : "000014",
+    "x" : 47.0,
+    "y" : 395.0,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000000",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 10
+    } ]
+  }, {
+    "id" : "node-000002",
+    "contentType" : "MOVE",
+    "contentId" : "000033",
+    "x" : 397.0,
+    "y" : 110.0,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000000",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 30
+    }, {
+      "type" : "STAT",
+      "stat" : "speed",
+      "minimum" : 30
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyOutput",
+      "minimum" : 25
+    }, {
+      "type" : "STAT",
+      "stat" : "jujutsuSkill",
+      "minimum" : 30
+    } ]
+  }, {
+    "id" : "node-000003",
+    "contentType" : "MOVE",
+    "contentId" : "000034",
+    "x" : 397.0,
+    "y" : 336.0,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000000",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 35
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyOutput",
+      "minimum" : 30
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyEfficiency",
+      "minimum" : 30
+    }, {
+      "type" : "STAT",
+      "stat" : "jujutsuSkill",
+      "minimum" : 30
+    } ]
+  } ]
 } ]

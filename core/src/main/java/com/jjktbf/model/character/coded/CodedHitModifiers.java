@@ -32,7 +32,7 @@ public record CodedHitModifiers(
         combinedEvents.addAll(other.events);
         return new CodedHitModifiers(
             bypassBlock || other.bypassBlock,
-            defenseMultiplier * other.defenseMultiplier,
+            Math.min(defenseMultiplier, other.defenseMultiplier),
             combinedEvents
         );
     }

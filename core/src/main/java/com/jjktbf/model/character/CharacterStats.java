@@ -77,7 +77,7 @@ public class CharacterStats {
         this.cursedEnergyOutput     = clampGameRules(builder.cursedEnergyOutput);
         this.jujutsuSkill           = clampGameRules(builder.jujutsuSkill);
         this.combatAbility          = clampGameRules(builder.combatAbility);
-        this.cursedTechniqueMastery = clampGameRules(builder.cursedTechniqueMastery);
+        this.cursedTechniqueMastery = clampTechniqueMastery(builder.cursedTechniqueMastery);
     }
 
     /**
@@ -106,6 +106,11 @@ public class CharacterStats {
      */
     private static int clampGameRules(int value) {
         return Math.max(MIN_STAT, Math.min(MAX_STAT, value));
+    }
+
+    /** CTM alone permits an exact zero to represent a character without technique mastery. */
+    private static int clampTechniqueMastery(int value) {
+        return value <= 0 ? 0 : clampGameRules(value);
     }
 
     // -------------------------------------------------------------------------
