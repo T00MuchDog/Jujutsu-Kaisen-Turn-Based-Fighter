@@ -37,8 +37,10 @@ import java.util.function.Consumer;
 public class PlanningPanel {
 
     private static final float MARGIN = 34f;
-    /** Gap between the timeline label/icon and the left edge of its bar. */
+    /** Fixed gap between a timeline icon and the left edge of its bar. */
     private static final float LABEL_LEFT_GAP = 8f;
+    private static final float TIMELINE_ICON_SIZE = 16f;
+    private static final float TIMELINE_LABEL_GAP = 7f;
     private static final float CARD_GAP = 10f;
     private static final float PALETTE_PADDING = 10f;
     private static final float SCROLLBAR_HEIGHT = 6f;
@@ -580,14 +582,21 @@ public class PlanningPanel {
     private void drawTimelineLabel(Batch batch, BitmapFont font, TimelineBar bar, String label,
                                    com.badlogic.gdx.graphics.Texture icon, Color color) {
         Rectangle bounds = bar.getBounds();
-        // The label sits a constant gap to the left of the (centered, possibly
-        // tier-scaled) bar so it tracks the bar as it grows/shrinks. Compact
-        // layout keeps the label above the bar as before.
-        float x = compactLayout ? bounds.x + 4f : bounds.x - LABEL_LEFT_GAP - 23f;
+        // Anchor the icon to the bar itself so tier-scaled timelines retain the
+        // same gap. Desktop labels go to the icon's left so the bar cannot
+        // paint over them when it is drawn afterwards.
+        float iconX = compactLayout
+            ? bounds.x + LABEL_LEFT_GAP
+            : bounds.x - LABEL_LEFT_GAP - TIMELINE_ICON_SIZE;
         float y = compactLayout ? bounds.y + bounds.height + 9f : bounds.y + bounds.height / 2f;
-        batch.draw(icon, x, y - 8f, 16f, 16f);
+        batch.draw(icon, iconX, y - TIMELINE_ICON_SIZE / 2f, TIMELINE_ICON_SIZE, TIMELINE_ICON_SIZE);
         font.setColor(color);
-        font.draw(batch, label, x + 23f, y + 8f);
+        if (compactLayout) {
+            font.draw(batch, label, iconX + TIMELINE_ICON_SIZE + TIMELINE_LABEL_GAP, y + 8f);
+        } else {
+            GlyphLayout labelLayout = new GlyphLayout(font, label);
+            font.draw(batch, label, iconX - TIMELINE_LABEL_GAP - labelLayout.width, y + 8f);
+        }
     }
 
     private void drawDragAvatar(Batch batch, BitmapFont font) {
