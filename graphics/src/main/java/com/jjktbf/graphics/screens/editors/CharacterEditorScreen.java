@@ -286,7 +286,6 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         }
         java.util.Set<String> referencedMoveIds = new java.util.LinkedHashSet<>(
             d.moveIds == null ? List.of() : d.moveIds);
-        referencedMoveIds.addAll(resolvedAbilities(d).forcedMoveIds());
         for (String moveId : referencedMoveIds) {
             MoveData move = moveRepo.findById(moveId).orElse(null);
             if (move == null) continue;
@@ -587,9 +586,6 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
     private String treeActivationError(CharacterData character, SkillTreeNodeData node) {
         if (SkillTreeNodeData.MOVE.equalsIgnoreCase(node.contentType)) {
-            if (resolvedAbilities(character).forcedMoveIds().contains(node.contentId)) {
-                return "This move is already forced by a passive ability.";
-            }
             MoveData move = moveRepo.findById(node.contentId).orElse(null);
             return move == null ? "This move no longer exists."
                 : moveAssignmentError(character, resolvedAbilities(character), move, false);
@@ -846,13 +842,12 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 List<MoveData> allMoves = moveRepo.getAll();
                 List<String> assigned = cd.moveIds != null ? cd.moveIds : List.of();
                 AbilityResolver.Result abilityResult = resolvedAbilities(cd);
-                List<String> forced = abilityResult.forcedMoveIds();
                 for (MoveData md : allMoves) {
                     if (md.derivedPool() != pool) continue;
                     if (md.mustBeGranted
                         && !abilityResult.availableMoveIds().contains(md.id)) continue;
                     if (isLockedTechniqueMove(cd, md.id)) continue;
-                    if (assigned.contains(md.id) || forced.contains(md.id)) continue;
+                    if (assigned.contains(md.id)) continue;
                     String sub = md.tags != null ? String.join(", ", md.tags) : "";
                     String error = moveAssignmentError(cd, abilityResult, md, false);
                     AssignmentPanel.Item item = availableMoveItem(md, sub, pool, error);
@@ -865,7 +860,6 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 List<AssignmentPanel.Item> items = new ArrayList<>();
                 List<String> assigned = cd.moveIds != null ? cd.moveIds : List.of();
                 AbilityResolver.Result resolved = resolvedAbilities(cd);
-                List<String> forced = resolved.forcedMoveIds();
                 for (String mid : assigned) {
                     MoveData md = mid == null ? null : moveRepo.findById(mid).orElse(null);
                     if (md == null) {
@@ -876,26 +870,11 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                     } else {
                         if (md.derivedPool() != pool) continue;
                         String sub = md.tags != null ? String.join(", ", md.tags) : "";
-                        if (forced.contains(mid)) {
-                            String source = resolved.forcedMoveSources().get(mid);
-                            items.add(new AssignmentPanel.Item(
-                                md.id, md.name, source, true, source));
-                            continue;
-                        }
                         String assignmentError = moveAssignmentError(cd, resolved, md, true);
                         if (assignmentError != null) {
                             sub += " | CONFLICT: " + assignmentError + " (remove this move)";
                         }
                         items.add(new AssignmentPanel.Item(md.id, md.name, sub));
-                    }
-                }
-                for (String moveId : forced) {
-                    if (assigned.contains(moveId)) continue;
-                    MoveData md = moveRepo.findById(moveId).orElse(null);
-                    if (md != null && md.derivedPool() == pool) {
-                        String source = resolved.forcedMoveSources().get(moveId);
-                        items.add(new AssignmentPanel.Item(
-                            md.id, md.name, source, true, source));
                     }
                 }
                 return items;
@@ -906,7 +885,6 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 if (md == null) return false;
                 if (isLockedTechniqueMove(cd, moveId)) return false;
                 AbilityResolver.Result abilityResult = resolvedAbilities(cd);
-                if (abilityResult.forcedMoveIds().contains(moveId)) return false;
                 return moveAssignmentError(cd, abilityResult, md, false) == null;
             }
 
@@ -944,9 +922,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private List<MovePool> getAssignedMovePoolList(CharacterData cd) {
         List<MovePool> pools = new ArrayList<>();
         if (cd.moveIds == null) return pools;
-        List<String> forced = resolvedAbilities(cd).forcedMoveIds();
         for (String mid : cd.moveIds) {
-            if (forced.contains(mid)) continue;
             MoveData md = moveRepo.findById(mid).orElse(null);
             if (md != null && !md.isFreeMove) {
                 try {
@@ -984,6 +960,11 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (move.mustBeGranted && !abilities.availableMoveIds().contains(move.id)) {
             return "This move must be granted by an ability.";
         }
+        // A GRANT_MOVE-granted move bypasses all requirements, mirroring
+        // Character.validateAndBuildMoveList. UNLOCK_MOVE-granted moves are
+        // still subject to every check below.
+        boolean bypass = abilities.grantedMoveIds().contains(move.id);
+        if (bypass) return null;
         if (built.isWeaponRequired() && !character.hasWeapon) {
             return "Requires a weapon.";
         }

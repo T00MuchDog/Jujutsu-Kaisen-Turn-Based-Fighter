@@ -560,7 +560,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
     private static boolean referencesMoveAcquisition(AbilityEffectData effect) {
         return AbilityEffectType.GRANT_MOVE.name().equalsIgnoreCase(effect.type)
-            || AbilityEffectType.FORCE_MOVE.name().equalsIgnoreCase(effect.type);
+            || AbilityEffectType.UNLOCK_MOVE.name().equalsIgnoreCase(effect.type);
     }
 
     private static List<String> remapCharacterMoveIds(

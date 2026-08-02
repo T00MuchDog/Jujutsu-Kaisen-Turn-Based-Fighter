@@ -155,8 +155,8 @@ public final class AbilityApplicator {
                         if (eff.moveId != null) flags.grantedMoveIds.add(eff.moveId);
                     }
                     case GRANT_ABILITY -> { /* character acquisition only */ }
-                    case FORCE_MOVE -> {
-                        if (eff.moveId != null) flags.forcedMoveIds.add(eff.moveId);
+                    case UNLOCK_MOVE -> {
+                        if (eff.moveId != null) flags.unlockedMoveIds.add(eff.moveId);
                     }
                     case LOCK_MOVE_TAG -> {
                         if (eff.moveTag != null) flags.lockedMoveTags.add(eff.moveTag);
@@ -392,7 +392,7 @@ public final class AbilityApplicator {
 
         // Moves
         public final java.util.List<String>            grantedMoveIds    = new java.util.ArrayList<>();
-        public final java.util.List<String>            forcedMoveIds     = new java.util.ArrayList<>();
+        public final java.util.List<String>            unlockedMoveIds   = new java.util.ArrayList<>();
 
         /**
          * Move tags that are locked by this character's abilities.
@@ -461,7 +461,7 @@ public final class AbilityApplicator {
                 }
                 case GRANT_MOVE -> { if (effect.moveId != null) grantedMoveIds.add(effect.moveId); }
                 case GRANT_ABILITY -> { }
-                case FORCE_MOVE -> { if (effect.moveId != null) forcedMoveIds.add(effect.moveId); }
+                case UNLOCK_MOVE -> { if (effect.moveId != null) unlockedMoveIds.add(effect.moveId); }
                 case LOCK_MOVE_TAG -> { if (effect.moveTag != null) lockedMoveTags.add(effect.moveTag); }
                 case AUTO_STATUS_APPLY -> autoStatusEffects.add(effect);
                 case POISON_IMMUNITY -> poisonImmune = true;
@@ -499,7 +499,7 @@ public final class AbilityApplicator {
             copy.incomingDamageMultiplier = incomingDamageMultiplier;
             copy.incomingDamageMultiplierEffects.addAll(incomingDamageMultiplierEffects);
             copy.grantedMoveIds.addAll(grantedMoveIds);
-            copy.forcedMoveIds.addAll(forcedMoveIds);
+            copy.unlockedMoveIds.addAll(unlockedMoveIds);
             copy.lockedMoveTags.addAll(lockedMoveTags);
             copy.autoStatusEffects.addAll(autoStatusEffects);
             return copy;
@@ -586,7 +586,7 @@ public final class AbilityApplicator {
                 || incomingDamageMultiplier != 1.0
                 || bfChanceBonus != 0.0 || apBarBonus != 0 || ceCostPerRound != 0
                 || jujutsuArtSlots != null
-                || !grantedMoveIds.isEmpty() || !forcedMoveIds.isEmpty() || !lockedMoveTags.isEmpty()
+                || !grantedMoveIds.isEmpty() || !unlockedMoveIds.isEmpty() || !lockedMoveTags.isEmpty()
                 || !autoStatusEffects.isEmpty();
         }
     }

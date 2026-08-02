@@ -565,7 +565,7 @@ public final class AbilityActivationEngine {
             }
             case STAT_ALLOCATION_MINIMUM, STAT_BONUS_POINTS,
                   POISON_IMMUNITY, SOUL_AWARE_ATTACKS,
-                  GRANT_MOVE, GRANT_ABILITY, FORCE_MOVE,
+                  GRANT_MOVE, GRANT_ABILITY, UNLOCK_MOVE,
                   UNLOCK_TECHNIQUE, CODED -> { }
         }
     }

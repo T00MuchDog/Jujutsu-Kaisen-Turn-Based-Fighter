@@ -45,7 +45,6 @@ public abstract class Character extends Entity {
      */
     private final List<Move> knownMoves;
     private final List<Ability> abilities;
-    private final Set<String> forcedMoveIds;
 
     /**
      * Whether this character wields a weapon. A move flagged
@@ -120,15 +119,13 @@ public abstract class Character extends Entity {
         this.combatStats        = new CombatStats(baseStats, passiveFlags.jujutsuArtSlots);
         this.innateTechniqueName = innateTechniqueName;
         this.hasWeapon          = hasWeapon;
-        Set<String> availableMoveIds = availableMoveIdsOf(abilities);
-        Set<String> forcedMoves = forcedMoveIdsOf(abilities);
+        GrantedMoves granted = availableMoveIdsOf(abilities);
         List<Move> validatedMoves = validateAndBuildMoveList(
             knownMoves, baseStats, combatStats, accessibleTechniques,
-            availableMoveIds, forcedMoves, lockedMoveTagsOf(abilities), hasWeapon);
+            granted, lockedMoveTagsOf(abilities), hasWeapon);
         validatedMoves = filterMovesByAssignedCodedFeatures(validatedMoves, abilities);
         validateCodedMoveReferences(validatedMoves);
         this.knownMoves = Collections.unmodifiableList(validatedMoves);
-        this.forcedMoveIds = Collections.unmodifiableSet(forcedMoves);
         this.abilities          = abilities != null
             ? Collections.unmodifiableList(new ArrayList<>(abilities)) : List.of();
     }
@@ -213,37 +210,42 @@ public abstract class Character extends Entity {
         return set;
     }
 
-    /** Moves made available by passive ability effects. */
-    private static java.util.Set<String> availableMoveIdsOf(List<Ability> abilities) {
-        java.util.Set<String> ids = new java.util.HashSet<>();
-        if (abilities == null) return ids;
+    /**
+     * Moves made available by passive ability effects, split by how they were
+     * granted. {@link GrantedMoves#bypass} moves come from {@code GRANT_MOVE}
+     * and bypass all learning requirements; {@link GrantedMoves#plain} moves
+     * come from {@code UNLOCK_MOVE} and still require the character to meet
+     * prerequisites when assigned.
+     */
+    private static GrantedMoves availableMoveIdsOf(List<Ability> abilities) {
+        java.util.Set<String> bypass = new java.util.HashSet<>();
+        java.util.Set<String> plain  = new java.util.HashSet<>();
+        if (abilities == null) return new GrantedMoves(bypass, plain);
         for (Ability ability : abilities) {
             if (!ability.isPassive()) continue;
             for (AbilityEffectData effect : ability.getEffects()) {
-                if ((AbilityEffectType.GRANT_MOVE.name().equalsIgnoreCase(effect.type)
-                    || AbilityEffectType.FORCE_MOVE.name().equalsIgnoreCase(effect.type))
-                    && effect.moveId != null && !effect.moveId.isBlank()) {
-                    ids.add(effect.moveId);
+                if (effect.moveId == null || effect.moveId.isBlank()) continue;
+                if (AbilityEffectType.GRANT_MOVE.name().equalsIgnoreCase(effect.type)) {
+                    bypass.add(effect.moveId);
+                } else if (AbilityEffectType.UNLOCK_MOVE.name().equalsIgnoreCase(effect.type)) {
+                    plain.add(effect.moveId);
                 }
             }
         }
-        return ids;
+        return new GrantedMoves(bypass, plain);
     }
 
-    /** Moves automatically learned and exempt from normal assignment rules. */
-    private static java.util.Set<String> forcedMoveIdsOf(List<Ability> abilities) {
-        java.util.Set<String> ids = new java.util.HashSet<>();
-        if (abilities == null) return ids;
-        for (Ability ability : abilities) {
-            if (!ability.isPassive()) continue;
-            for (AbilityEffectData effect : ability.getEffects()) {
-                if (AbilityEffectType.FORCE_MOVE.name().equalsIgnoreCase(effect.type)
-                    && effect.moveId != null && !effect.moveId.isBlank()) {
-                    ids.add(effect.moveId);
-                }
-            }
+    /** Pair of available-move sets distinguished by whether they bypass requirements. */
+    record GrantedMoves(Set<String> bypass, Set<String> plain) {
+        static final GrantedMoves EMPTY = new GrantedMoves(Set.of(), Set.of());
+        GrantedMoves {
+            bypass = bypass == null ? Set.of() : bypass;
+            plain  = plain  == null ? Set.of() : plain;
         }
-        return ids;
+        /** True when the move is available through either grant path. */
+        boolean contains(String moveId) {
+            return moveId != null && (bypass.contains(moveId) || plain.contains(moveId));
+        }
     }
 
     private static java.util.Set<String> lockedMoveTagsOf(List<Ability> abilities) {
@@ -270,20 +272,22 @@ public abstract class Character extends Entity {
         CharacterStats cs,
         CombatStats    combatStats,
         java.util.Set<String> accessibleTechniques,
-        java.util.Set<String> availableMoveIds,
-        java.util.Set<String> forcedMoveIds,
+        GrantedMoves   granted,
         java.util.Set<String> lockedMoveTags,
         boolean        hasWeapon
     ) {
         if (moves == null) return List.of();
+        if (granted == null) granted = GrantedMoves.EMPTY;
 
         Map<MovePool, Integer> slotUsed = new EnumMap<>(MovePool.class);
         List<Move> validated = new ArrayList<>();
 
         for (Move move : moves) {
-            boolean moveAvailable = availableMoveIds != null
-                && availableMoveIds.contains(move.getId());
-            boolean forced = forcedMoveIds != null && forcedMoveIds.contains(move.getId());
+            // A move is "granted" when any passive ability makes it available.
+            // Only GRANT_MOVE grants bypass requirements; UNLOCK_MOVE still
+            // enforces them.
+            boolean moveAvailable = granted.contains(move.getId());
+            boolean bypass        = granted.bypass().contains(move.getId());
 
             if (move.mustBeGranted() && !moveAvailable) {
                 throw new IllegalArgumentException(
@@ -292,22 +296,22 @@ public abstract class Character extends Entity {
 
             // --- 0. Weapon requirement ---
             // A weaponRequired move (notably every parry) needs a weapon-wielding
-            // character. Forced moves (ability-granted) bypass this like the other
+            // character. A GRANT_MOVE-granted move bypasses this like the other
             // restrictions, so an ability can still bestow a weapon technique.
-            if (!forced && move.isWeaponRequired() && !hasWeapon) {
+            if (!bypass && move.isWeaponRequired() && !hasWeapon) {
                 throw new IllegalArgumentException(
                     "Move '" + move.getName() + "' requires a weapon but character '"
                     + "' does not have one");
             }
 
-            if (!forced && lockedMoveTags != null
+            if (!bypass && lockedMoveTags != null
                 && lockedMoveTags.stream().anyMatch(move::hasTag)) {
                 throw new IllegalArgumentException(
                     "Ability restrictions prevent learning move '" + move.getName() + "'");
             }
 
             // --- 1. Prerequisite stats ---
-            if (!forced) {
+            if (!bypass) {
                 for (Map.Entry<String, Integer> prereq : move.getPrerequisites().entrySet()) {
                     int actual = getStatByName(cs, prereq.getKey());
                     if (actual < prereq.getValue()) {
@@ -324,7 +328,7 @@ public abstract class Character extends Entity {
             // A move is usable if its required technique is the character's
             // innate technique OR was granted by an UNLOCK_TECHNIQUE ability
             // effect (e.g. Six Eyes → Limitless, or a Copy ability). Case-insensitive.
-            if (!forced && move.getRequiredTechniqueId() != null) {
+            if (!bypass && move.getRequiredTechniqueId() != null) {
                 if (accessibleTechniques == null
                     || !accessibleTechniques.contains(move.getRequiredTechniqueId().toLowerCase())) {
                     throw new IllegalArgumentException(
@@ -339,7 +343,7 @@ public abstract class Character extends Entity {
             // Every non-free move consumes a slot in its pool (Combat Arts or
             // Jujutsu Arts), regardless of whether it is offensive, defensive,
             // or utility.
-            if (!forced && !move.isFreeMove()) {
+            if (!bypass && !move.isFreeMove()) {
                 MovePool pool = move.getPool();
                 int used      = slotUsed.getOrDefault(pool, 0);
                 int available = SlotBudgetEnforcer.slotBudgetFor(combatStats, pool);
@@ -373,7 +377,6 @@ public abstract class Character extends Entity {
     public String          getInnateTechniqueName()  { return innateTechniqueName; }
     public List<Move>      getKnownMoves()           { return knownMoves; }
     public List<Ability>   getAbilities()            { return abilities; }
-    public Set<String>     getForcedMoveIds()         { return forcedMoveIds; }
     public boolean         hasInnateTechnique()      { return innateTechniqueName != null; }
     public boolean         hasWeapon()                { return hasWeapon; }
 }

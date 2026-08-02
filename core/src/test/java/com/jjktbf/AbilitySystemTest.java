@@ -75,7 +75,7 @@ class AbilitySystemTest {
         for (AbilityEffectType type : AbilityEffectType.values()) {
             AbilityEffectData effect = type.createDefault();
             if (type == AbilityEffectType.GRANT_MOVE
-                || type == AbilityEffectType.FORCE_MOVE) effect.moveId = "MOVE";
+                || type == AbilityEffectType.UNLOCK_MOVE) effect.moveId = "MOVE";
             if (type == AbilityEffectType.GRANT_ABILITY) effect.abilityId = "ABILITY";
             if (type == AbilityEffectType.UNLOCK_TECHNIQUE) effect.stringValue = "Technique";
             assertNull(type.validationError(effect), type.name());
@@ -139,7 +139,7 @@ class AbilitySystemTest {
     void resolverSeparatesAvailableContentFromAssignedContent() {
         AbilityData parent = ability("PASSIVE", "Parent", "A");
         parent.sourceType = "CHARACTER";
-        AbilityEffectData grantMove = AbilityEffectType.GRANT_MOVE.createDefault();
+        AbilityEffectData grantMove = AbilityEffectType.UNLOCK_MOVE.createDefault();
         grantMove.moveId = "MOVE_X";
         AbilityEffectData unlockTechnique = AbilityEffectType.UNLOCK_TECHNIQUE.createDefault();
         unlockTechnique.stringValue = "Limitless";
@@ -179,7 +179,7 @@ class AbilitySystemTest {
         assertFalse(result.availableAbilityIds().contains("C"),
             "A granted move does not satisfy a source that requires knowing the move");
         assertEquals(List.of("MOVE_X"), result.availableMoveIds());
-        assertTrue(result.forcedMoveIds().isEmpty());
+        assertTrue(result.grantedMoveIds().isEmpty());
         assertTrue(result.hasTechnique("LIMITLESS"));
     }
 
@@ -207,20 +207,20 @@ class AbilitySystemTest {
     }
 
     @Test
-    void forceMoveLearnsAndLabelsMoveWhileGrantMoveOnlyMakesItAvailable() {
+    void grantMoveBypassesRequirementsWhileUnlockMoveOnlyMakesItAvailable() {
         AbilityData ability = ability("PASSIVE", "Acquisition", "A");
+        AbilityEffectData unlock = AbilityEffectType.UNLOCK_MOVE.createDefault();
+        unlock.moveId = "UNLOCKED";
         AbilityEffectData grant = AbilityEffectType.GRANT_MOVE.createDefault();
-        grant.moveId = "AVAILABLE";
-        AbilityEffectData force = AbilityEffectType.FORCE_MOVE.createDefault();
-        force.moveId = "FORCED";
-        ability.effects = List.of(grant, force);
+        grant.moveId = "GRANTED";
+        ability.effects = List.of(unlock, grant);
 
         AbilityData techniqueAbility = ability("PASSIVE", "Technique Acquisition", "T");
         techniqueAbility.sourceType = "TECHNIQUE";
         techniqueAbility.sourceValue = "Technique";
-        AbilityEffectData techniqueForce = AbilityEffectType.FORCE_MOVE.createDefault();
-        techniqueForce.moveId = "TECHNIQUE_FORCED";
-        techniqueAbility.effects = List.of(techniqueForce);
+        AbilityEffectData techniqueGrant = AbilityEffectType.GRANT_MOVE.createDefault();
+        techniqueGrant.moveId = "TECHNIQUE_GRANTED";
+        techniqueAbility.effects = List.of(techniqueGrant);
 
         com.jjktbf.model.character.CharacterData character =
             new com.jjktbf.model.character.CharacterData();
@@ -231,12 +231,11 @@ class AbilitySystemTest {
         AbilityResolver.Result result = AbilityResolver.resolve(
             character, List.of(ability, techniqueAbility));
 
+        // Both effects make the move available, and neither auto-learns it.
         assertTrue(result.availableMoveIds().containsAll(
-            Set.of("AVAILABLE", "FORCED", "TECHNIQUE_FORCED")));
-        assertEquals(List.of("FORCED", "TECHNIQUE_FORCED"), result.forcedMoveIds());
-        assertEquals("Granted by ability", result.forcedMoveSources().get("FORCED"));
-        assertEquals("Granted by technique",
-            result.forcedMoveSources().get("TECHNIQUE_FORCED"));
+            Set.of("UNLOCKED", "GRANTED", "TECHNIQUE_GRANTED")));
+        // Only GRANT_MOVE-granted moves bypass requirements; UNLOCK_MOVE does not.
+        assertEquals(List.of("GRANTED", "TECHNIQUE_GRANTED"), result.grantedMoveIds());
     }
 
     @Test
@@ -250,13 +249,12 @@ class AbilitySystemTest {
             null, List.of(), List.of(new Ability(activeData)));
 
         assertTrue(character.getKnownMoves().isEmpty());
-        assertTrue(character.getForcedMoveIds().isEmpty());
     }
 
     @Test
-    void characterDataAddsForcedMovesAndDoesNotPersistThemAsManualLearning() {
-        Move forcedMove = new Move.Builder("SOURCE_ID")
-            .name("Forced Move")
+    void grantMoveBypassesPrerequisitesWhenMoveIsAssigned() {
+        Move grantedMove = new Move.Builder("SOURCE_ID")
+            .name("Granted Move")
             .category(MoveCategory.PHYSICAL)
             .mustBeGranted(true)
             .prerequisites(java.util.Map.of("strength", 300))
@@ -265,17 +263,17 @@ class AbilitySystemTest {
             .unleashPoint(1)
             .build();
         com.jjktbf.model.move.MoveRepository moveRepository =
-            new com.jjktbf.model.move.MoveRepository("data/test-force-moves");
+            new com.jjktbf.model.move.MoveRepository("data/test-grant-moves");
         com.jjktbf.model.move.MoveData moveData =
-            com.jjktbf.model.move.MoveData.fromMove(forcedMove);
+            com.jjktbf.model.move.MoveData.fromMove(grantedMove);
         moveRepository.add(moveData);
 
-        AbilityData ability = ability("PASSIVE", "Force", null);
-        AbilityEffectData force = AbilityEffectType.FORCE_MOVE.createDefault();
-        force.moveId = moveData.id;
-        ability.effects = List.of(force);
+        AbilityData ability = ability("PASSIVE", "Grant", null);
+        AbilityEffectData grant = AbilityEffectType.GRANT_MOVE.createDefault();
+        grant.moveId = moveData.id;
+        ability.effects = List.of(grant);
         com.jjktbf.model.character.AbilityRepository abilityRepository =
-            new com.jjktbf.model.character.AbilityRepository("data/test-force-abilities");
+            new com.jjktbf.model.character.AbilityRepository("data/test-grant-abilities");
         abilityRepository.add(ability);
 
         com.jjktbf.model.character.CharacterData characterData =
@@ -283,15 +281,19 @@ class AbilitySystemTest {
         characterData.id = "CHARACTER";
         characterData.name = "Character";
         characterData.strength = 80;
-        characterData.moveIds = List.of();
+        // GRANT_MOVE no longer auto-learns the move; it must be assigned, but
+        // the impossible strength prerequisite (300) is bypassed at validation.
+        characterData.moveIds = List.of(moveData.id);
         characterData.abilityIds = List.of(ability.id);
 
         Character character = characterData.toCharacter(moveRepository, abilityRepository);
 
         assertEquals(List.of(moveData.id),
             character.getKnownMoves().stream().map(Move::getId).toList());
-        assertEquals(Set.of(moveData.id), character.getForcedMoveIds());
-        assertTrue(com.jjktbf.model.character.CharacterData.fromCharacter(character).moveIds.isEmpty());
+        // Assigned moves round-trip through persistence now that they are not
+        // auto-injected by the ability.
+        assertEquals(List.of(moveData.id),
+            com.jjktbf.model.character.CharacterData.fromCharacter(character).moveIds);
     }
 
     @Test
@@ -395,7 +397,7 @@ class AbilitySystemTest {
         AbilityResolver.Result result = AbilityResolver.resolve(
             character, List.of(active, moveSourced), ignored -> false);
 
-        assertTrue(result.forcedMoveIds().isEmpty());
+        assertTrue(result.grantedMoveIds().isEmpty());
         assertFalse(result.containsAbility("MOVE_SOURCE"));
         assertFalse(result.availableAbilityIds().contains("MOVE_SOURCE"));
     }

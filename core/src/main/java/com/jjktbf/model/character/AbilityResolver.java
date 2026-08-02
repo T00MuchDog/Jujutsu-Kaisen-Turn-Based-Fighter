@@ -21,9 +21,6 @@ import java.util.regex.Pattern;
 /** Resolves ability availability, assigned abilities, and their acquisition effects. */
 public final class AbilityResolver {
 
-    public static final String GRANTED_BY_ABILITY = "Granted by ability";
-    public static final String GRANTED_BY_TECHNIQUE = "Granted by technique";
-
     private static final Pattern STAT_THRESHOLD = Pattern.compile(
         "^\\s*([A-Za-z][A-Za-z0-9_ ]*)\\s*>=\\s*(-?\\d+)\\s*$");
 
@@ -88,7 +85,7 @@ public final class AbilityResolver {
             character.availableMoveIds.stream().filter(validMove).forEach(availableMoveIds::add);
         }
         Set<String> availableAbilityIds = new LinkedHashSet<>();
-        Map<String, String> forcedMoveSources = new LinkedHashMap<>();
+        Set<String> grantedMoveIds = new LinkedHashSet<>();
         Map<String, String> techniqueNames = new LinkedHashMap<>();
         addTechnique(techniqueNames, character.innateTechniqueName);
 
@@ -116,8 +113,7 @@ public final class AbilityResolver {
                     definition,
                     availableMoveIds,
                     availableAbilityIds,
-                    learnedMoveIds,
-                    forcedMoveSources,
+                    grantedMoveIds,
                     techniqueNames,
                     validMove);
             }
@@ -127,7 +123,7 @@ public final class AbilityResolver {
             new ArrayList<>(assignedAbilities.values()),
             new ArrayList<>(availableMoveIds),
             new ArrayList<>(availableAbilityIds),
-            forcedMoveSources,
+            new ArrayList<>(grantedMoveIds),
             new LinkedHashSet<>(techniqueNames.values())
         );
     }
@@ -176,8 +172,7 @@ public final class AbilityResolver {
         AbilityData ability,
         Set<String> availableMoveIds,
         Set<String> availableAbilityIds,
-        Set<String> learnedMoveIds,
-        Map<String, String> forcedMoveSources,
+        Set<String> grantedMoveIds,
         Map<String, String> techniqueNames,
         Predicate<String> moveExists
     ) {
@@ -193,19 +188,17 @@ public final class AbilityResolver {
                     case GRANT_MOVE -> {
                         if (validMove(effect.moveId, moveExists)) {
                             changed |= availableMoveIds.add(effect.moveId);
+                            grantedMoveIds.add(effect.moveId);
+                        }
+                    }
+                    case UNLOCK_MOVE -> {
+                        if (validMove(effect.moveId, moveExists)) {
+                            changed |= availableMoveIds.add(effect.moveId);
                         }
                     }
                     case GRANT_ABILITY -> {
                         if (effect.abilityId != null && !effect.abilityId.isBlank()) {
                             changed |= availableAbilityIds.add(effect.abilityId);
-                        }
-                    }
-                    case FORCE_MOVE -> {
-                        if (validMove(effect.moveId, moveExists)) {
-                            changed |= availableMoveIds.add(effect.moveId);
-                            changed |= learnedMoveIds.add(effect.moveId);
-                            changed |= forcedMoveSources.putIfAbsent(
-                                effect.moveId, forcedMoveSource(ability)) == null;
                         }
                     }
                     case UNLOCK_TECHNIQUE -> {
@@ -220,11 +213,6 @@ public final class AbilityResolver {
             }
         }
         return changed;
-    }
-
-    private static String forcedMoveSource(AbilityData ability) {
-        return "TECHNIQUE".equalsIgnoreCase(ability.sourceType)
-            ? GRANTED_BY_TECHNIQUE : GRANTED_BY_ABILITY;
     }
 
     private static boolean validMove(String moveId, Predicate<String> moveExists) {
@@ -281,21 +269,20 @@ public final class AbilityResolver {
         private final List<AbilityData> abilities;
         private final List<String> availableMoveIds;
         private final List<String> availableAbilityIds;
-        private final Map<String, String> forcedMoveSources;
+        private final List<String> grantedMoveIds;
         private final Set<String> accessibleTechniqueNames;
 
         private Result(
             List<AbilityData> abilities,
             List<String> availableMoveIds,
             List<String> availableAbilityIds,
-            Map<String, String> forcedMoveSources,
+            List<String> grantedMoveIds,
             Set<String> accessibleTechniqueNames
         ) {
             this.abilities = List.copyOf(abilities);
             this.availableMoveIds = List.copyOf(availableMoveIds);
             this.availableAbilityIds = List.copyOf(availableAbilityIds);
-            this.forcedMoveSources = Collections.unmodifiableMap(
-                new LinkedHashMap<>(forcedMoveSources));
+            this.grantedMoveIds = List.copyOf(grantedMoveIds);
             this.accessibleTechniqueNames = Collections.unmodifiableSet(accessibleTechniqueNames);
         }
 
@@ -308,7 +295,7 @@ public final class AbilityResolver {
             List<String> availableMoves = character != null && character.availableMoveIds != null
                 ? character.availableMoveIds : List.of();
             return new Result(
-                List.of(), availableMoves, List.of(), Map.of(), techniques);
+                List.of(), availableMoves, List.of(), List.of(), techniques);
         }
 
         public List<AbilityData> abilities() {
@@ -323,12 +310,13 @@ public final class AbilityResolver {
             return availableAbilityIds;
         }
 
-        public List<String> forcedMoveIds() {
-            return List.copyOf(forcedMoveSources.keySet());
-        }
-
-        public Map<String, String> forcedMoveSources() {
-            return forcedMoveSources;
+        /**
+         * Move IDs granted via {@link AbilityEffectType#GRANT_MOVE}, which bypass
+         * all learning requirements. These are also present in
+         * {@link #availableMoveIds()}; this accessor exposes the bypass subset.
+         */
+        public List<String> grantedMoveIds() {
+            return grantedMoveIds;
         }
 
         public Set<String> accessibleTechniqueNames() {

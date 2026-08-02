@@ -55,7 +55,7 @@ public class AbilityEffectData {
     /** Move tag name to filter on (e.g. "PHYSICAL", "INNATE_TECHNIQUE"). Null = all moves. */
     public String moveTag;
 
-    /** Move ID (6-digit) for GRANT_MOVE or FORCE_MOVE. */
+    /** Move ID (6-digit) for GRANT_MOVE or UNLOCK_MOVE. */
     public String moveId;
 
     /** Ability ID (6-digit) for GRANT_ABILITY. */

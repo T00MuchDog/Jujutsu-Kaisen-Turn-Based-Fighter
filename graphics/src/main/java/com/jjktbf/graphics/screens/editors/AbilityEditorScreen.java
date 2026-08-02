@@ -246,7 +246,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                     + ") only applies while a passive ability is assigned.";
             }
             if (type == AbilityEffectType.GRANT_MOVE
-                || type == AbilityEffectType.FORCE_MOVE) {
+                || type == AbilityEffectType.UNLOCK_MOVE) {
                 String moveError = validateMoveReference(
                     effect.moveId, "Effect " + (i + 1) + " references a move that does not exist.");
                 if (moveError != null) return moveError;

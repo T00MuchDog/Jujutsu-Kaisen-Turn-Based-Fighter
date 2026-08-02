@@ -42,7 +42,7 @@ class ContentCatalogTest {
         assertEquals(80, maki.getBaseStats().getStrength());
         assertEquals(0, maki.getCombatStats().getJujutsuArtsSlots());
         assertTrue(maki.getKnownMoves().stream()
-            .anyMatch(move -> "Cursed Tool Strike".equals(move.getName())));
+            .anyMatch(move -> "Cursed Sword Slash".equals(move.getName())));
         var deflection = maki.getKnownMoves().stream()
             .filter(move -> "Cursed Tool Deflection".equals(move.getName()))
             .findFirst().orElseThrow();

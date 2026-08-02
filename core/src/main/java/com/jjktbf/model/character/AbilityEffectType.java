@@ -121,15 +121,15 @@ public enum AbilityEffectType {
         MOVE_SCOPE, DECIMAL),
     GRANT_MOVE(
         "Grant move",
-        "Adds one move to the character's available moves. It must still be learned normally.",
+        "Adds one move to the character's available moves, bypassing all requirements.",
         MOVE_ID),
     GRANT_ABILITY(
         "Grant ability",
         "Adds one ability to the character's available abilities. It must still be assigned normally.",
         ABILITY_ID),
-    FORCE_MOVE(
-        "Force move",
-        "Adds one move to learned moves and prevents the character editor from removing it.",
+    UNLOCK_MOVE(
+        "Unlock move",
+        "Adds one move to the character's available moves. It must still be learned normally.",
         MOVE_ID),
     BF_CHANCE_ADD(
         "Change Black Flash chance",
@@ -695,7 +695,7 @@ public enum AbilityEffectType {
         return switch (this) {
             case STAT_ALLOCATION_MINIMUM, STAT_ALLOCATION_MAXIMUM, STAT_BONUS_POINTS,
                   POISON_IMMUNITY, SOUL_AWARE_ATTACKS,
-                  GRANT_MOVE, GRANT_ABILITY, FORCE_MOVE,
+                  GRANT_MOVE, GRANT_ABILITY, UNLOCK_MOVE,
                   UNLOCK_TECHNIQUE, AUTO_STATUS_APPLY, DEFENSE_FROM_DURABILITY,
                   SET_JUJUTSU_ART_SLOTS -> true;
             default -> false;

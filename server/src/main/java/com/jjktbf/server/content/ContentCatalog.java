@@ -244,7 +244,6 @@ public final class ContentCatalog {
                 }
             }
             LinkedHashSet<String> resolvedMoveIds = new LinkedHashSet<>(definition.moveIds);
-            resolvedMoveIds.addAll(resolved.forcedMoveIds());
             List<Move> moves = new ArrayList<>();
             for (String moveId : resolvedMoveIds) {
                 Move move = movesById.get(moveId);

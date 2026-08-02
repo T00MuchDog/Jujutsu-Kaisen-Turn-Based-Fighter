@@ -105,12 +105,12 @@
     "condition" : {
       "type" : "ANY",
       "children" : [ {
-          "type" : "ATTACK_MISSED",
-          "actor" : "ENEMY"
-        }, {
-          "type" : "BLACK_FLASH_HIT",
-          "actor" : "SELF"
-        } ]
+        "type" : "ATTACK_MISSED",
+        "actor" : "ENEMY"
+      }, {
+        "type" : "BLACK_FLASH_HIT",
+        "actor" : "SELF"
+      } ]
     },
     "targetEffectIds" : [ "effect-000000" ],
     "matchSameTrigger" : true
@@ -198,11 +198,11 @@
   "sourceType" : "CHARACTER",
   "effects" : [ {
     "effectId" : "effect-000000",
-    "type" : "GRANT_MOVE",
+    "type" : "UNLOCK_MOVE",
     "moveId" : "000027"
   }, {
     "effectId" : "effect-000001",
-    "type" : "GRANT_MOVE",
+    "type" : "UNLOCK_MOVE",
     "moveId" : "000028"
   } ],
   "masteryThreshold" : 0
@@ -230,8 +230,8 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "MOVE_BASE_POWER_MULTIPLY",
-    "moveTag" : "SWORD",
-    "doubleValue" : 1.1
+    "doubleValue" : 1.1,
+    "moveTag" : "SWORD"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -336,8 +336,8 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "MOVE_ACCURACY_ADD",
-    "moveTag" : "RANGED",
-    "intValue" : 10
+    "intValue" : 10,
+    "moveTag" : "RANGED"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -351,8 +351,8 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "OPPONENT_ACCURACY_MULTIPLY",
-    "moveTag" : "MELEE",
-    "doubleValue" : 0.85
+    "doubleValue" : 0.85,
+    "moveTag" : "MELEE"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -377,7 +377,7 @@
   }, {
     "effectId" : "effect-000003",
     "type" : "GRANT_ABILITY",
-    "abilityId" : "000019"
+    "abilityId" : "000018"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -430,20 +430,6 @@
   "masteryThreshold" : 0
 }, {
   "id" : "000018",
-  "name" : "Relentless Training",
-  "flavourText" : "Years of relentless weapon drills and close-quarters training let Maki fight at the summit of grade one through skill alone.",
-  "mechanicText" : "Gain 15 COMBAT ABILITY.",
-  "category" : "PASSIVE",
-  "sourceType" : "CHARACTER",
-  "effects" : [ {
-    "effectId" : "effect-000000",
-    "type" : "STAT_ADD",
-    "stat" : "combatAbility",
-    "intValue" : 15
-  } ],
-  "masteryThreshold" : 0
-}, {
-  "id" : "000019",
   "name" : "Partial Resistance to Curses",
   "flavourText" : "A Heavenly Restriction leaves only the faintest trace of cursed energy within Maki, blunting the curses that would prey on it.",
   "mechanicText" : "Reduce all CURSED ENERGY damage taken by 5%.",
@@ -453,8 +439,21 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "INCOMING_DAMAGE_MULTIPLY",
-    "moveTag" : "CURSED_ENERGY",
-    "doubleValue" : 0.95
+    "doubleValue" : 0.95,
+    "moveTag" : "CURSED_ENERGY"
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000019",
+  "name" : "Cursed Tool Access",
+  "flavourText" : "Granted access to a variety of Cursed Tools, they do not need to reinforce weapons with their own Cursed Energy",
+  "mechanicText" : "Allows the user to use Cursed Tool Moves without the requirements",
+  "category" : "PASSIVE",
+  "sourceType" : "CHARACTER",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "GRANT_MOVE",
+    "moveId" : "000036"
   } ],
   "masteryThreshold" : 0
 } ]

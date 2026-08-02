@@ -192,7 +192,7 @@ public class EffectListEditor extends Table {
                     return;
                 }
                 if ((selected == AbilityEffectType.GRANT_MOVE
-                    || selected == AbilityEffectType.FORCE_MOVE)
+                    || selected == AbilityEffectType.UNLOCK_MOVE)
                     && moves.stream().noneMatch(move -> working.moveId.equals(move.id))) {
                     error.setText("Choose a move that still exists.");
                     soundPlayer.accept(SoundCue.UI_DENIED);

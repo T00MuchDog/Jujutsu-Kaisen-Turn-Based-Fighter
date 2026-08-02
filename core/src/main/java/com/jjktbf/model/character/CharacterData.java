@@ -150,7 +150,6 @@ public class CharacterData {
         validateDirectMoveAssignments(moveRepo, resolvedAbilities.availableMoveIds());
         Set<String> resolvedMoveIds = new LinkedHashSet<>();
         if (moveIds != null) resolvedMoveIds.addAll(moveIds);
-        resolvedMoveIds.addAll(resolvedAbilities.forcedMoveIds());
 
         validateSelectedMoveNodes(moveRepo, techniques);
 
@@ -277,7 +276,6 @@ public class CharacterData {
         d.cursedTechniqueMastery = cs.getCursedTechniqueMastery();
 
         d.moveIds = character.getKnownMoves().stream()
-            .filter(move -> !character.getForcedMoveIds().contains(move.getId()))
             .map(Move::getId)
             .toList();
         d.abilityIds = character.getAbilities().stream()
