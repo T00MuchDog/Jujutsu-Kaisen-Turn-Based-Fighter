@@ -115,6 +115,10 @@ public enum AbilityEffectType {
         "Multiply move base power",
         "Multiplies the configured base power of matching moves before power and defense are applied.",
         MOVE_SCOPE, DECIMAL),
+    INCOMING_DAMAGE_MULTIPLY(
+        "Multiply incoming damage",
+        "Multiplies damage taken from matching moves. 0.95 reduces it by 5%.",
+        MOVE_SCOPE, DECIMAL),
     GRANT_MOVE(
         "Grant move",
         "Adds one move to the character's available moves. It must still be learned normally.",
@@ -357,7 +361,7 @@ public enum AbilityEffectType {
             case STAT_BONUS_POINTS -> effect.intValue = 10;
             case CE_COST_MULTIPLY, MOVE_ACCURACY_MULTIPLY,
                  OPPONENT_ACCURACY_MULTIPLY, DAMAGE_MULTIPLY, MOVE_BASE_POWER_MULTIPLY,
-                 MODIFY_DEFENSE -> effect.doubleValue = 1.10;
+                 INCOMING_DAMAGE_MULTIPLY, MODIFY_DEFENSE -> effect.doubleValue = 1.10;
             case DEFENSE_FROM_DURABILITY -> effect.doubleValue = 4.0 / 3.0;
             case MOVE_ACCURACY_ADD, OPPONENT_ACCURACY_ADD -> effect.intValue = 10;
             case BF_CHANCE_ADD -> effect.doubleValue = 0.05;
@@ -612,7 +616,7 @@ public enum AbilityEffectType {
                     : null;
             case STAT_MULTIPLY, CE_COST_MULTIPLY, MOVE_ACCURACY_MULTIPLY,
                   OPPONENT_ACCURACY_MULTIPLY, DAMAGE_MULTIPLY, MOVE_BASE_POWER_MULTIPLY,
-                  MODIFY_DEFENSE, DEFENSE_FROM_DURABILITY,
+                  INCOMING_DAMAGE_MULTIPLY, MODIFY_DEFENSE, DEFENSE_FROM_DURABILITY,
                   TEMP_STAT_MULTIPLY, BATTLE_STAT_MULTIPLY ->
                 effect.doubleValue <= 0 || effect.doubleValue == 1.0
                     ? "Enter a positive multiplier other than 1.0." : null;

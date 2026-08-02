@@ -277,6 +277,7 @@ public final class DamageCalculator {
         int rawDamage = (int) Math.round(
             (attackValue / defense) * DAMAGE_SCALE * randomRoll
                 * attacker.getAbilityFlags().damageMultiplierFor(move)
+                * defender.getAbilityFlags().incomingDamageMultiplierFor(move)
         );
         rawDamage = Math.max(1, rawDamage);
         rawDamage = Math.max(0, (int) Math.round(

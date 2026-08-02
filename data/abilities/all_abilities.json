@@ -359,7 +359,7 @@
   "id" : "000015",
   "name" : "Partially Realised Heavenly Restriction",
   "flavourText" : "A binding placed upon Maki at birth suppresses her jujutsu potential in exchange for a body that has only begun to realise its inhuman potential.",
-  "mechanicText" : "Grant access to FREAK OF NATURE, JUJUTSU INAPTITUDE, and HEAVENLY BODY.",
+  "mechanicText" : "Grant access to FREAK OF NATURE, JUJUTSU INAPTITUDE, HEAVENLY BODY, and PARTIAL RESISTANCE TO CURSES.",
   "category" : "PASSIVE",
   "sourceType" : "CHARACTER",
   "effects" : [ {
@@ -374,6 +374,10 @@
     "effectId" : "effect-000002",
     "type" : "GRANT_ABILITY",
     "abilityId" : "000017"
+  }, {
+    "effectId" : "effect-000003",
+    "type" : "GRANT_ABILITY",
+    "abilityId" : "000019"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -436,6 +440,21 @@
     "type" : "STAT_ADD",
     "stat" : "combatAbility",
     "intValue" : 15
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000019",
+  "name" : "Partial Resistance to Curses",
+  "flavourText" : "A Heavenly Restriction leaves only the faintest trace of cursed energy within Maki, blunting the curses that would prey on it.",
+  "mechanicText" : "Reduce all CURSED ENERGY damage taken by 5%.",
+  "category" : "PASSIVE",
+  "sourceType" : "ABILITY",
+  "sourceValue" : "000015",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "INCOMING_DAMAGE_MULTIPLY",
+    "moveTag" : "CURSED_ENERGY",
+    "doubleValue" : 0.95
   } ],
   "masteryThreshold" : 0
 } ]

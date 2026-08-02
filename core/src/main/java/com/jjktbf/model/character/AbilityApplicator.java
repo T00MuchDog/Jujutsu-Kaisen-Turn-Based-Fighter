@@ -135,6 +135,10 @@ public final class AbilityApplicator {
                         flags.basePowerMultiplier *= nvl(eff.doubleValue, 1.0);
                         flags.basePowerMultiplierEffects.add(eff);
                     }
+                    case INCOMING_DAMAGE_MULTIPLY -> {
+                        flags.incomingDamageMultiplier *= nvl(eff.doubleValue, 1.0);
+                        flags.incomingDamageMultiplierEffects.add(eff);
+                    }
                     case BF_CHANCE_ADD           -> flags.bfChanceBonus    += nvl(eff.doubleValue, 0.0);
                     case MODIFY_DEFENSE          -> flags.defenseMultiplier *= nvl(eff.doubleValue, 1.0);
                     case DEFENSE_FROM_DURABILITY ->
@@ -369,6 +373,9 @@ public final class AbilityApplicator {
         public Double  defenseFromDurabilityMultiplier = null;
         public final java.util.List<AbilityEffectData> damageMultiplierEffects = new java.util.ArrayList<>();
         public final java.util.List<AbilityEffectData> basePowerMultiplierEffects = new java.util.ArrayList<>();
+        // Incoming damage taken — applied to matching moves against this combatant.
+        public double  incomingDamageMultiplier = 1.0;
+        public final java.util.List<AbilityEffectData> incomingDamageMultiplierEffects = new java.util.ArrayList<>();
 
         // Black Flash
         public double  bfChanceBonus      = 0.0;
@@ -437,6 +444,10 @@ public final class AbilityApplicator {
                     basePowerMultiplier *= nvl(effect.doubleValue, 1.0);
                     basePowerMultiplierEffects.add(effect);
                 }
+                case INCOMING_DAMAGE_MULTIPLY -> {
+                    incomingDamageMultiplier *= nvl(effect.doubleValue, 1.0);
+                    incomingDamageMultiplierEffects.add(effect);
+                }
                 case BF_CHANCE_ADD -> bfChanceBonus += nvl(effect.doubleValue, 0.0);
                 case MODIFY_DEFENSE -> defenseMultiplier *= nvl(effect.doubleValue, 1.0);
                 case DEFENSE_FROM_DURABILITY ->
@@ -485,6 +496,8 @@ public final class AbilityApplicator {
             copy.opponentAccuracyMultiplierEffects.addAll(opponentAccuracyMultiplierEffects);
             copy.damageMultiplierEffects.addAll(damageMultiplierEffects);
             copy.basePowerMultiplierEffects.addAll(basePowerMultiplierEffects);
+            copy.incomingDamageMultiplier = incomingDamageMultiplier;
+            copy.incomingDamageMultiplierEffects.addAll(incomingDamageMultiplierEffects);
             copy.grantedMoveIds.addAll(grantedMoveIds);
             copy.forcedMoveIds.addAll(forcedMoveIds);
             copy.lockedMoveTags.addAll(lockedMoveTags);
@@ -556,12 +569,21 @@ public final class AbilityApplicator {
             return multiplier;
         }
 
+        public double incomingDamageMultiplierFor(com.jjktbf.model.move.Move move) {
+            double multiplier = 1.0;
+            for (AbilityEffectData effect : incomingDamageMultiplierEffects) {
+                if (appliesTo(effect, move)) multiplier *= nvl(effect.doubleValue, 1.0);
+            }
+            return multiplier;
+        }
+
         public boolean hasAnyEffect() {
             return ceCostToMinimum || ceCostMultiplier != 1.0
                 || accuracyBonus != 0 || accuracyMultiplier != 1.0
                 || opponentAccuracyBonus != 0 || opponentAccuracyMultiplier != 1.0
                 || damageMultiplier != 1.0 || basePowerMultiplier != 1.0 || defenseMultiplier != 1.0
                 || defenseFromDurabilityMultiplier != null
+                || incomingDamageMultiplier != 1.0
                 || bfChanceBonus != 0.0 || apBarBonus != 0 || ceCostPerRound != 0
                 || jujutsuArtSlots != null
                 || !grantedMoveIds.isEmpty() || !forcedMoveIds.isEmpty() || !lockedMoveTags.isEmpty()
