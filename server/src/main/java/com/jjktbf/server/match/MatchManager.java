@@ -49,6 +49,25 @@ public final class MatchManager implements AutoCloseable {
     private final Clock clock;
     private final ScheduledExecutorService scheduler;
     private final AtomicBoolean closed = new AtomicBoolean();
+    /**
+     * Optional character lookup injected into each authoritative session so
+     * summon character ids resolve without loading files inside the engine.
+     * Set by the server once its ContentCatalog is loaded.
+     */
+    private volatile com.jjktbf.model.combat.BattleCharacterLookup summonLookup;
+
+    /**
+     * Inject the canonical character lookup used to resolve summon ids in
+     * authoritative sessions. Called once the server's ContentCatalog is loaded.
+     */
+    public void setSummonLookup(com.jjktbf.model.combat.BattleCharacterLookup lookup) {
+        this.summonLookup = lookup;
+        for (ActiveMatch match : matches.values()) {
+            synchronized (match) {
+                match.session.setSummonLookup(lookup);
+            }
+        }
+    }
 
     public MatchManager(Database database, ServerConfig config) {
         this(
@@ -122,7 +141,8 @@ public final class MatchManager implements AutoCloseable {
                 playerOne,
                 playerTwo,
                 setup.serverSeed(),
-                clock
+                clock,
+                summonLookup
             )
         );
         ActiveMatch existing = matches.putIfAbsent(setup.matchId(), candidate);

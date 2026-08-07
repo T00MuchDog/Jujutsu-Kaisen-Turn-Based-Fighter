@@ -6,12 +6,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jjktbf.model.character.Ability;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityEffectData;
+import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.AbilityConditionRuleData;
 import com.jjktbf.model.character.AbilityConditionData;
 import com.jjktbf.model.character.AbilityConditionType;
 import com.jjktbf.model.character.AbilityResolver;
+import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterData;
-import com.jjktbf.model.character.SorcererCharacter;
+import com.jjktbf.model.character.CharacterType;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.character.coded.NewShadowStyleAbility;
 import com.jjktbf.model.move.Move;
@@ -39,16 +41,22 @@ public final class ContentCatalog {
     public static final String ABILITIES_RESOURCE = "/data/abilities/all_abilities.json";
     public static final String TECHNIQUES_RESOURCE = "/data/techniques/all_techniques.json";
 
-    private final Map<String, SorcererCharacter> charactersById;
+    private final Map<String, Character> charactersById;
     private final List<CharacterSummary> characterSummaries;
+    private final Set<String> selectableCharacterIds;
 
     private ContentCatalog(
-        Map<String, SorcererCharacter> charactersById,
+        Map<String, Character> charactersById,
         List<CharacterSummary> characterSummaries
     ) {
         this.charactersById = Collections.unmodifiableMap(
             new LinkedHashMap<>(charactersById));
         this.characterSummaries = List.copyOf(characterSummaries);
+        LinkedHashSet<String> selectableIds = new LinkedHashSet<>();
+        characterSummaries.stream()
+            .map(CharacterSummary::characterId)
+            .forEach(selectableIds::add);
+        this.selectableCharacterIds = Collections.unmodifiableSet(selectableIds);
     }
 
     public static ContentCatalog load() {
@@ -65,13 +73,22 @@ public final class ContentCatalog {
     }
 
     /** Creates a minimal catalog for focused service tests and future embedding. */
-    public static ContentCatalog of(List<SorcererCharacter> characters) {
+    public static ContentCatalog of(List<? extends Character> characters) {
+        return of(characters, Map.of());
+    }
+
+    static ContentCatalog of(
+        List<? extends Character> characters,
+        Map<String, Boolean> directlySelectableOverrides
+    ) {
         if (characters == null || characters.isEmpty()) {
             throw new IllegalArgumentException("Canonical character list must not be empty");
         }
-        Map<String, SorcererCharacter> byId = new LinkedHashMap<>();
+        Map<String, Boolean> overrides = directlySelectableOverrides == null
+            ? Map.of() : directlySelectableOverrides;
+        Map<String, Character> byId = new LinkedHashMap<>();
         List<CharacterSummary> summaries = new ArrayList<>();
-        for (SorcererCharacter character : characters) {
+        for (Character character : characters) {
             Objects.requireNonNull(character, "character");
             requireIdentifier(character.getId(), "character ID");
             requireText(character.getName(), "character name");
@@ -79,20 +96,49 @@ public final class ContentCatalog {
                 throw new IllegalArgumentException(
                     "Duplicate canonical character ID: " + character.getId());
             }
-            summaries.add(new CharacterSummary(character.getId(), character.getName(), ""));
+            Boolean override = overrides.get(character.getId());
+            boolean selectable = override != null
+                ? override : defaultSelectable(character);
+            if (selectable) {
+                summaries.add(new CharacterSummary(character.getId(), character.getName(), ""));
+            }
         }
         return new ContentCatalog(byId, summaries);
     }
 
+    /**
+     * Summaries of every directly-selectable canonical definition. Non-selectable
+     * definitions (e.g. shikigami intended only for summoning) are hidden from
+     * fighter rosters, multiplayer summaries, and challenge creation/acceptance.
+     */
     public List<CharacterSummary> characterSummaries() {
         return characterSummaries;
     }
 
-    public Optional<SorcererCharacter> findCharacter(String characterId) {
+    /** Every canonical definition (including non-selectable ones), by id. */
+    public Optional<Character> findCharacter(String characterId) {
         if (characterId == null) {
             return Optional.empty();
         }
         return Optional.ofNullable(charactersById.get(characterId));
+    }
+
+    /**
+     * Resolve a directly-selectable canonical character. Hidden (non-selectable)
+     * definitions — e.g. shikigami that exist only to be summoned — are absent,
+     * so a crafted request that names a hidden character cannot smuggle it into
+     * a match.
+     */
+    public Optional<Character> findSelectableCharacter(String characterId) {
+        if (characterId == null || !selectableCharacterIds.contains(characterId)) {
+            return Optional.empty();
+        }
+        return findCharacter(characterId);
+    }
+
+    private static boolean defaultSelectable(Character character) {
+        if (character == null) return false;
+        return character.getType() != CharacterType.SHIKIGAMI;
     }
 
     private static ContentCatalog build(
@@ -203,7 +249,7 @@ public final class ContentCatalog {
             }
         }
 
-        Map<String, SorcererCharacter> charactersById = new LinkedHashMap<>();
+        Map<String, Character> charactersById = new LinkedHashMap<>();
         List<CharacterSummary> summaries = new ArrayList<>();
         for (CharacterData definition : characterDefinitions) {
             if (definition == null) {
@@ -214,6 +260,15 @@ public final class ContentCatalog {
             if (charactersById.containsKey(definition.id)) {
                 throw invalid(CHARACTERS_RESOURCE,
                     "duplicate character ID " + definition.id);
+            }
+            // Validate the stored type up front so a typo fails loudly here
+            // rather than being silently downgraded at construction time.
+            try {
+                definition.effectiveType();
+            } catch (IllegalArgumentException ex) {
+                throw invalid(CHARACTERS_RESOURCE,
+                    "character " + definition.id + " has an invalid type: " + ex.getMessage(),
+                    ex);
             }
             if (definition.moveIds == null) {
                 throw invalid(CHARACTERS_RESOURCE,
@@ -276,28 +331,76 @@ public final class ContentCatalog {
             }
             List<Ability> abilities = resolved.toDomainAbilities();
             try {
-                SorcererCharacter character = new SorcererCharacter(
-                    definition.id,
-                    definition.name,
-                    definition.toCharacterStats(),
-                    definition.innateTechniqueName,
-                    moves,
-                    abilities,
-                    definition.hasWeapon
-                );
+                Character character = definition.constructTypedCharacter(
+                    definition.toCharacterStats(), moves, abilities);
                 charactersById.put(definition.id, character);
-                summaries.add(new CharacterSummary(
-                    definition.id,
-                    definition.name,
-                    Objects.requireNonNullElse(definition.description, "")
-                ));
+                // Only directly-selectable definitions appear in fighter rosters
+                // / multiplayer summaries / challenge create+accept. Hidden
+                // definitions (e.g. summon-only shikigami) remain resolvable via
+                // findCharacter() but never via characterSummaries().
+                if (definition.effectiveSelectable()) {
+                    summaries.add(new CharacterSummary(
+                        definition.id,
+                        definition.name,
+                        Objects.requireNonNullElse(definition.description, "")
+                    ));
+                }
             } catch (IllegalArgumentException exception) {
                 throw invalid(CHARACTERS_RESOURCE,
                     "invalid character " + definition.id + ": " + exception.getMessage(),
                     exception);
             }
         }
+
+        validateSummonReferences(moveDefinitions, abilityDefinitions, charactersById);
         return new ContentCatalog(charactersById, summaries);
+    }
+
+    static void validateSummonReferences(
+        List<MoveData> moves,
+        List<AbilityData> abilities,
+        Map<String, ? extends Character> charactersById
+    ) {
+        for (MoveData definition : moves == null ? List.<MoveData>of() : moves) {
+            if (definition == null || definition.summonCharacterId == null
+                || definition.summonCharacterId.isBlank()) {
+                continue;
+            }
+            verifySummonReference(definition.summonCharacterId, charactersById,
+                MOVES_RESOURCE, "move " + definition.id);
+        }
+        for (AbilityData definition : abilities == null ? List.<AbilityData>of() : abilities) {
+            if (definition == null || definition.effects == null) continue;
+            for (AbilityEffectData effect : definition.effects) {
+                if (effect == null) continue;
+                boolean summonEffect = AbilityEffectType.SUMMON_CHARACTER.name()
+                    .equalsIgnoreCase(effect.type);
+                if (summonEffect && (effect.characterId == null
+                    || effect.characterId.isBlank())) {
+                    throw invalid(ABILITIES_RESOURCE,
+                        "ability " + definition.id + " has no summon target");
+                }
+                if (effect.characterId == null || effect.characterId.isBlank()) continue;
+                verifySummonReference(effect.characterId, charactersById,
+                    ABILITIES_RESOURCE, "ability " + definition.id);
+            }
+        }
+    }
+
+    private static void verifySummonReference(
+        String characterId,
+        Map<String, ? extends Character> charactersById,
+        String resource,
+        String context
+    ) {
+        Character target = charactersById == null ? null : charactersById.get(characterId);
+        if (target == null) {
+            throw invalid(resource, context + " summons unknown character " + characterId);
+        }
+        if (target.getType() != CharacterType.SHIKIGAMI) {
+            throw invalid(resource,
+                context + " summons non-shikigami character " + characterId);
+        }
     }
 
     private static String missingConditionMove(

@@ -32,6 +32,7 @@ import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.AbilityRepository;
 import com.jjktbf.model.character.CharacterData;
+import com.jjktbf.model.character.CharacterType;
 import com.jjktbf.model.character.CharacterRepository;
 import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
@@ -78,6 +79,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         MoveTag.NON_INNATE_TECHNIQUE);
 
     private final MoveRepository repo;
+    /** Character repo for the shikigami-summon selector and summon-reference remap on delete. */
+    private final CharacterRepository charRepo;
 
     // Handles to dynamically-shown/hidden widgets, refreshed in rebuildDetail.
     private Container<Actor> categorySectionsContainer;
@@ -89,6 +92,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     public MoveEditorScreen(JJKGame game, AssetLoader assets) {
         super(game, assets);
         repo = new MoveRepository("data/moves");
+        charRepo = new CharacterRepository("data/characters");
     }
 
     // =========================================================================
@@ -197,6 +201,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         d.isFreeMove            = s.isFreeMove;
         d.mustBeGranted         = s.mustBeGranted;
         d.moveCap               = s.moveCap;
+        d.summonCharacterId     = s.summonCharacterId;
         return d;
     }
 
@@ -354,6 +359,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     @Override
     protected void reloadRecords() throws IOException {
         repo.load();
+        charRepo.load();
         records.clear();
         records.addAll(repo.getAll());
     }
@@ -368,6 +374,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         }
         String tagError = categoryTagValidationError(d);
         if (tagError != null) return ValidationResult.error(tagError);
+        String summonError = summonReferenceValidationError(
+            d.summonCharacterId, charRepo.getAll());
+        if (summonError != null) return ValidationResult.error(summonError);
         // Inactive section details stay on the live draft while editing. Work on
         // a copy so a failed save cannot erase details hidden by a temporary
         // tag toggle.
@@ -434,7 +443,18 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         if (purposeCount != 1) {
             return "Select exactly one of Attack, Utility, or Defensive.";
         }
-        if (move.tags.contains(MoveTag.ATTACK.name())) {
+        boolean attack = move.tags.contains(MoveTag.ATTACK.name());
+        boolean hasAttackTargetingTag = List.of(
+            MoveTag.MELEE, MoveTag.RANGED, MoveTag.AOE, MoveTag.FRIENDLY_FIRE).stream()
+            .anyMatch(tag -> move.tags.contains(tag.name()));
+        if (!attack && hasAttackTargetingTag) {
+            return "Melee, Ranged, AOE, and Friendly Fire tags require Attack.";
+        }
+        if (move.tags.contains(MoveTag.FRIENDLY_FIRE.name())
+            && !move.tags.contains(MoveTag.AOE.name())) {
+            return "Friendly Fire requires AOE.";
+        }
+        if (attack) {
             boolean hasDamageNature = List.of(
                 MoveTag.PHYSICAL,
                 MoveTag.CURSED_ENERGY,
@@ -777,6 +797,26 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         Table misc = formSection(form, "MISC");
         misc.add(labelledIntField("Move Cap (uses per round, 0 = unlimited)",
             d.moveCap, 0, 99999, v -> d.moveCap = v)).growX().row();
+
+        // Shikigami-summon selector: only SHIKIGAMI definitions are valid summon
+        // targets. Blank means the move does not summon.
+        java.util.List<String> shikigamiOptions = shikigamiOptions();
+        SelectBox<String> summonSelect = new SelectBox<>(skin);
+        java.util.List<String> summonItems = new java.util.ArrayList<>();
+        summonItems.add("[none]");
+        summonItems.addAll(shikigamiOptions);
+        String selectedSummon = summonLabelFor(d.summonCharacterId, shikigamiOptions);
+        if (!summonItems.contains(selectedSummon)) summonItems.add(selectedSummon);
+        summonSelect.setItems(summonItems.toArray(new String[0]));
+        summonSelect.setSelected(selectedSummon);
+        summonSelect.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                String selected = summonSelect.getSelected();
+                d.summonCharacterId = shikigamiIdFromLabel(selected, shikigamiOptions);
+                markDirty();
+            }
+        });
+        misc.add(labelledRow("Summons Shikigami", summonSelect)).growX().row();
 
         CheckBox freeCb = new CheckBox(" Free move (does not consume a slot)", skin);
         freeCb.setChecked(d.isFreeMove);
@@ -2216,6 +2256,66 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             sb.append(Character.toUpperCase(p.charAt(0))).append(p.substring(1));
         }
         return sb.toString();
+    }
+
+    // -------------------------------------------------------------------------
+    // Shikigami-summon selector helpers
+    // -------------------------------------------------------------------------
+
+    /** Return canonical SHIKIGAMI definitions for the summon selector. */
+    private java.util.List<String> shikigamiOptions() {
+        java.util.List<String> options = new java.util.ArrayList<>();
+        for (CharacterData c : charRepo.getAll()) {
+            if (isShikigami(c)) {
+                options.add(c.id + " - " + c.name);
+            }
+        }
+        return options;
+    }
+
+    /** The dropdown label currently representing the move's summon target. */
+    private static String summonLabelFor(String summonCharacterId, java.util.List<String> options) {
+        if (summonCharacterId == null || summonCharacterId.isBlank()) return "[none]";
+        for (String option : options) {
+            if (option.startsWith(summonCharacterId + " - ")) return option;
+        }
+        return summonCharacterId + " - (missing or not a shikigami)";
+    }
+
+    /** Extract the shikigami id from a dropdown label (or null for [none]). */
+    private static String shikigamiIdFromLabel(String label, java.util.List<String> options) {
+        if (label == null || "[none]".equals(label)) return null;
+        for (String option : options) {
+            if (option.equals(label)) return option.substring(0, option.indexOf(' '));
+        }
+        return null;
+    }
+
+    static String summonReferenceValidationError(
+        String characterId,
+        List<CharacterData> characters
+    ) {
+        if (characterId == null || characterId.isBlank()) return null;
+        CharacterData target = characters == null ? null : characters.stream()
+            .filter(java.util.Objects::nonNull)
+            .filter(character -> characterId.equals(character.id))
+            .findFirst().orElse(null);
+        if (target == null) {
+            return "Summon target " + characterId + " does not exist.";
+        }
+        if (!isShikigami(target)) {
+            return "Summon target \"" + target.name + "\" must be a Shikigami.";
+        }
+        return null;
+    }
+
+    private static boolean isShikigami(CharacterData character) {
+        if (character == null) return false;
+        try {
+            return character.effectiveType() == CharacterType.SHIKIGAMI;
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
     }
 
 }

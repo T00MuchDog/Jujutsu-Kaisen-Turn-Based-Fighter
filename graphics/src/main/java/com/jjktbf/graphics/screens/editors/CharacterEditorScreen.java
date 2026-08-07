@@ -33,6 +33,7 @@ import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.AbilityRepository;
 import com.jjktbf.model.character.AbilityResolver;
 import com.jjktbf.model.character.CharacterData;
+import com.jjktbf.model.character.CharacterType;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.CombatStats;
 import com.jjktbf.model.character.CharacterRepository;
@@ -52,6 +53,7 @@ import com.jjktbf.model.technique.TechniqueSkillTree;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -103,6 +105,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private Label baseStatTotalLabel;
     private Label baseStatTierLabel;
     private Label budgetLabel;
+    /** Toggles the authoring-only {@code directlySelectable} flag; refreshed on type change. */
+    private CheckBox selectableControl;
     private int lastEditedStatIndex = -1;
     private int heldStatKey = -1;
     private float statKeyRepeatTimer;
@@ -175,6 +179,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         d.name                = stored.name;
         d.description         = stored.description;
         d.spriteAsset         = stored.spriteAsset;
+        d.type                = stored.type;
+        d.directlySelectable  = stored.directlySelectable;
         d.innateTechniqueName = stored.innateTechniqueName;
         d.hasWeapon           = stored.hasWeapon;
         for (StatKey sk : STAT_ORDER) sk.set(d, sk.get(stored));
@@ -330,12 +336,108 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     @Override
     protected ValidationResult delete(String id) {
         try {
+            CharacterData deleted = charRepo.findById(id).orElse(null);
+            if (deleted == null) return ValidationResult.error("Character no longer exists.");
+
+            MoveData dependentMove = firstMoveSummoningCharacter(moveRepo.getAll(), id);
+            if (dependentMove != null) {
+                return ValidationResult.error(
+                    "Cannot delete: move \"" + dependentMove.name
+                        + "\" summons this character.");
+            }
+            AbilityData dependentAbility = firstAbilitySummoningCharacter(
+                abilityRepo.getAll(), id);
+            if (dependentAbility != null) {
+                return ValidationResult.error(
+                    "Cannot delete: ability \"" + dependentAbility.name
+                        + "\" summons this character.");
+            }
+
+            Map<String, String> remappedIds = new java.util.LinkedHashMap<>();
+            int nextIndex = 0;
+            for (CharacterData character : charRepo.getAll()) {
+                if (id.equals(character.id)) continue;
+                remappedIds.put(character.id,
+                    com.jjktbf.model.repo.BaseRepository.formatId(nextIndex++));
+            }
+
+            boolean movesChanged = remapMoveSummonReferences(
+                moveRepo.getAll(), remappedIds);
+            boolean abilitiesChanged = remapAbilitySummonReferences(
+                abilityRepo.getAll(), remappedIds);
             charRepo.delete(id);
+            // Save the character index first. If a later dependent save fails,
+            // stale old IDs fail closed as missing rather than selecting the
+            // wrong character from the pre-delete index.
             charRepo.save();
+            if (movesChanged) moveRepo.save();
+            if (abilitiesChanged) abilityRepo.save();
+            TechniqueTreeRepositorySync.synchronize();
+
             return ValidationResult.ok("Deleted.");
         } catch (Exception e) {
             return ValidationResult.error("Delete failed: " + e.getMessage());
         }
+    }
+
+    static MoveData firstMoveSummoningCharacter(List<MoveData> moves, String characterId) {
+        if (moves == null || characterId == null) return null;
+        return moves.stream()
+            .filter(java.util.Objects::nonNull)
+            .filter(move -> characterId.equals(move.summonCharacterId))
+            .findFirst().orElse(null);
+    }
+
+    static AbilityData firstAbilitySummoningCharacter(
+        List<AbilityData> abilities,
+        String characterId
+    ) {
+        if (abilities == null || characterId == null) return null;
+        return abilities.stream()
+            .filter(java.util.Objects::nonNull)
+            .filter(ability -> ability.effects != null && ability.effects.stream()
+                .filter(java.util.Objects::nonNull)
+                .anyMatch(effect -> characterId.equals(effect.characterId)))
+            .findFirst().orElse(null);
+    }
+
+    /** Remap {@code MoveData.summonCharacterId} after character resequencing. */
+    static boolean remapMoveSummonReferences(
+        List<MoveData> moves,
+        Map<String, String> remappedIds
+    ) {
+        if (moves == null || remappedIds == null || remappedIds.isEmpty()) return false;
+        boolean changed = false;
+        for (MoveData move : moves) {
+            if (move == null || move.summonCharacterId == null) continue;
+            String remapped = remappedIds.get(move.summonCharacterId);
+            if (remapped != null && !remapped.equals(move.summonCharacterId)) {
+                move.summonCharacterId = remapped;
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    /** Remap {@code AbilityEffectData.characterId} after character resequencing. */
+    static boolean remapAbilitySummonReferences(
+        List<AbilityData> abilities,
+        Map<String, String> remappedIds
+    ) {
+        if (abilities == null || remappedIds == null || remappedIds.isEmpty()) return false;
+        boolean changed = false;
+        for (AbilityData ability : abilities) {
+            if (ability == null || ability.effects == null) continue;
+            for (AbilityEffectData effect : ability.effects) {
+                if (effect == null || effect.characterId == null) continue;
+                String remapped = remappedIds.get(effect.characterId);
+                if (remapped != null && !remapped.equals(effect.characterId)) {
+                    effect.characterId = remapped;
+                    changed = true;
+                }
+            }
+        }
+        return changed;
     }
 
     // =========================================================================
@@ -382,6 +484,41 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             }
         });
         identity.add(labelledRow("Innate Technique", techniqueSelect)).growX().row();
+
+        // ── Type + direct selectability ────────────────────────────────────────
+        // The character type governs which concrete subclass is built and the
+        // default roster visibility. Shikigami default to hidden from the fighter
+        // roster (they are summoned, not chosen) but can be explicitly exposed.
+        SelectBox<String> typeSelect = new SelectBox<>(skin);
+        typeSelect.setItems(Arrays.stream(CharacterType.values())
+            .map(t -> CharacterEditorScreen.this.labelForType(t))
+            .toList()
+            .toArray(new String[0]));
+        typeSelect.setSelected(labelForType(cd.effectiveType()));
+        typeSelect.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                CharacterType chosen = typeFromLabel(typeSelect.getSelected());
+                cd.type = (chosen == CharacterType.SORCERER) ? null : chosen.name();
+                // Reset an explicit override so the new type's default applies.
+                cd.directlySelectable = null;
+                refreshSelectableControl(cd);
+                markDirty();
+            }
+        });
+        identity.add(labelledRow("Type", typeSelect)).growX().row();
+
+        CheckBox selectableCheckbox = new CheckBox(
+            " Directly selectable (appears in fighter roster)", skin);
+        selectableCheckbox.setChecked(cd.effectiveSelectable());
+        selectableCheckbox.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                cd.directlySelectable = selectableCheckbox.isChecked();
+                markDirty();
+            }
+        });
+        identity.add(selectableCheckbox).growX().colspan(2).padTop(4f).row();
+        selectableControl = selectableCheckbox;
+        refreshSelectableControl(cd);
 
         // ── Stats (mode toggle + sliders) ───────────────────────────────────────
         Table stats = formSection(form, "STATS");
@@ -715,6 +852,33 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         refreshBaseStatTotalLabel(cd);
         refreshDerivedPreview(cd);
         refreshBudgetLabel(cd);
+    }
+
+    /**
+     * Sync the selectable checkbox to the current draft's effective selectability
+     * and reflect the type-default as the checkbox's disabled hint. Shikigami
+     * default to hidden; an author can still expose one explicitly.
+     */
+    private void refreshSelectableControl(CharacterData cd) {
+        if (selectableControl == null) return;
+        selectableControl.setChecked(cd.effectiveSelectable());
+    }
+
+    /** Human-readable label for a {@link CharacterType} in the Type dropdown. */
+    private String labelForType(CharacterType type) {
+        if (type == null) return "Sorcerer";
+        return switch (type) {
+            case SORCERER  -> "Sorcerer";
+            case SHIKIGAMI -> "Shikigami";
+        };
+    }
+
+    private CharacterType typeFromLabel(String label) {
+        if (label == null) return CharacterType.SORCERER;
+        for (CharacterType type : CharacterType.values()) {
+            if (labelForType(type).equalsIgnoreCase(label.trim())) return type;
+        }
+        return CharacterType.SORCERER;
     }
 
     private void refreshBaseStatTotalLabel(CharacterData cd) {

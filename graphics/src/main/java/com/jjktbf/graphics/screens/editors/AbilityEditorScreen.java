@@ -27,6 +27,7 @@ import com.jjktbf.model.character.AbilityRepository;
 import com.jjktbf.model.character.AbilityResolver;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.CharacterRepository;
+import com.jjktbf.model.character.CharacterType;
 import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveRepository;
@@ -51,6 +52,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
     private final AbilityRepository repo;
     private final MoveRepository moveRepo;
     private final TechniqueRepository techniqueRepo;
+    private final CharacterRepository charRepo;
 
     private Container<Actor> sourceValueContainer;
     private Container<Actor> effectsContainer;
@@ -61,6 +63,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         repo = new AbilityRepository("data/abilities");
         moveRepo = new MoveRepository("data/moves");
         techniqueRepo = new TechniqueRepository("data/techniques");
+        charRepo = new CharacterRepository("data/characters");
     }
 
     @Override protected String title() { return "ABILITY EDITOR"; }
@@ -135,6 +138,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         repo.load();
         moveRepo.load();
         techniqueRepo.load();
+        charRepo.load();
         records.clear();
         records.addAll(repo.getAll());
     }
@@ -259,6 +263,14 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                 && techniqueRepo.findByName(effect.stringValue).isEmpty()) {
                 return "Effect " + (i + 1) + " references a technique that does not exist.";
             }
+            if (type == AbilityEffectType.SUMMON_CHARACTER) {
+                String summonError = summonReferenceValidationError(
+                    effect.characterId, charRepo.getAll());
+                if (summonError != null) {
+                    return "Effect " + (i + 1) + " (" + type.displayName()
+                        + "): " + summonError;
+                }
+            }
         }
         String effectIdError = AbilityConditionRuleData.effectIdValidationError(ability.effects);
         if (effectIdError != null) return effectIdError;
@@ -316,6 +328,26 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             return null;
         } catch (Exception ex) {
             return "Referenced move \"" + move.name + "\" is invalid: " + ex.getMessage();
+        }
+    }
+
+    static String summonReferenceValidationError(
+        String characterId,
+        List<CharacterData> characters
+    ) {
+        if (characterId == null || characterId.isBlank()) {
+            return "Choose an existing Shikigami summon target.";
+        }
+        CharacterData target = characters == null ? null : characters.stream()
+            .filter(java.util.Objects::nonNull)
+            .filter(character -> characterId.equals(character.id))
+            .findFirst().orElse(null);
+        if (target == null) return "The summon target does not exist.";
+        try {
+            return target.effectiveType() == CharacterType.SHIKIGAMI
+                ? null : "The summon target must be a Shikigami.";
+        } catch (IllegalArgumentException ignored) {
+            return "The summon target must be a Shikigami.";
         }
     }
 
@@ -617,6 +649,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             moveRepo.getAll(),
             repo.getAll(),
             techniqueRepo.getAll(),
+            charRepo.getAll(),
             this::markDirty,
             this::rebuildDetail,
             game.audio()::play,

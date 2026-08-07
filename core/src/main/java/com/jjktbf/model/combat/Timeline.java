@@ -75,13 +75,18 @@ public class Timeline {
      *         (out of bounds or overlapping).
      */
     public ActionSegment placeAt(Move move, int startTick, int actualCeCost) {
+        return placeAt(move, startTick, actualCeCost, null);
+    }
+
+    /** Target-aware placement; stamps {@code target} onto the created segment. */
+    public ActionSegment placeAt(Move move, int startTick, int actualCeCost, CombatantId target) {
         long endTickLong = (long) startTick + move.getApCost() - 1L;
         long fireTick = (long) startTick + move.getUnleashPoint() - 1L;
         long finalImpactTick = fireTick + move.getMaxHitDelayTicks();
         if (startTick < 1 || endTickLong > gridLength || finalImpactTick > gridLength) return null;
         int endTick = (int) endTickLong;
         if (!isRangeFree(startTick, endTick)) return null;
-        ActionSegment segment = new ActionSegment(move, startTick, actualCeCost);
+        ActionSegment segment = new ActionSegment(move, startTick, actualCeCost, target);
         segments.add(segment);
         return segment;
     }
@@ -91,17 +96,22 @@ public class Timeline {
      * Returns {@code null} if no gap large enough exists.
      */
     public ActionSegment placeAtFirstFit(Move move, int actualCeCost) {
+        return placeAtFirstFit(move, actualCeCost, null);
+    }
+
+    /** Target-aware first-fit placement. */
+    public ActionSegment placeAtFirstFit(Move move, int actualCeCost, CombatantId target) {
         int need = move.getApCost();
         int cursor = 1;
         for (ActionSegment s : sortedByStart()) {
             int gap = s.getStartTick() - cursor;
             if (gap >= need) {
-                return placeAt(move, cursor, actualCeCost);
+                return placeAt(move, cursor, actualCeCost, target);
             }
             cursor = Math.max(cursor, s.getEndTick() + 1);
         }
         if (gridLength - cursor + 1 >= need) {
-            return placeAt(move, cursor, actualCeCost);
+            return placeAt(move, cursor, actualCeCost, target);
         }
         return null;
     }

@@ -116,6 +116,7 @@ public final class MultiplayerServer implements AutoCloseable {
         this.guestAuthService = components.guestAuthService();
         this.challengeService = components.challengeService();
         this.matchManager = components.matchManager();
+        this.matchManager.setSummonLookup(contentCatalog::findCharacter);
         this.mapper = mapper;
         this.app = createApp();
         registerHttpRoutes();

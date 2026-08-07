@@ -44,6 +44,18 @@ public record AbilityTrigger(
         return new AbilityTrigger(type, null, null, null, null, 0, 0, null, null, null);
     }
 
+    /** Battle-start trigger scoped to the combatant that just joined this battle. */
+    public static AbilityTrigger battleStart(BattleCombatant combatant) {
+        return new AbilityTrigger(
+            Type.BATTLE_START, combatant, null, null, null, 0, 0, null, null, null);
+    }
+
+    /** Round-start trigger scoped to the combatant entering this round. */
+    public static AbilityTrigger roundStart(BattleCombatant combatant) {
+        return new AbilityTrigger(
+            Type.ROUND_START, combatant, null, null, null, 0, 0, null, null, null);
+    }
+
     public static AbilityTrigger phase(BattleState.Phase phase) {
         return new AbilityTrigger(Type.PHASE_REACHED, null, null, null, null, 0, 0, phase, null, null);
     }

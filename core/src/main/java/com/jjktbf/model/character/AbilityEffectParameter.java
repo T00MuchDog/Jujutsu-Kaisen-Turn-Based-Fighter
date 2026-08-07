@@ -8,6 +8,7 @@ public enum AbilityEffectParameter {
     MOVE_SCOPE,
     MOVE_ID,
     ABILITY_ID,
+    CHARACTER_ID,
     TECHNIQUE,
     STATUS_TYPE,
     TARGET,

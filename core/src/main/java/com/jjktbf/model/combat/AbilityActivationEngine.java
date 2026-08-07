@@ -44,22 +44,23 @@ public final class AbilityActivationEngine {
         while (!triggers.isEmpty() && processed++ < MAX_CHAINED_TRIGGERS) {
             AbilityTrigger trigger = triggers.removeFirst();
             Map<RuleActivationKey, Boolean> activationCache = new HashMap<>();
-            observeRules(
-                state, state.getPlayerCombatant(), state.getEnemyCombatant(), trigger,
-                activatedThisChain);
-            observeRules(
-                state, state.getEnemyCombatant(), state.getPlayerCombatant(), trigger,
-                activatedThisChain);
-            events.addAll(dispatchCodedTrigger(
-                state, state.getPlayerCombatant(), state.getEnemyCombatant(), trigger,
-                activationCache));
-            events.addAll(dispatchCodedTrigger(
-                state, state.getEnemyCombatant(), state.getPlayerCombatant(), trigger,
-                activationCache));
-            evaluateOwner(state, state.getPlayerCombatant(), state.getEnemyCombatant(), trigger,
-                events, triggers, activatedThisChain, activationCache);
-            evaluateOwner(state, state.getEnemyCombatant(), state.getPlayerCombatant(), trigger,
-                events, triggers, activatedThisChain, activationCache);
+            // Iterate every active combatant as a possible ability owner. The
+            // single-enemy context for an owner is the trigger's relevant
+            // counterpart (the other participant), falling back to the first
+            // active enemy. Removed combatants must not initiate new triggers.
+            for (BattleCombatant owner : state.activeCombatants()) {
+                if ((trigger.type() == AbilityTrigger.Type.BATTLE_START
+                        || trigger.type() == AbilityTrigger.Type.ROUND_START)
+                    && trigger.actor() != null && trigger.actor() != owner) {
+                    continue;
+                }
+                BattleCombatant enemy = relevantEnemy(state, trigger, owner);
+                observeRules(state, owner, enemy, trigger, activatedThisChain);
+                events.addAll(dispatchCodedTrigger(
+                    state, owner, enemy, trigger, activationCache));
+                evaluateOwner(state, owner, enemy, trigger,
+                    events, triggers, activatedThisChain, activationCache);
+            }
         }
         if (!triggers.isEmpty()) {
             System.err.println("[WARN] Ability activation chain exceeded "
@@ -68,13 +69,41 @@ public final class AbilityActivationEngine {
         return events;
     }
 
+    /**
+     * The single-enemy context for an owner evaluating a trigger: the trigger's
+     * other participant if it is on the opposing team, otherwise the first
+     * active enemy. Phase/special triggers without a counterpart use the first
+     * active enemy as the representative for legacy single-enemy evaluation
+     * (multi-target fan-out is handled by {@link #targets}).
+     */
+    private static BattleCombatant relevantEnemy(
+        BattleState state, AbilityTrigger trigger, BattleCombatant owner
+    ) {
+        if (state == null || owner == null) return null;
+        BattleCombatant actor = trigger == null ? null : trigger.actor();
+        BattleCombatant target = trigger == null ? null : trigger.target();
+        if (actor == owner && isOpponent(state, owner, target)) return target;
+        if (target == owner && isOpponent(state, owner, actor)) return actor;
+        if (isOpponent(state, owner, actor)) return actor;
+        if (isOpponent(state, owner, target)) return target;
+        return state.firstActiveEnemyOf(owner);
+    }
+
+    private static boolean isOpponent(
+        BattleState state, BattleCombatant owner, BattleCombatant candidate
+    ) {
+        BattleTeam ownerTeam = state.teamOf(owner);
+        BattleTeam candidateTeam = state.teamOf(candidate);
+        return ownerTeam != null && candidateTeam != null && ownerTeam != candidateTeam;
+    }
+
     /** Evaluate an active coded effect after a hit connects but before defenses. */
     public CodedHitModifiers onAttackConnected(BattleState state, AbilityTrigger trigger) {
         if (state == null || trigger == null || trigger.actor() == null) {
             return CodedHitModifiers.none();
         }
         BattleCombatant owner = trigger.actor();
-        BattleCombatant enemy = opponent(state, owner);
+        BattleCombatant enemy = relevantEnemy(state, trigger, owner);
         Map<RuleActivationKey, Boolean> activationCache = new HashMap<>();
         return owner.getCodedAbilities().onAttackConnected(
             trigger.actor(), trigger.target(), trigger.move(), trigger.hitComponent(),
@@ -89,7 +118,7 @@ public final class AbilityActivationEngine {
             return CodedMoveResponse.none();
         }
         BattleCombatant owner = trigger.target();
-        BattleCombatant enemy = opponent(state, owner);
+        BattleCombatant enemy = relevantEnemy(state, trigger, owner);
         Map<RuleActivationKey, Boolean> activationCache = new HashMap<>();
         return owner.getCodedAbilities().beforeIncomingMove(
             state, trigger.actor(), trigger.target(), trigger.move(), trigger.tick(),
@@ -101,7 +130,7 @@ public final class AbilityActivationEngine {
     public boolean preventFatalDamage(BattleState state, AbilityTrigger trigger) {
         if (state == null || trigger == null || trigger.target() == null) return false;
         BattleCombatant owner = trigger.target();
-        BattleCombatant enemy = opponent(state, owner);
+        BattleCombatant enemy = relevantEnemy(state, trigger, owner);
         Map<RuleActivationKey, Boolean> activationCache = new HashMap<>();
         return owner.getCodedAbilities().preventFatalDamage(
             binding -> allowsCodedBinding(
@@ -320,30 +349,31 @@ public final class AbilityActivationEngine {
             case ALWAYS -> true;
             case MANUAL_ACTIVATION, BATTLE_STARTED -> history.stream().anyMatch(candidate ->
                 eventLeafMatches(type, condition, owner, enemy, state, candidate));
-            case HP_PERCENT_AT_OR_BELOW -> anyActor(condition, owner, enemy,
+            case HP_PERCENT_AT_OR_BELOW -> anyActor(condition, owner, state,
                 combatant -> ratio(combatant.getCurrentHp(), combatant.getMaxHp())
                     <= conditionPercent(condition, owner));
-            case HP_PERCENT_AT_OR_ABOVE -> anyActor(condition, owner, enemy,
+            case HP_PERCENT_AT_OR_ABOVE -> anyActor(condition, owner, state,
                 combatant -> ratio(combatant.getCurrentHp(), combatant.getMaxHp())
                     >= conditionPercent(condition, owner));
-            case HP_VALUE_AT_OR_BELOW -> anyActor(condition, owner, enemy,
+            case HP_VALUE_AT_OR_BELOW -> anyActor(condition, owner, state,
                 combatant -> combatant.getCurrentHp() <= conditionAmount(condition, owner));
-            case HP_VALUE_AT_OR_ABOVE -> anyActor(condition, owner, enemy,
+            case HP_VALUE_AT_OR_ABOVE -> anyActor(condition, owner, state,
                 combatant -> combatant.getCurrentHp() >= conditionAmount(condition, owner));
-            case CE_PERCENT_AT_OR_BELOW -> anyActor(condition, owner, enemy,
+            case CE_PERCENT_AT_OR_BELOW -> anyActor(condition, owner, state,
                 combatant -> ratio(combatant.getCurrentCe(), combatant.getMaxCursedEnergy())
                     <= conditionPercent(condition, owner));
-            case CE_PERCENT_AT_OR_ABOVE -> anyActor(condition, owner, enemy,
+            case CE_PERCENT_AT_OR_ABOVE -> anyActor(condition, owner, state,
                 combatant -> ratio(combatant.getCurrentCe(), combatant.getMaxCursedEnergy())
                     >= conditionPercent(condition, owner));
-            case CE_VALUE_AT_OR_BELOW -> anyActor(condition, owner, enemy,
+            case CE_VALUE_AT_OR_BELOW -> anyActor(condition, owner, state,
                 combatant -> combatant.getCurrentCe() <= conditionAmount(condition, owner));
-            case CE_VALUE_AT_OR_ABOVE -> anyActor(condition, owner, enemy,
+            case CE_VALUE_AT_OR_ABOVE -> anyActor(condition, owner, state,
                 combatant -> combatant.getCurrentCe() >= conditionAmount(condition, owner));
             case BLACK_FLASH_HIT -> history.stream().anyMatch(candidate ->
                 eventLeafMatches(type, condition, owner, enemy, state, candidate));
-            case IN_BLACK_FLASH_STATE -> anyActor(condition, owner, enemy, BattleCombatant::isInBlackFlashState);
-            case BLACK_FLASH_STREAK_AT_LEAST -> anyActor(condition, owner, enemy,
+            case IN_BLACK_FLASH_STATE -> anyActor(
+                condition, owner, state, BattleCombatant::isInBlackFlashState);
+            case BLACK_FLASH_STREAK_AT_LEAST -> anyActor(condition, owner, state,
                 combatant -> combatant.getConsecutiveBfsHits() >= conditionAmount(condition, owner));
             case MOVE_USED, MOVE_TAG_USED, ATTACK_HIT, ATTACK_MISSED, MOVE_BLOCKED,
                   TIMELINE_POINT_REACHED -> history.stream().anyMatch(candidate ->
@@ -356,18 +386,18 @@ public final class AbilityActivationEngine {
                  CE_LOST_AT_LEAST,
                  CE_RESTORED_AT_LEAST -> history.stream().anyMatch(candidate ->
                 eventLeafMatches(type, condition, owner, enemy, state, candidate));
-            case STAT_AT_OR_ABOVE -> anyActor(condition, owner, enemy,
+            case STAT_AT_OR_ABOVE -> anyActor(condition, owner, state,
                 combatant -> statValue(combatant, condition.stat) >= conditionAmount(condition, owner));
-            case STAT_AT_OR_BELOW -> anyActor(condition, owner, enemy,
+            case STAT_AT_OR_BELOW -> anyActor(condition, owner, state,
                 combatant -> statValue(combatant, condition.stat) <= conditionAmount(condition, owner));
-            case HAS_STATUS -> statusPredicate(condition, owner, enemy, false);
-            case DOES_NOT_HAVE_STATUS -> statusPredicate(condition, owner, enemy, true);
+            case HAS_STATUS -> statusPredicate(condition, owner, state, false);
+            case DOES_NOT_HAVE_STATUS -> statusPredicate(condition, owner, state, true);
             case STATUS_APPLIED, STATUS_REMOVED -> history.stream().anyMatch(candidate ->
                 eventLeafMatches(type, condition, owner, enemy, state, candidate));
             case CODED_STATE_AT_OR_ABOVE -> codedStatePredicate(
-                condition, owner, enemy, true);
+                condition, owner, state, true);
             case CODED_STATE_AT_OR_BELOW -> codedStatePredicate(
-                condition, owner, enemy, false);
+                condition, owner, state, false);
             case ALL, ANY -> false;
         };
     }
@@ -392,7 +422,7 @@ public final class AbilityActivationEngine {
         ArrayDeque<AbilityTrigger> followUps
     ) {
         AbilityEffectType type = safeType(effect);
-        List<BattleCombatant> targets = targets(effect, owner, enemy);
+        List<BattleCombatant> targets = targets(effect, owner, state);
         switch (type) {
             case HEAL_HP, HEAL_HP_PERCENT -> {
                 for (BattleCombatant target : targets) {
@@ -567,6 +597,15 @@ public final class AbilityActivationEngine {
                   POISON_IMMUNITY, SOUL_AWARE_ATTACKS,
                   GRANT_MOVE, GRANT_ABILITY, UNLOCK_MOVE,
                   UNLOCK_TECHNIQUE, CODED -> { }
+            case SUMMON_CHARACTER -> {
+                // Shared runtime summon path: enqueue a shikigami onto the
+                // owner's team. Materialized by the resolver after the current
+                // batch via BattleState.drainPendingSummons(lookup). A summon
+                // created during resolution gets no plan this round.
+                if (effect.characterId != null && !effect.characterId.isBlank()) {
+                    state.enqueueSummon(owner, effect.characterId);
+                }
+            }
         }
     }
 
@@ -611,26 +650,26 @@ public final class AbilityActivationEngine {
             case MANUAL_ACTIVATION -> trigger.type() == AbilityTrigger.Type.MANUAL_ACTIVATION;
             case BATTLE_STARTED -> trigger.type() == AbilityTrigger.Type.BATTLE_START;
             case BLACK_FLASH_HIT -> trigger.type() == AbilityTrigger.Type.BLACK_FLASH
-                && eventActorMatches(condition, owner, enemy, trigger.actor());
+                && eventActorMatches(condition, owner, state, trigger.actor());
             case MOVE_USED -> trigger.type() == AbilityTrigger.Type.MOVE_USED
-                && eventActorMatches(condition, owner, enemy, trigger.actor())
+                && eventActorMatches(condition, owner, state, trigger.actor())
                 && trigger.move() != null && trigger.move().getId().equals(condition.moveId);
             case MOVE_TAG_USED -> trigger.type() == AbilityTrigger.Type.MOVE_USED
-                && eventActorMatches(condition, owner, enemy, trigger.actor())
+                && eventActorMatches(condition, owner, state, trigger.actor())
                 && trigger.move() != null && trigger.move().hasTag(condition.moveTag);
             case ATTACK_HIT -> trigger.type() == AbilityTrigger.Type.ATTACK_HIT
-                && eventActorMatches(condition, owner, enemy, trigger.actor());
+                && eventActorMatches(condition, owner, state, trigger.actor());
             case ATTACK_MISSED -> trigger.type() == AbilityTrigger.Type.ATTACK_MISSED
-                && eventActorMatches(condition, owner, enemy, trigger.actor());
+                && eventActorMatches(condition, owner, state, trigger.actor());
             case MOVE_BLOCKED -> trigger.type() == AbilityTrigger.Type.MOVE_BLOCKED
-                && eventActorMatches(condition, owner, enemy, trigger.actor());
+                && eventActorMatches(condition, owner, state, trigger.actor());
             case ATTACK_CONNECTED -> trigger.type() == AbilityTrigger.Type.ATTACK_CONNECTED
-                && eventActorMatches(condition, owner, enemy, trigger.actor());
+                && eventActorMatches(condition, owner, state, trigger.actor());
             case CONNECTED_HIT_HAS_TAG -> trigger.type() == AbilityTrigger.Type.ATTACK_CONNECTED
-                && eventActorMatches(condition, owner, enemy, trigger.actor())
+                && eventActorMatches(condition, owner, state, trigger.actor())
                 && connectedHitHasTag(trigger, condition.moveTag);
             case FATAL_DAMAGE -> trigger.type() == AbilityTrigger.Type.FATAL_DAMAGE
-                && eventActorMatches(condition, owner, enemy, trigger.target());
+                && eventActorMatches(condition, owner, state, trigger.target());
             case TIMELINE_POINT_REACHED -> trigger.type() == AbilityTrigger.Type.TIMELINE_TICK
                 && trigger.tick() == conditionTick(condition, owner);
             case TIMELINE_POINT_ON_ROUND -> trigger.type() == AbilityTrigger.Type.TIMELINE_TICK
@@ -641,59 +680,70 @@ public final class AbilityActivationEngine {
             case PHASE_REACHED -> trigger.type() == AbilityTrigger.Type.PHASE_REACHED
                 && trigger.phase() != null && trigger.phase().name().equals(condition.phase);
             case HEALED -> trigger.type() == AbilityTrigger.Type.HEALED
-                && eventActorMatches(condition, owner, enemy, trigger.actor())
+                && eventActorMatches(condition, owner, state, trigger.actor())
                 && trigger.amount() >= conditionAmount(condition, owner);
             case DAMAGE_DEALT_AT_LEAST -> trigger.type() == AbilityTrigger.Type.DAMAGE
-                && eventActorMatches(condition, owner, enemy, trigger.actor())
+                && eventActorMatches(condition, owner, state, trigger.actor())
                 && trigger.amount() >= conditionAmount(condition, owner);
             case DAMAGE_TAKEN_AT_LEAST -> trigger.type() == AbilityTrigger.Type.DAMAGE
-                && eventActorMatches(condition, owner, enemy, trigger.target())
+                && eventActorMatches(condition, owner, state, trigger.target())
                 && trigger.amount() >= conditionAmount(condition, owner);
             case CE_SPENT_AT_LEAST -> trigger.type() == AbilityTrigger.Type.CE_SPENT
-                && eventActorMatches(condition, owner, enemy, trigger.actor())
+                && eventActorMatches(condition, owner, state, trigger.actor())
                 && trigger.amount() >= conditionAmount(condition, owner);
             case CE_LOST_AT_LEAST -> trigger.type() == AbilityTrigger.Type.CE_LOST
-                && eventActorMatches(condition, owner, enemy, trigger.actor())
+                && eventActorMatches(condition, owner, state, trigger.actor())
                 && trigger.amount() >= conditionAmount(condition, owner);
             case CE_RESTORED_AT_LEAST -> trigger.type() == AbilityTrigger.Type.CE_RESTORED
-                && eventActorMatches(condition, owner, enemy, trigger.actor())
+                && eventActorMatches(condition, owner, state, trigger.actor())
                 && trigger.amount() >= conditionAmount(condition, owner);
             case STATUS_APPLIED -> trigger.type() == AbilityTrigger.Type.STATUS_APPLIED
-                && eventActorMatches(condition, owner, enemy, trigger.actor())
+                && eventActorMatches(condition, owner, state, trigger.actor())
                 && StatusEffectType.referencedTypes(condition.statusType)
                     .contains(trigger.status());
             case STATUS_REMOVED -> trigger.type() == AbilityTrigger.Type.STATUS_REMOVED
-                && eventActorMatches(condition, owner, enemy, trigger.actor())
+                && eventActorMatches(condition, owner, state, trigger.actor())
                 && StatusEffectType.referencedTypes(condition.statusType)
                     .contains(trigger.status());
             default -> false;
         };
     }
 
+    /**
+     * Resolve the combatants an ability effect hits. {@code SELF} targets the
+     * owner; {@code ENEMY} fans out to every active enemy of the owner (multi-
+     * combatant); {@code BOTH} is the union of self and all active enemies.
+     */
     private static List<BattleCombatant> targets(
         AbilityEffectData effect,
         BattleCombatant owner,
-        BattleCombatant enemy
+        BattleState state
     ) {
+        if (owner == null || state == null) return List.of();
         AbilityEffectTarget target;
         try { target = AbilityEffectTarget.valueOf(effect.target); }
         catch (Exception ex) { target = AbilityEffectTarget.SELF; }
         return switch (target) {
             case SELF -> List.of(owner);
-            case ENEMY -> List.of(enemy);
-            case BOTH -> List.of(owner, enemy);
+            case ENEMY -> state.activeEnemiesOf(owner);
+            case BOTH -> {
+                List<BattleCombatant> out = new ArrayList<>();
+                out.add(owner);
+                out.addAll(state.activeEnemiesOf(owner));
+                yield out;
+            }
         };
     }
 
     private static boolean statusPredicate(
         AbilityConditionData condition,
         BattleCombatant owner,
-        BattleCombatant enemy,
+        BattleState state,
         boolean negated
     ) {
         Set<StatusEffectType> statuses = StatusEffectType.referencedTypes(condition.statusType);
         if (statuses.isEmpty()) return false;
-        return anyActor(condition, owner, enemy,
+        return anyActor(condition, owner, state,
             combatant -> combatant.getActiveEffects().stream()
                 .map(StatusEffect::getType)
                 .anyMatch(statuses::contains) != negated);
@@ -702,14 +752,14 @@ public final class AbilityActivationEngine {
     private static boolean codedStatePredicate(
         AbilityConditionData condition,
         BattleCombatant owner,
-        BattleCombatant enemy,
+        BattleState state,
         boolean atOrAbove
     ) {
-        return anyActor(condition, owner, enemy, combatant ->
+        return anyActor(condition, owner, state, combatant ->
             combatant.getCodedAbilities().state(condition.codedAbilityKey)
-                .map(state -> atOrAbove
-                    ? state.currentValue() >= conditionAmount(condition, owner)
-                    : state.currentValue() <= conditionAmount(condition, owner))
+                .map(codedState -> atOrAbove
+                    ? codedState.currentValue() >= conditionAmount(condition, owner)
+                    : codedState.currentValue() <= conditionAmount(condition, owner))
                 .orElse(false));
     }
 
@@ -797,28 +847,29 @@ public final class AbilityActivationEngine {
     private static boolean anyActor(
         AbilityConditionData condition,
         BattleCombatant owner,
-        BattleCombatant enemy,
+        BattleState state,
         java.util.function.Predicate<BattleCombatant> predicate
     ) {
         AbilityConditionActor actor = actor(condition);
         return switch (actor) {
             case SELF -> predicate.test(owner);
-            case ENEMY -> predicate.test(enemy);
-            case ANY -> predicate.test(owner) || predicate.test(enemy);
+            case ENEMY -> state.activeEnemiesOf(owner).stream().anyMatch(predicate);
+            case ANY -> predicate.test(owner)
+                || state.activeEnemiesOf(owner).stream().anyMatch(predicate);
         };
     }
 
     private static boolean eventActorMatches(
         AbilityConditionData condition,
         BattleCombatant owner,
-        BattleCombatant enemy,
+        BattleState state,
         BattleCombatant eventActor
     ) {
         if (eventActor == null) return false;
         return switch (actor(condition)) {
             case SELF -> eventActor == owner;
-            case ENEMY -> eventActor == enemy;
-            case ANY -> eventActor == owner || eventActor == enemy;
+            case ENEMY -> isOpponent(state, owner, eventActor);
+            case ANY -> eventActor == owner || isOpponent(state, owner, eventActor);
         };
     }
 
@@ -850,11 +901,6 @@ public final class AbilityActivationEngine {
     private static String ruleKey(Ability ability, int abilityIndex, int ruleIndex) {
         return abilityKey(ability, abilityIndex) + "#" + abilityIndex
             + "#condition-" + ruleIndex;
-    }
-
-    private static BattleCombatant opponent(BattleState state, BattleCombatant owner) {
-        return state.getPlayerCombatant() == owner
-            ? state.getEnemyCombatant() : state.getPlayerCombatant();
     }
 
     private static double ratio(int current, int maximum) {

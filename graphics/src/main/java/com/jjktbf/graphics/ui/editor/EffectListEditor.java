@@ -21,6 +21,8 @@ import com.jjktbf.model.character.AbilityEffectTarget;
 import com.jjktbf.model.character.AbilityEffectTiming;
 import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.BattleStatKey;
+import com.jjktbf.model.character.CharacterData;
+import com.jjktbf.model.character.CharacterType;
 import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.move.MoveData;
@@ -40,15 +42,18 @@ public class EffectListEditor extends Table {
     private static final String SELECT_MOVE = "[select a move]";
     private static final String SELECT_ABILITY = "[select an ability]";
     private static final String SELECT_TECHNIQUE = "[select a technique]";
+    private static final String SELECT_CHARACTER = "[select a shikigami]";
     private static final String NO_MOVES = "[no moves available]";
     private static final String NO_ABILITIES = "[no abilities available]";
     private static final String NO_TECHNIQUES = "[no techniques available]";
+    private static final String NO_CHARACTERS = "[no shikigami available]";
 
     private final Skin skin;
     private final List<AbilityEffectData> effects;
     private final List<MoveData> moves;
     private final List<AbilityData> abilities;
     private final List<InnateTechniqueData> techniques;
+    private final List<CharacterData> characters;
     private final Runnable onDirty;
     private final Runnable requestRebuild;
     private final Consumer<SoundCue> soundPlayer;
@@ -61,6 +66,7 @@ public class EffectListEditor extends Table {
         List<MoveData> moves,
         List<AbilityData> abilities,
         List<InnateTechniqueData> techniques,
+        List<CharacterData> characters,
         Runnable onDirty,
         Runnable requestRebuild,
         Consumer<SoundCue> soundPlayer,
@@ -74,6 +80,7 @@ public class EffectListEditor extends Table {
         this.moves = moves == null ? List.of() : moves;
         this.abilities = abilities == null ? List.of() : abilities;
         this.techniques = techniques == null ? List.of() : techniques;
+        this.characters = characters == null ? List.of() : characters;
         this.onDirty = onDirty;
         this.requestRebuild = requestRebuild;
         this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
@@ -209,6 +216,12 @@ public class EffectListEditor extends Table {
                     && techniques.stream().noneMatch(technique ->
                         working.stringValue.equalsIgnoreCase(technique.name))) {
                     error.setText("Choose a technique that still exists.");
+                    soundPlayer.accept(SoundCue.UI_DENIED);
+                    return;
+                }
+                if (selected == AbilityEffectType.SUMMON_CHARACTER
+                    && !isShikigamiReference(characters, working.characterId)) {
+                    error.setText("Choose a Shikigami that still exists.");
                     soundPlayer.accept(SoundCue.UI_DENIED);
                     return;
                 }
@@ -393,6 +406,18 @@ public class EffectListEditor extends Table {
                 }
             });
             addRow(fields, "Ability", abilityBox);
+        }
+
+        if (type.uses(AbilityEffectParameter.CHARACTER_ID)) {
+            SelectBox<String> characterBox = new DynamicSelectBox<>(skin);
+            characterBox.setItems(shikigamiReferenceLabels(effect.characterId));
+            characterBox.setSelected(shikigamiReferenceLabel(effect.characterId));
+            characterBox.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    effect.characterId = referenceIdFromLabel(characterBox.getSelected());
+                }
+            });
+            addRow(fields, "Shikigami", characterBox);
         }
 
         if (type.uses(AbilityEffectParameter.TECHNIQUE)) {
@@ -652,6 +677,9 @@ public class EffectListEditor extends Table {
         if (type.uses(AbilityEffectParameter.ABILITY_ID) && effect.abilityId != null) {
             summary.append(" | ").append(abilityReferenceLabel(effect.abilityId));
         }
+        if (type.uses(AbilityEffectParameter.CHARACTER_ID) && effect.characterId != null) {
+            summary.append(" | ").append(shikigamiReferenceLabel(effect.characterId));
+        }
         if (type.uses(AbilityEffectParameter.TECHNIQUE) && effect.stringValue != null) {
             summary.append(" | ").append(effect.stringValue);
         }
@@ -857,6 +885,53 @@ public class EffectListEditor extends Table {
 
     private static String abilityLabel(AbilityData ability) {
         return ability.id + " - " + ability.name;
+    }
+
+    /** Only SHIKIGAMI definitions are valid summon targets. */
+    private String[] shikigamiReferenceLabels(String currentId) {
+        List<CharacterData> shikigami = characters.stream()
+            .filter(java.util.Objects::nonNull)
+            .filter(EffectListEditor::isShikigami)
+            .toList();
+        List<String> labels = new ArrayList<>();
+        labels.add(SELECT_CHARACTER);
+        for (CharacterData c : shikigami) labels.add(c.id + " - " + c.name);
+        if (currentId != null && !currentId.isBlank()
+            && shikigami.stream().noneMatch(c -> currentId.equals(c.id))) {
+            labels.add(currentId + " - (missing or not a shikigami)");
+        }
+        if (shikigami.isEmpty()) labels.add(NO_CHARACTERS);
+        return labels.toArray(new String[0]);
+    }
+
+    private String shikigamiReferenceLabel(String characterId) {
+        if (characterId == null || characterId.isBlank()) return SELECT_CHARACTER;
+        return characters.stream()
+            .filter(java.util.Objects::nonNull)
+            .filter(c -> characterId.equals(c.id))
+            .filter(EffectListEditor::isShikigami)
+            .findFirst()
+            .map(c -> c.id + " - " + c.name)
+            .orElse(characterId + " - (missing or not a shikigami)");
+    }
+
+    static boolean isShikigamiReference(
+        List<CharacterData> characters,
+        String characterId
+    ) {
+        if (characters == null || characterId == null || characterId.isBlank()) return false;
+        return characters.stream()
+            .filter(java.util.Objects::nonNull)
+            .filter(character -> characterId.equals(character.id))
+            .anyMatch(EffectListEditor::isShikigami);
+    }
+
+    private static boolean isShikigami(CharacterData character) {
+        try {
+            return character.effectiveType() == CharacterType.SHIKIGAMI;
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
     }
 
     private static String referenceIdFromLabel(String label) {

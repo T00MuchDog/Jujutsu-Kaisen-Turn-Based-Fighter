@@ -118,10 +118,20 @@ public class BattlePlan {
      *         (wrong board, out of bounds, overlapping, or over budget).
      */
     public ActionSegment place(Move move, int tick, int ceCost) {
+        return place(move, tick, ceCost, null);
+    }
+
+    /**
+     * Target-aware placement: as {@link #place(Move, int, int)} but stamps the
+     * selected target combatant id onto the created segment. The target may be
+     * {@code null} (incomplete while editing); {@link #missingTargetError()} is
+     * used to reject locking/submission when a required target is absent.
+     */
+    public ActionSegment place(Move move, int tick, int ceCost, CombatantId target) {
         if (!canPlace(move, ceCost)) return null;
         Board board = boardFor(move);
         Timeline tl = boardTimeline(board);
-        ActionSegment segment = tl.placeAt(move, tick, ceCost);
+        ActionSegment segment = tl.placeAt(move, tick, ceCost, target);
         if (segment == null) return null;
         apUsed += move.getApCost();
         ceUsed += ceCost;
@@ -130,13 +140,41 @@ public class BattlePlan {
 
     /** Place at the first free range on the move's board that fits it. */
     public ActionSegment placeFirstFit(Move move, int ceCost) {
+        return placeFirstFit(move, ceCost, null);
+    }
+
+    /** Target-aware first-fit placement. */
+    public ActionSegment placeFirstFit(Move move, int ceCost, CombatantId target) {
         if (!canPlace(move, ceCost)) return null;
         Timeline tl = boardTimeline(boardFor(move));
-        ActionSegment segment = tl.placeAtFirstFit(move, ceCost);
+        ActionSegment segment = tl.placeAtFirstFit(move, ceCost, target);
         if (segment == null) return null;
         apUsed += move.getApCost();
         ceUsed += ceCost;
         return segment;
+    }
+
+    /**
+     * Does this move require an explicit single-enemy target to be locked/submitted?
+     * Only hostile single-target moves need a target; defensive, self-only utility,
+     * AOE, and summon-only moves do not.
+     */
+    public static boolean requiresTarget(Move move) {
+        return MoveTargeting.forMove(move).requiresSelectedTarget();
+    }
+
+    /**
+     * If any placed hostile single-target segment is missing its required target,
+     * return a human-readable description; otherwise {@code null}. Used to reject
+     * locking/submission of an incomplete plan.
+     */
+    public String missingTargetError() {
+        for (ActionSegment s : allSegments()) {
+            if (requiresTarget(s.getMove()) && s.getTarget() == null) {
+                return "Move '" + s.getMove().getName() + "' requires a target";
+            }
+        }
+        return null;
     }
 
     /** Remove a placed segment from whichever board holds it; refunds budgets. */
@@ -203,7 +241,8 @@ public class BattlePlan {
         // segment — so a defensive move placed under an offensive move would
         // never make it into the merged timeline and never fire.
         for (ActionSegment s : allSegments()) {
-            merged.addSegment(new ActionSegment(s.getMove(), s.getStartTick(), s.getActualCeCost()));
+            merged.addSegment(new ActionSegment(
+                s.getMove(), s.getStartTick(), s.getActualCeCost(), s.getTarget()));
         }
         return merged;
     }

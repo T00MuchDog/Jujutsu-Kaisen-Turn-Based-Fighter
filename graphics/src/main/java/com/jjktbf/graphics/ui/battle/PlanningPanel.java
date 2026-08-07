@@ -20,6 +20,7 @@ import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
+import com.jjktbf.model.combat.CombatantId;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.multiplayer.protocol.PlanPlacement;
@@ -35,6 +36,8 @@ import java.util.function.Consumer;
  * mouse input to a snapped board position and renders the draft.
  */
 public class PlanningPanel {
+
+    public record TargetOption(String instanceId, String label) { }
 
     private static final float MARGIN = 34f;
     /** Fixed gap between a timeline icon and the left edge of its bar. */
@@ -53,6 +56,8 @@ public class PlanningPanel {
     private static final float DRAG_THRESHOLD = 5f;
 
     private final BattlePlan plan;
+    private final String actorId;
+    private final List<TargetOption> targetOptions;
     private final List<Move> knownMoves = new ArrayList<>();
     private final int ceEfficiency;
     private final com.jjktbf.model.character.AbilityApplicator.AbilityFlags abilityFlags;
@@ -94,6 +99,7 @@ public class PlanningPanel {
     private BattlePlan.Board draggingBoard;
     private int originalTick;
     private int originalCeCost;
+    private CombatantId originalTarget;
     private int draggingTick;
     private boolean snapValid;
     private boolean clickingMoveCard;
@@ -110,11 +116,16 @@ public class PlanningPanel {
     private int hoveredCard = -1;
     private boolean lockHovered;
     private boolean confirmed;
+    private boolean allowManualUnlock;
+    private String lockError;
+    private ActionSegment targetMenuSegment;
+    private final List<Rectangle> targetOptionBounds = new ArrayList<>();
     private Runnable onConfirm = () -> {};
     private Consumer<SoundCue> soundPlayer = cue -> {};
 
     public PlanningPanel(BattleCombatant combatant, BattleUiAssets ui, float screenWidth, float screenHeight) {
-        this(Timeline.gridLengthForStrongestAp(combatant.getMaxApBar()), combatant, ui, screenWidth, screenHeight);
+        this(Timeline.gridLengthForStrongestAp(combatant.getMaxApBar()), combatant,
+            List.of(), ui, screenWidth, screenHeight);
     }
 
     /**
@@ -130,8 +141,22 @@ public class PlanningPanel {
         float screenWidth,
         float screenHeight
     ) {
+        this(gridLength, combatant, List.of(), ui, screenWidth, screenHeight);
+    }
+
+    public PlanningPanel(
+        int gridLength,
+        BattleCombatant combatant,
+        List<BattleCombatant> targets,
+        BattleUiAssets ui,
+        float screenWidth,
+        float screenHeight
+    ) {
         this.gridLength = gridLength;
         this.plan = new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe(), gridLength);
+        this.actorId = combatant.getInstanceId() == null
+            ? null : combatant.getInstanceId().value();
+        this.targetOptions = targetOptions(targets);
         this.ceEfficiency = combatant.getEffectiveStats().getCursedEnergyEfficiency();
         this.abilityFlags = combatant.getAbilityFlags();
         this.authoritativeCeCosts = Map.of();
@@ -160,7 +185,8 @@ public class PlanningPanel {
         float screenHeight
     ) {
         this(Timeline.gridLengthForStrongestAp(apBudget),
-            moves, ceCosts, apBudget, ceBudget, miraclesState, ui, screenWidth, screenHeight);
+            null, List.of(), moves, ceCosts, apBudget, ceBudget, miraclesState,
+            ui, screenWidth, screenHeight);
     }
 
     /** Online planner with an explicit battle-wide grid length (see local overload). */
@@ -175,8 +201,27 @@ public class PlanningPanel {
         float screenWidth,
         float screenHeight
     ) {
+        this(gridLength, null, List.of(), moves, ceCosts, apBudget, ceBudget,
+            miraclesState, ui, screenWidth, screenHeight);
+    }
+
+    public PlanningPanel(
+        int gridLength,
+        String actorId,
+        List<TargetOption> targetOptions,
+        List<Move> moves,
+        Map<String, Integer> ceCosts,
+        int apBudget,
+        int ceBudget,
+        CodedAbilityState miraclesState,
+        BattleUiAssets ui,
+        float screenWidth,
+        float screenHeight
+    ) {
         this.gridLength = gridLength;
         this.plan = new BattlePlan(apBudget, ceBudget, gridLength);
+        this.actorId = actorId;
+        this.targetOptions = targetOptions == null ? List.of() : List.copyOf(targetOptions);
         this.ceEfficiency = 0;
         this.abilityFlags = null;
         this.authoritativeCeCosts = ceCosts == null ? Map.of() : Map.copyOf(ceCosts);
@@ -204,17 +249,29 @@ public class PlanningPanel {
 
     public BattlePlan getPlan() { return plan; }
     public boolean isConfirmed() { return confirmed; }
+    public String getActorId() { return actorId; }
+    public String getLockError() { return lockError; }
+    public List<TargetOption> getTargetOptions() { return targetOptions; }
+
+    public void setAllowManualUnlock(boolean allowManualUnlock) {
+        this.allowManualUnlock = allowManualUnlock;
+    }
 
     /** Returns server-safe intent without exposing local domain objects. */
     public List<PlanPlacement> getPlacements() {
         return plan.allSegments().stream()
-            .map(segment -> new PlanPlacement(segment.getMove().getId(), segment.getStartTick()))
+            .map(segment -> new PlanPlacement(
+                segment.getMove().getId(),
+                segment.getStartTick(),
+                actorId,
+                segment.getTarget() == null ? null : segment.getTarget().value()))
             .toList();
     }
 
     /** Reopens a locally rejected online plan without discarding its placements. */
     public void unlock() {
         confirmed = false;
+        lockError = null;
     }
 
     /** Displays an already accepted authoritative plan as immutable. */
@@ -226,7 +283,7 @@ public class PlanningPanel {
     private void cancelActiveDrag() {
         if (draggingSegment != null) {
             selectedSegment = plan.place(
-                draggingSegment.getMove(), originalTick, originalCeCost);
+                draggingSegment.getMove(), originalTick, originalCeCost, originalTarget);
         }
         draggingMove = null;
         draggingSegment = null;
@@ -237,6 +294,34 @@ public class PlanningPanel {
         snapValid = false;
         clickingMoveCard = false;
         dragSoundPlayed = false;
+        originalTarget = null;
+    }
+
+    public boolean chooseTarget(ActionSegment segment, String targetId) {
+        if (segment == null || !segment.needsTarget()) return false;
+        boolean valid = targetOptions.stream().anyMatch(option -> option.instanceId().equals(targetId));
+        if (!valid) return false;
+        segment.setTarget(new CombatantId(targetId));
+        lockError = null;
+        closeTargetMenu();
+        return true;
+    }
+
+    public ActionSegment restorePlacement(Move move, int startTick, int ceCost, String targetId) {
+        return plan.place(move, startTick, ceCost,
+            targetId == null ? null : new CombatantId(targetId));
+    }
+
+    private static List<TargetOption> targetOptions(List<BattleCombatant> targets) {
+        if (targets == null) return List.of();
+        List<TargetOption> options = new ArrayList<>();
+        for (BattleCombatant target : targets) {
+            if (target == null || target.getInstanceId() == null || !target.isActive()) continue;
+            options.add(new TargetOption(
+                target.getInstanceId().value(),
+                target.getCharacter().getName() + " #" + (target.getRosterOrder() + 1)));
+        }
+        return List.copyOf(options);
     }
 
     public PlanningInputProcessor inputProcessor() {
@@ -464,6 +549,7 @@ public class PlanningPanel {
         drawPaletteScrollbar(batch);
         drawDragAvatar(batch, font);
         drawKeywordTooltip(batch, font, titleFont);
+        drawTargetMenu(batch, font);
         batch.end();
     }
 
@@ -564,6 +650,77 @@ public class PlanningPanel {
         font.setColor(Color.WHITE);
         font.draw(batch, confirmed ? (compactLayout ? "LOCKED" : "PLAN LOCKED") : (compactLayout ? "LOCK" : "LOCK IN"),
             lockInBounds.x + (compactLayout ? 17f : 22f), lockInBounds.y + (compactLayout ? 19f : 25f));
+        if (lockError != null) {
+            font.setColor(BattleUiAssets.YELLOW);
+            font.draw(batch, lockError, headerBounds.x + 18f, headerBounds.y + 13f);
+        }
+    }
+
+    private void drawTargetMenu(Batch batch, BitmapFont font) {
+        if (targetMenuSegment == null || targetOptions.isEmpty()) return;
+        layoutTargetMenu();
+        for (int i = 0; i < targetOptions.size(); i++) {
+            Rectangle bounds = targetOptionBounds.get(i);
+            boolean hovered = bounds.contains(dragMouseX, dragMouseY);
+            (hovered ? ui.cardOver : ui.card).draw(
+                batch, bounds.x, bounds.y, bounds.width, bounds.height);
+            font.setColor(BattleUiAssets.TEXT);
+            font.draw(batch, targetOptions.get(i).label(), bounds.x + 8f, bounds.y + 20f);
+        }
+    }
+
+    private void layoutTargetMenu() {
+        targetOptionBounds.clear();
+        ActionSegmentView selectedView = viewFor(targetMenuSegment);
+        float width = Math.min(240f, Math.max(140f, screenWidth - 20f));
+        float rowHeight = 30f;
+        float x = selectedView == null ? dragMouseX : selectedView.getBounds().x;
+        float y = selectedView == null
+            ? dragMouseY : selectedView.getBounds().y + selectedView.getBounds().height + 4f;
+        x = clamp(x, 10f, Math.max(10f, screenWidth - width - 10f));
+        float totalHeight = rowHeight * targetOptions.size();
+        if (y + totalHeight > screenHeight - 10f) {
+            y = Math.max(10f, (selectedView == null ? y : selectedView.getBounds().y) - totalHeight - 4f);
+        }
+        for (int i = 0; i < targetOptions.size(); i++) {
+            targetOptionBounds.add(new Rectangle(
+                x, y + (targetOptions.size() - i - 1) * rowHeight, width, rowHeight));
+        }
+    }
+
+    private ActionSegmentView viewFor(ActionSegment segment) {
+        for (ActionSegmentView view : offensiveViews) {
+            if (view.getSegment() == segment) return view;
+        }
+        for (ActionSegmentView view : defensiveViews) {
+            if (view.getSegment() == segment) return view;
+        }
+        return null;
+    }
+
+    private void openTargetMenu(ActionSegment segment) {
+        if (segment == null || !segment.needsTarget() || targetOptions.isEmpty()) return;
+        targetMenuSegment = segment;
+        layoutTargetMenu();
+    }
+
+    private void closeTargetMenu() {
+        targetMenuSegment = null;
+        targetOptionBounds.clear();
+    }
+
+    private boolean handleTargetMenuClick() {
+        if (targetMenuSegment == null) return false;
+        layoutTargetMenu();
+        for (int i = 0; i < targetOptionBounds.size(); i++) {
+            if (targetOptionBounds.get(i).contains(dragMouseX, dragMouseY)) {
+                chooseTarget(targetMenuSegment, targetOptions.get(i).instanceId());
+                soundPlayer.accept(SoundCue.UI_CONFIRM);
+                return true;
+            }
+        }
+        closeTargetMenu();
+        return false;
     }
 
     private void drawStat(Batch batch, BitmapFont font, float x, float y, float width, String label,
@@ -675,14 +832,26 @@ public class PlanningPanel {
     public class PlanningInputProcessor extends InputAdapter {
         @Override
         public boolean touchDown(int screenX, int screenY, int pointer, int button) {
-            if (confirmed) return false;
             updatePointer(screenX, screenY);
             refresh();
+
+            if (confirmed) {
+                if (allowManualUnlock && button == Buttons.LEFT
+                    && lockInBounds.contains(dragMouseX, dragMouseY)) {
+                    unlock();
+                    soundPlayer.accept(SoundCue.UI_CONFIRM);
+                    return true;
+                }
+                return false;
+            }
+
+            if (button == Buttons.LEFT && handleTargetMenuClick()) return true;
 
             if (button == Buttons.RIGHT) {
                 ActionSegmentView hit = hitSegment();
                 if (hit == null || !plan.remove(hit.getSegment())) return false;
                 if (selectedSegment == hit.getSegment()) selectedSegment = null;
+                if (targetMenuSegment == hit.getSegment()) closeTargetMenu();
                 hoveredSegment = null;
                 soundPlayer.accept(SoundCue.UI_PLAN_REMOVE);
                 return true;
@@ -705,6 +874,11 @@ public class PlanningPanel {
             }
 
             if (lockInBounds.contains(dragMouseX, dragMouseY)) {
+                lockError = plan.missingTargetError();
+                if (lockError != null) {
+                    soundPlayer.accept(SoundCue.UI_DENIED);
+                    return true;
+                }
                 confirmed = true;
                 onConfirm.run();
                 return true;
@@ -782,8 +956,10 @@ public class PlanningPanel {
                 return true;
             }
             if (pressedSegment != null) {
+                ActionSegment clicked = pressedSegment;
                 pressedSegment = null;
                 pressedBoard = null;
+                openTargetMenu(clicked);
                 return true;
             }
             if (draggedMove() == null) return false;
@@ -793,13 +969,15 @@ public class PlanningPanel {
             boolean droppedOnTimeline = barFor(draggingBoard).getBounds().contains(dragMouseX, dragMouseY);
             ActionSegment placed = clickingMoveCard
                 ? plan.placeFirstFit(move, ceCost(move))
-                : droppedOnTimeline && snapValid ? plan.place(move, draggingTick, ceCost(move)) : null;
+                : droppedOnTimeline && snapValid
+                    ? plan.place(move, draggingTick, ceCost(move), originalTarget) : null;
             if (placed != null) {
                 selectedSegment = placed;
                 soundPlayer.accept(SoundCue.UI_PLAN_PLACE);
             } else if (droppedOnTimeline && draggingSegment != null) {
                 // A cancelled relocation must never destroy an already planned move.
-                selectedSegment = plan.place(draggingSegment.getMove(), originalTick, originalCeCost);
+                selectedSegment = plan.place(
+                    draggingSegment.getMove(), originalTick, originalCeCost, originalTarget);
                 soundPlayer.accept(SoundCue.UI_DENIED);
             } else if (!droppedOnTimeline) {
                 selectedSegment = null;
@@ -850,6 +1028,8 @@ public class PlanningPanel {
         private void startMoveDrag(ActionSegment segment, BattlePlan.Board board) {
             originalTick = segment.getStartTick();
             originalCeCost = segment.getActualCeCost();
+            originalTarget = segment.getTarget();
+            closeTargetMenu();
             plan.remove(segment);
             draggingSegment = segment;
             draggingMove = null;

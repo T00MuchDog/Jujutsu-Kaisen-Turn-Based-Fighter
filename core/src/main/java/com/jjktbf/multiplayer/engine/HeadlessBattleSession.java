@@ -1,12 +1,18 @@
 package com.jjktbf.multiplayer.engine;
 
+import com.jjktbf.model.character.Character;
 import com.jjktbf.model.combat.ActionSegment;
+import com.jjktbf.model.combat.BattleCharacterLookup;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
+import com.jjktbf.model.combat.BattleTeam;
+import com.jjktbf.model.combat.BattleTeamId;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.CombatResolver;
+import com.jjktbf.model.combat.CombatantId;
+import com.jjktbf.model.combat.MoveTargeting;
 import com.jjktbf.model.combat.SeededRandomSource;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
@@ -37,6 +43,7 @@ import com.jjktbf.multiplayer.protocol.StatusEffectState;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -69,6 +76,8 @@ public final class HeadlessBattleSession {
     private static final String WRONG_PHASE = "WRONG_PHASE";
     private static final String PLAN_ALREADY_SUBMITTED = "PLAN_ALREADY_SUBMITTED";
     private static final String READY_ALREADY_SUBMITTED = "READY_ALREADY_SUBMITTED";
+    private static final String INVALID_ACTOR = "INVALID_ACTOR";
+    private static final String INVALID_TARGET = "INVALID_TARGET";
     private static final String INVALID_MOVE = "INVALID_MOVE";
     private static final String MOVE_RESTRICTED = "MOVE_RESTRICTED";
     private static final String MOVE_CAP_REACHED = "MOVE_CAP_REACHED";
@@ -83,6 +92,12 @@ public final class HeadlessBattleSession {
     private final Clock clock;
     private final BattleState battleState;
     private final CombatResolver resolver;
+    /**
+     * Character lookup for resolving summon ids at runtime. Injected by the
+     * server so the engine materializes shikigami without loading files. May be
+     * null (summons are then enqueued but not materialized).
+     */
+    private BattleCharacterLookup summonLookup;
     private final EnumMap<PlayerSide, ParticipantRuntime> participantsBySide =
         new EnumMap<>(PlayerSide.class);
     private final Map<String, ParticipantRuntime> participantsById = new LinkedHashMap<>();
@@ -132,6 +147,17 @@ public final class HeadlessBattleSession {
 
     public HeadlessBattleSession(
         String matchId,
+        MatchParticipant first,
+        MatchParticipant second,
+        long seed,
+        Clock clock,
+        BattleCharacterLookup summonLookup
+    ) {
+        this(matchId, first, second, seed, DEFAULT_MAX_ROUNDS, clock, summonLookup);
+    }
+
+    public HeadlessBattleSession(
+        String matchId,
         List<MatchParticipant> participants,
         long seed
     ) {
@@ -163,6 +189,18 @@ public final class HeadlessBattleSession {
         int maxRounds,
         Clock clock
     ) {
+        this(matchId, first, second, seed, maxRounds, clock, null);
+    }
+
+    public HeadlessBattleSession(
+        String matchId,
+        MatchParticipant first,
+        MatchParticipant second,
+        long seed,
+        int maxRounds,
+        Clock clock,
+        BattleCharacterLookup summonLookup
+    ) {
         if (matchId == null || matchId.isBlank()) {
             throw new IllegalArgumentException("matchId cannot be blank");
         }
@@ -186,18 +224,30 @@ public final class HeadlessBattleSession {
 
         MatchParticipant playerOne = first.side() == PlayerSide.PLAYER_ONE ? first : second;
         MatchParticipant playerTwo = first.side() == PlayerSide.PLAYER_TWO ? first : second;
-        ParticipantRuntime playerOneRuntime = new ParticipantRuntime(playerOne);
-        ParticipantRuntime playerTwoRuntime = new ParticipantRuntime(playerTwo);
+        ParticipantRuntime playerOneRuntime = new ParticipantRuntime(
+            playerOne,
+            BattleTeamId.PLAYER
+        );
+        ParticipantRuntime playerTwoRuntime = new ParticipantRuntime(
+            playerTwo,
+            BattleTeamId.ENEMY
+        );
         participantsBySide.put(PlayerSide.PLAYER_ONE, playerOneRuntime);
         participantsBySide.put(PlayerSide.PLAYER_TWO, playerTwoRuntime);
         participantsById.put(playerOne.playerId(), playerOneRuntime);
         participantsById.put(playerTwo.playerId(), playerTwoRuntime);
 
-        this.battleState = new BattleState(
-            playerOneRuntime.combatant,
-            playerTwoRuntime.combatant
+        BattleTeam playerTeam = BattleState.teamOfFighters(
+            BattleTeamId.PLAYER,
+            List.of(playerOneRuntime.primaryCombatant)
         );
-        this.resolver = new CombatResolver(new SeededRandomSource(seed));
+        BattleTeam enemyTeam = BattleState.teamOfFighters(
+            BattleTeamId.ENEMY,
+            List.of(playerTwoRuntime.primaryCombatant)
+        );
+        this.battleState = new BattleState(playerTeam, enemyTeam);
+        this.summonLookup = summonLookup;
+        this.resolver = new CombatResolver(new SeededRandomSource(seed), summonLookup);
         this.status = MatchStatus.WAITING;
         this.stateVersion = 0;
         this.wireRoundNumber = battleState.getRoundNumber();
@@ -307,21 +357,28 @@ public final class HeadlessBattleSession {
         }
 
         List<PlanPlacement> placements = command.payload().placements();
-        if (placements == null || placements.size() > MAX_PLAN_PLACEMENTS) {
+        List<BattleCombatant> activeActors = activeCombatants(participant);
+        long maximumPlacements = (long) MAX_PLAN_PLACEMENTS
+            * Math.max(1, activeActors.size());
+        if (placements == null || placements.size() > maximumPlacements) {
             return reject(
                 commandId,
                 MALFORMED_COMMAND,
                 "Plan contains an invalid number of placements.",
-                Map.of("maximumPlacements", Integer.toString(MAX_PLAN_PLACEMENTS))
+                Map.of("maximumPlacements", Long.toString(maximumPlacements))
             );
         }
 
-        BattlePlan canonicalPlan = new BattlePlan(
-            participant.combatant.getMaxApBar(),
-            participant.combatant.getCurrentCe(),
-            battleGridLength()
-        );
-        List<SegmentRuntime> canonicalSegments = new ArrayList<>();
+        Map<CombatantId, BattlePlan> canonicalPlans = new LinkedHashMap<>();
+        Map<CombatantId, List<SegmentRuntime>> canonicalSegments = new LinkedHashMap<>();
+        int canonicalGridLength = battleGridLength();
+        for (BattleCombatant actor : activeActors) {
+            canonicalPlans.put(
+                actor.getInstanceId(),
+                new BattlePlan(actor.getMaxApBar(), actor.getCurrentCe(), canonicalGridLength)
+            );
+            canonicalSegments.put(actor.getInstanceId(), new ArrayList<>());
+        }
 
         for (int index = 0; index < placements.size(); index++) {
             PlanPlacement placement = placements.get(index);
@@ -335,21 +392,69 @@ public final class HeadlessBattleSession {
                 );
             }
 
-            Move move = findKnownMove(participant, placement.moveId()).orElse(null);
-            if (move == null) {
+            BattleCombatant actor;
+            if (placement.actorId() == null) {
+                if (activeActors.size() != 1) {
+                    return rejectPlacement(
+                        commandId,
+                        INVALID_ACTOR,
+                        "Placement must identify its active combatant actor.",
+                        index,
+                        placement.moveId()
+                    );
+                }
+                actor = activeActors.get(0);
+            } else {
+                if (placement.actorId().isBlank()) {
+                    return rejectPlacement(
+                        commandId,
+                        INVALID_ACTOR,
+                        "Placement actor ID cannot be blank.",
+                        index,
+                        placement.moveId()
+                    );
+                }
+                actor = battleState.combatant(new CombatantId(placement.actorId()));
+                if (actor == null
+                    || !actor.isActive()
+                    || !participant.teamId.equals(actor.getTeamId())
+                    || battleState.teamOf(actor) == null) {
+                    return rejectPlacement(
+                        commandId,
+                        INVALID_ACTOR,
+                        "Placement actor is not an active combatant controlled by this participant.",
+                        index,
+                        placement.moveId()
+                    );
+                }
+            }
+
+            BattlePlan canonicalPlan = canonicalPlans.get(actor.getInstanceId());
+            if (canonicalPlan == null) {
                 return rejectPlacement(
                     commandId,
-                    INVALID_MOVE,
-                    "Move is not known by this participant's canonical character.",
+                    INVALID_ACTOR,
+                    "Placement actor is not active for this round.",
                     index,
                     placement.moveId()
                 );
             }
-            if (isMoveRestricted(participant, move)) {
+
+            Move move = findKnownMove(actor, placement.moveId()).orElse(null);
+            if (move == null) {
+                return rejectPlacement(
+                    commandId,
+                    INVALID_MOVE,
+                    "Move is not known by the authoritative actor.",
+                    index,
+                    placement.moveId()
+                );
+            }
+            if (isMoveRestricted(actor, move)) {
                 return rejectPlacement(
                     commandId,
                     MOVE_RESTRICTED,
-                    "Move is currently restricted for this participant.",
+                    "Move is currently restricted for this actor.",
                     index,
                     move.getId()
                 );
@@ -364,18 +469,70 @@ public final class HeadlessBattleSession {
                 );
             }
 
-            int ceCost = participant.combatant.computeMoveCeCost(move);
+            CombatantId targetId = null;
+            MoveTargeting targeting = MoveTargeting.forMove(move);
+            if (targeting.requiresSelectedTarget()) {
+                BattleCombatant target;
+                if (placement.targetId() == null) {
+                    List<BattleCombatant> activeEnemies = battleState.activeEnemiesOf(actor);
+                    if (activeActors.size() != 1 || activeEnemies.size() != 1) {
+                        return rejectPlacement(
+                            commandId,
+                            INVALID_TARGET,
+                            "Hostile single-target move must identify an active opposing target.",
+                            index,
+                            move.getId()
+                        );
+                    }
+                    target = activeEnemies.get(0);
+                } else {
+                    if (placement.targetId().isBlank()) {
+                        return rejectPlacement(
+                            commandId,
+                            INVALID_TARGET,
+                            "Placement target ID cannot be blank.",
+                            index,
+                            move.getId()
+                        );
+                    }
+                    target = battleState.combatant(new CombatantId(placement.targetId()));
+                }
+                if (target == null
+                    || !target.isActive()
+                    || target.getTeamId() == null
+                    || participant.teamId.equals(target.getTeamId())
+                    || battleState.teamOf(target) == null) {
+                    return rejectPlacement(
+                        commandId,
+                        INVALID_TARGET,
+                        "Placement target is not an active opposing combatant.",
+                        index,
+                        move.getId()
+                    );
+                }
+                targetId = target.getInstanceId();
+            } else if (placement.targetId() != null) {
+                return rejectPlacement(
+                    commandId,
+                    INVALID_TARGET,
+                    "This move must not select a target; the server derives its affected set.",
+                    index,
+                    move.getId()
+                );
+            }
+
+            int ceCost = actor.computeMoveCeCost(move);
             long endTick = (long) placement.startTick() + move.getApCost() - 1L;
             long fireTick = (long) placement.startTick() + move.getUnleashPoint() - 1L;
             long finalImpactTick = fireTick + move.getMaxHitDelayTicks();
-            int gridLength = canonicalPlan.gridLength();
+            int planGridLength = canonicalPlan.gridLength();
             if (move.getApCost() < 1
                 || move.getUnleashPoint() < 1
                 || move.getUnleashPoint() > move.getApCost()
                 || ceCost < 0
                 || placement.startTick() < 1
-                || endTick > gridLength
-                || finalImpactTick > gridLength) {
+                || endTick > planGridLength
+                || finalImpactTick > planGridLength) {
                 return rejectPlacement(
                     commandId,
                     INVALID_PLACEMENT,
@@ -417,7 +574,12 @@ public final class HeadlessBattleSession {
                 );
             }
 
-            ActionSegment segment = canonicalPlan.place(move, placement.startTick(), ceCost);
+            ActionSegment segment = canonicalPlan.place(
+                move,
+                placement.startTick(),
+                ceCost,
+                targetId
+            );
             if (segment == null) {
                 return rejectPlacement(
                     commandId,
@@ -427,8 +589,10 @@ public final class HeadlessBattleSession {
                     move.getId()
                 );
             }
-            canonicalSegments.add(new SegmentRuntime(
-                segmentId(participant.participant.side(), index),
+            List<SegmentRuntime> actorSegments = canonicalSegments.get(actor.getInstanceId());
+            actorSegments.add(new SegmentRuntime(
+                segmentId(actor.getInstanceId(), actorSegments.size()),
+                actor.getInstanceId(),
                 segment,
                 board
             ));
@@ -437,7 +601,7 @@ public final class HeadlessBattleSession {
         if (participantsBySide.values().stream().noneMatch(runtime -> runtime.planSubmitted)) {
             firstPlanBaseVersion = command.expectedStateVersion();
         }
-        attachPlan(participant, canonicalPlan, canonicalSegments);
+        attachPlans(participant, canonicalPlans, canonicalSegments);
         participant.planSubmitted = true;
         acceptedCommandIds.add(command.commandId());
         stateVersion++;
@@ -451,6 +615,31 @@ public final class HeadlessBattleSession {
         recentEvents = List.copyOf(resolveSubmittedRound());
         MatchState state = snapshot();
         return CommandResult.accepted(command.commandId(), recentEvents, state);
+    }
+
+    /**
+     * Inject the character lookup used to resolve summon character ids, so the
+     * authoritative session can materialize shikigami during resolution without
+     * loading files inside the engine. Pass an internal character lookup/catalog
+     * so summon ids resolve without file I/O inside the engine.
+     */
+    public synchronized void setSummonLookup(BattleCharacterLookup lookup) {
+        this.summonLookup = lookup;
+        this.resolver.withSummonLookup(lookup);
+    }
+
+    /** Adds an initial fighter before submission; intended only for team-session tests. */
+    synchronized String addFighterForTesting(String playerId, Character character) {
+        ParticipantRuntime participant = requireParticipant(playerId);
+        Objects.requireNonNull(character, "character");
+        if (battleState.getCurrentPhase() != BattleState.Phase.PLANNING
+            || participantsBySide.values().stream().anyMatch(runtime -> runtime.planSubmitted)) {
+            throw new IllegalStateException("Test fighters can only be added before planning starts");
+        }
+        BattleCombatant fighter = new BattleCombatant(character, character.getAbilities());
+        battleState.addFighter(participant.teamId, fighter);
+        roundStartCharacterStates = captureRoundStartCharacterStates();
+        return fighter.getInstanceId().value();
     }
 
     /** Returns a complete immutable wire snapshot of the current authoritative state. */
@@ -658,7 +847,7 @@ public final class HeadlessBattleSession {
         updateSegmentStatuses(resolutionEvents);
 
         if (battleState.checkAndResolveBattleOver()) {
-            ParticipantRuntime winner = runtimeFor(battleState.getWinner());
+            ParticipantRuntime winner = runtimeFor(battleState.getWinnerTeam());
             ParticipantRuntime loser = winner == null ? null : opponentOf(winner);
             status = MatchStatus.ENDED;
             winnerSide = winner == null ? null : winner.participant.side();
@@ -762,48 +951,60 @@ public final class HeadlessBattleSession {
     }
 
     private void finishFromBattleState() {
-        ParticipantRuntime winner = runtimeFor(battleState.getWinner());
+        ParticipantRuntime winner = runtimeFor(battleState.getWinnerTeam());
         status = MatchStatus.ENDED;
         winnerSide = winner == null ? null : winner.participant.side();
         winnerPlayerId = winner == null ? null : winner.participant.playerId();
         endReason = winner == null ? "DOUBLE_KNOCKOUT" : "KNOCKOUT";
     }
 
-    private void attachPlan(
+    private void attachPlans(
         ParticipantRuntime participant,
-        BattlePlan plan,
-        List<SegmentRuntime> segments
+        Map<CombatantId, BattlePlan> plans,
+        Map<CombatantId, List<SegmentRuntime>> segmentsByActor
     ) {
-        participant.plan = plan;
-        participant.segments = List.copyOf(segments);
-        participant.combatant.setPlan(plan);
+        Map<CombatantId, BattlePlan> attachedPlans = new LinkedHashMap<>();
+        Map<CombatantId, List<SegmentRuntime>> attachedSegments = new LinkedHashMap<>();
+        for (BattleCombatant actor : activeCombatants(participant)) {
+            BattlePlan plan = Objects.requireNonNull(
+                plans.get(actor.getInstanceId()),
+                "Missing canonical plan for " + actor.getInstanceId()
+            );
+            List<SegmentRuntime> segments = segmentsByActor.getOrDefault(
+                actor.getInstanceId(), List.of());
+            actor.setPlan(plan);
 
-        Timeline executionTimeline = plan.toLegacyTimeline();
-        participant.combatant.setTimeline(executionTimeline);
-        List<ActionSegment> plannedOrder = plan.allSegments();
-        List<ActionSegment> executionOrder = executionTimeline.getSegments();
-        IdentityHashMap<ActionSegment, SegmentRuntime> byPlannedSegment = new IdentityHashMap<>();
-        for (SegmentRuntime segment : segments) {
-            byPlannedSegment.put(segment.plannedSegment, segment);
-        }
-        for (int index = 0; index < plannedOrder.size(); index++) {
-            SegmentRuntime segment = byPlannedSegment.get(plannedOrder.get(index));
-            if (segment != null) {
-                segment.executionSegment = executionOrder.get(index);
+            Timeline executionTimeline = plan.toLegacyTimeline();
+            actor.setTimeline(executionTimeline);
+            List<ActionSegment> plannedOrder = plan.allSegments();
+            List<ActionSegment> executionOrder = executionTimeline.getSegments();
+            IdentityHashMap<ActionSegment, SegmentRuntime> byPlannedSegment =
+                new IdentityHashMap<>();
+            for (SegmentRuntime segment : segments) {
+                byPlannedSegment.put(segment.plannedSegment, segment);
             }
+            for (int index = 0; index < plannedOrder.size(); index++) {
+                SegmentRuntime segment = byPlannedSegment.get(plannedOrder.get(index));
+                if (segment != null) segment.executionSegment = executionOrder.get(index);
+            }
+            attachedPlans.put(actor.getInstanceId(), plan);
+            attachedSegments.put(actor.getInstanceId(), List.copyOf(segments));
         }
+        participant.plans = Collections.unmodifiableMap(attachedPlans);
+        participant.segments = Collections.unmodifiableMap(attachedSegments);
     }
 
     private void updateSegmentStatuses(List<CombatEvent> events) {
         for (ParticipantRuntime participant : participantsBySide.values()) {
-            for (SegmentRuntime segment : participant.segments) {
+            for (List<SegmentRuntime> actorSegments : participant.segments.values()) {
+                for (SegmentRuntime segment : actorSegments) {
                 ActionSegment execution = segment.executionSegment;
                 if (execution == null) {
                     continue;
                 }
                 if (execution.isStunned()) {
                     segment.status = ActionSegmentStatus.STUNNED;
-                    segment.resolvedTick = findStunTick(participant, segment, events)
+                    segment.resolvedTick = findStunTick(segment, events)
                         .orElse(wireCurrentTick);
                 } else if (battleState.isBattleOver() && execution.hasFired()) {
                     segment.status = ActionSegmentStatus.RESOLVED;
@@ -818,23 +1019,24 @@ public final class HeadlessBattleSession {
                     segment.status = ActionSegmentStatus.QUEUED;
                     segment.resolvedTick = null;
                 }
+                }
             }
         }
     }
 
     private Optional<Integer> findStunTick(
-        ParticipantRuntime participant,
         SegmentRuntime segment,
         List<CombatEvent> events
     ) {
+        BattleCombatant actor = battleState.combatant(segment.actorId);
         return events.stream()
             .filter(event -> event.getType() == CombatEvent.Type.MOVE_STUNNED
                 || event.getType() == CombatEvent.Type.CE_DEPLETED)
             .filter(event -> {
                 if (event.getType() == CombatEvent.Type.MOVE_STUNNED) {
-                    return event.getTarget() == participant.combatant;
+                    return event.getTarget() == actor;
                 }
-                return event.getSource() == participant.combatant;
+                return event.getSource() == actor;
             })
             .filter(event -> event.getMove() == null
                 || event.getType() == CombatEvent.Type.MOVE_STUNNED
@@ -852,10 +1054,12 @@ public final class HeadlessBattleSession {
         for (ParticipantRuntime participant : participantsBySide.values()) {
             participant.planSubmitted = false;
             participant.readyForNextRound = false;
-            participant.plan = null;
-            participant.segments = List.of();
-            participant.combatant.setPlan(null);
-            participant.combatant.setTimeline(null);
+            participant.plans = Map.of();
+            participant.segments = Map.of();
+            for (BattleCombatant combatant : allCombatants(participant)) {
+                combatant.setPlan(null);
+                combatant.setTimeline(null);
+            }
         }
     }
 
@@ -879,16 +1083,22 @@ public final class HeadlessBattleSession {
             participant.planSubmitted,
             participant.readyForNextRound,
             participant.connected ? null : participant.disconnectDeadline,
-            characterState(participant, concealPlan)
+            allCombatants(participant).stream()
+                .map(combatant -> characterState(participant, combatant, concealPlan))
+                .toList()
         );
     }
 
-    private CharacterState characterState(ParticipantRuntime participant, boolean concealPlan) {
-        BattleCombatant combatant = participant.combatant;
+    private CharacterState characterState(
+        ParticipantRuntime participant,
+        BattleCombatant combatant,
+        boolean concealPlan
+    ) {
+        BattlePlan plan = participant.plans.get(combatant.getInstanceId());
         int maxAp = combatant.getMaxApBar();
-        int currentAp = participant.plan == null || concealPlan
+        int currentAp = plan == null || concealPlan
             ? maxAp
-            : participant.plan.remainingApBudget();
+            : plan.remainingApBudget();
         Integer bfsExpiry = combatant.isInBlackFlashState()
             ? combatant.getBfsExpiresAfterRound()
             : null;
@@ -909,9 +1119,15 @@ public final class HeadlessBattleSession {
             combatant.getActiveEffects().stream().map(this::statusEffectState).toList(),
             combatant.getCodedAbilities().states(),
             combatant.getCharacter().getKnownMoves().stream()
-                .map(move -> moveState(participant, move))
+                .map(move -> moveState(combatant, move))
                 .toList(),
-            planState(participant, concealPlan)
+            planState(participant, combatant, concealPlan),
+            combatant.getInstanceId().value(),
+            combatant.getCharacter().getType().name(),
+            combatant.getRole().name(),
+            combatant.getLifecycle().name(),
+            combatant.getSummonerId() == null ? null : combatant.getSummonerId().value(),
+            combatant.getRosterOrder()
         );
     }
 
@@ -925,8 +1141,7 @@ public final class HeadlessBattleSession {
         );
     }
 
-    private MoveState moveState(ParticipantRuntime participant, Move move) {
-        BattleCombatant combatant = participant.combatant;
+    private MoveState moveState(BattleCombatant combatant, Move move) {
         int effectiveCeCost = combatant.computeMoveCeCost(move);
         return new MoveState(
             move.getId(),
@@ -956,35 +1171,37 @@ public final class HeadlessBattleSession {
             move.getMinCeCost(),
             move.getMaxCeCost(),
             move.getMoveCap(),
-            !isMoveRestricted(participant, move),
-            moveRestrictionReason(participant, move)
+            !isMoveRestricted(combatant, move),
+            moveRestrictionReason(combatant, move)
         );
     }
 
-    private PlanState planState(ParticipantRuntime participant, boolean concealPlan) {
+    private PlanState planState(
+        ParticipantRuntime participant,
+        BattleCombatant combatant,
+        boolean concealPlan
+    ) {
+        BattlePlan plan = participant.plans.get(combatant.getInstanceId());
         if (concealPlan) {
             return new PlanState(
                 wireRoundNumber,
-                participant.combatant.getMaxApBar(),
+                combatant.getMaxApBar(),
                 0,
-                participant.combatant.getCurrentCe(),
+                combatant.getCurrentCe(),
                 0,
                 List.of(),
                 List.of()
             );
         }
-        int apBudget = participant.plan == null
-            ? participant.combatant.getMaxApBar()
-            : participant.plan.apBudget();
-        int apUsed = participant.plan == null ? 0 : participant.plan.totalApUsed();
-        int ceBudget = participant.plan == null
-            ? participant.combatant.getCurrentCe()
-            : participant.plan.ceBudget();
-        int ceUsed = participant.plan == null ? 0 : participant.plan.totalCeUsed();
+        int apBudget = plan == null ? combatant.getMaxApBar() : plan.apBudget();
+        int apUsed = plan == null ? 0 : plan.totalApUsed();
+        int ceBudget = plan == null ? combatant.getCurrentCe() : plan.ceBudget();
+        int ceUsed = plan == null ? 0 : plan.totalCeUsed();
 
         List<ActionSegmentState> queued = new ArrayList<>();
         List<ActionSegmentState> resolved = new ArrayList<>();
-        for (SegmentRuntime segment : participant.segments) {
+        for (SegmentRuntime segment : participant.segments.getOrDefault(
+            combatant.getInstanceId(), List.of())) {
             ActionSegmentState state = actionSegmentState(segment);
             if (segment.status == ActionSegmentStatus.RESOLVED
                 || segment.status == ActionSegmentStatus.STUNNED) {
@@ -1017,15 +1234,19 @@ public final class HeadlessBattleSession {
             planned.getMove().getApCost(),
             planned.getActualCeCost(),
             segment.status,
-            segment.resolvedTick
+            segment.resolvedTick,
+            segment.actorId.value(),
+            planned.getTarget() == null ? null : planned.getTarget().value()
         );
     }
 
     private List<BattleEventState> toWireEvents(List<CombatEvent> events, int roundNumber) {
         List<BattleEventState> wireEvents = new ArrayList<>(events.size());
         for (CombatEvent event : events) {
-            ParticipantRuntime source = runtimeFor(event.getSource());
-            ParticipantRuntime target = runtimeFor(event.getTarget());
+            BattleCombatant sourceCombatant = event.getSource();
+            BattleCombatant targetCombatant = event.getTarget();
+            ParticipantRuntime source = runtimeFor(sourceCombatant);
+            ParticipantRuntime target = runtimeFor(targetCombatant);
             Move move = event.getMove();
             wireEvents.add(new BattleEventState(
                 nextEventId(),
@@ -1033,17 +1254,21 @@ public final class HeadlessBattleSession {
                 roundNumber,
                 event.getTick(),
                 source == null ? null : source.participant.side(),
-                source == null ? null : source.combatant.getCharacter().getId(),
-                source == null ? null : source.combatant.getCharacter().getName(),
+                sourceCombatant == null ? null : sourceCombatant.getCharacter().getId(),
+                sourceCombatant == null ? null : sourceCombatant.getCharacter().getName(),
                 target == null ? null : target.participant.side(),
-                target == null ? null : target.combatant.getCharacter().getId(),
-                target == null ? null : target.combatant.getCharacter().getName(),
+                targetCombatant == null ? null : targetCombatant.getCharacter().getId(),
+                targetCombatant == null ? null : targetCombatant.getCharacter().getName(),
                 move == null ? null : move.getId(),
                 move == null ? null : move.getName(),
                 event.getComponentIndex(),
                 eventValue(event),
                 event.getCodedAbilityState(),
-                event.getMessage()
+                event.getMessage(),
+                sourceCombatant == null || sourceCombatant.getInstanceId() == null
+                    ? null : sourceCombatant.getInstanceId().value(),
+                targetCombatant == null || targetCombatant.getInstanceId() == null
+                    ? null : targetCombatant.getInstanceId().value()
             ));
         }
         return wireEvents;
@@ -1087,16 +1312,19 @@ public final class HeadlessBattleSession {
             roundNumber,
             tick,
             winner == null ? null : winner.participant.side(),
-            winner == null ? null : winner.combatant.getCharacter().getId(),
-            winner == null ? null : winner.combatant.getCharacter().getName(),
+            winner == null ? null : winner.primaryCombatant.getCharacter().getId(),
+            winner == null ? null : winner.primaryCombatant.getCharacter().getName(),
             loser == null ? null : loser.participant.side(),
-            loser == null ? null : loser.combatant.getCharacter().getId(),
-            loser == null ? null : loser.combatant.getCharacter().getName(),
+            loser == null ? null : loser.primaryCombatant.getCharacter().getId(),
+            loser == null ? null : loser.primaryCombatant.getCharacter().getName(),
             null,
             null,
             null,
             null,
-            reason
+            null,
+            reason,
+            winner == null ? null : winner.primaryCombatant.getInstanceId().value(),
+            loser == null ? null : loser.primaryCombatant.getInstanceId().value()
         );
     }
 
@@ -1120,18 +1348,18 @@ public final class HeadlessBattleSession {
         return List.copyOf(tags);
     }
 
-    private Optional<Move> findKnownMove(ParticipantRuntime participant, String moveId) {
-        return participant.combatant.getCharacter().getKnownMoves().stream()
+    private Optional<Move> findKnownMove(BattleCombatant combatant, String moveId) {
+        return combatant.getCharacter().getKnownMoves().stream()
             .filter(move -> move.getId().equals(moveId))
             .findFirst();
     }
 
-    private boolean isMoveRestricted(ParticipantRuntime participant, Move move) {
-        return moveRestrictionReason(participant, move) != null;
+    private boolean isMoveRestricted(BattleCombatant combatant, Move move) {
+        return moveRestrictionReason(combatant, move) != null;
     }
 
-    private String moveRestrictionReason(ParticipantRuntime participant, Move move) {
-        boolean abilityLocked = participant.combatant.getAbilityFlags().lockedMoveTags.stream()
+    private String moveRestrictionReason(BattleCombatant combatant, Move move) {
+        boolean abilityLocked = combatant.getAbilityFlags().lockedMoveTags.stream()
             .anyMatch(move::hasTag);
         if (abilityLocked) {
             return "Restricted by an active ability.";
@@ -1192,22 +1420,27 @@ public final class HeadlessBattleSession {
     }
 
     private List<RoundStartCharacterState> captureRoundStartCharacterStates() {
-        return List.of(
-            roundStartCharacterState(participantsBySide.get(PlayerSide.PLAYER_ONE)),
-            roundStartCharacterState(participantsBySide.get(PlayerSide.PLAYER_TWO))
-        );
+        List<RoundStartCharacterState> states = new ArrayList<>();
+        for (ParticipantRuntime participant : participantsBySide.values()) {
+            for (BattleCombatant combatant : allCombatants(participant)) {
+                states.add(roundStartCharacterState(participant, combatant));
+            }
+        }
+        return List.copyOf(states);
     }
 
     private static RoundStartCharacterState roundStartCharacterState(
-        ParticipantRuntime participant
+        ParticipantRuntime participant,
+        BattleCombatant combatant
     ) {
         return new RoundStartCharacterState(
             participant.participant.side(),
-            participant.combatant.getCurrentHp(),
-            participant.combatant.getMaxHp(),
-            participant.combatant.getCurrentCe(),
-            participant.combatant.getMaxCursedEnergy(),
-            participant.combatant.getCodedAbilities().states()
+            combatant.getCurrentHp(),
+            combatant.getMaxHp(),
+            combatant.getCurrentCe(),
+            combatant.getMaxCursedEnergy(),
+            combatant.getCodedAbilities().states(),
+            combatant.getInstanceId().value()
         );
     }
 
@@ -1240,15 +1473,27 @@ public final class HeadlessBattleSession {
     }
 
     private ParticipantRuntime runtimeFor(BattleCombatant combatant) {
-        if (combatant == null) {
-            return null;
+        return combatant == null ? null : runtimeFor(combatant.getTeamId());
+    }
+
+    private ParticipantRuntime runtimeFor(BattleTeamId teamId) {
+        if (BattleTeamId.PLAYER.equals(teamId)) {
+            return participantsBySide.get(PlayerSide.PLAYER_ONE);
         }
-        for (ParticipantRuntime participant : participantsBySide.values()) {
-            if (participant.combatant == combatant) {
-                return participant;
-            }
+        if (BattleTeamId.ENEMY.equals(teamId)) {
+            return participantsBySide.get(PlayerSide.PLAYER_TWO);
         }
         return null;
+    }
+
+    private List<BattleCombatant> activeCombatants(ParticipantRuntime participant) {
+        BattleTeam team = battleState.teamOf(participant.teamId);
+        return team == null ? List.of() : team.active();
+    }
+
+    private List<BattleCombatant> allCombatants(ParticipantRuntime participant) {
+        BattleTeam team = battleState.teamOf(participant.teamId);
+        return team == null ? List.of() : team.all();
     }
 
     private ParticipantRuntime opponentOf(ParticipantRuntime participant) {
@@ -1265,10 +1510,8 @@ public final class HeadlessBattleSession {
      */
     private int battleGridLength() {
         int strongestAp = 0;
-        for (ParticipantRuntime runtime : participantsBySide.values()) {
-            if (runtime.combatant != null) {
-                strongestAp = Math.max(strongestAp, runtime.combatant.getMaxApBar());
-            }
+        for (BattleCombatant combatant : battleState.activeCombatants()) {
+            strongestAp = Math.max(strongestAp, combatant.getMaxApBar());
         }
         return Timeline.gridLengthForStrongestAp(strongestAp);
     }
@@ -1305,9 +1548,9 @@ public final class HeadlessBattleSession {
         return reject(commandId, code, message, details);
     }
 
-    private String segmentId(PlayerSide side, int placementIndex) {
+    private String segmentId(CombatantId actorId, int placementIndex) {
         return matchId + "-round-" + battleState.getRoundNumber()
-            + "-" + side.name().toLowerCase(Locale.ROOT)
+            + "-" + actorId.value().toLowerCase(Locale.ROOT)
             + "-segment-" + (placementIndex + 1);
     }
 
@@ -1353,18 +1596,20 @@ public final class HeadlessBattleSession {
 
     private static final class ParticipantRuntime {
         private final MatchParticipant participant;
-        private final BattleCombatant combatant;
+        private final BattleTeamId teamId;
+        private final BattleCombatant primaryCombatant;
         private boolean connected;
         private boolean joined;
         private boolean planSubmitted;
         private boolean readyForNextRound;
         private Long disconnectDeadline;
-        private BattlePlan plan;
-        private List<SegmentRuntime> segments = List.of();
+        private Map<CombatantId, BattlePlan> plans = Map.of();
+        private Map<CombatantId, List<SegmentRuntime>> segments = Map.of();
 
-        private ParticipantRuntime(MatchParticipant participant) {
+        private ParticipantRuntime(MatchParticipant participant, BattleTeamId teamId) {
             this.participant = participant;
-            this.combatant = new BattleCombatant(
+            this.teamId = teamId;
+            this.primaryCombatant = new BattleCombatant(
                 participant.character(),
                 participant.character().getAbilities()
             );
@@ -1373,6 +1618,7 @@ public final class HeadlessBattleSession {
 
     private static final class SegmentRuntime {
         private final String segmentId;
+        private final CombatantId actorId;
         private final ActionSegment plannedSegment;
         private final BattlePlan.Board board;
         private ActionSegment executionSegment;
@@ -1381,10 +1627,12 @@ public final class HeadlessBattleSession {
 
         private SegmentRuntime(
             String segmentId,
+            CombatantId actorId,
             ActionSegment plannedSegment,
             BattlePlan.Board board
         ) {
             this.segmentId = segmentId;
+            this.actorId = actorId;
             this.plannedSegment = plannedSegment;
             this.board = board;
         }

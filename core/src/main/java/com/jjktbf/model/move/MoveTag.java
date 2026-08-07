@@ -109,6 +109,17 @@ public enum MoveTag {
      */
     AOE,
 
+    /**
+     * Friendly-fire modifier. Only meaningful together with {@link #AOE}: an
+     * {@code AOE + FRIENDLY_FIRE} move hits every active combatant except the
+     * caster (allies and enemies alike). {@code FRIENDLY_FIRE} without
+     * {@code AOE} is invalid and rejected at authoring/validation time.
+     *
+     * <p>Like {@link #AOE}, this is a pure tag-set modifier — it does not affect
+     * the Power formula, range, or move category.
+     */
+    FRIENDLY_FIRE,
+
     /** Sword or sword-like weapon modifier used by move-scoped abilities. */
     SWORD,
 

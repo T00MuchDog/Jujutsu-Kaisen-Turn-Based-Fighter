@@ -17,6 +17,7 @@ import static com.jjktbf.model.character.AbilityEffectParameter.DURATION;
 import static com.jjktbf.model.character.AbilityEffectParameter.INTEGER;
 import static com.jjktbf.model.character.AbilityEffectParameter.MAGNITUDE;
 import static com.jjktbf.model.character.AbilityEffectParameter.ABILITY_ID;
+import static com.jjktbf.model.character.AbilityEffectParameter.CHARACTER_ID;
 import static com.jjktbf.model.character.AbilityEffectParameter.MOVE_ID;
 import static com.jjktbf.model.character.AbilityEffectParameter.MOVE_SCOPE;
 import static com.jjktbf.model.character.AbilityEffectParameter.STAT;
@@ -270,7 +271,28 @@ public enum AbilityEffectType {
     TEMP_LOCK_MOVE_TAG(
         "Temporarily lock move tag",
         "Prevents the target from planning moves with one tag for the duration.",
-        TARGET, MOVE_SCOPE, DURATION);
+        TARGET, MOVE_SCOPE, DURATION),
+    SUMMON_CHARACTER(
+        "Summon character",
+        "Summons a shikigami combatant onto the owner's team when activated.",
+        CHARACTER_ID);
+
+    /**
+     * Effects that require an active ability condition to run at battle time.
+     * This explicit set replaces the former ordinal-based check so adding a new
+     * activation-required effect (e.g. SUMMON_CHARACTER) does not silently shift
+     * the ordinal boundary and reclassify earlier effects.
+     */
+    private static final java.util.Set<AbilityEffectType> ACTIVATION_REQUIRED =
+        java.util.EnumSet.of(
+            HEAL_HP, HEAL_HP_PERCENT, RESTORE_CE, RESTORE_CE_PERCENT,
+            DRAIN_CE, DRAIN_CE_PERCENT, DEAL_DIRECT_DAMAGE, DEAL_MAX_HP_DAMAGE,
+            INSTANT_KILL, APPLY_STATUS, REMOVE_STATUS, CLEAR_STATUSES,
+            TEMP_STAT_ADD, TEMP_STAT_MULTIPLY, TEMP_STAT_SET_VALUE,
+            BATTLE_STAT_ADD, BATTLE_STAT_MULTIPLY,
+            IGNORE_DAMAGE, DAMAGE_SHIELD, SURVIVE_FATAL_DAMAGE,
+            GUARANTEE_NEXT_HIT, GUARANTEE_NEXT_DODGE, GUARANTEE_NEXT_BLACK_FLASH,
+            CANCEL_NEXT_MOVE, TEMP_LOCK_MOVE_TAG, SUMMON_CHARACTER);
 
     private static final Set<StatusEffectType> SUPPORTED_AUTO_STATUSES =
         Collections.unmodifiableSet(EnumSet.allOf(StatusEffectType.class));
@@ -332,6 +354,7 @@ public enum AbilityEffectType {
         effect.moveTag = null;
         effect.moveId = null;
         effect.abilityId = null;
+        effect.characterId = null;
         effect.stringValue = null;
         effect.target = null;
         effect.timing = null;
@@ -428,6 +451,10 @@ public enum AbilityEffectType {
                 effect.moveTag = MoveTag.CURSED_ENERGY.name();
                 effect.durationRounds = 1;
             }
+            case SUMMON_CHARACTER -> {
+                // No target needed — the summon joins the owner's team.
+                effect.characterId = null;
+            }
             default -> { }
         }
     }
@@ -494,6 +521,7 @@ public enum AbilityEffectType {
         if (!uses(MOVE_SCOPE)) effect.moveTag = null;
         if (!uses(MOVE_ID)) effect.moveId = null;
         if (!uses(ABILITY_ID)) effect.abilityId = null;
+        if (!uses(CHARACTER_ID)) effect.characterId = null;
         if (!uses(TECHNIQUE) && !uses(STATUS_TYPE) && !uses(BATTLE_STAT)) effect.stringValue = null;
         if (!uses(TARGET)) effect.target = null;
         if (!uses(TIMING)) effect.timing = null;
@@ -542,6 +570,9 @@ public enum AbilityEffectType {
         }
         if (uses(MOVE_ID) && isBlank(effect.moveId)) return "Choose a move.";
         if (uses(ABILITY_ID) && isBlank(effect.abilityId)) return "Choose an ability to grant.";
+        if (uses(CHARACTER_ID) && isBlank(effect.characterId)) {
+            return "Choose a shikigami to summon.";
+        }
         if (uses(TECHNIQUE) && isBlank(effect.stringValue)) return "Choose a technique.";
 
         StatusEffectType status = null;
@@ -687,7 +718,7 @@ public enum AbilityEffectType {
 
     /** True when an effect needs an active ability condition to run at battle time. */
     public boolean requiresActivation() {
-        return ordinal() >= HEAL_HP.ordinal();
+        return ACTIVATION_REQUIRED.contains(this);
     }
 
     /** True for effects resolved while a passive ability is assigned. */

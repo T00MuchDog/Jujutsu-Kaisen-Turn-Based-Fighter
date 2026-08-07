@@ -5,6 +5,8 @@ import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.AbilityConditionData;
 import com.jjktbf.model.character.AbilityConditionRuleData;
+import com.jjktbf.model.character.CharacterData;
+import com.jjktbf.model.character.CharacterType;
 import com.jjktbf.model.move.StatusEffectType;
 import org.junit.jupiter.api.Test;
 
@@ -98,5 +100,27 @@ class AbilityEditorScreenTest {
         AbilityEditorScreen.initialiseActivationDefaults(draft);
 
         assertEquals("MANUAL_ACTIVATION", rule.condition.type);
+    }
+
+    @Test
+    void summonEffectsOnlyAcceptExistingShikigamiDefinitions() {
+        CharacterData sorcerer = character("000001", null);
+        CharacterData shikigami = character("000002", CharacterType.SHIKIGAMI.name());
+
+        assertNull(AbilityEditorScreen.summonReferenceValidationError(
+            "000002", List.of(sorcerer, shikigami)));
+        assertEquals("The summon target must be a Shikigami.",
+            AbilityEditorScreen.summonReferenceValidationError(
+                "000001", List.of(sorcerer, shikigami)));
+        assertEquals("The summon target does not exist.",
+            AbilityEditorScreen.summonReferenceValidationError(
+                "000003", List.of(sorcerer, shikigami)));
+    }
+
+    private static CharacterData character(String id, String type) {
+        CharacterData character = new CharacterData();
+        character.id = id;
+        character.type = type;
+        return character;
     }
 }

@@ -122,7 +122,7 @@
 }, {
   "id" : "000006",
   "name" : "Maki Zenin (Pre-Awakened)",
-  "description" : "Before fully realising her Heavenly Restriction, Maki fights at the summit of grade one through exceptional weapon training, speed, durability, and relentless discipline despite possessing almost no talent for jujutsu.",
+  "description" : "Before fully realising her Heavenly Restriction, Maki fights through exceptional weapon training, speed, durability, and relentless discipline despite possessing almost no talent for jujutsu.",
   "spriteAsset" : "assets/sprites/characters/maki_frontsprite.png",
   "hasWeapon" : true,
   "vitality" : 75,

@@ -1,8 +1,10 @@
 package com.jjktbf.view;
 
 import com.jjktbf.model.combat.BattlePlan;
+import com.jjktbf.model.combat.BattleTeamId;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.BattleCombatant;
+import com.jjktbf.model.combat.TeamBattlePlan;
 import com.jjktbf.model.combat.CombatEvent;
 
 import java.util.List;
@@ -39,6 +41,34 @@ public interface BattleView {
      * @return            the finished {@link BattlePlan}; may be empty (bank the round)
      */
     BattlePlan promptBattlePlan(BattleCombatant combatant, BattleCombatant opponent);
+
+    /**
+     * Prompt for one team's complete round plan atomically: one {@link BattlePlan}
+     * per living controlled combatant, keyed by actor instance id. The view owns
+     * per-page editing and must lock every living controlled page before
+     * returning. This is the blocking multi-combatant planning call; the legacy
+     * {@link #promptBattlePlan} 1v1 call remains for single-combatant battles.
+     *
+     * @param controlled  the living controlled combatants on the viewer's team
+     *                    (initial fighters in roster order, then summons in
+     *                    creation order)
+     * @param state       the current battle state
+     * @return            the atomic team plan (one entry per controlled combatant)
+     */
+    default TeamBattlePlan promptTeamBattlePlan(List<BattleCombatant> controlled, BattleState state) {
+        // Default: plan each controlled combatant independently via the legacy
+        // single-combatant prompt so existing 1v1 views keep working for
+        // multi-combatant battles without changes.
+        BattleTeamId teamId = controlled.isEmpty() ? null : controlled.get(0).getTeamId();
+        TeamBattlePlan teamPlan = new TeamBattlePlan(teamId,
+            com.jjktbf.model.combat.TeamBattlePlan.gridLengthForRound(state));
+        for (BattleCombatant c : controlled) {
+            BattleCombatant opponent = state.firstActiveEnemyOf(c);
+            BattlePlan plan = promptBattlePlan(c, opponent);
+            teamPlan.put(c.getInstanceId(), plan);
+        }
+        return teamPlan;
+    }
 
     /**
      * Display a sequence of combat events that occurred during resolution.

@@ -29,19 +29,19 @@ class ProtocolJsonTest {
 
         assertEquals(state, restored);
         assertEquals(42L, tree.get("stateVersion").longValue());
-        assertEquals("Divergent Fist", tree.at("/players/0/character/knownMoves/0/name").textValue());
+        assertEquals("Divergent Fist", tree.at("/players/0/combatants/0/knownMoves/0/name").textValue());
         assertEquals(ActionSegmentStatus.QUEUED, restored.players().get(0).character()
             .plan().queuedSegments().get(0).status());
         assertEquals(88, restored.player(PlayerSide.PLAYER_TWO).orElseThrow()
             .character().currentDefense());
-        assertEquals(4, tree.at("/players/0/character/codedAbilities/0/currentValue").intValue());
+        assertEquals(4, tree.at("/players/0/combatants/0/codedAbilities/0/currentValue").intValue());
         assertEquals(205, tree.at("/roundStartCharacterStates/0/currentHp").intValue());
         assertEquals(2, restored.players().get(0).character()
             .knownMoves().get(0).hitComponents().size());
         assertEquals(1, restored.players().get(0).character()
             .knownMoves().get(0).moveCap());
         assertEquals(4, tree.at(
-            "/players/0/character/knownMoves/0/hitComponents/1/delayTicks").intValue());
+            "/players/0/combatants/0/knownMoves/0/hitComponents/1/delayTicks").intValue());
         assertEquals(1, restored.recentEvents().get(0).componentIndex());
         assertTrue(restored.players().get(0).readyForNextRound());
         assertThrows(UnsupportedOperationException.class, () -> restored.players().add(null));
@@ -54,7 +54,7 @@ class ProtocolJsonTest {
     @Test
     void actionCommandRoundTripsAndCopiesIntent() throws Exception {
         List<PlanPlacement> placements = new ArrayList<>();
-        placements.add(new PlanPlacement("000004", 13));
+        placements.add(new PlanPlacement("000004", 13, "PLAYER-f1", "ENEMY-f1"));
         placements.add(new PlanPlacement("000001", 48));
         ActionCommand command = ActionCommand.submitPlan("command-1", "match-1", 41, placements);
         placements.clear();
@@ -66,8 +66,9 @@ class ProtocolJsonTest {
         assertEquals(command, restored);
         assertEquals(CommandType.SUBMIT_PLAN, restored.type());
         assertEquals(2, restored.payload().placements().size());
-        assertEquals(2, tree.at("/payload/placements/0").size(),
-            "PlanPlacement must expose only moveId and startTick");
+        assertEquals(4, tree.at("/payload/placements/0").size());
+        assertEquals("PLAYER-f1", restored.payload().placements().get(0).actorId());
+        assertEquals("ENEMY-f1", restored.payload().placements().get(0).targetId());
         assertEquals(List.of(), new SubmitPlanPayload(null).placements());
         assertThrows(UnsupportedOperationException.class,
             () -> restored.payload().placements().add(new PlanPlacement("other", 1)));

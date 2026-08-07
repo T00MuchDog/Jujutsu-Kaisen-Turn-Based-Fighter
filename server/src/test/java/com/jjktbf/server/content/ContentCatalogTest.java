@@ -56,7 +56,7 @@ class ContentCatalogTest {
             .findFirst().orElseThrow();
         assertEquals(1, keenObservation.getMoveCap());
         var makiCombatant = new BattleCombatant(maki);
-        assertEquals(150, makiCombatant.getEffectiveStats().getCombatAbility());
+        assertEquals(135, makiCombatant.getEffectiveStats().getCombatAbility());
         assertEquals(108, makiCombatant.computeCurrentDefense(1));
         assertThrows(UnsupportedOperationException.class,
             () -> catalog.characterSummaries().clear());

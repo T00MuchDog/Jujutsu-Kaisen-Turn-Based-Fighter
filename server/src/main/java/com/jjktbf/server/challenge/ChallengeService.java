@@ -1,6 +1,6 @@
 package com.jjktbf.server.challenge;
 
-import com.jjktbf.model.character.SorcererCharacter;
+import com.jjktbf.model.character.Character;
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeCreateRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
@@ -586,7 +586,7 @@ public final class ChallengeService {
 
     private ChallengeSummary toSummary(ChallengeRecord challenge) {
         String characterName = catalog.findCharacter(challenge.hostCharacterId())
-            .map(SorcererCharacter::getName)
+            .map(Character::getName)
             .orElseThrow(() -> new IllegalStateException(
                 "Persisted challenge references unknown canonical character "
                     + challenge.hostCharacterId()));
@@ -611,8 +611,13 @@ public final class ChallengeService {
         );
     }
 
-    private SorcererCharacter requireCharacter(String characterId) {
-        return catalog.findCharacter(characterId).orElseThrow(() ->
+    /**
+     * Resolve a canonical character for match construction, rejecting hidden
+     * (non-selectable) definitions. A crafted request that names a summon-only
+     * shikigami cannot smuggle it into a match as a primary fighter.
+     */
+    private Character requireCharacter(String characterId) {
+        return catalog.findSelectableCharacter(characterId).orElseThrow(() ->
             new ServiceException(
                 ServiceErrorCode.INVALID_CHARACTER,
                 "The selected character is not in the canonical server catalog."));

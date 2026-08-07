@@ -343,6 +343,7 @@ public class JJKGame extends Game {
             multiplayerCharacterRepository.load();
             multiplayerRoster = multiplayerCharacterRepository.getAll().stream()
                 .filter(character -> character.id != null && !character.id.isBlank())
+                .filter(com.jjktbf.model.character.CharacterData::effectiveSelectable)
                 .map(character -> new MultiplayerFighter(character.id, character.name))
                 .toList();
             multiplayerRosterError = multiplayerRoster.isEmpty()
@@ -427,7 +428,11 @@ public class JJKGame extends Game {
             try {
                 Character player = playerData.toCharacter(moveRepo, abilityRepo, techniqueRepo);
                 Character cpu    = cpuData.toCharacter(moveRepo, abilityRepo, techniqueRepo);
-                BattleController controller = new BattleController(battleScreen);
+                BattleController controller = new BattleController(
+                    battleScreen,
+                    characterId -> multiplayerCharacterRepository.findById(characterId)
+                        .map(data -> data.toCharacter(moveRepo, abilityRepo, techniqueRepo))
+                );
                 controller.runBattle(player, cpu);
             } catch (Throwable t) {
                 // The battle runs on a daemon thread; an uncaught throw would

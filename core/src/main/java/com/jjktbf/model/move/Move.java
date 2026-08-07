@@ -221,6 +221,15 @@ public class Move {
     /** Maximum times this move may be placed in one round. 0 means unlimited. */
     private final int moveCap;
 
+    /**
+     * Canonical shikigami character id summoned when this move reaches its unleash
+     * point. Null for non-summoning moves. The summoned combatant is created via
+     * the shared runtime summon path (see CombatResolver) regardless of whether
+     * the request came from a move or an ability. Works on utility and attack
+     * moves alike.
+     */
+    private final String summonCharacterId;
+
     // -------------------------------------------------------------------------
     // Construction via Builder
     // -------------------------------------------------------------------------
@@ -266,6 +275,7 @@ public class Move {
         this.isFreeMove          = b.isFreeMove;
         this.mustBeGranted       = b.mustBeGranted;
         this.moveCap             = b.moveCap;
+        this.summonCharacterId   = b.summonCharacterId;
     }
 
     private static Set<MoveTag> immutableTags(Set<MoveTag> source, MoveCategory category) {
@@ -359,6 +369,10 @@ public class Move {
     public boolean isFreeMove()                    { return isFreeMove; }
     public boolean mustBeGranted()                 { return mustBeGranted; }
     public int getMoveCap()                        { return moveCap; }
+    /** The shikigami character id this move summons at its unleash point, or null. */
+    public String getSummonCharacterId()           { return summonCharacterId; }
+    /** True when this move summons a shikigami when it reaches its unleash point. */
+    public boolean summonsCharacter()              { return summonCharacterId != null && !summonCharacterId.isBlank(); }
 
     public boolean isBlackFlashEligible() {
         return hitComponents.stream().anyMatch(HitComponent::isBlackFlashEligible);
@@ -426,6 +440,24 @@ public class Move {
     /** Whether this move targets exactly one combatant. */
     public boolean isSingleTarget() {
         return !isAoe();
+    }
+
+    /**
+     * Whether this move carries the {@link MoveTag#FRIENDLY_FIRE} modifier.
+     * Only meaningful together with {@link MoveTag#AOE} (validated on construction).
+     */
+    public boolean isFriendlyFire() {
+        return tags.contains(MoveTag.FRIENDLY_FIRE);
+    }
+
+    /**
+     * Whether this move is a hostile attack that targets an enemy (or enemies).
+     * A move is hostile iff it is an attack (the ATTACK tag heuristic) — i.e. it
+     * has hit components or the ATTACK tag. Defensive, self-only utility, and
+     * summon-only moves are not hostile and require no target selection.
+     */
+    public boolean isHostile() {
+        return hasTag("ATTACK");
     }
 
     /**
@@ -675,6 +707,7 @@ public class Move {
         private boolean isFreeMove           = false;
         private boolean mustBeGranted        = false;
         private int moveCap                  = 0;
+        private String summonCharacterId     = null;
 
         public Builder(String id) { this.id = id; }
 
@@ -726,6 +759,8 @@ public class Move {
         public Builder freeMove(boolean v)                 { this.isFreeMove = v; return this; }
         public Builder mustBeGranted(boolean v)            { this.mustBeGranted = v; return this; }
         public Builder moveCap(int v)                       { this.moveCap = v; return this; }
+        /** Set the shikigami character id summoned at this move's unleash point. */
+        public Builder summonCharacterId(String v)          { this.summonCharacterId = v; return this; }
 
         public Move build() {
             if (id == null || id.isBlank()) throw new IllegalStateException("Move id is required");
@@ -733,6 +768,12 @@ public class Move {
                 throw new IllegalStateException("unleashPoint must be in [1, apCost]");
             if (moveCap < 0)
                 throw new IllegalStateException("moveCap must be non-negative");
+
+            Set<MoveTag> effectiveTags = tags != null ? tags : category.getTags();
+            if (effectiveTags.contains(MoveTag.FRIENDLY_FIRE)
+                && !effectiveTags.contains(MoveTag.AOE)) {
+                throw new IllegalStateException("FRIENDLY_FIRE requires AOE");
+            }
 
             validateHitComponents();
 

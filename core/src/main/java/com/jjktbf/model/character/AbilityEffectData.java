@@ -61,6 +61,13 @@ public class AbilityEffectData {
     /** Ability ID (6-digit) for GRANT_ABILITY. */
     public String abilityId;
 
+    /**
+     * Canonical shikigami character id for {@link AbilityEffectType#SUMMON_CHARACTER}.
+     * Must reference a valid SHIKIGAMI definition (validated in editors and the
+     * authoritative catalog). Null for non-summon effects.
+     */
+    public String characterId;
+
     // ── Status effect automation ──────────────────────────────────────────────
     /**
      * Generic string value:
@@ -119,6 +126,7 @@ public class AbilityEffectData {
         this.moveTag = source.moveTag;
         this.moveId = source.moveId;
         this.abilityId = source.abilityId;
+        this.characterId = source.characterId;
         this.stringValue = source.stringValue;
         this.target = source.target;
         this.timing = source.timing;

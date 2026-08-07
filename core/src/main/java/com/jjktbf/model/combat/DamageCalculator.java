@@ -148,6 +148,29 @@ public final class DamageCalculator {
         boolean         requireFiredDefense,
         ConnectedHitHook connectedHitHook
     ) {
+        return resolve(attacker, defender, move, component, currentTick, rng,
+            currentRound, forceFullBlock, requireFiredDefense, false, connectedHitHook);
+    }
+
+    /**
+     * Full pipeline with an explicit AOE-bypasses-dodge flag. When
+     * {@code aoeBypassesDodge} is true (the move is an area-of-effect attack),
+     * the dodge roll is skipped — dodge does not avoid an AOE. Other defenses
+     * (block/parry) continue to resolve independently per target.
+     */
+    public static DamageResult resolve(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move            move,
+        HitComponent    component,
+        int             currentTick,
+        RandomSource    rng,
+        int             currentRound,
+        boolean         forceFullBlock,
+        boolean         requireFiredDefense,
+        boolean         aoeBypassesDodge,
+        ConnectedHitHook connectedHitHook
+    ) {
         if (component == null) throw new IllegalArgumentException("hit component is required");
         // Use ability-modified stats for all calculations
         CharacterStats acs = attacker.getEffectiveStats();
@@ -156,8 +179,10 @@ public final class DamageCalculator {
 
         // --- 0. Dodge roll (chance-based, no potency gate) ---
         // A live DODGE defense reacts to a scope-matching incoming attack with a
-        // dodgeChance% probability of avoiding it entirely. (Future AOE bypasses.)
-        if (component.isAvoidable() && defTimeline != null) {
+        // dodgeChance% probability of avoiding it entirely. AOE bypasses dodge:
+        // the documented intended rule is that an area-of-effect attack cannot be
+        // dodged (other defenses still resolve independently per target).
+        if (!aoeBypassesDodge && component.isAvoidable() && defTimeline != null) {
             ActionSegment dodgeSeg = defTimeline.activeDefenseAt(
                 currentTick, move, component, com.jjktbf.model.move.DefenseType.DODGE,
                 requireFiredDefense);

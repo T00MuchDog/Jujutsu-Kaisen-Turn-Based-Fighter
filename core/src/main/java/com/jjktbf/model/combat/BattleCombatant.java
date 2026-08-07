@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.IntPredicate;
 
 /**
@@ -40,6 +41,25 @@ import java.util.function.IntPredicate;
 public class BattleCombatant {
 
     private final Character character;
+
+    // --- Battle-instance identity (assigned by BattleState at creation) ---
+    /**
+     * Stable battle-scoped instance id. Distinguishes duplicate live instances
+     * of the same character definition (e.g. two summoned Divine Dogs). Assigned
+     * by {@link BattleState} when the combatant joins the battle; null only
+     * briefly for legacy construction paths that pre-date the team model.
+     */
+    private CombatantId instanceId;
+    /** The team this combatant belongs to. */
+    private BattleTeamId teamId;
+    /** Stable roster (initial fighters) / creation (summons) order within the team. */
+    private int rosterOrder;
+    /** Runtime role: FIGHTER (defeat contributes to team loss) or SUMMON. */
+    private CombatantRole role;
+    /** For summons: the combatant that summoned this one. Null for fighters. */
+    private CombatantId summonerId;
+    /** Lifecycle within the battle. */
+    private CombatantLifecycle lifecycle = CombatantLifecycle.ACTIVE;
 
     /**
      * Ability-modified stats. Used for all combat calculations instead of
@@ -781,6 +801,80 @@ public class BattleCombatant {
 
     public BattlePlan getPlan() {
         return plan;
+    }
+
+    // -------------------------------------------------------------------------
+    // Battle-instance identity (team/role/lifecycle)
+    // -------------------------------------------------------------------------
+    // These fields are assigned by BattleState when the combatant is created.
+    // They are read widely (resolver, abilities, events, UI) but written only
+    // through the package-private setters below so the BattleState remains the
+    // single owner of identity.
+
+    public CombatantId getInstanceId()            { return instanceId; }
+    public BattleTeamId getTeamId()                { return teamId; }
+    public int getRosterOrder()                    { return rosterOrder; }
+    public CombatantRole getRole()                 { return role; }
+    public CombatantId getSummonerId()             { return summonerId; }
+    public CombatantLifecycle getLifecycle()       { return lifecycle; }
+
+    public boolean isFighter()                     { return role == CombatantRole.FIGHTER; }
+    public boolean isSummon()                      { return role == CombatantRole.SUMMON; }
+    /** True while the combatant is still present in combat (not removed/defeated). */
+    public boolean isActive()                      { return lifecycle == CombatantLifecycle.ACTIVE; }
+    /** True once HP has hit 0 but before removal bookkeeping completes. */
+    public boolean isLifecycleDefeated()           { return lifecycle == CombatantLifecycle.DEFEATED; }
+    public boolean isRemoved()                     { return lifecycle == CombatantLifecycle.REMOVED; }
+
+    /** Is {@code other} on the same team as this combatant? */
+    public boolean isAlliedWith(BattleCombatant other) {
+        return other != null && teamId != null && teamId.equals(other.teamId);
+    }
+
+    void assignIdentity(
+        CombatantId instanceId,
+        BattleTeamId teamId,
+        int rosterOrder,
+        CombatantRole role,
+        CombatantId summonerId
+    ) {
+        if (this.instanceId != null || this.teamId != null || this.role != null) {
+            if (Objects.equals(this.instanceId, instanceId)
+                && Objects.equals(this.teamId, teamId)
+                && this.rosterOrder == rosterOrder
+                && this.role == role
+                && Objects.equals(this.summonerId, summonerId)) {
+                return;
+            }
+            throw new IllegalStateException("Combatant identity is already assigned");
+        }
+        if (rosterOrder < 0) {
+            throw new IllegalArgumentException("rosterOrder cannot be negative");
+        }
+        Objects.requireNonNull(instanceId, "instanceId");
+        Objects.requireNonNull(teamId, "teamId");
+        Objects.requireNonNull(role, "role");
+        if (role == CombatantRole.FIGHTER && summonerId != null) {
+            throw new IllegalArgumentException("A fighter cannot have a summoner");
+        }
+        if (role == CombatantRole.SUMMON && summonerId == null) {
+            throw new IllegalArgumentException("A summon must have a summoner");
+        }
+        this.instanceId = instanceId;
+        this.teamId = teamId;
+        this.rosterOrder = rosterOrder;
+        this.role = role;
+        this.summonerId = summonerId;
+    }
+
+    void markLifecycleDefeated() {
+        if (lifecycle == CombatantLifecycle.ACTIVE) {
+            lifecycle = CombatantLifecycle.DEFEATED;
+        }
+    }
+
+    void markRemoved() {
+        lifecycle = CombatantLifecycle.REMOVED;
     }
 
     // -------------------------------------------------------------------------

@@ -1,5 +1,7 @@
 package com.jjktbf.graphics.screens.editors;
 
+import com.jjktbf.model.character.CharacterData;
+import com.jjktbf.model.character.CharacterType;
 import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.MoveData;
@@ -214,6 +216,32 @@ class MoveEditorScreenTest {
     }
 
     @Test
+    void saveCopyPreservesSummonCharacterId() {
+        MoveData draft = new MoveData();
+        draft.tags = new ArrayList<>(List.of(MoveTag.UTILITY.name()));
+        draft.summonCharacterId = "000004";
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(draft);
+
+        assertEquals("000004", saved.summonCharacterId);
+    }
+
+    @Test
+    void summonReferenceMustResolveToAShikigamiDefinition() {
+        CharacterData sorcerer = character("000001", null);
+        CharacterData shikigami = character("000002", CharacterType.SHIKIGAMI.name());
+
+        assertNull(MoveEditorScreen.summonReferenceValidationError(
+            "000002", List.of(sorcerer, shikigami)));
+        assertEquals("Summon target \"Test\" must be a Shikigami.",
+            MoveEditorScreen.summonReferenceValidationError(
+                "000001", List.of(sorcerer, shikigami)));
+        assertEquals("Summon target 000003 does not exist.",
+            MoveEditorScreen.summonReferenceValidationError(
+                "000003", List.of(sorcerer, shikigami)));
+    }
+
+    @Test
     void retaggingUtilityBeforeSaveRestoresSelfEffects() {
         MoveData draft = moveWithAllSectionDetails();
 
@@ -308,6 +336,25 @@ class MoveEditorScreenTest {
         defense.defenseType = DefenseType.NONE.name();
         assertEquals("A Defensive move needs a defense type (Block, Parry, or Dodge) or a coded self effect.",
             MoveEditorScreen.categoryTagValidationError(defense));
+    }
+
+    @Test
+    void aoeAndFriendlyFireAreAttackTargetingTags() {
+        MoveData utility = new MoveData();
+        utility.tags = new ArrayList<>(List.of(
+            MoveTag.UTILITY.name(), MoveTag.AOE.name()));
+        assertEquals("Melee, Ranged, AOE, and Friendly Fire tags require Attack.",
+            MoveEditorScreen.categoryTagValidationError(utility));
+
+        MoveData attack = new MoveData();
+        attack.tags = new ArrayList<>(List.of(
+            MoveTag.ATTACK.name(), MoveTag.PHYSICAL.name(),
+            MoveTag.FRIENDLY_FIRE.name()));
+        assertEquals("Friendly Fire requires AOE.",
+            MoveEditorScreen.categoryTagValidationError(attack));
+
+        attack.tags.add(MoveTag.AOE.name());
+        assertNull(MoveEditorScreen.categoryTagValidationError(attack));
     }
 
     @Test
@@ -426,5 +473,13 @@ class MoveEditorScreenTest {
         effect.type = type;
         effect.magnitude = amount;
         return effect;
+    }
+
+    private static CharacterData character(String id, String type) {
+        CharacterData character = new CharacterData();
+        character.id = id;
+        character.name = "Test";
+        character.type = type;
+        return character;
     }
 }

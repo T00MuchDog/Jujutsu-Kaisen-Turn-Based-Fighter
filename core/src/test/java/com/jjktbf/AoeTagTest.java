@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AoeTagTest {
@@ -38,5 +39,13 @@ class AoeTagTest {
         Move restored = MoveData.fromMove(original).toMove();
         assertTrue(restored.isAoe());
         assertFalse(restored.isSingleTarget());
+    }
+
+    @Test
+    void friendlyFireCannotBeAuthoredWithoutAoe() {
+        assertThrows(IllegalStateException.class, () -> new Move.Builder("INVALID_FF")
+            .category(MoveCategory.PHYSICAL)
+            .tags(Set.of(MoveTag.PHYSICAL, MoveTag.ATTACK, MoveTag.FRIENDLY_FIRE))
+            .build());
     }
 }

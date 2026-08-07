@@ -25,6 +25,9 @@ public class CombatEvent {
         MOVE_PARRIED,        // defender's PARRY negated the attack (attacker may be staggered)
         MOVE_STUNNED,       // interrupt or stun tag removed this action segment
 
+        // Targeting
+        TARGET_RETARGETED,  // a single-target move's invalid target was retargeted at fire time
+
         // Damage
         DAMAGE_DEALT,
         DAMAGE_IGNORED,
@@ -41,6 +44,11 @@ public class CombatEvent {
         // Status
         STATUS_APPLIED,
         STATUS_EXPIRED,
+
+        // Combatant lifecycle
+        COMBATANT_SUMMONED,
+        COMBATANT_DEFEATED,
+        COMBATANT_REMOVED,
 
         // BFS
         BFS_EXPIRED,

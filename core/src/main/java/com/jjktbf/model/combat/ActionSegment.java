@@ -39,11 +39,29 @@ public class ActionSegment {
      */
     private final int    actualCeCost;
 
+    /**
+     * The selected target combatant instance id for a hostile single-target move,
+     * or {@code null} for self/AOE/no-target moves. An incomplete target is
+     * permitted while editing, but locking/submission is rejected if a required
+     * target is missing (see {@link BattlePlan#requiresTarget(Move)}).
+     *
+     * <p>Once a move has fired, the resolver fixes the target: if the selected
+     * target is invalid (defeated/removed) it is deterministically retargeted to
+     * the first living enemy in stable roster order. This field holds the
+     * <em>planned</em> target; the resolver reads it at fire time.
+     */
+    private CombatantId target;
+
     public ActionSegment(Move move, int startTick, int actualCeCost) {
+        this(move, startTick, actualCeCost, null);
+    }
+
+    public ActionSegment(Move move, int startTick, int actualCeCost, CombatantId target) {
         this.move          = move;
         this.startTick     = startTick;
         this.fireTick      = startTick + move.getUnleashPoint() - 1;
         this.actualCeCost  = actualCeCost;
+        this.target        = target;
         this.stunned       = false;
         this.fired         = false;
     }
@@ -60,6 +78,13 @@ public class ActionSegment {
     public int     getActualCeCost()  { return actualCeCost; }
     public boolean isStunned()        { return stunned; }
     public boolean isInstant()        { return move.getUnleashPoint() == 1; }
+
+    /** The planned single-target combatant, or {@code null}. */
+    public CombatantId getTarget()    { return target; }
+    /** Set/replace the planned target (e.g. via the planning UI's target menu). */
+    public void        setTarget(CombatantId target) { this.target = target; }
+    /** True when this segment needs an explicit single-enemy target to be valid. */
+    public boolean     needsTarget()  { return BattlePlan.requiresTarget(move); }
 
     /** True once this segment's move has actually resolved this round. */
     public boolean hasFired()         { return fired; }

@@ -35,6 +35,24 @@ public class CharacterData {
     public String spriteAsset;
 
     /**
+     * Stored {@link CharacterType} name (e.g. "SORCERER", "SHIKIGAMI").
+     * A missing/blank value resolves to {@link CharacterType#SORCERER} (the
+     * legacy default) via {@link CharacterType#fromStoredValue}. An unknown
+     * non-blank value fails loudly at load time.
+     */
+    public String type;
+
+    /**
+     * Whether this definition can be picked directly from a fighter roster
+     * (local selection, multiplayer summaries, challenge creation/acceptance).
+     * Legacy sorcerers default to selectable; shikigami default to not
+     * selectable (they are summoned, not chosen) unless an editor explicitly
+     * flips this on. {@code null} resolves to the type-specific default via
+     * {@link #effectiveSelectable()}.
+     */
+    public Boolean directlySelectable;
+
+    /**
      * Human-readable innate technique name (e.g. "Shrine", "Blood Manipulation").
      * Null means no innate technique.
      * Matched case-insensitively against Move.requiredTechniqueId when loading moves.
@@ -87,6 +105,27 @@ public class CharacterData {
     // -------------------------------------------------------------------------
     // Derived helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * The resolved {@link CharacterType}. A missing/blank {@link #type} field
+     * (legacy content) resolves to {@link CharacterType#SORCERER}; an unknown
+     * non-blank value fails loudly.
+     */
+    public CharacterType effectiveType() {
+        return CharacterType.fromStoredValue(type);
+    }
+
+    /**
+     * The resolved direct-selectability. A {@code null} {@link #directlySelectable}
+     * resolves to the type-specific default: sorcerers are selectable, shikigami
+     * are not. An explicit value always wins.
+     */
+    public boolean effectiveSelectable() {
+        if (directlySelectable != null) {
+            return directlySelectable;
+        }
+        return effectiveType() != CharacterType.SHIKIGAMI;
+    }
 
     public CharacterStats toCharacterStats() {
         return new CharacterStats.Builder()
@@ -170,6 +209,19 @@ public class CharacterData {
                 }
         }
 
+        return constructTypedCharacter(stats, moves, abilities);
+    }
+
+    /**
+     * Build the correct concrete {@link Character} subclass for this definition's
+     * {@link #effectiveType()}. Centralized so {@link #toCharacter} and the
+     * server-side {@code ContentCatalog} build the same subclass for a given type.
+     */
+    public Character constructTypedCharacter(CharacterStats stats, List<Move> moves, List<Ability> abilities) {
+        CharacterType resolved = effectiveType();
+        if (resolved == CharacterType.SHIKIGAMI) {
+            return new ShikigamiCharacter(id, name, stats, innateTechniqueName, moves, abilities, hasWeapon);
+        }
         return new SorcererCharacter(id, name, stats, innateTechniqueName, moves, abilities, hasWeapon);
     }
 
@@ -260,6 +312,12 @@ public class CharacterData {
         CharacterData d = new CharacterData();
         d.id                    = character.getId();
         d.name                  = character.getName();
+        // The domain Character carries its type but not the authoring-only
+        // directlySelectable flag; leave the DTO flag null so the type default
+        // applies (sorcerers selectable, shikigami not). The editor sets the
+        // explicit value when an author overrides the default.
+        d.type                  = character.getType() == null
+            ? null : character.getType().name();
         d.innateTechniqueName   = character.getInnateTechniqueName();
         d.hasWeapon             = character.hasWeapon();
 

@@ -130,7 +130,11 @@ public class CharacterSelectScreen implements Screen {
             abilityRepo.load();
             techniqueRepo.load();
             charRepo.load();
-            characters = charRepo.getAll();
+            // Only directly-selectable definitions appear in the fighter roster.
+            // Hidden definitions (e.g. summon-only shikigami) are filtered out.
+            characters = charRepo.getAll().stream()
+                .filter(CharacterData::effectiveSelectable)
+                .toList();
             if (characters.isEmpty()) {
                 loadError = "No characters found. Use Character Editor to create one.";
             }

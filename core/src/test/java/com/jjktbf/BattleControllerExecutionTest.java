@@ -76,6 +76,9 @@ class BattleControllerExecutionTest {
 
         @Override
         public BattlePlan promptBattlePlan(BattleCombatant combatant, BattleCombatant opponent) {
+            plan.allSegments().stream()
+                .filter(segment -> segment.needsTarget())
+                .forEach(segment -> segment.setTarget(opponent.getInstanceId()));
             return plan;
         }
 

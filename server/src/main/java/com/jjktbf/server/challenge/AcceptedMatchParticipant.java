@@ -1,6 +1,6 @@
 package com.jjktbf.server.challenge;
 
-import com.jjktbf.model.character.SorcererCharacter;
+import com.jjktbf.model.character.Character;
 import com.jjktbf.multiplayer.protocol.PlayerSide;
 
 import java.util.Objects;
@@ -11,7 +11,7 @@ public record AcceptedMatchParticipant(
     String displayName,
     PlayerSide side,
     String characterId,
-    SorcererCharacter character
+    Character character
 ) {
     public AcceptedMatchParticipant {
         Objects.requireNonNull(playerId, "playerId");

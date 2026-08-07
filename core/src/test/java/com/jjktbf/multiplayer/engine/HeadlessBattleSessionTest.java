@@ -1,12 +1,15 @@
 package com.jjktbf.multiplayer.engine;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.Ability;
+import com.jjktbf.model.character.AbilityConditionData;
 import com.jjktbf.model.character.AbilityConditionType;
 import com.jjktbf.model.character.AbilityData;
+import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectType;
+import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterStats;
+import com.jjktbf.model.character.ShikigamiCharacter;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.move.HitComponent;
@@ -29,6 +32,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -379,6 +383,147 @@ class HeadlessBattleSessionTest {
         PlayerState terminalOpponentView = session.snapshotFor("player-2")
             .player(PlayerSide.PLAYER_ONE).orElseThrow();
         assertTrue(terminalOpponentView.character().plan().queuedSegments().isEmpty());
+    }
+
+    @Test
+    void multiActorPlanIsAtomicAndConcealedAcrossTheWholeRoster() {
+        Move attack = physicalAttack("TEAM_ATTACK", 10, true);
+        HeadlessBattleSession session = session(1321L, attack, attack);
+        String allyId = session.addFighterForTesting(
+            "player-1", character("character-1b", "Ally", attack));
+        String enemyAllyId = session.addFighterForTesting(
+            "player-2", character("character-2b", "Enemy Ally", attack));
+        MatchState planning = session.snapshot();
+        String playerId = planning.player(PlayerSide.PLAYER_ONE).orElseThrow()
+            .character().instanceId();
+        String enemyId = planning.player(PlayerSide.PLAYER_TWO).orElseThrow()
+            .character().instanceId();
+
+        CommandResult first = session.applyCommand(
+            "player-1",
+            command(
+                session,
+                "team-plan",
+                new PlanPlacement(attack.getId(), 1, playerId, enemyId),
+                new PlanPlacement(attack.getId(), 1, allyId, enemyAllyId)
+            )
+        );
+
+        assertTrue(first.accepted());
+        PlayerState ownerView = session.snapshotFor("player-1")
+            .player(PlayerSide.PLAYER_ONE).orElseThrow();
+        PlayerState opponentView = session.snapshotFor("player-2")
+            .player(PlayerSide.PLAYER_ONE).orElseThrow();
+        assertEquals(2, ownerView.combatants().size());
+        assertTrue(ownerView.combatants().stream().allMatch(combatant ->
+            combatant.plan().queuedSegments().size() == 1));
+        assertTrue(opponentView.planSubmitted());
+        assertTrue(opponentView.combatants().stream().allMatch(combatant ->
+            combatant.plan().queuedSegments().isEmpty()
+                && combatant.plan().apUsed() == 0));
+
+        CommandResult resolved = session.applyCommand(
+            "player-2",
+            ActionCommand.submitPlan(
+                "empty-team-plan", "match-1", session.getStateVersion(), List.of())
+        );
+
+        assertTrue(resolved.accepted());
+        assertEquals(4, resolved.state().roundStartCharacterStates().size());
+        PlayerState resolvedPlayer = resolved.state()
+            .player(PlayerSide.PLAYER_ONE).orElseThrow();
+        assertTrue(resolvedPlayer.combatants().stream().allMatch(combatant ->
+            combatant.plan().resolvedSegments().size() == 1));
+        assertEquals(Set.of(playerId, allyId), resolvedPlayer.combatants().stream()
+            .flatMap(combatant -> combatant.plan().resolvedSegments().stream())
+            .map(segment -> segment.actorId())
+            .collect(java.util.stream.Collectors.toSet()));
+        assertEquals(Set.of(playerId, allyId), resolved.events().stream()
+            .filter(event -> event.type() == BattleEventType.MOVE_FIRED)
+            .map(event -> event.sourceInstanceId())
+            .collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Test
+    void forgedTeamActorOrTargetRejectsTheEntirePlanWithoutMutation() {
+        Move attack = physicalAttack("OWNERSHIP_ATTACK", 10, true);
+        HeadlessBattleSession session = session(1322L, attack, attack);
+        String allyId = session.addFighterForTesting(
+            "player-1", character("character-1b", "Ally", attack));
+        String enemyAllyId = session.addFighterForTesting(
+            "player-2", character("character-2b", "Enemy Ally", attack));
+        MatchState before = session.snapshot();
+        String playerId = before.player(PlayerSide.PLAYER_ONE).orElseThrow()
+            .character().instanceId();
+        String enemyId = before.player(PlayerSide.PLAYER_TWO).orElseThrow()
+            .character().instanceId();
+
+        CommandResult invalidTarget = session.applyCommand(
+            "player-1",
+            command(
+                session,
+                "forged-target",
+                new PlanPlacement(attack.getId(), 1, playerId, enemyId),
+                new PlanPlacement(attack.getId(), 1, allyId, playerId)
+            )
+        );
+        assertFalse(invalidTarget.accepted());
+        assertEquals("INVALID_TARGET", invalidTarget.error().code());
+        assertEquals(before, session.snapshot());
+
+        CommandResult invalidActor = session.applyCommand(
+            "player-1",
+            command(
+                session,
+                "forged-actor",
+                new PlanPlacement(attack.getId(), 1, enemyAllyId, enemyId)
+            )
+        );
+        assertFalse(invalidActor.accepted());
+        assertEquals("INVALID_ACTOR", invalidActor.error().code());
+        assertEquals(before, session.snapshot());
+    }
+
+    @Test
+    void constructorLookupMaterializesRoundStartSummonsInInitialSnapshot() {
+        Move attack = physicalAttack("INITIAL_SUMMON_ATTACK", 1, true);
+        AbilityConditionData condition = AbilityConditionType.EVERY_N_ROUNDS.createDefault();
+        AbilityEffectData summon = AbilityEffectType.SUMMON_CHARACTER.createDefault();
+        summon.characterId = "DOG";
+        AbilityData abilityData = new AbilityData();
+        abilityData.id = "INITIAL_SUMMON";
+        abilityData.name = "Initial Summon";
+        abilityData.category = "ACTIVE";
+        abilityData.sourceType = "CHARACTER";
+        abilityData.activationCondition = condition;
+        abilityData.effects = List.of(summon);
+        CharacterStats stats = new CharacterStats.Builder().build();
+        Character summoner = new SorcererCharacter(
+            "summoner", "Summoner", stats, null, List.of(attack),
+            List.of(new Ability(abilityData)));
+        Character opponent = character("opponent", "Opponent", attack);
+        ShikigamiCharacter dog = new ShikigamiCharacter(
+            "dog", "Dog", stats, null, List.of(attack), List.of(), false);
+
+        HeadlessBattleSession session = new HeadlessBattleSession(
+            "match-1",
+            new MatchParticipant("player-1", "Player One", summoner, PlayerSide.PLAYER_ONE),
+            new MatchParticipant("player-2", "Player Two", opponent, PlayerSide.PLAYER_TWO),
+            1323L,
+            FIXED_CLOCK,
+            id -> "DOG".equals(id) ? Optional.of(dog) : Optional.empty()
+        );
+        MatchState initial = session.snapshot();
+        PlayerState player = initial.player(PlayerSide.PLAYER_ONE).orElseThrow();
+
+        assertEquals(2, player.combatants().size());
+        assertEquals("SHIKIGAMI", player.combatants().get(1).characterType());
+        assertEquals("SUMMON", player.combatants().get(1).role());
+        assertEquals(player.character().instanceId(), player.combatants().get(1).summonerId());
+        assertEquals(3, initial.roundStartCharacterStates().size());
+        assertTrue(initial.recentEvents().stream().anyMatch(event ->
+            event.type() == BattleEventType.COMBATANT_SUMMONED
+                && player.combatants().get(1).instanceId().equals(event.targetInstanceId())));
     }
 
     @Test
@@ -763,6 +908,13 @@ class HeadlessBattleSessionTest {
             maxRounds,
             FIXED_CLOCK
         );
+    }
+
+    private static Character character(String id, String name, Move move) {
+        CharacterStats stats = new CharacterStats.Builder()
+            .cursedEnergyEfficiency(160)
+            .build();
+        return new SorcererCharacter(id, name, stats, null, List.of(move));
     }
 
     private static Move physicalAttack(String id, int power, boolean neverMiss) {

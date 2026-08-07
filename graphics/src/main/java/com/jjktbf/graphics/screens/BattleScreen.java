@@ -23,6 +23,7 @@ import com.jjktbf.graphics.ui.MiraclesMeter;
 import com.jjktbf.graphics.ui.RatioMeter;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 import com.jjktbf.graphics.ui.battle.PlanningPanel;
+import com.jjktbf.graphics.ui.battle.TeamPlanningPanel;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.coded.CodedAbilityState;
 import com.jjktbf.model.character.coded.MiraclesAbility;
@@ -30,8 +31,10 @@ import com.jjktbf.model.character.coded.RatioAbility;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
+import com.jjktbf.model.combat.BattleTeamId;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.combat.CombatEvent;
+import com.jjktbf.model.combat.TeamBattlePlan;
 import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
@@ -231,6 +234,7 @@ public class BattleScreen implements Screen, BattleView {
 
     // ── Planning panel (two-board timeline UI) ─────────────────────────────────
     private PlanningPanel planningPanel;
+    private TeamPlanningPanel teamPlanningPanel;
 
     // ── Shared render state (written by controller thread, read by render) ────
     private volatile BattleCombatant renderPlayer;
@@ -355,6 +359,7 @@ public class BattleScreen implements Screen, BattleView {
         Gdx.input.setInputProcessor(null);
         logScrollInputAttached = false;
         planningPanel = null;
+        teamPlanningPanel = null;
         logLines.clear();
         pendingTypingQueue.clear();
         typingLine = null;
@@ -451,6 +456,7 @@ public class BattleScreen implements Screen, BattleView {
         // main menu's own processor takes over cleanly on the next screen.
         Gdx.app.postRunnable(() -> {
             planningPanel = null;
+            teamPlanningPanel = null;
             Gdx.input.setInputProcessor(null);
             game.showMainMenu();
         });
@@ -459,6 +465,7 @@ public class BattleScreen implements Screen, BattleView {
     @Override public void resize(int w, int h) {
         batch.getProjectionMatrix().setToOrtho2D(0, 0, w, h);
         if (planningPanel != null) planningPanel.resize(w, h);
+        if (teamPlanningPanel != null) teamPlanningPanel.resize(w, h);
         layoutExecutionUi(w, h);
     }
     @Override public void pause()  {}
@@ -487,7 +494,7 @@ public class BattleScreen implements Screen, BattleView {
         // The new two-board PlanningPanel owns its own drag input processor and
         // Lock In button — skip the legacy click-to-toggle / ENTER flow entirely
         // while it is active.
-        if (planningPanel != null) return;
+        if (planningPanel != null || teamPlanningPanel != null) return;
 
         if (awaitingNextRound) {
             // Install the wheel listener for the duration of this window so the
@@ -549,6 +556,10 @@ public class BattleScreen implements Screen, BattleView {
         // made both the board and the move cards compete for attention.
         if (planningPanel != null) {
             planningPanel.draw(batch, assets.fontSmall, assets.fontMedium, assets.fontLarge);
+            return;
+        }
+        if (teamPlanningPanel != null) {
+            teamPlanningPanel.draw(batch, assets.fontSmall, assets.fontMedium, assets.fontLarge);
             return;
         }
 
@@ -1112,6 +1123,86 @@ public class BattleScreen implements Screen, BattleView {
         return result;
     }
 
+    @Override
+    public TeamBattlePlan promptTeamBattlePlan(
+        List<BattleCombatant> controlled,
+        BattleState state
+    ) {
+        int gridLength = TeamBattlePlan.gridLengthForRound(state);
+        TeamBattlePlan empty = emptyTeamPlan(controlled, state, gridLength);
+        if (controlled == null || controlled.isEmpty()
+            || abortRequested || !isCurrentLocalBattleThread()) {
+            return empty;
+        }
+
+        inputConfirmed = false;
+        postLocal(() -> {
+            renderPlayer = state.getPlayerCombatant();
+            renderEnemy = state.getEnemyCombatant();
+            syncLocalHpFromModel();
+            executionUiActive = true;
+            teamPlanningPanel = new TeamPlanningPanel(
+                gridLength,
+                controlled,
+                state,
+                assets.battleUi,
+                Gdx.graphics.getWidth(),
+                Gdx.graphics.getHeight());
+            teamPlanningPanel.setSoundPlayer(game.audio()::play);
+            teamPlanningPanel.setOnConfirm(() -> {
+                game.audio().play(SoundCue.UI_PLAN_LOCK);
+                inputConfirmed = true;
+            });
+            Gdx.input.setInputProcessor(teamPlanningPanel.inputProcessor());
+            updatePanels();
+            inputConfirmed = false;
+        });
+
+        while (!inputConfirmed && !abortRequested && isCurrentLocalBattleThread()) {
+            sleepMs(16);
+        }
+        if (abortRequested || !isCurrentLocalBattleThread()) return empty;
+
+        java.util.concurrent.atomic.AtomicReference<TeamBattlePlan> holder =
+            new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.CountDownLatch panelClosed = new java.util.concurrent.CountDownLatch(1);
+        Thread run = Thread.currentThread();
+        Gdx.app.postRunnable(() -> {
+            if (mode == BattleMode.LOCAL
+                && localBattleThread == run
+                && !abortRequested
+                && game.getScreen() == this) {
+                holder.set(teamPlanningPanel == null ? null : teamPlanningPanel.getTeamPlan());
+                Gdx.input.setInputProcessor(null);
+                teamPlanningPanel = null;
+            }
+            panelClosed.countDown();
+        });
+        try {
+            panelClosed.await();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        }
+        return holder.get() == null ? empty : holder.get();
+    }
+
+    private static TeamBattlePlan emptyTeamPlan(
+        List<BattleCombatant> controlled,
+        BattleState state,
+        int gridLength
+    ) {
+        com.jjktbf.model.combat.BattleTeamId teamId = controlled == null || controlled.isEmpty()
+            ? state.playerTeam().id() : controlled.get(0).getTeamId();
+        TeamBattlePlan plan = new TeamBattlePlan(teamId, gridLength);
+        if (controlled != null) {
+            for (BattleCombatant combatant : controlled) {
+                plan.put(combatant.getInstanceId(), new BattlePlan(
+                    combatant.getMaxApBar(), combatant.getCurrentCe(), gridLength));
+            }
+        }
+        return plan;
+    }
+
 
 
     @Override
@@ -1230,7 +1321,7 @@ public class BattleScreen implements Screen, BattleView {
         if (!isCurrentLocalBattleThread()) return;
         SoundCue resultCue = winner == null
             ? SoundCue.BATTLE_DRAW
-            : winner == state.getPlayerCombatant()
+            : BattleTeamId.PLAYER.equals(state.getWinnerTeam())
                 ? SoundCue.BATTLE_VICTORY : SoundCue.BATTLE_DEFEAT;
         postLocal(() -> {
             if (winner == null) {
@@ -1321,7 +1412,7 @@ public class BattleScreen implements Screen, BattleView {
             onlinePlayerMiracles = findMiraclesState(local.character().codedAbilities());
             onlinePlayerRatio = findRatioState(local.character().codedAbilities());
         }
-        initOnlineMoves(local.character());
+        initOnlineMoves(local, opponent);
         initPanels();
 
         if (state.phase() == BattlePhase.PLANNING && !isTerminal(state.status())) {
@@ -1346,13 +1437,14 @@ public class BattleScreen implements Screen, BattleView {
             logOnlineEvents(state.recentEvents());
 
             if (local.planSubmitted()) {
-                if (planningPanel != null) planningPanel.lock();
+                ensureOnlinePlanner(state.roundNumber(), local, opponent);
+                if (teamPlanningPanel != null) teamPlanningPanel.lock();
             } else {
-                if (planningPanel != null && onlinePlanningRound == state.roundNumber()
+                if (teamPlanningPanel != null && onlinePlanningRound == state.roundNumber()
                     && !onlineCommandPending) {
-                    planningPanel.unlock();
+                    teamPlanningPanel.unlock();
                 }
-                ensureOnlinePlanner(state.roundNumber(), local.character());
+                ensureOnlinePlanner(state.roundNumber(), local, opponent);
             }
             return;
         }
@@ -1367,8 +1459,12 @@ public class BattleScreen implements Screen, BattleView {
         updatePanels();
     }
 
-    private void ensureOnlinePlanner(int roundNumber, CharacterState character) {
-        if (onlinePlanningRound == roundNumber && planningPanel != null) return;
+    private void ensureOnlinePlanner(
+        int roundNumber,
+        PlayerState local,
+        PlayerState opponent
+    ) {
+        if (onlinePlanningRound == roundNumber && teamPlanningPanel != null) return;
         if (multiplayerState == null
             || multiplayerState.status() != MatchStatus.ACTIVE
             || multiplayerConnectionState != MultiplayerSession.ConnectionState.CONNECTED
@@ -1376,51 +1472,74 @@ public class BattleScreen implements Screen, BattleView {
             return;
         }
 
-        Map<String, Integer> ceCosts = new HashMap<>();
-        List<Move> availableMoves = new ArrayList<>();
-        for (MoveState moveState : character.knownMoves()) {
-            Move move = onlineMoves.get(moveState.moveId());
-            if (move != null && moveState.available()) {
-                availableMoves.add(move);
-                ceCosts.put(move.getId(), moveState.effectiveCeCost());
-            }
-        }
-
-        int apBudget = character.plan() == null
-            ? character.maxAp() : character.plan().apBudget();
-        int ceBudget = character.plan() == null
-            ? character.currentCe() : character.plan().ceBudget();
-        // Battle-wide grid length from the stronger fighter's AP tier; the
-        // server validates against the same value (both players' maxAp are in
-        // the MatchState, never concealed).
         int gridLength = onlineBattleGridLength();
-        planningPanel = new PlanningPanel(
+        List<PlanningPanel.TargetOption> targets = opponent.combatants().stream()
+            .filter(BattleScreen::isActiveCombatant)
+            .map(combatant -> new PlanningPanel.TargetOption(
+                combatant.instanceId(),
+                combatant.name() + " #" + (combatant.rosterOrder() + 1)))
+            .toList();
+        List<TeamPlanningPanel.PageSpec> pages = new ArrayList<>();
+        for (CharacterState character : local.combatants()) {
+            if (!isActiveCombatant(character)) continue;
+            Map<String, Integer> ceCosts = new HashMap<>();
+            List<Move> availableMoves = new ArrayList<>();
+            for (MoveState moveState : character.knownMoves()) {
+                Move move = onlineMoves.get(moveState.moveId());
+                if (move != null && moveState.available()) {
+                    availableMoves.add(move);
+                    ceCosts.put(move.getId(), moveState.effectiveCeCost());
+                }
+            }
+            int apBudget = character.plan() == null
+                ? character.maxAp() : character.plan().apBudget();
+            int ceBudget = character.plan() == null
+                ? character.currentCe() : character.plan().ceBudget();
+            pages.add(new TeamPlanningPanel.PageSpec(
+                character.instanceId(),
+                character.name(),
+                availableMoves,
+                ceCosts,
+                apBudget,
+                ceBudget,
+                findMiraclesState(character.codedAbilities()),
+                targets,
+                character.plan()));
+        }
+        if (pages.isEmpty()) return;
+        teamPlanningPanel = new TeamPlanningPanel(
+            BattleTeamId.PLAYER,
             gridLength,
-            availableMoves,
-            ceCosts,
-            apBudget,
-            ceBudget,
-            findMiraclesState(character.codedAbilities()),
+            pages,
             assets.battleUi,
             Gdx.graphics.getWidth(),
             Gdx.graphics.getHeight()
         );
-        planningPanel.setSoundPlayer(game.audio()::play);
-        planningPanel.setOnConfirm(this::submitOnlinePlan);
-        Gdx.input.setInputProcessor(planningPanel.inputProcessor());
+        teamPlanningPanel.setSoundPlayer(game.audio()::play);
+        teamPlanningPanel.setOnConfirm(this::submitOnlinePlan);
+        Gdx.input.setInputProcessor(teamPlanningPanel.inputProcessor());
         onlinePlanningRound = roundNumber;
     }
 
-    private void initOnlineMoves(CharacterState character) {
+    private void initOnlineMoves(PlayerState... players) {
         Map<String, Move> converted = new HashMap<>();
-        for (MoveState state : character.knownMoves()) {
-            try {
-                converted.put(state.moveId(), toDisplayMove(state));
-            } catch (RuntimeException failure) {
-                addLogLine("Could not display move " + state.name() + ".");
+        for (PlayerState player : players) {
+            if (player == null) continue;
+            for (CharacterState character : player.combatants()) {
+                for (MoveState state : character.knownMoves()) {
+                    try {
+                        converted.putIfAbsent(state.moveId(), toDisplayMove(state));
+                    } catch (RuntimeException failure) {
+                        addLogLine("Could not display move " + state.name() + ".");
+                    }
+                }
             }
         }
         onlineMoves = Map.copyOf(converted);
+    }
+
+    private static boolean isActiveCombatant(CharacterState combatant) {
+        return combatant != null && "ACTIVE".equals(combatant.lifecycle());
     }
 
     static Move toDisplayMove(MoveState state) {
@@ -1499,15 +1618,15 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     private void submitOnlinePlan() {
-        if (!canSubmitOnlinePlan() || planningPanel == null) {
-            if (planningPanel != null) planningPanel.unlock();
+        if (!canSubmitOnlinePlan() || teamPlanningPanel == null) {
+            if (teamPlanningPanel != null) teamPlanningPanel.unlock();
             game.audio().play(SoundCue.UI_DENIED);
             return;
         }
         MultiplayerMatchService.PlanSubmission submission =
-            multiplayerMatchService.submitPlan(planningPanel.getPlacements());
+            multiplayerMatchService.submitPlan(teamPlanningPanel.getPlacements());
         if (!submission.sent()) {
-            planningPanel.unlock();
+            teamPlanningPanel.unlock();
             game.audio().play(SoundCue.UI_DENIED);
             addLogLine(submissionMessage(submission.status()));
             return;
@@ -1622,7 +1741,12 @@ public class BattleScreen implements Screen, BattleView {
     private void applyPlaybackEvent(BattleEventState event) {
         Move unleashedMove = null;
         Integer value = event.value();
-        if (value != null && value > 0 && event.type() == BattleEventType.DAMAGE_DEALT) {
+        boolean primaryTarget = isPrimaryOnlineCombatant(
+            event.targetSide(), event.targetInstanceId());
+        boolean primarySource = isPrimaryOnlineCombatant(
+            event.sourceSide(), event.sourceInstanceId());
+        if (primaryTarget && value != null && value > 0
+            && event.type() == BattleEventType.DAMAGE_DEALT) {
             if (event.targetSide() == multiplayerSetup.playerSide()) {
                 onlinePlayerHp = Math.max(0, onlinePlayerHp - value);
                 flashDamageSprite(true);
@@ -1630,7 +1754,8 @@ public class BattleScreen implements Screen, BattleView {
                 onlineEnemyHp = Math.max(0, onlineEnemyHp - value);
                 flashDamageSprite(false);
             }
-        } else if (value != null && event.type() == BattleEventType.HP_RESTORED) {
+        } else if (primaryTarget && value != null
+            && event.type() == BattleEventType.HP_RESTORED) {
             // The server reports the already-capped amount. A following max-HP
             // event may establish the cap used during deferred round-end work.
             if (event.targetSide() == multiplayerSetup.playerSide()) {
@@ -1638,7 +1763,8 @@ public class BattleScreen implements Screen, BattleView {
             } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
                 onlineEnemyHp += value;
             }
-        } else if (value != null && event.type() == BattleEventType.MAX_HP_CHANGED) {
+        } else if (primaryTarget && value != null
+            && event.type() == BattleEventType.MAX_HP_CHANGED) {
             if (event.targetSide() == multiplayerSetup.playerSide()) {
                 onlinePlayerMaxHp = Math.max(1, value);
                 onlinePlayerHp = Math.min(onlinePlayerHp, onlinePlayerMaxHp);
@@ -1646,7 +1772,8 @@ public class BattleScreen implements Screen, BattleView {
                 onlineEnemyMaxHp = Math.max(1, value);
                 onlineEnemyHp = Math.min(onlineEnemyHp, onlineEnemyMaxHp);
             }
-        } else if (value != null && event.type() == BattleEventType.MAX_CE_CHANGED) {
+        } else if (primaryTarget && value != null
+            && event.type() == BattleEventType.MAX_CE_CHANGED) {
             if (event.targetSide() == multiplayerSetup.playerSide()) {
                 onlinePlayerMaxCe = Math.max(0, value);
                 onlinePlayerCe = Math.min(onlinePlayerCe, onlinePlayerMaxCe);
@@ -1654,26 +1781,29 @@ public class BattleScreen implements Screen, BattleView {
                 onlineEnemyMaxCe = Math.max(0, value);
                 onlineEnemyCe = Math.min(onlineEnemyCe, onlineEnemyMaxCe);
             }
-        } else if (value != null && event.type() == BattleEventType.CE_DRAINED) {
+        } else if (value != null && event.type() == BattleEventType.CE_DRAINED
+            && (event.targetSide() != null ? primaryTarget : primarySource)) {
             drainPlaybackCe(
                 event.targetSide() != null ? event.targetSide() : event.sourceSide(), value);
-        } else if (value != null && event.type() == BattleEventType.CE_RESTORED) {
+        } else if (value != null && event.type() == BattleEventType.CE_RESTORED
+            && (event.targetSide() != null ? primaryTarget : primarySource)) {
             restorePlaybackCe(
                 event.targetSide() != null ? event.targetSide() : event.sourceSide(), value);
         }
 
         CodedAbilityState codedAbilityState = event.codedAbilityState();
-        if (event.sourceSide() == multiplayerSetup.playerSide()
+        if (primarySource && event.sourceSide() == multiplayerSetup.playerSide()
             && codedAbilityState != null
             && MiraclesAbility.KEY.equals(codedAbilityState.key())) {
             onlinePlayerMiracles = codedAbilityState;
-        } else if (event.sourceSide() == multiplayerSetup.playerSide()
+        } else if (primarySource && event.sourceSide() == multiplayerSetup.playerSide()
             && codedAbilityState != null
             && RatioAbility.KEY.equals(codedAbilityState.key())) {
             onlinePlayerRatio = codedAbilityState;
         }
 
-        if (event.type() == BattleEventType.MOVE_FIRED && event.moveId() != null) {
+        if (primarySource && event.type() == BattleEventType.MOVE_FIRED
+            && event.moveId() != null) {
             unleashedMove = findOnlineMove(event.sourceSide(), event.moveId());
             if (unleashedMove != null) playMoveUnleashAnimation(unleashedMove);
         }
@@ -1755,12 +1885,14 @@ public class BattleScreen implements Screen, BattleView {
         PlayerState source = sourceSide == multiplayerSetup.playerSide()
             ? onlinePlayer : onlineEnemy;
         if (source != null) {
-            for (MoveState state : source.character().knownMoves()) {
-                if (moveId.equals(state.moveId())) {
-                    try {
-                        return toDisplayMove(state);
-                    } catch (RuntimeException ignored) {
-                        return null;
+            for (CharacterState combatant : source.combatants()) {
+                for (MoveState state : combatant.knownMoves()) {
+                    if (moveId.equals(state.moveId())) {
+                        try {
+                            return toDisplayMove(state);
+                        } catch (RuntimeException ignored) {
+                            return null;
+                        }
                     }
                 }
             }
@@ -1834,6 +1966,7 @@ public class BattleScreen implements Screen, BattleView {
 
     private void closePlanningPanel() {
         planningPanel = null;
+        teamPlanningPanel = null;
         Gdx.input.setInputProcessor(null);
     }
 
@@ -1891,11 +2024,20 @@ public class BattleScreen implements Screen, BattleView {
     private static List<ActionSegmentState> onlineSegments(MatchState state) {
         List<ActionSegmentState> segments = new ArrayList<>();
         for (PlayerState player : state.players()) {
-            if (player.character() == null || player.character().plan() == null) continue;
-            segments.addAll(player.character().plan().queuedSegments());
-            segments.addAll(player.character().plan().resolvedSegments());
+            for (CharacterState combatant : player.combatants()) {
+                if (combatant.plan() == null) continue;
+                segments.addAll(combatant.plan().queuedSegments());
+                segments.addAll(combatant.plan().resolvedSegments());
+            }
         }
         return segments;
+    }
+
+    private boolean isPrimaryOnlineCombatant(PlayerSide side, String instanceId) {
+        if (side == null) return false;
+        PlayerState player = side == multiplayerSetup.playerSide() ? onlinePlayer : onlineEnemy;
+        CharacterState primary = player == null ? null : player.character();
+        return primary != null && (instanceId == null || instanceId.equals(primary.instanceId()));
     }
 
     private static List<Integer> onlineActionTicks(MatchState state) {
@@ -1928,13 +2070,14 @@ public class BattleScreen implements Screen, BattleView {
      */
     private int onlineBattleGridLength() {
         int strongestAp = 0;
-        if (multiplayerState != null && multiplayerSetup != null) {
-            strongestAp = Math.max(strongestAp,
-                multiplayerState.player(multiplayerSetup.playerSide())
-                    .map(ps -> ps.character().maxAp()).orElse(0));
-            strongestAp = Math.max(strongestAp,
-                multiplayerState.player(opposite(multiplayerSetup.playerSide()))
-                    .map(ps -> ps.character().maxAp()).orElse(0));
+        if (multiplayerState != null) {
+            for (PlayerState player : multiplayerState.players()) {
+                for (CharacterState combatant : player.combatants()) {
+                    if (isActiveCombatant(combatant)) {
+                        strongestAp = Math.max(strongestAp, combatant.maxAp());
+                    }
+                }
+            }
         }
         return com.jjktbf.model.combat.Timeline.gridLengthForStrongestAp(strongestAp);
     }
@@ -1984,7 +2127,8 @@ public class BattleScreen implements Screen, BattleView {
                     if (multiplayerState != null && onlinePlayer != null
                         && multiplayerState.phase() == BattlePhase.PLANNING
                         && !onlinePlayer.planSubmitted()) {
-                        ensureOnlinePlanner(multiplayerState.roundNumber(), onlinePlayer.character());
+                        ensureOnlinePlanner(
+                            multiplayerState.roundNumber(), onlinePlayer, onlineEnemy);
                     }
                 }
             });
@@ -2364,9 +2508,9 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     private void unlockPlannerIfPlanOpen() {
-        if (planningPanel != null
+        if (teamPlanningPanel != null
             && (onlinePlayer == null || !onlinePlayer.planSubmitted())) {
-            planningPanel.unlock();
+            teamPlanningPanel.unlock();
         }
     }
 

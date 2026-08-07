@@ -31,7 +31,7 @@ import java.util.function.Consumer;
  *   <li><b>CATEGORY</b> — Attack, Defensive, Utility</li>
  *   <li><b>TYPE</b> — Physical, Cursed Energy, Innate Technique,
  *       Non-Innate Technique</li>
- *   <li><b>RANGE</b> — Melee, Ranged, AOE</li>
+ *   <li><b>RANGE</b> — Melee, Ranged, AOE, Friendly Fire</li>
  *   <li><b>TAGS</b> — Stun, Guard Break, Heavy</li>
  * </ol>
  *
@@ -40,10 +40,10 @@ import java.util.function.Consumer;
  *   <li>Whenever INNATE_TECHNIQUE or NON_INNATE_TECHNIQUE is selected,
  *       CURSED_ENERGY is force-selected and LOCKED (grey fill, unclickable,
  *       no hover highlight).</li>
- *   <li>MELEE and RANGED are LOCKED OFF (greyed out + unclickable) unless
- *       ATTACK is selected, because range is an attack subcategory.</li>
+ *   <li>MELEE, RANGED, and AOE are LOCKED OFF unless ATTACK is selected.</li>
+ *   <li>FRIENDLY_FIRE is LOCKED OFF unless AOE is selected.</li>
  * </ul>
- * Both revert the instant their gating condition no longer holds.
+ * The rules revert the instant their gating condition no longer holds.
  */
 public class TagPicker extends Table {
 
@@ -100,7 +100,7 @@ public class TagPicker extends Table {
                         if (cb.isChecked()) selected.add(tag);
                         else                selected.remove(tag);
                         enforceCoupling();
-                        enforceRangeRule();
+                        enforceTargetingRules(selected);
                         applyLocks();
                         TagPicker.this.soundPlayer.accept(SoundCue.UI_TOGGLE);
                         if (onChange != null) onChange.accept(new LinkedHashSet<>(selected));
@@ -112,17 +112,19 @@ public class TagPicker extends Table {
             if (col != 0) row();
         }
 
-        // Lockable checkboxes (CE, MELEE, RANGED) each need their OWN style
+        // Lockable checkboxes each need their OWN style
         // instance so swapping drawables to show a locked state doesn't affect
         // every other checkbox sharing the skin style. Clone the default style
         // and attach it to each lockable tag only.
         cloneStyleFor(MoveTag.CURSED_ENERGY);
         cloneStyleFor(MoveTag.MELEE);
         cloneStyleFor(MoveTag.RANGED);
+        cloneStyleFor(MoveTag.AOE);
+        cloneStyleFor(MoveTag.FRIENDLY_FIRE);
 
         // Apply the coupling rules to the initial selection, then the locks.
         enforceCoupling();
-        enforceRangeRule();
+        enforceTargetingRules(selected);
         applyLocks();
     }
 
@@ -146,15 +148,15 @@ public class TagPicker extends Table {
         }
     }
 
-    /**
-     * Range tags are an attack subcategory, so they are meaningless on
-     * defensive/utility moves. Strip them whenever ATTACK is not selected.
-     */
-    private void enforceRangeRule() {
-        if (!selected.contains(MoveTag.ATTACK)) {
-            selected.remove(MoveTag.MELEE);
-            selected.remove(MoveTag.RANGED);
+    /** Normalize attack targeting tags and their friendly-fire dependency. */
+    static void enforceTargetingRules(Set<MoveTag> tags) {
+        if (tags == null) return;
+        if (!tags.contains(MoveTag.ATTACK)) {
+            tags.remove(MoveTag.MELEE);
+            tags.remove(MoveTag.RANGED);
+            tags.remove(MoveTag.AOE);
         }
+        if (!tags.contains(MoveTag.AOE)) tags.remove(MoveTag.FRIENDLY_FIRE);
     }
 
     /**
@@ -168,9 +170,8 @@ public class TagPicker extends Table {
      *   <li>CE: <b>locked ON</b> when a technique tag is selected — light-grey
      *       fill, disabled (unclickable), no hover highlight, force-checked so
      *       it can't drift from the enforced state.</li>
-     *   <li>Melee/Ranged: <b>locked OFF</b> unless ATTACK is selected — greyed
-     *       text, disabled (unclickable), force-unchecked. Range is an attack
-     *       subcategory, so it is unavailable for defensive/utility moves.</li>
+     *   <li>Attack targeting: <b>locked OFF</b> unless ATTACK is selected.</li>
+     *   <li>Friendly Fire: <b>locked OFF</b> unless AOE is selected.</li>
      * </ul>
      * Unlocked tags behave like every other tag (normal drawables, enabled,
      * navy text + yellow hover).
@@ -181,6 +182,8 @@ public class TagPicker extends Table {
             selected.stream().anyMatch(TECHNIQUE_TAGS::contains));
         applyLockOff(MoveTag.MELEE, !attackSelected);
         applyLockOff(MoveTag.RANGED, !attackSelected);
+        applyLockOff(MoveTag.AOE, !attackSelected);
+        applyLockOff(MoveTag.FRIENDLY_FIRE, !selected.contains(MoveTag.AOE));
     }
 
     /** Lock a checkbox ON (forced checked, unclickable, grey fill + text). */
@@ -267,7 +270,8 @@ public class TagPicker extends Table {
         sections.put("TYPE", List.of(
             MoveTag.PHYSICAL, MoveTag.CURSED_ENERGY,
             MoveTag.INNATE_TECHNIQUE, MoveTag.NON_INNATE_TECHNIQUE));
-        sections.put("RANGE", List.of(MoveTag.MELEE, MoveTag.RANGED, MoveTag.AOE));
+        sections.put("RANGE", List.of(
+            MoveTag.MELEE, MoveTag.RANGED, MoveTag.AOE, MoveTag.FRIENDLY_FIRE));
         sections.put("TAGS", List.of(
             MoveTag.SWORD, MoveTag.STUN, MoveTag.GUARD_BREAK, MoveTag.HEAVY));
         return sections;

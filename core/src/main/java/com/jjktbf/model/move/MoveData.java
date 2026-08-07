@@ -135,6 +135,13 @@ public class MoveData {
     /** Maximum placements per round. 0 means unlimited. */
     public int moveCap = 0;
 
+    /**
+     * Canonical shikigami character id summoned when this move reaches its unleash
+     * point. Null/blank for non-summoning moves. Only valid SHIKIGAMI definitions
+     * may be referenced (validated in editors and the authoritative catalog).
+     */
+    public String summonCharacterId;
+
     /** Cannot be assigned directly; an ability must add this move to the character. */
     public boolean mustBeGranted = false;
 
@@ -383,7 +390,8 @@ public class MoveData {
             .requiredTechniqueId(requiredTechniqueId)
             .freeMove(isFreeMove)
             .mustBeGranted(mustBeGranted)
-            .moveCap(moveCap);
+            .moveCap(moveCap)
+            .summonCharacterId(summonCharacterId);
 
         if (!rawTags.isEmpty()) b.tags(rawTags);
         if (hitComponents != null) {
@@ -666,6 +674,7 @@ public class MoveData {
         d.isFreeMove          = move.isFreeMove();
         d.mustBeGranted       = move.mustBeGranted();
         d.moveCap             = move.getMoveCap();
+        d.summonCharacterId   = move.getSummonCharacterId();
         d.prerequisites       = move.getPrerequisites().isEmpty() ? null
                                     : new java.util.LinkedHashMap<>(move.getPrerequisites());
 

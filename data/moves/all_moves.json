@@ -1862,7 +1862,7 @@
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
-  "potency" : 2,
+  "potency" : 1,
   "weaponRequired" : true,
   "apCost" : 7,
   "unleashPoint" : 1,
