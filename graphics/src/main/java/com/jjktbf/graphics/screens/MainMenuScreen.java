@@ -126,7 +126,7 @@ public class MainMenuScreen implements Screen {
             menuButtonCells.add(commands.add(button).growX().height(46).pad(4));
             commands.row();
         }
-        commandsCell = root.add(commands).width(540).top().expandY();
+        commandsCell = root.add(commands).width(540);
         root.row();
 
         // Capture movement before child widgets so a mouse move always leaves keyboard mode.

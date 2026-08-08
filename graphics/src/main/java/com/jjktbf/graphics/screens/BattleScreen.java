@@ -147,8 +147,8 @@ public class BattleScreen implements Screen, BattleView {
     private CombatantPanel enemyPanel;
     /**
      * Secondary panels for the 2nd fighter on each side (2v2). Null/unused for
-     * 1v1. Created in drawField only when the team has a 2nd fighter sprite; the
-     * primary panels and their HUD/meter wiring are untouched.
+     * 1v1. In doubles, each secondary panel shares its primary panel's plate and
+     * uses the same sprite/HUD scale.
      */
     private CombatantPanel playerPanel2;
     private CombatantPanel enemyPanel2;
@@ -160,7 +160,7 @@ public class BattleScreen implements Screen, BattleView {
      * Per-side sprite lists for team battles (2v2). Index 0 is the primary
      * fighter (whose sprite is also kept in {@link #playerSprite}/{@link #enemySprite});
      * index 1 is the secondary fighter. Populated by {@link #setTeamSprites} for
-     * local team battles; null/empty for 1v1 and multiplayer.
+     * local team battles; contains only the primary for 1v1 and multiplayer.
      */
     private java.util.List<Texture> playerTeamSprites = java.util.List.of();
     private java.util.List<Texture> enemyTeamSprites = java.util.List.of();
@@ -381,7 +381,7 @@ public class BattleScreen implements Screen, BattleView {
     /**
      * Set per-side sprite lists for a team battle (2v2). The first sprite per
      * side feeds the primary panel; a second sprite (when present) feeds the
-     * secondary panel created in drawField. Index 0 also seeds the legacy
+     * secondary panel in the shared-plate layout. Index 0 also seeds the legacy
      * single-sprite fields so 1-fighter rendering is unchanged.
      */
     public void setTeamSprites(java.util.List<Texture> playerSprites,
@@ -618,18 +618,10 @@ public class BattleScreen implements Screen, BattleView {
 
         batch.begin();
         drawExecutionBackground(sw, sh);
-        // Draw the back-row (secondary) fighters first so the front-row primaries
-        // render on top of them. 2v2 only; null/no-op for 1v1.
-        if (enemyPanel2 != null && renderEnemy2 != null)
-            enemyPanel2.draw(batch, assets.fontMedium, assets.fontSmall,
-                renderEnemy2.getCharacter().getName(), frameDelta);
-        if (playerPanel2 != null && renderPlayer2 != null)
-            playerPanel2.draw(batch, assets.fontMedium, assets.fontSmall,
-                renderPlayer2.getCharacter().getName(), frameDelta);
         if (enemyPanel != null && hasEnemyRenderState())
-            enemyPanel.draw(batch, assets.fontMedium, assets.fontSmall, enemyCharacterName(), frameDelta);
+            drawCombatantSide(enemyPanel, enemyCharacterName(), enemyPanel2, renderEnemy2);
         if (playerPanel != null && hasPlayerRenderState()) {
-            playerPanel.draw(batch, assets.fontMedium, assets.fontSmall, playerCharacterName(), frameDelta);
+            drawCombatantSide(playerPanel, playerCharacterName(), playerPanel2, renderPlayer2);
             miraclesMeter.draw(batch, assets.battleUi, assets.fontLarge);
             ratioMeter.draw(batch, assets.battleUi, assets.fontLarge);
         }
@@ -640,6 +632,26 @@ public class BattleScreen implements Screen, BattleView {
         drawHitFlashes(sw, sh);
         batch.end();
 
+    }
+
+    /** Draw one side's shared plate, equal-scale fighters, then its stacked HUDs. */
+    private void drawCombatantSide(
+        CombatantPanel primaryPanel,
+        String primaryName,
+        CombatantPanel secondaryPanel,
+        BattleCombatant secondaryCombatant
+    ) {
+        if (secondaryPanel == null || secondaryCombatant == null) {
+            primaryPanel.draw(batch, assets.fontMedium, assets.fontSmall, primaryName, frameDelta);
+            return;
+        }
+
+        primaryPanel.drawPlate(batch);
+        primaryPanel.drawSprite(batch, frameDelta);
+        secondaryPanel.drawSprite(batch, frameDelta);
+        primaryPanel.drawHud(batch, assets.fontMedium, assets.fontSmall, primaryName, frameDelta);
+        secondaryPanel.drawHud(batch, assets.fontMedium, assets.fontSmall,
+            secondaryCombatant.getCharacter().getName(), frameDelta);
     }
 
     /** Draw the selected backdrop without distorting it at different viewport sizes. */
@@ -2293,6 +2305,8 @@ public class BattleScreen implements Screen, BattleView {
     /** Recreates all execution widgets from the live viewport after a resize. */
     private void layoutExecutionUi(float width, float height) {
         float margin = Math.min(32f, Math.max(16f, Math.min(width, height) * 0.035f));
+        boolean enemyDoubles = hasSecondaryTeamSprite(enemyTeamSprites);
+        boolean playerDoubles = hasSecondaryTeamSprite(playerTeamSprites);
 
         float logHeight = Math.min(145f, Math.max(100f, height * 0.22f));
         float logTop = margin + logHeight;
@@ -2310,6 +2324,9 @@ public class BattleScreen implements Screen, BattleView {
         float availableCenterGap = width - margin * 2f - hudWidth * 2f;
         float hudShift = Math.min(Math.min(70f, width * 0.035f),
             Math.max(0f, (availableCenterGap - 12f) / 2f));
+        float hudHorizontalNudge = Math.min(30f, width * 0.018f);
+        float playerBottomHudY = logBounds.y + logBounds.height + 12f;
+        float hudVerticalNudge = Math.max(0f, playerHudY - playerBottomHudY);
 
         float enemyPlateSize = Math.min(fieldHeight * 0.84f, width * 0.38f);
         float playerPlateSize = Math.min(fieldHeight * 1.08f, width * 0.46f);
@@ -2331,6 +2348,17 @@ public class BattleScreen implements Screen, BattleView {
         float playerPlateCenterY = playerSpriteY + playerSpriteSize * 0.13f - plateDrop;
 
         float enemyHudY = enemySpriteY + enemySpriteSize - hudHeight;
+        float stackedHudGap = Math.max(8f, hudHeight * 0.07f);
+        float playerPrimaryHudY = playerDoubles
+            ? playerHudY + hudHeight + stackedHudGap
+            : playerHudY;
+
+        // Doubles occupy the left and right halves of one shared plate. Keeping
+        // both bounds identical gives each pair one baseline and one scale.
+        float enemyFighterOffset = enemyDoubles ? enemyPlateSize * 0.17f : 0f;
+        float playerFighterOffset = playerDoubles ? playerPlateSize * 0.17f : 0f;
+        float enemyPrimaryCenterX = enemyCenterX + enemyFighterOffset;
+        float playerPrimaryCenterX = playerCenterX - playerFighterOffset;
 
         Rectangle enemyPlate = new Rectangle(
             enemyCenterX - enemyPlateSize / 2f,
@@ -2339,12 +2367,16 @@ public class BattleScreen implements Screen, BattleView {
             enemyPlateSize
         );
         Rectangle enemySpriteBounds = new Rectangle(
-            enemyCenterX - enemySpriteSize / 2f,
+            enemyPrimaryCenterX - enemySpriteSize / 2f,
             enemySpriteY,
             enemySpriteSize,
             enemySpriteSize
         );
-        Rectangle enemyHud = new Rectangle(margin + hudShift, enemyHudY, hudWidth, hudHeight);
+        Rectangle enemyHud = new Rectangle(
+            margin + hudShift + hudHorizontalNudge,
+            enemyHudY + hudVerticalNudge,
+            hudWidth,
+            hudHeight);
         enemyPanel = new CombatantPanel(enemySprite, assets.stoneBasePlate, assets.battleUi,
             enemyPlate, enemySpriteBounds, enemyHud, COMBATANT_HUD_SCALE);
 
@@ -2355,22 +2387,28 @@ public class BattleScreen implements Screen, BattleView {
             playerPlateSize
         );
         Rectangle playerSpriteBounds = new Rectangle(
-            playerCenterX - playerSpriteSize / 2f,
+            playerPrimaryCenterX - playerSpriteSize / 2f,
             playerSpriteY,
             playerSpriteSize,
             playerSpriteSize
         );
         Rectangle playerHud = new Rectangle(
-            width - margin - hudWidth - hudShift, playerHudY, hudWidth, hudHeight);
+            width - margin - hudWidth - hudShift - hudHorizontalNudge,
+            playerPrimaryHudY - hudVerticalNudge,
+            hudWidth,
+            hudHeight);
         playerPanel = new CombatantPanel(playerSprite, assets.stoneBasePlate, assets.battleUi,
             playerPlate, playerSpriteBounds, playerHud, COMBATANT_HUD_SCALE);
 
-        // Secondary panels for the 2nd fighter of each side (2v2 only). Rendered
-        // smaller and offset toward the field centre/back so the primary fighter
-        // stays in front. Created only when a 2nd sprite is available.
-        buildSecondaryPanels(width, height, margin, hudWidth, hudHeight,
-            enemyCenterX, playerCenterX, enemySpriteSize, playerSpriteSize,
-            enemySpriteY, playerSpriteY);
+        buildSecondaryPanels(
+            enemyDoubles, playerDoubles,
+            enemyCenterX, playerCenterX,
+            enemyFighterOffset, playerFighterOffset,
+            enemySpriteSize, playerSpriteSize,
+            enemySpriteY, playerSpriteY,
+            enemyPlate, playerPlate,
+            enemyHud, playerHud,
+            stackedHudGap);
 
         float miracleSize = Math.min(MiraclesMeter.sizeForViewport(height),
             Math.min(hudHeight, width * 0.11f));
@@ -2400,53 +2438,57 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     /**
-     * Build the secondary (back-row) panels for the 2nd fighter on each side in a
-     * 2v2 battle. Rendered smaller and offset toward the field centre so the
-     * primary fighter stays in front. No-op (null panels) for 1v1 or when a side
-     * has no second sprite.
+     * Build the second fighter on each side of a 2v2. Each fighter uses the same
+     * size and Y position as its teammate, while its resource card is stacked
+     * directly below the primary card. The primary panel owns the shared plate.
      */
     private void buildSecondaryPanels(
-        float width, float height, float margin,
-        float hudWidth, float hudHeight,
+        boolean enemyDoubles, boolean playerDoubles,
         float enemyCenterX, float playerCenterX,
+        float enemyFighterOffset, float playerFighterOffset,
         float enemySpriteSize, float playerSpriteSize,
-        float enemySpriteY, float playerSpriteY
+        float enemySpriteY, float playerSpriteY,
+        Rectangle enemyPlate, Rectangle playerPlate,
+        Rectangle enemyHud, Rectangle playerHud,
+        float stackedHudGap
     ) {
         playerPanel2 = null;
         enemyPanel2 = null;
-        // Secondary panels are only meaningful in local team battles where
-        // per-side sprite lists were supplied.
-        boolean teamBattle = (playerTeamSprites.size() > 1 || enemyTeamSprites.size() > 1)
-            && mode == BattleMode.LOCAL;
-        if (!teamBattle) return;
 
-        // Secondary sprites are ~72% of the primary; offset toward centre (back row).
-        float scale2 = 0.72f;
-        float hudScale2 = COMBATANT_HUD_SCALE * 0.82f;
-        float hudWidth2 = hudWidth * 0.80f;
-        float hudHeight2 = hudHeight * 0.80f;
+        if (enemyDoubles) {
+            float secondaryCenterX = enemyCenterX - enemyFighterOffset;
+            Rectangle sprite = new Rectangle(
+                secondaryCenterX - enemySpriteSize / 2f,
+                enemySpriteY,
+                enemySpriteSize,
+                enemySpriteSize);
+            Rectangle hud = new Rectangle(
+                enemyHud.x,
+                enemyHud.y - enemyHud.height - stackedHudGap,
+                enemyHud.width,
+                enemyHud.height);
+            enemyPanel2 = new CombatantPanel(enemyTeamSprites.get(1), null,
+                assets.battleUi, enemyPlate, sprite, hud, COMBATANT_HUD_SCALE);
+        }
+        if (playerDoubles) {
+            float secondaryCenterX = playerCenterX + playerFighterOffset;
+            Rectangle sprite = new Rectangle(
+                secondaryCenterX - playerSpriteSize / 2f,
+                playerSpriteY,
+                playerSpriteSize,
+                playerSpriteSize);
+            Rectangle hud = new Rectangle(
+                playerHud.x,
+                playerHud.y - playerHud.height - stackedHudGap,
+                playerHud.width,
+                playerHud.height);
+            playerPanel2 = new CombatantPanel(playerTeamSprites.get(1), null,
+                assets.battleUi, playerPlate, sprite, hud, COMBATANT_HUD_SCALE);
+        }
+    }
 
-        if (enemyTeamSprites.size() > 1) {
-            float sz = enemySpriteSize * scale2;
-            float cx = enemyCenterX - enemySpriteSize * 0.55f; // shift toward centre (left)
-            float sy = enemySpriteY + enemySpriteSize * 0.18f; // slightly higher (back row)
-            Rectangle plate = new Rectangle(cx - sz * 0.5f, sy - sz * 0.10f, sz * 0.9f, sz * 0.9f);
-            Rectangle sprite = new Rectangle(cx - sz / 2f, sy, sz, sz);
-            Rectangle hud = new Rectangle(margin + hudWidth + 10f, sy + sz - hudHeight2, hudWidth2, hudHeight2);
-            enemyPanel2 = new CombatantPanel(enemyTeamSprites.get(1), assets.stoneBasePlate,
-                assets.battleUi, plate, sprite, hud, hudScale2);
-        }
-        if (playerTeamSprites.size() > 1) {
-            float sz = playerSpriteSize * scale2;
-            float cx = playerCenterX + playerSpriteSize * 0.55f; // shift toward centre (right)
-            float sy = playerSpriteY + playerSpriteSize * 0.18f;
-            Rectangle plate = new Rectangle(cx - sz * 0.5f, sy - sz * 0.10f, sz * 0.9f, sz * 0.9f);
-            Rectangle sprite = new Rectangle(cx - sz / 2f, sy, sz, sz);
-            Rectangle hud = new Rectangle(width - margin - hudWidth - hudWidth2 - 20f,
-                sy + sz - hudHeight2, hudWidth2, hudHeight2);
-            playerPanel2 = new CombatantPanel(playerTeamSprites.get(1), assets.stoneBasePlate,
-                assets.battleUi, plate, sprite, hud, hudScale2);
-        }
+    private boolean hasSecondaryTeamSprite(List<Texture> teamSprites) {
+        return mode == BattleMode.LOCAL && teamSprites.size() > 1;
     }
 
     /**
