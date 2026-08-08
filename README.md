@@ -191,6 +191,10 @@ Key clarifications:
 | **requiredTechniqueId** | Stored as a plain string (e.g. "SHRINE") pending implementation of the Technique class. |
 | **AP tick** | One unit on the AP timeline. "Game tick" and "AP tick" are both acceptable. |
 | **Fire tick** | The tick at which a move's effect resolves. `fireTick = startTick + unleashPoint - 1`. |
+| **Shikigami** | A summoned combatant (e.g. Divine Dogs, Mahoraga) — the JJK term used throughout the code. `CharacterType.SHIKIGAMI`; only shikigami definitions may be summoned by a move/ability summon effect. (Not "shinigami".) |
+| **title** | Optional free-text display epithet on a character (e.g. "The Honored One"). Display-only — no combat rules. |
+| **AoeType** | Authoritative AOE targeting shape for an AOE-tagged move: `MULTIPLE` (N targets), `ALL_ENEMIES`, or `ALL_OTHERS` (allies included). |
+| **BattleFormat** | Roster-size format for a battle: `ONE_V_ONE` or `TWO_V_TWO`. The engine supports any team size; this captures the configured format. |
 
 ---
 

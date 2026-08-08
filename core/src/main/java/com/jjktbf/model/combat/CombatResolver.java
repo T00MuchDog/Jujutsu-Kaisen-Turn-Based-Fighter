@@ -675,6 +675,8 @@ public class CombatResolver {
      *       deterministically to the first living enemy if invalid (emits a
      *       retarget event). Once fired, the target is fixed; if it leaves
      *       before a delayed impact, that impact produces no hit.</li>
+     *   <li>{@link MoveTargeting#MULTIPLE_ENEMIES} — the first N active enemies
+     *       (in roster order), where N is the move's {@code aoeTargetCount}.</li>
      *   <li>{@link MoveTargeting#ALL_ENEMIES} / {@link MoveTargeting#ALL_OTHERS}
      *       — a snapshot of every active enemy / every active combatant except
      *       the caster, taken now so summons created afterward are excluded.</li>
@@ -710,6 +712,18 @@ public class CombatResolver {
             }
             case ALL_ENEMIES:
                 return TargetSet.multiple(state.activeEnemiesOf(attacker));
+            case MULTIPLE_ENEMIES: {
+                // MULTIPLE AOE hits a fixed number of enemies, auto-selected in
+                // deterministic roster order at fire time. Fewer living enemies
+                // than the count simply means the move hits all of them.
+                int count = Math.max(1, move.getAoeTargetCount());
+                List<BattleCombatant> enemies = state.activeEnemiesOf(attacker);
+                List<BattleCombatant> selected = new ArrayList<>();
+                for (int i = 0; i < count && i < enemies.size(); i++) {
+                    selected.add(enemies.get(i));
+                }
+                return TargetSet.multiple(selected);
+            }
             case ALL_OTHERS: {
                 List<BattleCombatant> others = new ArrayList<>();
                 for (BattleCombatant c : state.activeCombatants()) {
@@ -1332,6 +1346,32 @@ public class CombatResolver {
     // Status effect application
     // -------------------------------------------------------------------------
 
+    /**
+     * Enqueue a shikigami summon requested by a move effect row (self / on-hit /
+     * on-defense). Shares the runtime path with the legacy {@code summonCharacterId}
+     * unleash block and ability {@code SUMMON_CHARACTER} effect: the summon is
+     * materialized after the current tick batch via {@code drainPendingSummons}.
+     */
+    private void enqueueEffectSummon(
+        BattleState state,
+        BattleCombatant summoner,
+        String summonCharacterId,
+        Move move,
+        int componentIndex,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        if (summonCharacterId == null || summonCharacterId.isBlank()) return;
+        state.enqueueSummon(summoner, summonCharacterId);
+        events.add(CombatEvent.of(CombatEvent.Type.MOVE_SUMMON)
+            .source(summoner).move(move)
+            .componentIndex(componentIndex)
+            .tick(tick)
+            .message(summoner.getCharacter().getName()
+                + "'s " + move.getName() + " summons a shikigami!")
+            .build());
+    }
+
     private void applyOnHitEffects(
         BattleState state,
         BattleCombatant attacker,
@@ -1345,6 +1385,13 @@ public class CombatResolver {
         for (StatusEffect authored : component.getOnHitEffects()) {
             StatusEffect effect = TechniqueMasteryResolver.resolve(
                 authored, TechniqueMasteryResolver.masteryOf(attacker));
+            // A summon on-hit row enqueues a shikigami onto the attacker's team
+            // when the hit connects (mirrors the unleash-time summon path).
+            if (effect.isSummon()) {
+                enqueueEffectSummon(state, attacker, effect.getSummonCharacterId(),
+                    move, componentIndex, tick, events);
+                continue;
+            }
             // A coded on-hit row is dispatched to the matching compiled runtime
             // instead of being applied as a status — this is how a technique move's
             // hardcoded on-hit behaviour is stored on an editable effect row.
@@ -1381,6 +1428,14 @@ public class CombatResolver {
         for (StatusEffect authored : move.getSelfEffects()) {
             StatusEffect effect = TechniqueMasteryResolver.resolve(
                 authored, TechniqueMasteryResolver.masteryOf(combatant));
+            // A summon self row enqueues a shikigami onto the wielder's team at
+            // unleash (equivalent to the legacy summonCharacterId field, now
+            // expressed as an editable effect row).
+            if (effect.isSummon()) {
+                enqueueEffectSummon(state, combatant, effect.getSummonCharacterId(),
+                    move, -1, tick, events);
+                continue;
+            }
             // A coded self row is dispatched to the matching compiled runtime
             // (fires on unleash, hit/miss/block agnostic) instead of being applied
             // as a status — this is how a technique move's hardcoded self/cast
@@ -1427,6 +1482,13 @@ public class CombatResolver {
         for (StatusEffect authored : effects) {
             StatusEffect effect = TechniqueMasteryResolver.resolve(
                 authored, TechniqueMasteryResolver.masteryOf(defender));
+            // A summon on-defense row enqueues a shikigami onto the defender's
+            // team when their defense resolves the incoming attack.
+            if (effect.isSummon()) {
+                enqueueEffectSummon(state, defender, effect.getSummonCharacterId(),
+                    move, componentIndex, tick, events);
+                continue;
+            }
             if (effect.isCoded()) {
                 events.addAll(defender.getCodedAbilities().onEffectFired(
                     state, effect, defender, attacker, tick));

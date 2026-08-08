@@ -56,6 +56,14 @@ public class CharacterSelectScreen implements Screen {
 
     private enum Phase { PLAYER, CPU }
 
+    /**
+     * Roster format for the battle being set up. ONE_V_ONE picks one fighter
+     * per side (the legacy flow); TWO_V_TWO picks two. Set on entry via
+     * {@link #prepare(BattleFormat)}.
+     */
+    private com.jjktbf.model.combat.BattleFormat format =
+        com.jjktbf.model.combat.BattleFormat.ONE_V_ONE;
+
     private final JJKGame game;
     private final AssetLoader assets;
     private final SpriteBatch batch;
@@ -84,6 +92,14 @@ public class CharacterSelectScreen implements Screen {
     private List<Move> learnedMoves = List.of();
     private int cursorIndex;
     private Phase phase = Phase.PLAYER;
+    /**
+     * Picks for the current side, in slot order. For ONE_V_ONE each side fills
+     * one slot (playerChoice is kept as a convenience for the 1-slot case); for
+     * TWO_V_TWO each side fills two. A character may not be picked twice within
+     * the same side.
+     */
+    private final java.util.List<CharacterData> playerPicks = new java.util.ArrayList<>();
+    private final java.util.List<CharacterData> cpuPicks = new java.util.ArrayList<>();
     private CharacterData playerChoice;
     private String loadError;
     private String learnedMovesError;
@@ -105,6 +121,16 @@ public class CharacterSelectScreen implements Screen {
         techniqueRepo = new TechniqueRepository(TECHNIQUE_DATA_DIR);
     }
 
+    /**
+     * Set the roster format before the screen is shown. Defaults to ONE_V_ONE
+     * so callers that never call this (and the legacy no-arg
+     * {@link JJKGame#showCharacterSelect()}) keep the original 1-pick behaviour.
+     */
+    public void prepare(com.jjktbf.model.combat.BattleFormat format) {
+        this.format = format != null ? format
+            : com.jjktbf.model.combat.BattleFormat.ONE_V_ONE;
+    }
+
     @Override
     public void show() {
         // Keyboard input is polled, while this adapter receives mouse-wheel events
@@ -120,6 +146,8 @@ public class CharacterSelectScreen implements Screen {
         phase = Phase.PLAYER;
         cursorIndex = 0;
         playerChoice = null;
+        playerPicks.clear();
+        cpuPicks.clear();
         loadError = null;
         movesCharacter = null;
         learnedMoves = List.of();
@@ -197,10 +225,7 @@ public class CharacterSelectScreen implements Screen {
         if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) confirmSelection();
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             game.audio().play(SoundCue.UI_BACK);
-            if (phase == Phase.CPU) {
-                phase = Phase.PLAYER;
-                cursorIndex = 0;
-            } else {
+            if (!undoLastPick()) {
                 game.showMainMenu();
             }
         }
@@ -223,14 +248,81 @@ public class CharacterSelectScreen implements Screen {
 
     private void confirmSelection() {
         game.audio().play(SoundCue.UI_CONFIRM);
+        CharacterData picked = characters.get(cursorIndex);
+        java.util.List<CharacterData> currentPicks = currentPicks();
+        // Disallow picking the same fighter twice within one side.
+        if (currentPicks.stream().anyMatch(c -> c.id.equals(picked.id))) {
+            return;
+        }
+        currentPicks.add(picked);
         if (phase == Phase.PLAYER) {
-            playerChoice = characters.get(cursorIndex);
+            playerChoice = picked; // convenience for the 1-slot header display
+        }
+
+        if (currentPicks.size() < format.fightersPerSide()) {
+            // More slots to fill on this side.
+            cursorIndex = 0;
+            resetMoveScroll();
+            return;
+        }
+
+        // This side is full. Move to the other side, or start the battle.
+        if (phase == Phase.PLAYER) {
             phase = Phase.CPU;
             cursorIndex = 0;
             resetMoveScroll();
         } else {
+            startConfiguredBattle();
+        }
+    }
+
+    /** Picks accumulated so far for the side currently being filled. */
+    private java.util.List<CharacterData> currentPicks() {
+        return phase == Phase.PLAYER ? playerPicks : cpuPicks;
+    }
+
+    /**
+     * Number of slots already filled across both sides. Used to step back on ESC
+     * and to decide whether a side has more slots to fill.
+     */
+    private int totalPicksFilled() {
+        return playerPicks.size() + cpuPicks.size();
+    }
+
+    /**
+     * Pop the most recent pick (ESC-to-undo). Returns true if a pick was undone,
+     * false if there is nothing to undo (the caller then exits the screen).
+     */
+    private boolean undoLastPick() {
+        if (!cpuPicks.isEmpty()) {
+            cpuPicks.remove(cpuPicks.size() - 1);
+            if (cpuPicks.isEmpty()) phase = Phase.PLAYER;
+            cursorIndex = 0;
+            resetMoveScroll();
+            return true;
+        }
+        if (!playerPicks.isEmpty()) {
+            playerPicks.remove(playerPicks.size() - 1);
+            playerChoice = playerPicks.isEmpty() ? null : playerPicks.get(playerPicks.size() - 1);
+            phase = Phase.PLAYER;
+            cursorIndex = 0;
+            resetMoveScroll();
+            return true;
+        }
+        return false;
+    }
+
+    private void startConfiguredBattle() {
+        if (format == com.jjktbf.model.combat.BattleFormat.TWO_V_TWO) {
+            game.startTeamBattle(
+                new java.util.ArrayList<>(playerPicks),
+                new java.util.ArrayList<>(cpuPicks),
+                moveRepo, abilityRepo, techniqueRepo);
+        } else {
+            // ONE_V_ONE (or any single-fighter format): use the legacy entry point.
             game.startBattle(
-                playerChoice, characters.get(cursorIndex), moveRepo, abilityRepo, techniqueRepo);
+                playerPicks.get(0), cpuPicks.get(0),
+                moveRepo, abilityRepo, techniqueRepo);
         }
     }
 
@@ -274,14 +366,29 @@ public class CharacterSelectScreen implements Screen {
     private void drawHeader() {
         assets.battleUi.header.draw(batch, headerBounds.x, headerBounds.y,
             headerBounds.width, headerBounds.height);
-        String title = phase == Phase.PLAYER ? "SELECT YOUR CHARACTER" : "SELECT CPU CHARACTER";
+        int slot = currentPicks().size() + 1; // 1-indexed slot being filled now
+        int slots = format.fightersPerSide();
+        String title = phase == Phase.PLAYER
+            ? (slots == 1 ? "SELECT YOUR CHARACTER"
+                         : "SELECT PLAYER FIGHTER " + slot + "/" + slots)
+            : (slots == 1 ? "SELECT CPU CHARACTER"
+                         : "SELECT CPU FIGHTER " + slot + "/" + slots);
         assets.fontMedium.setColor(BattleUiAssets.YELLOW);
         assets.fontMedium.draw(batch, title, headerBounds.x + 18f, headerBounds.y + 39f);
         assets.fontSmall.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
-        String state = phase == Phase.CPU && playerChoice != null
-            ? "PLAYER: " + playerChoice.name + "  |  ENTER: START"
+        String state = phase == Phase.CPU && !playerPicks.isEmpty()
+            ? picksSummary("PLAYER", playerPicks) + "  |  ENTER: START"
             : "UP/DOWN: SELECT  |  ENTER: CONFIRM";
         assets.fontSmall.draw(batch, state, headerBounds.x + 20f, headerBounds.y + 17f);
+    }
+
+    private static String picksSummary(String label, java.util.List<CharacterData> picks) {
+        StringBuilder sb = new StringBuilder(label).append(": ");
+        for (int i = 0; i < picks.size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(picks.get(i).name);
+        }
+        return sb.toString();
     }
 
     private void drawRoster() {
@@ -291,6 +398,7 @@ public class CharacterSelectScreen implements Screen {
             listBounds.y + listBounds.height - 15f);
 
         float rowTop = listBounds.y + listBounds.height - 46f;
+        java.util.List<CharacterData> sidePicks = currentPicks();
         for (int i = 0; i < characters.size(); i++) {
             float rowY = rowTop - (i + 1) * ROW_HEIGHT;
             if (i == cursorIndex) {
@@ -298,8 +406,28 @@ public class CharacterSelectScreen implements Screen {
                     listBounds.width - 16f, ROW_HEIGHT - 4f);
             }
             CharacterData character = characters.get(i);
-            assets.fontMedium.setColor(i == cursorIndex ? BattleUiAssets.TEXT : Color.WHITE);
+            // Dim a character already picked on the side currently being filled.
+            boolean alreadyPicked = sidePicks.stream().anyMatch(c -> c.id.equals(character.id));
+            assets.fontMedium.setColor(i == cursorIndex
+                ? BattleUiAssets.TEXT
+                : (alreadyPicked ? new Color(0.55f, 0.55f, 0.55f, 1f) : Color.WHITE));
             assets.fontMedium.draw(batch, character.name, listBounds.x + 18f, rowY + 27f);
+        }
+        // Pick badges (P1/P2 on player side, C1/C2 on cpu side) next to names.
+        drawPickBadges(rowTop, "P", playerPicks);
+        drawPickBadges(rowTop, "C", cpuPicks);
+    }
+
+    /** Draw a side's slot badges (P1/P2 or C1/C2) next to picked roster rows. */
+    private void drawPickBadges(float rowTop, String prefix, java.util.List<CharacterData> picks) {
+        for (int slot = 0; slot < picks.size(); slot++) {
+            CharacterData picked = picks.get(slot);
+            int row = characters.stream().filter(c -> c.id.equals(picked.id))
+                .mapToInt(characters::indexOf).findFirst().orElse(-1);
+            if (row < 0) continue;
+            float rowY = rowTop - (row + 1) * ROW_HEIGHT;
+            assets.fontSmall.setColor(BattleUiAssets.YELLOW);
+            assets.fontSmall.draw(batch, prefix + (slot + 1), listBounds.x + 14f, rowY + 14f);
         }
     }
 
@@ -316,6 +444,11 @@ public class CharacterSelectScreen implements Screen {
         // Name — top-left corner, prominent.
         assets.fontXLarge.setColor(BattleUiAssets.TEXT);
         drawBold(assets.fontXLarge, character.name, innerLeft, innerTop);
+        // Title/epithet (if any) sits beneath the name in the accent colour.
+        if (character.title != null && !character.title.isBlank()) {
+            assets.fontMedium.setColor(BattleUiAssets.YELLOW);
+            assets.fontMedium.draw(batch, character.title, innerLeft, innerTop - 28f);
+        }
         String baseStatTotalText = "Base Stat Total: " + baseStatTotal(character);
         assets.fontMedium.setColor(BattleUiAssets.TEXT);
         drawBold(assets.fontMedium, baseStatTotalText,

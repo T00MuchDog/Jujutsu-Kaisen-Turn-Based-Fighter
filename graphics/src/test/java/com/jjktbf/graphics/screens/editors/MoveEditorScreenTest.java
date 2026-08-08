@@ -227,6 +227,41 @@ class MoveEditorScreenTest {
     }
 
     @Test
+    void saveCopyPreservesAoeTypeAndTargetCount() {
+        MoveData draft = new MoveData();
+        draft.tags = new ArrayList<>(List.of(
+            MoveTag.ATTACK.name(), MoveTag.PHYSICAL.name(), MoveTag.AOE.name()));
+        draft.aoeType = "MULTIPLE";
+        draft.aoeTargetCount = 3;
+        draft.hitComponents = new ArrayList<>();
+        MoveData.HitComponentData hit = new MoveData.HitComponentData();
+        hit.basePower = 20;
+        hit.tags = new ArrayList<>(List.of(MoveTag.PHYSICAL.name()));
+        draft.hitComponents.add(hit);
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(draft);
+
+        assertEquals("MULTIPLE", saved.aoeType);
+        assertEquals(3, saved.aoeTargetCount);
+    }
+
+    @Test
+    void deepCopyPreservesSummonEffectRow() {
+        MoveData draft = new MoveData();
+        draft.tags = new ArrayList<>(List.of(MoveTag.UTILITY.name()));
+        MoveData.StatusEffectData summon = new MoveData.StatusEffectData();
+        summon.summonCharacterId = "000010";
+        draft.selfEffects = new ArrayList<>(List.of(summon));
+
+        MoveData copy = MoveEditorScreen.deepCopy(draft);
+
+        assertEquals(1, copy.selfEffects.size());
+        assertTrue(copy.selfEffects.get(0).isSummon());
+        assertEquals("000010", copy.selfEffects.get(0).summonCharacterId);
+        assertNotSame(draft.selfEffects.get(0), copy.selfEffects.get(0));
+    }
+
+    @Test
     void summonReferenceMustResolveToAShikigamiDefinition() {
         CharacterData sorcerer = character("000001", null);
         CharacterData shikigami = character("000002", CharacterType.SHIKIGAMI.name());

@@ -142,6 +142,20 @@ public class MoveData {
      */
     public String summonCharacterId;
 
+    /**
+     * {@link AoeType} enum name for an AOE move's authoritative targeting shape.
+     * Blank/null on a non-AOE move; also blank on legacy AOE saves, which are
+     * migrated to a default at load time (ALL_ENEMIES, or ALL_OTHERS when the
+     * FRIENDLY_FIRE tag is present).
+     */
+    public String aoeType;
+
+    /**
+     * Target count for {@link AoeType#MULTIPLE} AOE moves. Ignored for the other
+     * shapes. Defaults to 2; must be ≥ 2 when used.
+     */
+    public int aoeTargetCount = 2;
+
     /** Cannot be assigned directly; an ability must add this move to the character. */
     public boolean mustBeGranted = false;
 
@@ -250,9 +264,21 @@ public class MoveData {
         /** Optional per-field CTM formulas or benchmark tables. */
         public Map<String, TechniqueMasteryProgressionData> masteryProgression;
 
+        /**
+         * Summon flavour. When set (and {@code type}/{@code codedAbilityKey} are
+         * blank), this row summons the named shikigami definition when it fires
+         * instead of applying a status or coded action.
+         */
+        public String summonCharacterId;
+
         @JsonIgnore
         public boolean isCoded() {
             return codedAbilityKey != null && !codedAbilityKey.isBlank();
+        }
+
+        @JsonIgnore
+        public boolean isSummon() {
+            return summonCharacterId != null && !summonCharacterId.isBlank();
         }
     }
 
@@ -391,7 +417,9 @@ public class MoveData {
             .freeMove(isFreeMove)
             .mustBeGranted(mustBeGranted)
             .moveCap(moveCap)
-            .summonCharacterId(summonCharacterId);
+            .summonCharacterId(summonCharacterId)
+            .aoeType(AoeType.fromName(aoeType))
+            .aoeTargetCount(aoeTargetCount >= 2 ? aoeTargetCount : 2);
 
         if (!rawTags.isEmpty()) b.tags(rawTags);
         if (hitComponents != null) {
@@ -518,6 +546,16 @@ public class MoveData {
         java.util.ArrayList<StatusEffect> effects = new java.util.ArrayList<>();
         for (StatusEffectData d : dtos) {
             if (d == null) continue;
+            // Summon row — enqueues a shikigami onto the wielder's team when it fires.
+            if (d.isSummon()) {
+                if (d.isCoded()) {
+                    throw new IllegalArgumentException(
+                        "A summon effect row cannot also be a coded action");
+                }
+                StatusEffect effect = new StatusEffect(d.summonCharacterId);
+                effects.add(effect);
+                continue;
+            }
             // Coded action row — dispatched to a compiled runtime, not applied as a status.
             if (d.isCoded()) {
                 if (!com.jjktbf.model.character.coded.CodedAbilityRegistry.supportsEffect(
@@ -675,6 +713,10 @@ public class MoveData {
         d.mustBeGranted       = move.mustBeGranted();
         d.moveCap             = move.getMoveCap();
         d.summonCharacterId   = move.getSummonCharacterId();
+        if (move.getAoeType() != null) {
+            d.aoeType         = move.getAoeType().name();
+            d.aoeTargetCount  = move.getAoeTargetCount();
+        }
         d.prerequisites       = move.getPrerequisites().isEmpty() ? null
                                     : new java.util.LinkedHashMap<>(move.getPrerequisites());
 
@@ -702,6 +744,10 @@ public class MoveData {
      */
     private static StatusEffectData toEffectData(StatusEffect e) {
         StatusEffectData sd = new StatusEffectData();
+        if (e.isSummon()) {
+            sd.summonCharacterId = e.getSummonCharacterId();
+            return sd;
+        }
         if (e.isCoded()) {
             sd.codedAbilityKey = e.getCodedAbilityKey();
             sd.codedAction     = e.getCodedAction();

@@ -258,6 +258,26 @@ are the Move/MoveData field names.
     onDodgeEffects        List<StatusEffect> applied to the defender when a DODGE
                           avoids a hit.
 
+  Effect row flavours (MoveData.StatusEffectData / StatusEffect)
+    A move-effect row is exactly one of three mutually-exclusive flavours:
+      STATUS  — carries a StatusEffectType; applied to a combatant for a duration.
+      CODED   — carries codedAbilityKey + codedAction; dispatched to a compiled
+                CodedAbilityRuntime instead of applied as a status.
+      SUMMON  — carries summonCharacterId (a SHIKIGAMI definition id); enqueues a
+                shikigami onto the wielder's team when the row fires (self / on-hit /
+                on-defense). Materialized after the current tick batch, so the summon
+                joins planning next round. Only SHIKIGAMI definitions may be summoned.
+
+  Area of effect (MoveTag.AOE + AoeType)
+    aoeType               Authoritative AOE targeting shape for an AOE-tagged move
+                          (AoeType.java): MULTIPLE / ALL_ENEMIES / ALL_OTHERS. Defaults
+                          to ALL_ENEMIES when blank; FRIENDLY_FIRE tag migrates to
+                          ALL_OTHERS. Drives MoveTargeting (NONE / SINGLE_ENEMY /
+                          MULTIPLE_ENEMIES / ALL_ENEMIES / ALL_OTHERS). AOE bypasses
+                          dodge (snapshot taken at fire time; later summons excluded).
+    aoeTargetCount        MULTIPLE only — number of targets hit (min 2). Others/allies
+                          excluded; targets auto-selected in roster order.
+
   Learning / gating
     prerequisites         Map<stat name → minimum value>. All must be met to
                           learn and use the move.
@@ -472,8 +492,8 @@ PARRY
 DODGE
   While active, each incoming attack matching the dodgeScope has a dodgeChance%
   probability to be avoided entirely (outcome DODGED, no damage). Type-agnostic
-  (works vs physical and cursed energy) and NOT potency-gated. Future AOE attacks
-  will bypass dodge. dodgeScope (DodgeScope): MELEE / RANGED / BOTH.
+  (works vs physical and cursed energy) and NOT potency-gated. AOE attacks
+  (MoveTag.AOE) bypass dodge. dodgeScope (DodgeScope): MELEE / RANGED / BOTH.
   On a dodge, onDodgeEffects fire on the defender.
 
 SHIELD
@@ -1059,8 +1079,13 @@ MOVE EDITOR  (MoveEditorScreen)
   tags (TagPicker — STUN/GUARD_BREAK/HEAVY tags mirror to the dedicated boolean
   flags), cost (AP/CE), tag-conditioned Attack/Defense/Utility cards, technique
   requirement (with a live "technique found" hint), stat prerequisites, and
-  free-move / must-be-granted checkboxes. Validation runs MoveData.toMove() (the
-  same path the engine uses) and requires exactly one of ATTACK/UTILITY/DEFENSIVE;
+  free-move / must-be-granted checkboxes. The Attack card has an AOE sub-section
+  (shown when AOE-tagged): an AOE Type dropdown (Multiple Targets / All Enemies /
+  All Others) and, for Multiple, a Target Count field. Move effects (self /
+  on-hit / on-block / on-parry / on-dodge) are authored as rows via a modal that
+  toggles between Status / Coded / Summon flavours — summoning a shikigami is now
+  an effect row, not a MISC toggle. Validation runs MoveData.toMove() (the same
+  path the engine uses) and requires exactly one of ATTACK/UTILITY/DEFENSIVE;
   an ATTACK needs a damage-type tag; a DEFENSIVE needs a block type or coded
   self-effect. Field ranges: AP cost 1..999, unleash point 1..999, power/CE
   0..99999, accuracy 0..100%, block reduction 0..100%, block duration -1..99999,
@@ -1068,11 +1093,20 @@ MOVE EDITOR  (MoveEditorScreen)
 
 CHARACTER EDITOR  (CharacterEditorScreen)
   Creates/edits characters; saves data/characters/all_characters.json. Sections:
-  identity (name/description/sprite/innate-technique select), a Manual / Point-Buy
+  identity (name/description/title/sprite/innate-technique select), a Type dropdown
+  (Sorcerer / Shikigami), a directly-selectable checkbox, a Manual / Point-Buy
   toggle, ten StatField sliders, a live derived-stat preview (HP, AP bar, Acc,
   Evasion, CE pool, Combat Arts / Jujutsu Arts slot counts), a MoveAssignmentPanel
   (slot-gated, technique/prerequisite-filtered, drag-and-drop), an ability
   assignment panel, and a SkillTreeCanvas per accessible technique.
+
+  title        Optional free-text display epithet (e.g. "SHIKIGAMI",
+               "The Honored One"). Display-only — carries no combat rules. Blank
+               = no title shown.
+  type         CharacterType: SORCERER (default, directly selectable) or SHIKIGAMI
+               (a summoned spirit — Divine Dogs, Mahoraga — not directly selectable
+               unless overridden; only SHIKIGAMI definitions may be summoned by a
+               move/ability summon effect).
 
   Constants: STAT_MIN=10, STAT_MAX=300, BASELINE=80,
     POINT_BUDGET_WITH_TECHNIQUE     = 1000

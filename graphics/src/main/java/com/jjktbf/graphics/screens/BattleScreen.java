@@ -31,6 +31,7 @@ import com.jjktbf.model.character.coded.RatioAbility;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
+import com.jjktbf.model.combat.BattleTeam;
 import com.jjktbf.model.combat.BattleTeamId;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.combat.CombatEvent;
@@ -144,10 +145,28 @@ public class BattleScreen implements Screen, BattleView {
     // ── Panels ────────────────────────────────────────────────────────────────
     private CombatantPanel playerPanel;
     private CombatantPanel enemyPanel;
+    /**
+     * Secondary panels for the 2nd fighter on each side (2v2). Null/unused for
+     * 1v1. Created in drawField only when the team has a 2nd fighter sprite; the
+     * primary panels and their HUD/meter wiring are untouched.
+     */
+    private CombatantPanel playerPanel2;
+    private CombatantPanel enemyPanel2;
     private final MiraclesMeter miraclesMeter = new MiraclesMeter();
     private final RatioMeter ratioMeter = new RatioMeter();
     private Texture playerSprite;
     private Texture enemySprite;
+    /**
+     * Per-side sprite lists for team battles (2v2). Index 0 is the primary
+     * fighter (whose sprite is also kept in {@link #playerSprite}/{@link #enemySprite});
+     * index 1 is the secondary fighter. Populated by {@link #setTeamSprites} for
+     * local team battles; null/empty for 1v1 and multiplayer.
+     */
+    private java.util.List<Texture> playerTeamSprites = java.util.List.of();
+    private java.util.List<Texture> enemyTeamSprites = java.util.List.of();
+    /** Render-state snapshots of the 2nd fighter on each side (local team battles). */
+    private volatile BattleCombatant renderPlayer2;
+    private volatile BattleCombatant renderEnemy2;
     private final Rectangle logBounds = new Rectangle();
     private final Rectangle nextRoundBounds = new Rectangle();
 
@@ -322,6 +341,13 @@ public class BattleScreen implements Screen, BattleView {
         multiplayerSession = null;
         multiplayerMatchService = null;
         multiplayerState = null;
+        // Reset team-battle render state so a prior 2v2 doesn't leak into a 1v1.
+        renderPlayer2 = null;
+        renderEnemy2 = null;
+        playerPanel2 = null;
+        enemyPanel2 = null;
+        playerTeamSprites = java.util.List.of();
+        enemyTeamSprites = java.util.List.of();
     }
 
     /** Selects the asynchronous authoritative path before this reusable screen is shown. */
@@ -348,6 +374,30 @@ public class BattleScreen implements Screen, BattleView {
     public void setCombatantSprites(Texture playerSprite, Texture enemySprite) {
         this.playerSprite = playerSprite != null ? playerSprite : assets.playerSprite;
         this.enemySprite = enemySprite != null ? enemySprite : assets.enemySprite;
+        this.playerTeamSprites = java.util.List.of(this.playerSprite);
+        this.enemyTeamSprites = java.util.List.of(this.enemySprite);
+    }
+
+    /**
+     * Set per-side sprite lists for a team battle (2v2). The first sprite per
+     * side feeds the primary panel; a second sprite (when present) feeds the
+     * secondary panel created in drawField. Index 0 also seeds the legacy
+     * single-sprite fields so 1-fighter rendering is unchanged.
+     */
+    public void setTeamSprites(java.util.List<Texture> playerSprites,
+                               java.util.List<Texture> enemySprites) {
+        this.playerTeamSprites = playerSprites == null
+            ? java.util.List.of(assets.playerSprite)
+            : playerSprites.stream()
+                .map(t -> t != null ? t : assets.playerSprite)
+                .collect(java.util.stream.Collectors.toList());
+        this.enemyTeamSprites = enemySprites == null
+            ? java.util.List.of(assets.enemySprite)
+            : enemySprites.stream()
+                .map(t -> t != null ? t : assets.enemySprite)
+                .collect(java.util.stream.Collectors.toList());
+        this.playerSprite = this.playerTeamSprites.get(0);
+        this.enemySprite = this.enemyTeamSprites.get(0);
     }
 
     // -------------------------------------------------------------------------
@@ -568,6 +618,14 @@ public class BattleScreen implements Screen, BattleView {
 
         batch.begin();
         drawExecutionBackground(sw, sh);
+        // Draw the back-row (secondary) fighters first so the front-row primaries
+        // render on top of them. 2v2 only; null/no-op for 1v1.
+        if (enemyPanel2 != null && renderEnemy2 != null)
+            enemyPanel2.draw(batch, assets.fontMedium, assets.fontSmall,
+                renderEnemy2.getCharacter().getName(), frameDelta);
+        if (playerPanel2 != null && renderPlayer2 != null)
+            playerPanel2.draw(batch, assets.fontMedium, assets.fontSmall,
+                renderPlayer2.getCharacter().getName(), frameDelta);
         if (enemyPanel != null && hasEnemyRenderState())
             enemyPanel.draw(batch, assets.fontMedium, assets.fontSmall, enemyCharacterName(), frameDelta);
         if (playerPanel != null && hasPlayerRenderState()) {
@@ -1036,11 +1094,27 @@ public class BattleScreen implements Screen, BattleView {
             game.audio().play(SoundCue.BATTLE_ROUND_START);
             renderPlayer = state.getPlayerCombatant();
             renderEnemy  = state.getEnemyCombatant();
+            renderPlayer2 = secondActiveFighter(state.playerTeam());
+            renderEnemy2  = secondActiveFighter(state.enemyTeam());
             syncLocalHpFromModel();
             initPanels();
             updatePanels();
         });
         sleepMs(200);
+    }
+
+    /**
+     * Return the 2nd active fighter of a team (the one that is not the primary
+     * returned by {@link BattleState#getPlayerCombatant()}), or null if the team
+     * has fewer than two active fighters (1v1, or the 2nd is defeated). Used to
+     * drive the secondary panel in 2v2.
+     */
+    private static BattleCombatant secondActiveFighter(BattleTeam team) {
+        if (team == null) return null;
+        java.util.List<BattleCombatant> active = team.active().stream()
+            .filter(c -> c.getRole() == com.jjktbf.model.combat.CombatantRole.FIGHTER)
+            .toList();
+        return active.size() >= 2 ? active.get(1) : null;
     }
 
     /**
@@ -1139,6 +1213,8 @@ public class BattleScreen implements Screen, BattleView {
         postLocal(() -> {
             renderPlayer = state.getPlayerCombatant();
             renderEnemy = state.getEnemyCombatant();
+            renderPlayer2 = secondActiveFighter(state.playerTeam());
+            renderEnemy2 = secondActiveFighter(state.enemyTeam());
             syncLocalHpFromModel();
             executionUiActive = true;
             teamPlanningPanel = new TeamPlanningPanel(
@@ -2289,6 +2365,13 @@ public class BattleScreen implements Screen, BattleView {
         playerPanel = new CombatantPanel(playerSprite, assets.stoneBasePlate, assets.battleUi,
             playerPlate, playerSpriteBounds, playerHud, COMBATANT_HUD_SCALE);
 
+        // Secondary panels for the 2nd fighter of each side (2v2 only). Rendered
+        // smaller and offset toward the field centre/back so the primary fighter
+        // stays in front. Created only when a 2nd sprite is available.
+        buildSecondaryPanels(width, height, margin, hudWidth, hudHeight,
+            enemyCenterX, playerCenterX, enemySpriteSize, playerSpriteSize,
+            enemySpriteY, playerSpriteY);
+
         float miracleSize = Math.min(MiraclesMeter.sizeForViewport(height),
             Math.min(hudHeight, width * 0.11f));
         miraclesMeter.setBounds(
@@ -2314,6 +2397,56 @@ public class BattleScreen implements Screen, BattleView {
             nextRoundHeight
         );
         updatePanels();
+    }
+
+    /**
+     * Build the secondary (back-row) panels for the 2nd fighter on each side in a
+     * 2v2 battle. Rendered smaller and offset toward the field centre so the
+     * primary fighter stays in front. No-op (null panels) for 1v1 or when a side
+     * has no second sprite.
+     */
+    private void buildSecondaryPanels(
+        float width, float height, float margin,
+        float hudWidth, float hudHeight,
+        float enemyCenterX, float playerCenterX,
+        float enemySpriteSize, float playerSpriteSize,
+        float enemySpriteY, float playerSpriteY
+    ) {
+        playerPanel2 = null;
+        enemyPanel2 = null;
+        // Secondary panels are only meaningful in local team battles where
+        // per-side sprite lists were supplied.
+        boolean teamBattle = (playerTeamSprites.size() > 1 || enemyTeamSprites.size() > 1)
+            && mode == BattleMode.LOCAL;
+        if (!teamBattle) return;
+
+        // Secondary sprites are ~72% of the primary; offset toward centre (back row).
+        float scale2 = 0.72f;
+        float hudScale2 = COMBATANT_HUD_SCALE * 0.82f;
+        float hudWidth2 = hudWidth * 0.80f;
+        float hudHeight2 = hudHeight * 0.80f;
+
+        if (enemyTeamSprites.size() > 1) {
+            float sz = enemySpriteSize * scale2;
+            float cx = enemyCenterX - enemySpriteSize * 0.55f; // shift toward centre (left)
+            float sy = enemySpriteY + enemySpriteSize * 0.18f; // slightly higher (back row)
+            Rectangle plate = new Rectangle(cx - sz * 0.5f, sy - sz * 0.10f, sz * 0.9f, sz * 0.9f);
+            Rectangle sprite = new Rectangle(cx - sz / 2f, sy, sz, sz);
+            Rectangle hud = new Rectangle(margin + hudWidth + 10f, sy + sz - hudHeight2, hudWidth2, hudHeight2);
+            enemyPanel2 = new CombatantPanel(enemyTeamSprites.get(1), assets.stoneBasePlate,
+                assets.battleUi, plate, sprite, hud, hudScale2);
+        }
+        if (playerTeamSprites.size() > 1) {
+            float sz = playerSpriteSize * scale2;
+            float cx = playerCenterX + playerSpriteSize * 0.55f; // shift toward centre (right)
+            float sy = playerSpriteY + playerSpriteSize * 0.18f;
+            Rectangle plate = new Rectangle(cx - sz * 0.5f, sy - sz * 0.10f, sz * 0.9f, sz * 0.9f);
+            Rectangle sprite = new Rectangle(cx - sz / 2f, sy, sz, sz);
+            Rectangle hud = new Rectangle(width - margin - hudWidth - hudWidth2 - 20f,
+                sy + sz - hudHeight2, hudWidth2, hudHeight2);
+            playerPanel2 = new CombatantPanel(playerTeamSprites.get(1), assets.stoneBasePlate,
+                assets.battleUi, plate, sprite, hud, hudScale2);
+        }
     }
 
     /**
@@ -2369,10 +2502,15 @@ public class BattleScreen implements Screen, BattleView {
     /** Called on the render thread alongside the matching local HP-bar update. */
     private void flashLocalDamageSprite(CombatEvent event) {
         if (event.getType() != CombatEvent.Type.DAMAGE_DEALT || event.getIntValue() <= 0) return;
-        if (event.getTarget() == renderPlayer) {
+        BattleCombatant target = event.getTarget();
+        if (target == renderPlayer) {
             flashDamageSprite(true);
-        } else if (event.getTarget() == renderEnemy) {
+        } else if (target == renderEnemy) {
             flashDamageSprite(false);
+        } else if (target == renderPlayer2 && playerPanel2 != null) {
+            playerPanel2.flashDamage();
+        } else if (target == renderEnemy2 && enemyPanel2 != null) {
+            enemyPanel2.flashDamage();
         }
     }
 
@@ -2409,6 +2547,16 @@ public class BattleScreen implements Screen, BattleView {
         if (enemyPanel != null && renderEnemy != null) {
             enemyPanel.update(localEnemyHp, localEnemyMaxHp,
                 renderEnemy.getCurrentCe(), renderEnemy.getMaxCursedEnergy());
+        }
+        // Secondary panels (2v2): CE/max-CE live from the model; HP is read live
+        // too (the deferred-HP log sync drives the primary fighter only).
+        if (playerPanel2 != null && renderPlayer2 != null) {
+            playerPanel2.update(renderPlayer2.getCurrentHp(), renderPlayer2.getMaxHp(),
+                renderPlayer2.getCurrentCe(), renderPlayer2.getMaxCursedEnergy());
+        }
+        if (enemyPanel2 != null && renderEnemy2 != null) {
+            enemyPanel2.update(renderEnemy2.getCurrentHp(), renderEnemy2.getMaxHp(),
+                renderEnemy2.getCurrentCe(), renderEnemy2.getMaxCursedEnergy());
         }
     }
 

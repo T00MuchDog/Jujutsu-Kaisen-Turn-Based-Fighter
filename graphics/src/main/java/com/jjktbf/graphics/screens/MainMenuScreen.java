@@ -108,7 +108,10 @@ public class MainMenuScreen implements Screen {
         commandTitle.setColor(new Color(1.000f, 0.835f, 0.180f, 1f));
         commands.add(commandTitle).left().padBottom(10).row();
 
-        MenuButton singlePlayer = makeButton("SINGLE PLAYER", game::showCharacterSelect);
+        MenuButton singlePlayer = makeButton("SINGLE PLAYER (1v1)",
+            () -> game.showCharacterSelect(com.jjktbf.model.combat.BattleFormat.ONE_V_ONE));
+        MenuButton teamBattle = makeButton("TEAM BATTLE (2v2)",
+            () -> game.showCharacterSelect(com.jjktbf.model.combat.BattleFormat.TWO_V_TWO));
         MenuButton multiplayer  = makeButton("MULTIPLAYER", game::showMultiplayerMenu);
         MenuButton moveEd    = makeButton("MOVE EDITOR", game::showMoveEditor);
         MenuButton charEd    = makeButton("CHARACTER EDITOR", game::showCharacterEditor);
@@ -117,7 +120,7 @@ public class MainMenuScreen implements Screen {
         MenuButton quit      = makeButton("QUIT", this::exitApplication);
 
         for (MenuButton button : new MenuButton[]{
-            singlePlayer, multiplayer, charEd, moveEd, abilityEd, techEd, quit
+            singlePlayer, teamBattle, multiplayer, charEd, moveEd, abilityEd, techEd, quit
         }) {
             menuButtons.add(button);
             menuButtonCells.add(commands.add(button).growX().height(46).pad(4));

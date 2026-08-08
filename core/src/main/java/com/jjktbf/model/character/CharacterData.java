@@ -31,6 +31,12 @@ public class CharacterData {
     public String name;
     /** Player-facing character flavour text shown on selection pages. */
     public String description = "";
+    /**
+     * Optional display-only title/epithet (e.g. "SHIKIGAMI", "The Honored One").
+     * Null/blank when unset. Carries no combat rules — purely a flavour label for
+     * roster and battle presentation. Absent on legacy saves (treated as unset).
+     */
+    public String title;
     /** Relative graphics resource path, e.g. {@code assets/sprites/characters/yuji_frontsprite.png}. */
     public String spriteAsset;
 
@@ -209,7 +215,9 @@ public class CharacterData {
                 }
         }
 
-        return constructTypedCharacter(stats, moves, abilities);
+        Character character = constructTypedCharacter(stats, moves, abilities);
+        character.setTitle(title);
+        return character;
     }
 
     /**
@@ -312,6 +320,7 @@ public class CharacterData {
         CharacterData d = new CharacterData();
         d.id                    = character.getId();
         d.name                  = character.getName();
+        d.title                 = character.getTitle();
         // The domain Character carries its type but not the authoring-only
         // directlySelectable flag; leave the DTO flag null so the type default
         // applies (sorcerers selectable, shikigami not). The editor sets the

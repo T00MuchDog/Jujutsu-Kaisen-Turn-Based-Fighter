@@ -9,6 +9,9 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.jjktbf.AppPaths;
 import com.jjktbf.controller.BattleController;
+import com.jjktbf.model.combat.BattleCombatant;
+import com.jjktbf.model.combat.BattleState;
+import com.jjktbf.model.combat.BattleTeamId;
 import com.jjktbf.graphics.audio.GameAudio;
 import com.jjktbf.graphics.audio.MusicTrack;
 import com.jjktbf.graphics.multiplayer.ChallengeService;
@@ -276,6 +279,11 @@ public class JJKGame extends Game {
     }
 
     public void showCharacterSelect() {
+        showCharacterSelect(com.jjktbf.model.combat.BattleFormat.ONE_V_ONE);
+    }
+
+    public void showCharacterSelect(com.jjktbf.model.combat.BattleFormat format) {
+        characterSelectScreen.prepare(format);
         showScreen(characterSelectScreen, MusicTrack.MENU);
     }
 
@@ -452,6 +460,68 @@ public class JJKGame extends Game {
 
         battleScreen.setLocalBattleThread(battleThread);
         battleThread.setDaemon(true); // exits when the main window closes
+        battleThread.start();
+    }
+
+    /**
+     * Start a local team battle (e.g. 2v2). Builds one {@link BattleCombatant}
+     * per selected fighter per side, assembles a team {@link BattleState} via
+     * {@link BattleState#teamOfFighters}, and runs it through the multi-fighter
+     * loop ({@link BattleController#runTeamBattle}). The engine, AI, and team
+     * planning UI already handle N fighters per side; this is the single-player
+     * setup entry point.
+     */
+    public void startTeamBattle(
+        java.util.List<CharacterData> playerTeam,
+        java.util.List<CharacterData> cpuTeam,
+        MoveRepository moveRepo, AbilityRepository abilityRepo,
+        TechniqueRepository techniqueRepo
+    ) {
+        battleScreen.prepareLocal();
+        // Set sprites per side (front fighter per side for now; full 4-fighter
+        // rendering is handled by BattleScreen once the state arrives).
+        battleScreen.setTeamSprites(
+            playerTeam.stream()
+                .map(d -> assets.characterBattleSprite(d.spriteAsset, false, assets.playerSprite))
+                .toList(),
+            cpuTeam.stream()
+                .map(d -> assets.characterBattleSprite(d.spriteAsset, true, assets.enemySprite))
+                .toList());
+        showScreen(battleScreen, MusicTrack.BATTLE);
+
+        Thread battleThread = new Thread(() -> {
+            try {
+                java.util.List<BattleCombatant> playerFighters = playerTeam.stream()
+                    .map(d -> d.toCharacter(moveRepo, abilityRepo, techniqueRepo))
+                    .map(c -> new BattleCombatant(c, c.getAbilities()))
+                    .toList();
+                java.util.List<BattleCombatant> cpuFighters = cpuTeam.stream()
+                    .map(d -> d.toCharacter(moveRepo, abilityRepo, techniqueRepo))
+                    .map(c -> new BattleCombatant(c, c.getAbilities()))
+                    .toList();
+                BattleState state = new BattleState(
+                    BattleState.teamOfFighters(BattleTeamId.PLAYER, playerFighters),
+                    BattleState.teamOfFighters(BattleTeamId.ENEMY, cpuFighters));
+                BattleController controller = new BattleController(
+                    battleScreen,
+                    characterId -> multiplayerCharacterRepository.findById(characterId)
+                        .map(data -> data.toCharacter(moveRepo, abilityRepo, techniqueRepo))
+                );
+                controller.runTeamBattle(state);
+            } catch (Throwable t) {
+                try {
+                    java.io.PrintWriter pw = new java.io.PrintWriter(
+                        new java.io.FileWriter(AppPaths.logFile().toFile(), true));
+                    pw.println("===== " + java.time.Instant.now() + " =====");
+                    t.printStackTrace(pw);
+                    pw.close();
+                } catch (Exception ignored) {}
+                throw new RuntimeException(t);
+            }
+        }, "battle-thread");
+
+        battleScreen.setLocalBattleThread(battleThread);
+        battleThread.setDaemon(true);
         battleThread.start();
     }
 }

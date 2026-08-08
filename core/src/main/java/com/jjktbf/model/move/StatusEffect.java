@@ -9,7 +9,7 @@ import java.util.Map;
  * An instance of a status effect as it exists on a combatant mid-battle.
  * Immutable descriptor — the combat engine tracks duration countdown separately.
  *
- * <p>An effect row is exactly one of two flavours:
+ * <p>An effect row is exactly one of three flavours:
  * <ul>
  *   <li><b>Status effect</b> — carries a non-null {@link StatusEffectType} and is
  *       applied to a combatant for a duration. Most modify stats; some, such as
@@ -20,9 +20,16 @@ import java.util.Map;
  *       instead of being applied as a status. This is how a technique move's
  *       hardcoded effect is expressed as an editable, add/remove-able effect row
  *       (self or on-hit) rather than as state baked onto the {@code Move}.</li>
+ *   <li><b>Summon</b> — carries a {@code summonCharacterId} (a shikigami
+ *       definition id) and enqueues a shikigami onto the wielder's team when the
+ *       row fires. This is how a move's shikigami summoning is expressed as an
+ *       editable effect row (self / on-hit / defense) rather than as a dedicated
+ *       flag on the {@code Move}.</li>
  * </ul>
- * The two flavours are mutually exclusive: a coded action leaves {@code type} null,
- * and a status effect leaves the coded fields blank.
+ * The three flavours are mutually exclusive: a summon row leaves {@code type}
+ * null and the coded fields blank, a coded action leaves {@code type} null and
+ * the summon id blank, and a status effect leaves the coded and summon fields
+ * blank.
  */
 public class StatusEffect {
 
@@ -55,6 +62,13 @@ public class StatusEffect {
     /** Optional per-field CTM formulas or benchmark tables. */
     private final Map<String, TechniqueMasteryProgressionData> masteryProgression;
 
+    /**
+     * Shikigami character-definition id summoned when this row fires. Only set on
+     * a summon-flavour row (see {@link #isSummon()}); null for status and coded
+     * rows. Only {@code CharacterType.SHIKIGAMI} definitions may be referenced.
+     */
+    private final String summonCharacterId;
+
     public StatusEffect(StatusEffectType type, int durationRounds, double magnitude) {
         this(type, durationRounds, 0, magnitude);
     }
@@ -66,7 +80,7 @@ public class StatusEffect {
         double magnitude
     ) {
         this(type, durationRounds, durationTicks, magnitude,
-            null, null, null, null, null, null);
+            null, null, null, null, null, null, null);
     }
 
     public StatusEffect(
@@ -77,7 +91,7 @@ public class StatusEffect {
         Map<String, TechniqueMasteryProgressionData> masteryProgression
     ) {
         this(type, durationRounds, durationTicks, magnitude,
-            null, null, null, null, null, masteryProgression);
+            null, null, null, null, null, masteryProgression, null);
     }
 
     /**
@@ -94,7 +108,7 @@ public class StatusEffect {
         String codedAction
     ) {
         this(type, durationRounds, durationTicks, magnitude,
-            codedAbilityKey, codedAction, null, null, null, null);
+            codedAbilityKey, codedAction, null, null, null, null, null);
     }
 
     public StatusEffect(
@@ -108,7 +122,7 @@ public class StatusEffect {
         Integer codedStackCount
     ) {
         this(type, durationRounds, durationTicks, magnitude,
-            codedAbilityKey, codedAction, codedTarget, codedStackCount, null, null);
+            codedAbilityKey, codedAction, codedTarget, codedStackCount, null, null, null);
     }
 
     public StatusEffect(
@@ -123,11 +137,48 @@ public class StatusEffect {
         Map<String, Integer> codedParameters,
         Map<String, TechniqueMasteryProgressionData> masteryProgression
     ) {
+        this(type, durationRounds, durationTicks, magnitude,
+            codedAbilityKey, codedAction, codedTarget, codedStackCount,
+            codedParameters, masteryProgression, null);
+    }
+
+    /**
+     * Construct a summon effect row. The supplied shikigami character-definition
+     * id is enqueued onto the wielder's team when this row fires; the shared
+     * runtime summon path materializes it after the current tick batch. Only
+     * {@code CharacterType.SHIKIGAMI} definitions may be referenced.
+     */
+    public StatusEffect(String summonCharacterId) {
+        this(null, 0, 0, 0,
+            null, null, null, null, null, null, summonCharacterId);
+    }
+
+    private StatusEffect(
+        StatusEffectType type,
+        int durationRounds,
+        int durationTicks,
+        double magnitude,
+        String codedAbilityKey,
+        String codedAction,
+        String codedTarget,
+        Integer codedStackCount,
+        Map<String, Integer> codedParameters,
+        Map<String, TechniqueMasteryProgressionData> masteryProgression,
+        String summonCharacterId
+    ) {
         boolean coded = codedAbilityKey != null && !codedAbilityKey.isBlank();
-        if (type == null && !coded) {
+        boolean summon = summonCharacterId != null && !summonCharacterId.isBlank();
+        if (summon) {
+            if (coded) {
+                throw new IllegalArgumentException("A summon effect row cannot also be a coded action");
+            }
+            if (type != null) {
+                throw new IllegalArgumentException("A summon effect row cannot also carry a status type");
+            }
+        } else if (type == null && !coded) {
             throw new IllegalArgumentException("Status effect type is required for a non-coded effect");
         }
-        if (!coded) {
+        if (!coded && !summon) {
             validateDuration(type, durationRounds, durationTicks);
             if (!Double.isFinite(magnitude) || magnitude < 0) {
                 throw new IllegalArgumentException("Status effect amount must be a non-negative number");
@@ -136,7 +187,7 @@ public class StatusEffect {
         this.type            = type;
         this.durationRounds  = durationRounds;
         this.durationTicks   = durationTicks;
-        this.magnitude       = !coded && !type.usesMagnitude() ? 0.0 : magnitude;
+        this.magnitude       = (!coded && !summon && !type.usesMagnitude()) ? 0.0 : magnitude;
         this.codedAbilityKey = codedAbilityKey;
         this.codedAction     = codedAction;
         this.codedTarget     = codedTarget;
@@ -146,6 +197,7 @@ public class StatusEffect {
             TechniqueMasteryProgressions.copy(masteryProgression);
         this.masteryProgression = copiedProgression == null
             ? Map.of() : Map.copyOf(copiedProgression);
+        this.summonCharacterId = summon ? summonCharacterId : null;
     }
 
     /** Build a coded-action effect row bound to the given ability key/action. */
@@ -224,8 +276,22 @@ public class StatusEffect {
         return codedAbilityKey != null && !codedAbilityKey.isBlank();
     }
 
+    /**
+     * Shikigami definition id this row summons when it fires, or null for a
+     * status or coded row.
+     */
+    public String getSummonCharacterId() { return summonCharacterId; }
+
+    /** True when this row is a summon effect (enqueues a shikigami when it fires). */
+    public boolean isSummon() {
+        return summonCharacterId != null && !summonCharacterId.isBlank();
+    }
+
     @Override
     public String toString() {
+        if (isSummon()) {
+            return String.format("StatusEffect{SUMMON %s}", summonCharacterId);
+        }
         if (isCoded()) {
             return String.format("StatusEffect{CODED %s/%s target=%s stacks=%s}",
                 codedAbilityKey, codedAction, codedTarget, codedStackCount);

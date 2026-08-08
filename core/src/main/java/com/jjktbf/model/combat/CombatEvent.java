@@ -28,6 +28,9 @@ public class CombatEvent {
         // Targeting
         TARGET_RETARGETED,  // a single-target move's invalid target was retargeted at fire time
 
+        // Summoning
+        MOVE_SUMMON,        // a move effect row enqueued a shikigami summon (pre-materialization)
+
         // Damage
         DAMAGE_DEALT,
         DAMAGE_IGNORED,

@@ -53,6 +53,16 @@ public abstract class Character extends Entity {
      */
     private final boolean hasWeapon;
 
+    /**
+     * Optional display-only title/epithet (e.g. "SHIKIGAMI", "The Honored One",
+     * "Special Grade"). Null/blank when unset. This carries no combat rules — it
+     * is purely a flavour label for roster and battle presentation. Set by
+     * {@link CharacterData#toCharacter} from the authored {@code title} field;
+     * not threaded through the construction chain because it participates in no
+     * validation.
+     */
+    private String title;
+
     // -------------------------------------------------------------------------
     // Construction
     // -------------------------------------------------------------------------
@@ -379,4 +389,11 @@ public abstract class Character extends Entity {
     public List<Ability>   getAbilities()            { return abilities; }
     public boolean         hasInnateTechnique()      { return innateTechniqueName != null; }
     public boolean         hasWeapon()                { return hasWeapon; }
+
+    /** Optional display-only title/epithet, or null when unset. */
+    public String          getTitle()                 { return title; }
+    /** Set the display-only title. Used by {@link CharacterData#toCharacter}. */
+    public void            setTitle(String title)     { this.title = title; }
+    /** True when this character has a non-blank title to display. */
+    public boolean         hasTitle()                 { return title != null && !title.isBlank(); }
 }

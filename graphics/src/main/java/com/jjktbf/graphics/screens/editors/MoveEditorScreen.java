@@ -38,6 +38,7 @@ import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.character.coded.NewShadowStyleAbility;
 import com.jjktbf.model.character.coded.RatioAbility;
+import com.jjktbf.model.move.AoeType;
 import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.DodgeScope;
@@ -87,6 +88,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     private Container<Actor> defenseFieldsContainer;
     private Container<Actor> ceMinMaxContainer;
     private Container<Actor> powerFieldsContainer;
+    private Container<Actor> aoeFieldsContainer;
     private CheckBox weaponRequiredCheckbox;
 
     public MoveEditorScreen(JJKGame game, AssetLoader assets) {
@@ -202,6 +204,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         d.mustBeGranted         = s.mustBeGranted;
         d.moveCap               = s.moveCap;
         d.summonCharacterId     = s.summonCharacterId;
+        d.aoeType               = s.aoeType;
+        d.aoeTargetCount        = s.aoeTargetCount;
         return d;
     }
 
@@ -248,6 +252,11 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     private static MoveData.StatusEffectData copyEffect(MoveData.StatusEffectData e) {
         if (e == null) return null;
         MoveData.StatusEffectData c = new MoveData.StatusEffectData();
+        // Summon rows carry a shikigami id instead of a status type — copy whole.
+        if (e.isSummon()) {
+            c.summonCharacterId = e.summonCharacterId;
+            return c;
+        }
         // Coded rows carry an ability key/action instead of a status type — copy them whole.
         if (e.isCoded()) {
             c.codedAbilityKey = e.codedAbilityKey;
@@ -798,26 +807,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         misc.add(labelledIntField("Move Cap (uses per round, 0 = unlimited)",
             d.moveCap, 0, 99999, v -> d.moveCap = v)).growX().row();
 
-        // Shikigami-summon selector: only SHIKIGAMI definitions are valid summon
-        // targets. Blank means the move does not summon.
-        java.util.List<String> shikigamiOptions = shikigamiOptions();
-        SelectBox<String> summonSelect = new SelectBox<>(skin);
-        java.util.List<String> summonItems = new java.util.ArrayList<>();
-        summonItems.add("[none]");
-        summonItems.addAll(shikigamiOptions);
-        String selectedSummon = summonLabelFor(d.summonCharacterId, shikigamiOptions);
-        if (!summonItems.contains(selectedSummon)) summonItems.add(selectedSummon);
-        summonSelect.setItems(summonItems.toArray(new String[0]));
-        summonSelect.setSelected(selectedSummon);
-        summonSelect.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
-                String selected = summonSelect.getSelected();
-                d.summonCharacterId = shikigamiIdFromLabel(selected, shikigamiOptions);
-                markDirty();
-            }
-        });
-        misc.add(labelledRow("Summons Shikigami", summonSelect)).growX().row();
-
         CheckBox freeCb = new CheckBox(" Free move (does not consume a slot)", skin);
         freeCb.setChecked(d.isFreeMove);
         freeCb.addListener(new ChangeListener() {
@@ -872,6 +861,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         sections.pad(0f);
         powerFieldsContainer = null;
         defenseFieldsContainer = null;
+        aoeFieldsContainer = null;
 
         if (hasTag(d, MoveTag.ATTACK)) {
             Table attack = formSection(sections, "ATTACK");
@@ -892,6 +882,12 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             });
             attack.add(neverMissCb).left().row();
             // On-hit effects are authored per hit component below — no move-level section.
+
+            // AOE type sub-section: shown only when the move is both an ATTACK
+            // and AOE-tagged. Lets the author pick the targeting shape.
+            aoeFieldsContainer = new Container<>();
+            aoeFieldsContainer.setActor(hasTag(d, MoveTag.AOE) ? buildAoeFields(d) : new Table());
+            attack.add(aoeFieldsContainer).growX().row();
         }
 
         if (hasTag(d, MoveTag.DEFENSIVE)) {
@@ -1653,12 +1649,18 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 MoveData.StatusEffectData eff = list.get(idx);
                 // A coded row carries a hardcoded ability action (e.g. MIRACLES/CREATE)
                 // instead of a status; render it with a distinct label so it is not
-                // confused with a normal status effect.
-                String rowLabel = eff.isCoded()
-                    ? "CODED: " + eff.codedAbilityKey + "/" + eff.codedAction
+                // confused with a normal status effect. A summon row carries a
+                // shikigami id instead.
+                String rowLabel;
+                if (eff.isSummon()) {
+                    rowLabel = "SUMMON: " + (eff.summonCharacterId == null ? "?" : eff.summonCharacterId);
+                } else if (eff.isCoded()) {
+                    rowLabel = "CODED: " + eff.codedAbilityKey + "/" + eff.codedAction
                         + (eff.codedTarget == null ? "" : " -> " + eff.codedTarget)
-                        + (eff.codedStackCount == null ? "" : " x" + eff.codedStackCount)
-                    : statusEffectSummary(eff);
+                        + (eff.codedStackCount == null ? "" : " x" + eff.codedStackCount);
+                } else {
+                    rowLabel = statusEffectSummary(eff);
+                }
                 Label lbl = new Label(rowLabel, skin, "small");
                 t.add(lbl).left().growX();
                 TextButton editBtn = new TextButton("Edit", skin);
@@ -1741,9 +1743,10 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         final List<String> codedLabels = new ArrayList<>(codedOptions.stream()
             .map(CodedAbilityRegistry.EffectAction::label).toList());
 
-        // --- The Type row: "Type" label  [toggle]  [dropdown] ---
+        // --- The Type row: "Type" label  [Status/Coded toggle]  [Summon]  [dropdown] ---
         final SelectBox<String> typeBox = new DynamicSelectBox<>(skin);
         final TextButton toggleBtn = new TextButton("Coded", skin);
+        final TextButton summonBtn = new TextButton("Summon", skin);
         // Holders so the listeners below can reference the mode swap before it's assigned.
         final Runnable[] applyMode = new Runnable[1];
         // Guard against the listener firing while we programmatically swap items.
@@ -1753,6 +1756,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             @Override public void changed(ChangeEvent event, Actor actor) {
                 game.audio().play(SoundCue.UI_TOGGLE);
                 boolean nowCoded = !eff.isCoded();
+                clearSummon(eff);
                 eff.masteryProgression = null;
                 if (nowCoded) {
                     if (eff.codedAbilityKey == null || eff.codedAbilityKey.isBlank()) {
@@ -1762,13 +1766,25 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                     normalizeCodedSettings(eff);
                     eff.type = null; // a coded row carries no status type
                 } else {
-                    eff.codedAbilityKey = null;
-                    eff.codedAction = null;
-                    eff.codedTarget = null;
-                    eff.codedStackCount = null;
-                    eff.codedParameters = null;
+                    clearCoded(eff);
                     eff.masteryProgression = null;
                     if (eff.type == null) eff.type = StatusEffectType.STRENGTH_INCREASE.name();
+                }
+                applyMode[0].run();
+            }
+        });
+
+        summonBtn.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                game.audio().play(SoundCue.UI_TOGGLE);
+                // Switching to summon mode: clear status + coded state, seed a
+                // shikigami id if none is set.
+                clearCoded(eff);
+                eff.type = null;
+                eff.masteryProgression = null;
+                if (eff.summonCharacterId == null || eff.summonCharacterId.isBlank()) {
+                    java.util.List<String> opts = shikigamiOptions();
+                    eff.summonCharacterId = opts.isEmpty() ? null : shikigamiIdFromLabel(opts.get(0), opts);
                 }
                 applyMode[0].run();
             }
@@ -1778,7 +1794,11 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             @Override public void changed(ChangeEvent event, Actor actor) {
                 if (syncing[0]) return;
                 String sel = typeBox.getSelected();
-                if (eff.isCoded()) {
+                if (eff.isSummon()) {
+                    java.util.List<String> opts = shikigamiOptions();
+                    eff.summonCharacterId = shikigamiIdFromLabel(sel, opts);
+                    applyMode[0].run();
+                } else if (eff.isCoded()) {
                     int idx = codedLabels.indexOf(sel);
                     if (idx >= 0) {
                         eff.codedAbilityKey = codedOptions.get(idx).key();
@@ -1811,6 +1831,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         typeRow.defaults().pad(4).left();
         typeRow.add(new Label("Type", skin)).padRight(8);
         typeRow.add(toggleBtn).padRight(8);
+        typeRow.add(summonBtn).padRight(8);
         typeRow.add(typeBox).growX();
         content.add(typeRow).growX().row();
 
@@ -1823,7 +1844,21 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         applyMode[0] = () -> {
             syncing[0] = true;
             try {
-                if (eff.isCoded()) {
+                if (eff.isSummon()) {
+                    // Summon mode: the dropdown lists shikigami definitions; the
+                    // toggle button offers to switch back to Status, and a hint
+                    // explains the row.
+                    toggleBtn.setText("Status");
+                    java.util.List<String> opts = shikigamiOptions();
+                    typeBox.setItems(opts.toArray(new String[0]));
+                    String current = summonLabelFor(eff.summonCharacterId, opts);
+                    if (!opts.contains(current) && !opts.isEmpty()) current = opts.get(0);
+                    typeBox.setSelected(current);
+                    if (!opts.isEmpty()) {
+                        eff.summonCharacterId = shikigamiIdFromLabel(current, opts);
+                    }
+                    customRow.setActor(buildSummonEffectFields(eff));
+                } else if (eff.isCoded()) {
                     toggleBtn.setText("Status");
                     typeBox.setItems(codedLabels.toArray(new String[0]));
                     int idx = -1;
@@ -1945,6 +1980,40 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 () -> (int) Math.floor(Math.abs(effect.magnitude)), masteryEligible);
         }
         return fields;
+    }
+
+    /**
+     * Build the customisation block for a summon-flavour effect row: an
+     * explanatory hint (the shikigami itself is chosen in the Type dropdown,
+     * which is repopulated with shikigami options in summon mode).
+     */
+    private Actor buildSummonEffectFields(MoveData.StatusEffectData effect) {
+        Table fields = new Table(skin);
+        fields.defaults().pad(4).left();
+        fields.add(formHint(
+            "Summons the selected shikigami onto the wielder's team when this row fires. "
+            + "Pick the shikigami in the Type dropdown above. Only SHIKIGAMI definitions "
+            + "may be summoned."))
+            .colspan(2).row();
+        if (shikigamiOptions().isEmpty()) {
+            fields.add(formHint("⚠ no shikigami definitions found — create one in the Character Editor."))
+                .colspan(2).row();
+        }
+        return fields;
+    }
+
+    /** Clear the coded-action fields on an effect row (used when leaving coded mode). */
+    private static void clearCoded(MoveData.StatusEffectData eff) {
+        eff.codedAbilityKey = null;
+        eff.codedAction     = null;
+        eff.codedTarget     = null;
+        eff.codedStackCount = null;
+        eff.codedParameters = null;
+    }
+
+    /** Clear the summon field on an effect row (used when leaving summon mode). */
+    private static void clearSummon(MoveData.StatusEffectData eff) {
+        eff.summonCharacterId = null;
     }
 
     private Actor buildCodedEffectFields(
@@ -2168,6 +2237,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         markDirty();
         if (categorySectionsContainer != null) {
             categorySectionsContainer.setActor(buildCategorySections(d));
+            // buildCategorySections creates (but does not populate) the AOE and
+            // other conditional containers — populate them now.
+            refreshConditionalFields(d);
         }
     }
 
@@ -2177,6 +2249,49 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         if (defenseFieldsContainer != null) defenseFieldsContainer.setActor(buildDefenseFields(d));
         if (ceMinMaxContainer  != null) ceMinMaxContainer.setActor(buildCeMinMax(d));
         if (powerFieldsContainer != null) powerFieldsContainer.setActor(buildPowerFields(d));
+        if (aoeFieldsContainer != null) {
+            // The AOE sub-section only exists for ATTACK + AOE-tagged moves.
+            if (hasTag(d, MoveTag.AOE) && hasTag(d, MoveTag.ATTACK)) {
+                aoeFieldsContainer.setActor(buildAoeFields(d));
+            } else {
+                aoeFieldsContainer.setActor(new Table());
+            }
+        }
+    }
+
+    /**
+     * Build the AOE targeting sub-section (inside the ATTACK card): the shape
+     * dropdown (Multiple Targets / All Enemies / All Others) and, for the
+     * MULTIPLE shape, a target-count field.
+     */
+    private Actor buildAoeFields(MoveData d) {
+        Table t = new Table(skin);
+        t.defaults().left().pad(4);
+        t.add(new Label("AREA OF EFFECT", skin, "small")).padTop(8f).left().row();
+
+        AoeType current = AoeType.fromName(d.aoeType);
+        if (current == null) {
+            // Default ALL_ENEMIES for a freshly AOE-tagged move so the dropdown
+            // always shows a concrete selection.
+            current = AoeType.ALL_ENEMIES;
+            d.aoeType = current.name();
+        }
+        if (d.aoeTargetCount < 2) d.aoeTargetCount = 2;
+
+        EnumSelectBox<AoeType> aoeTypeSelect = new EnumSelectBox<>(
+            AoeType.class, current.name(), false,
+            name -> {
+                d.aoeType = name;
+                game.audio().play(SoundCue.UI_NAVIGATE);
+                refreshConditionalFields(d);
+            }, skin);
+        t.add(labelledRow("AOE Type (" + current.displayName() + ")", aoeTypeSelect)).growX().row();
+
+        if (current == AoeType.MULTIPLE) {
+            t.add(labelledIntField("Target Count", d.aoeTargetCount, 2, 99,
+                    v -> { d.aoeTargetCount = v; })).growX().row();
+        }
+        return t;
     }
 
     /** Force and lock the weapon requirement for moves whose semantics require a weapon. */

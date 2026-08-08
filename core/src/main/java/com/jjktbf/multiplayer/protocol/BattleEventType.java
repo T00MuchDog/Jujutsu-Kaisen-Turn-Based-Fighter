@@ -10,6 +10,7 @@ public enum BattleEventType {
     MOVE_DODGED,
     MOVE_PARRIED,
     MOVE_STUNNED,
+    MOVE_SUMMON,
     TARGET_RETARGETED,
     DAMAGE_DEALT,
     DAMAGE_IGNORED,

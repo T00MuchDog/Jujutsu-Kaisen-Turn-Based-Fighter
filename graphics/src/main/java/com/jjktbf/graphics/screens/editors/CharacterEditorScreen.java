@@ -178,6 +178,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         d.id                  = stored.id;
         d.name                = stored.name;
         d.description         = stored.description;
+        d.title               = stored.title;
         d.spriteAsset         = stored.spriteAsset;
         d.type                = stored.type;
         d.directlySelectable  = stored.directlySelectable;
@@ -458,6 +459,9 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 s -> { cd.name = s; })).growX().row();
         identity.add(labelledField("Description", cd.description,
                 s -> { cd.description = s; })).growX().row();
+        identity.add(labelledField("Title / epithet (display only, blank = none)", cd.title,
+                s -> { cd.title = (s == null || s.isBlank()) ? null : s; }))
+            .growX().row();
         identity.add(labelledField("Sprite Asset (assets/sprites/characters/...)", cd.spriteAsset,
                 s -> { cd.spriteAsset = (s == null || s.isBlank()) ? null : s; }))
             .growX().row();

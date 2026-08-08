@@ -230,6 +230,21 @@ public class Move {
      */
     private final String summonCharacterId;
 
+    /**
+     * Authoritative area-of-effect shape for an {@link MoveTag#AOE} move. Null
+     * when the move is not AOE; non-null whenever the AOE tag is present (a
+     * back-compat default of {@link AoeType#ALL_ENEMIES} is applied on load when
+     * the field is blank). This is the single source of truth for how an AOE
+     * move fans out — see {@link com.jjktbf.model.combat.MoveTargeting#forMove}.
+     */
+    private final AoeType aoeType;
+
+    /**
+     * Number of targets hit by an {@link AoeType#MULTIPLE} AOE move. Ignored for
+     * the other AOE shapes. Defaults to 2; must be at least 2 when used.
+     */
+    private final int aoeTargetCount;
+
     // -------------------------------------------------------------------------
     // Construction via Builder
     // -------------------------------------------------------------------------
@@ -276,6 +291,8 @@ public class Move {
         this.mustBeGranted       = b.mustBeGranted;
         this.moveCap             = b.moveCap;
         this.summonCharacterId   = b.summonCharacterId;
+        this.aoeType             = resolveAoeType(b);
+        this.aoeTargetCount      = b.aoeTargetCount;
     }
 
     private static Set<MoveTag> immutableTags(Set<MoveTag> source, MoveCategory category) {
@@ -283,6 +300,22 @@ public class Move {
         if (source != null) copy.addAll(source);
         else if (category != null) copy.addAll(category.getTags());
         return Collections.unmodifiableSet(copy);
+    }
+
+    /**
+     * Resolve the authoritative {@link AoeType} from the builder state. A move
+     * without the {@link MoveTag#AOE} tag never carries an AOE type. A move with
+     * the AOE tag but no authored type falls back to {@link AoeType#ALL_ENEMIES}
+     * (or {@link AoeType#ALL_OTHERS} when the legacy {@link MoveTag#FRIENDLY_FIRE}
+     * tag is present), preserving the pre-AoeType behaviour for old data.
+     */
+    private static AoeType resolveAoeType(Builder b) {
+        Set<MoveTag> effective = b.tags != null ? b.tags
+            : (b.category != null ? b.category.getTags() : EnumSet.noneOf(MoveTag.class));
+        boolean aoe = effective.contains(MoveTag.AOE);
+        if (!aoe) return null;
+        if (b.aoeType != null) return b.aoeType;
+        return effective.contains(MoveTag.FRIENDLY_FIRE) ? AoeType.ALL_OTHERS : AoeType.ALL_ENEMIES;
     }
 
     private static List<HitComponent> buildHitComponents(Builder builder) {
@@ -373,6 +406,17 @@ public class Move {
     public String getSummonCharacterId()           { return summonCharacterId; }
     /** True when this move summons a shikigami when it reaches its unleash point. */
     public boolean summonsCharacter()              { return summonCharacterId != null && !summonCharacterId.isBlank(); }
+
+    /**
+     * Authoritative AOE shape for this move. Null when the move is not AOE;
+     * never null when {@link #isAoe()} is true (a default is applied on build).
+     */
+    public AoeType getAoeType()                    { return aoeType; }
+    /**
+     * Number of targets hit when {@link #getAoeType()} is {@link AoeType#MULTIPLE}.
+     * Defaults to 2; meaningless for the other AOE shapes and for non-AOE moves.
+     */
+    public int getAoeTargetCount()                 { return aoeTargetCount; }
 
     public boolean isBlackFlashEligible() {
         return hitComponents.stream().anyMatch(HitComponent::isBlackFlashEligible);
@@ -708,6 +752,8 @@ public class Move {
         private boolean mustBeGranted        = false;
         private int moveCap                  = 0;
         private String summonCharacterId     = null;
+        private AoeType aoeType              = null;
+        private int aoeTargetCount           = 2;
 
         public Builder(String id) { this.id = id; }
 
@@ -761,6 +807,10 @@ public class Move {
         public Builder moveCap(int v)                       { this.moveCap = v; return this; }
         /** Set the shikigami character id summoned at this move's unleash point. */
         public Builder summonCharacterId(String v)          { this.summonCharacterId = v; return this; }
+        /** Set the authoritative AOE shape. Only meaningful together with the AOE tag. */
+        public Builder aoeType(AoeType v)                   { this.aoeType = v; return this; }
+        /** Set the target count for {@link AoeType#MULTIPLE}. Must be ≥ 2 when used. */
+        public Builder aoeTargetCount(int v)                { this.aoeTargetCount = v; return this; }
 
         public Move build() {
             if (id == null || id.isBlank()) throw new IllegalStateException("Move id is required");
@@ -773,6 +823,17 @@ public class Move {
             if (effectiveTags.contains(MoveTag.FRIENDLY_FIRE)
                 && !effectiveTags.contains(MoveTag.AOE)) {
                 throw new IllegalStateException("FRIENDLY_FIRE requires AOE");
+            }
+
+            // AOE type is only meaningful on AOE moves; reject it elsewhere so an
+            // authoring slip (type set without the tag) can't silently take effect.
+            boolean isAoe = effectiveTags.contains(MoveTag.AOE);
+            if (!isAoe && aoeType != null) {
+                throw new IllegalStateException("aoeType may only be set on an AOE move (name='" + name + "')");
+            }
+            if (aoeType == AoeType.MULTIPLE && aoeTargetCount < 2) {
+                throw new IllegalStateException(
+                    "MULTIPLE AOE type requires aoeTargetCount >= 2 (name='" + name + "')");
             }
 
             validateHitComponents();

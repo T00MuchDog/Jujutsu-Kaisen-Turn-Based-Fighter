@@ -135,4 +135,35 @@ class CharacterTypeTest {
         CharacterData back2 = CharacterData.fromCharacter(shikigamiChar);
         assertEquals(CharacterType.SHIKIGAMI, back2.effectiveType());
     }
+
+    @Test
+    void titleRoundTripsThroughToCharacterAndFromCharacter() {
+        CharacterData data = new CharacterData();
+        data.id = "000005";
+        data.name = "Satoru";
+        data.title = "The Honored One";
+        data.moveIds = java.util.List.of();
+
+        Character character = data.toCharacter(null);
+        assertTrue(character.hasTitle());
+        assertEquals("The Honored One", character.getTitle());
+
+        // fromCharacter preserves the title back into the DTO.
+        CharacterData restored = CharacterData.fromCharacter(character);
+        assertEquals("The Honored One", restored.title);
+    }
+
+    @Test
+    void legacyCharacterJsonWithoutTitleLeavesTitleNull() throws Exception {
+        String json = """
+            {
+              "id": "000000",
+              "name": "Legacy Sorcerer",
+              "moveIds": []
+            }
+            """;
+        CharacterData data = mapper.readValue(json, CharacterData.class);
+        assertEquals(null, data.title,
+            "absent title on legacy saves resolves to null (no title)");
+    }
 }
