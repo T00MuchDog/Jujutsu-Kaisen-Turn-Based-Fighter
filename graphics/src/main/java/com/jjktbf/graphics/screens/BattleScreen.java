@@ -1143,7 +1143,7 @@ public class BattleScreen implements Screen, BattleView {
             syncLocalHpFromModel();
             executionUiActive = true;
             planningPanel = new com.jjktbf.graphics.ui.battle.PlanningPanel(
-                gridLength, combatant, assets.battleUi,
+                gridLength, combatant, List.of(opponent), assets.battleUi,
                 Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
             planningPanel.setSoundPlayer(game.audio()::play);
             planningPanel.setOnConfirm(() -> {

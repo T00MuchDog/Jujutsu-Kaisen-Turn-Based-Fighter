@@ -39,6 +39,37 @@ class PlanningPanelInputTest {
     }
 
     @Test
+    void clickingCardDefaultsToTheOnlyOpponentAndCanLockWithoutTargetSelection() {
+        Move move = move("TARGETED", 10);
+        PlanningPanel panel = targetedPanel(move);
+        PlanningPanel.PlanningInputProcessor input = panel.inputProcessor();
+
+        clickCard(input);
+
+        ActionSegment placed = panel.getPlan().offensiveTimeline().getSegments().get(0);
+        assertEquals(new CombatantId("target-1"), placed.getTarget());
+        input.touchDown(820, HEIGHT - 830, 0, Buttons.LEFT);
+        assertTrue(panel.isConfirmed());
+    }
+
+    @Test
+    void draggingCardDefaultsToTheFirstOpponent() {
+        Move move = move("TARGETED", 10);
+        PlanningPanel panel = targetedPanel(move, List.of(
+            new PlanningPanel.TargetOption("target-1", "First target"),
+            new PlanningPanel.TargetOption("target-2", "Second target")
+        ));
+        PlanningPanel.PlanningInputProcessor input = panel.inputProcessor();
+
+        input.touchDown(50, HEIGHT - 50, 0, Buttons.LEFT);
+        input.touchDragged(300, HEIGHT - 580, 0);
+        input.touchUp(300, HEIGHT - 580, 0, Buttons.LEFT);
+
+        ActionSegment placed = panel.getPlan().offensiveTimeline().getSegments().get(0);
+        assertEquals(new CombatantId("target-1"), placed.getTarget());
+    }
+
+    @Test
     void clickingCardDoesNothingWhenItsTimelineHasNoFreeRange() {
         Move cardMove = move("FULL", 150);
         // A 150-dot grid is exactly filled by one 150-AP move, so a second
@@ -206,10 +237,17 @@ class PlanningPanelInputTest {
     }
 
     private static PlanningPanel targetedPanel(Move move) {
+        return targetedPanel(move, List.of(new PlanningPanel.TargetOption("target-1", "Target")));
+    }
+
+    private static PlanningPanel targetedPanel(
+        Move move,
+        List<PlanningPanel.TargetOption> targets
+    ) {
         return new PlanningPanel(
             300,
             "actor-1",
-            List.of(new PlanningPanel.TargetOption("target-1", "Target")),
+            targets,
             List.of(move),
             Map.of(move.getId(), 0),
             150,

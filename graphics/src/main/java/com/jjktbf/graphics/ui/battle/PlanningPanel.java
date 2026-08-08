@@ -307,6 +307,11 @@ public class PlanningPanel {
         return true;
     }
 
+    private CombatantId defaultTarget(Move move) {
+        if (!BattlePlan.requiresTarget(move) || targetOptions.isEmpty()) return null;
+        return new CombatantId(targetOptions.get(0).instanceId());
+    }
+
     public ActionSegment restorePlacement(Move move, int startTick, int ceCost, String targetId) {
         return plan.place(move, startTick, ceCost,
             targetId == null ? null : new CombatantId(targetId));
@@ -700,6 +705,10 @@ public class PlanningPanel {
 
     private void openTargetMenu(ActionSegment segment) {
         if (segment == null || !segment.needsTarget() || targetOptions.isEmpty()) return;
+        if (targetOptions.size() == 1) {
+            chooseTarget(segment, targetOptions.get(0).instanceId());
+            return;
+        }
         targetMenuSegment = segment;
         layoutTargetMenu();
     }
@@ -966,11 +975,12 @@ public class PlanningPanel {
             updateSnap();
 
             Move move = draggedMove();
+            CombatantId target = draggingSegment == null ? defaultTarget(move) : originalTarget;
             boolean droppedOnTimeline = barFor(draggingBoard).getBounds().contains(dragMouseX, dragMouseY);
             ActionSegment placed = clickingMoveCard
-                ? plan.placeFirstFit(move, ceCost(move))
+                ? plan.placeFirstFit(move, ceCost(move), target)
                 : droppedOnTimeline && snapValid
-                    ? plan.place(move, draggingTick, ceCost(move), originalTarget) : null;
+                    ? plan.place(move, draggingTick, ceCost(move), target) : null;
             if (placed != null) {
                 selectedSegment = placed;
                 soundPlayer.accept(SoundCue.UI_PLAN_PLACE);
