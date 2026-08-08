@@ -326,36 +326,6 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000013",
-  "name" : "Aerial Recon",
-  "flavourText" : "From her perch high above the fight, Momo reads every movement below long before her broom carries a strike down to meet it.",
-  "mechanicText" : "Gain 10 ACCURACY on RANGED attacks while flying on her broom.",
-  "category" : "PASSIVE",
-  "sourceType" : "TECHNIQUE",
-  "sourceValue" : "Tool Manipulation",
-  "effects" : [ {
-    "effectId" : "effect-000000",
-    "type" : "MOVE_ACCURACY_ADD",
-    "intValue" : 10,
-    "moveTag" : "RANGED"
-  } ],
-  "masteryThreshold" : 0
-}, {
-  "id" : "000014",
-  "name" : "Skyborne",
-  "flavourText" : "A grounded opponent swings at empty air as the broom lifts Momo far beyond the reach of any mere fist or blade.",
-  "mechanicText" : "Enemy MELEE attacks have 15% lower ACCURACY against Momo.",
-  "category" : "PASSIVE",
-  "sourceType" : "TECHNIQUE",
-  "sourceValue" : "Tool Manipulation",
-  "effects" : [ {
-    "effectId" : "effect-000000",
-    "type" : "OPPONENT_ACCURACY_MULTIPLY",
-    "doubleValue" : 0.85,
-    "moveTag" : "MELEE"
-  } ],
-  "masteryThreshold" : 0
-}, {
   "id" : "000015",
   "name" : "Partially Realised Heavenly Restriction",
   "flavourText" : "A binding placed upon Maki at birth suppresses her jujutsu potential in exchange for a body that has only begun to realise its inhuman potential.",
