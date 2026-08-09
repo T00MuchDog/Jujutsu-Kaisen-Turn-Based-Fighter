@@ -286,6 +286,11 @@ public class CombatResolver {
 
             state.advanceTick();
 
+            if (isChargeableTick(state, tick)) {
+                chargeSummonUpkeep(state, tick, events);
+                if (finishBattleIfNeeded(state, events, tick)) return events;
+            }
+
             events.addAll(abilityActivations.process(state, AbilityTrigger.tick(tick)));
             if (finishBattleIfNeeded(state, events, tick)) return events;
 
@@ -360,6 +365,52 @@ public class CombatResolver {
         long timerEnd = remainingTicks <= 0
             ? 0L : Math.min((long) c.gridLimit, (long) c.tick + remainingTicks);
         c.maxTick = Math.max(c.actionMaxTick, (int) timerEnd);
+    }
+
+    private boolean isChargeableTick(BattleState state, int tick) {
+        if (cursor.get().pendingComponents.containsKey(tick)) return true;
+        for (BattleCombatant combatant : state.activeCombatants()) {
+            Timeline timeline = combatant.getTimeline();
+            if (timeline != null && timeline.hasResolutionAt(tick)) return true;
+            if (combatant.getRemainingTimelineEffectTicks() > 0) return true;
+        }
+        return false;
+    }
+
+    private void chargeSummonUpkeep(
+        BattleState state,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        List<BattleCombatant> active = state.activeCombatants();
+        for (BattleCombatant summoner : active) {
+            if (!summoner.isActive()) continue;
+            double rate = 0.0;
+            for (BattleCombatant summon : active) {
+                if (summon.isActive()
+                    && summoner.getInstanceId().equals(summon.getSummonerId())) {
+                    rate += summon.getAbilityFlags().summonCeUpkeepPerActiveTick;
+                }
+            }
+            int due = summoner.accrueSummonCeUpkeep(rate);
+            if (due <= 0) continue;
+            int drained = summoner.drainCe(due);
+            if (drained <= 0) continue;
+            events.add(CombatEvent.of(CombatEvent.Type.CE_DRAINED)
+                .source(summoner).intValue(drained).tick(tick)
+                .message(summoner.getCharacter().getName() + " spends " + drained
+                    + " CE maintaining summoned shikigami.")
+                .build());
+            events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
+                AbilityTrigger.Type.CE_LOST, summoner, null, drained, tick)));
+            if (!summoner.hasAnyCe()) {
+                events.add(CombatEvent.of(CombatEvent.Type.CE_DEPLETED)
+                    .source(summoner).tick(tick)
+                    .message(summoner.getCharacter().getName()
+                        + " has exhausted all Cursed Energy!")
+                    .build());
+            }
+        }
     }
 
     private void processTimelineEffectExpiry(
@@ -829,6 +880,7 @@ public class CombatResolver {
         // of whether the attack later hits, misses, or is blocked. Charged once.
         applySelfEffects(state, attacker, targets.primary(), move, tick, events);
         if (finishBattleIfNeeded(state, events, tick)) return;
+        if (!attacker.isActive()) return;
 
         // --- Summon: a move that carries a summonCharacterId enqueues a shikigami
         // at its unleash point (works on utility and attack moves alike). The
@@ -1362,7 +1414,7 @@ public class CombatResolver {
         List<CombatEvent> events
     ) {
         if (summonCharacterId == null || summonCharacterId.isBlank()) return;
-        state.enqueueSummon(summoner, summonCharacterId);
+        if (!state.enqueueSummon(summoner, summonCharacterId)) return;
         events.add(CombatEvent.of(CombatEvent.Type.MOVE_SUMMON)
             .source(summoner).move(move)
             .componentIndex(componentIndex)
@@ -1687,16 +1739,20 @@ public class CombatResolver {
         List<CombatEvent> events
     ) {
         for (BattleCombatant c : changed) {
+            boolean defeated = c.isLifecycleDefeated() || (c.isRemoved() && c.isDefeated());
+            if (defeated) {
+                events.add(CombatEvent.of(CombatEvent.Type.COMBATANT_DEFEATED)
+                    .target(c).tick(tick)
+                    .message(c.getCharacter().getName() + " is defeated!")
+                    .build());
+            }
             if (c.isRemoved()) {
                 events.add(CombatEvent.of(CombatEvent.Type.COMBATANT_REMOVED)
                     .target(c).tick(tick)
                     .message(c.getCharacter().getName()
-                        + (c.isSummon() ? " is dismissed!" : " is removed!"))
-                    .build());
-            } else if (c.isLifecycleDefeated()) {
-                events.add(CombatEvent.of(CombatEvent.Type.COMBATANT_DEFEATED)
-                    .target(c).tick(tick)
-                    .message(c.getCharacter().getName() + " is defeated!")
+                        + (c.isSummon() && defeated
+                            ? " is destroyed!"
+                            : c.isSummon() ? " is dismissed!" : " is removed!"))
                     .build());
             }
         }

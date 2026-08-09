@@ -10,6 +10,7 @@ import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 import com.jjktbf.graphics.ui.pixel.PixelSkin;
 
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
 
 /**
@@ -53,6 +54,7 @@ public class AssetLoader {
     /** Ground plate drawn beneath both execution sprites. */
     public Texture stoneBasePlate;
     private final Map<String, Texture> characterSprites = new HashMap<>();
+    private final Map<Texture, Float> battleSpriteScales = new IdentityHashMap<>();
 
     // ── UI panels ─────────────────────────────────────────────────────────────
 
@@ -176,7 +178,18 @@ public class AssetLoader {
         if (spriteAsset == null || spriteAsset.isBlank()) return fallback;
         com.badlogic.gdx.files.FileHandle file = Gdx.files.internal(spriteAsset);
         if (!file.exists()) return fallback;
-        return characterSprites.computeIfAbsent(spriteAsset, ignored -> new Texture(file));
+        Texture sprite = characterSprites.computeIfAbsent(spriteAsset, ignored -> new Texture(file));
+        battleSpriteScales.put(sprite, BattleSpriteScaleConfig.factorFor(spriteAsset));
+        return sprite;
+    }
+
+    /**
+     * Returns the code-configured battle size factor. BattleScreen draws every
+     * source texture into the same square bounds, regardless of source pixels.
+     */
+    public float battleSpriteScale(Texture sprite) {
+        return battleSpriteScales.getOrDefault(sprite,
+            BattleSpriteScaleConfig.Scale.X_1_0.factor());
     }
 
     /**
@@ -224,6 +237,7 @@ public class AssetLoader {
         if (stoneBasePlate != null) stoneBasePlate.dispose();
         characterSprites.values().forEach(Texture::dispose);
         characterSprites.clear();
+        battleSpriteScales.clear();
 
         if (battleUi      != null) battleUi.dispose();
 

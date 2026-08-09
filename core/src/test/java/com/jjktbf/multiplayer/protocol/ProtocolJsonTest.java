@@ -52,6 +52,25 @@ class ProtocolJsonTest {
     }
 
     @Test
+    void summonPlanningMetadataRoundTrips() throws Exception {
+        MoveState summon = new MoveState(
+            "SUMMON_DOG", "Summon Dog", "Manifest a Divine Dog.", "UTILITY",
+            List.of("UTILITY"), PlanBoard.DEFENSIVE, 0, List.of(), 1.0, true,
+            5, 1, true, 24, 24, 12, 42, 1, true, null, "DOG", List.of("DOG"));
+        CharacterState megumi = new CharacterState(
+            "MEGUMI", "Megumi", 100, 100, 100, 100, 60, 60, 20,
+            false, 0, null, List.of(), List.of(), List.of(summon), null,
+            "PLAYER-f1", "SORCERER", "FIGHTER", "ACTIVE", null, 0, 2);
+
+        CharacterState restored = mapper.readValue(
+            mapper.writeValueAsString(megumi), CharacterState.class);
+
+        assertEquals(2, restored.maxActiveSummons());
+        assertEquals("DOG", restored.knownMoves().get(0).summonCharacterId());
+        assertEquals(List.of("DOG"), restored.knownMoves().get(0).summonedCharacterIds());
+    }
+
+    @Test
     void actionCommandRoundTripsAndCopiesIntent() throws Exception {
         List<PlanPlacement> placements = new ArrayList<>();
         placements.add(new PlanPlacement("000004", 13, "PLAYER-f1", "ENEMY-f1"));

@@ -94,6 +94,10 @@ public final class CodedAbilityRegistry {
                     owner, entry.getValue(), bindingsByKey.getOrDefault(entry.getKey(), Map.of()));
             } else if (NewShadowStyleAbility.KEY.equals(entry.getKey())) {
                 runtime = new NewShadowStyleAbility(owner, entry.getValue());
+            } else if (ShikigamiMoveRuntime.KEY.equals(entry.getKey())) {
+                runtime = new ShikigamiMoveRuntime();
+            } else if (TenShadowsAbility.KEY.equals(entry.getKey())) {
+                runtime = new TenShadowsAbility(entry.getValue());
             }
             if (runtime != null) {
                 runtimes.add(new CodedAbilities.RuntimeEntry(
@@ -112,7 +116,9 @@ public final class CodedAbilityRegistry {
             || (RatioAbility.KEY.equals(normalizedKey)
             && RatioAbility.supportsFeature(normalizedFeature))
             || (NewShadowStyleAbility.KEY.equals(normalizedKey)
-            && NewShadowStyleAbility.supportsFeature(normalizedFeature));
+            && NewShadowStyleAbility.supportsFeature(normalizedFeature))
+            || (TenShadowsAbility.KEY.equals(normalizedKey)
+            && TenShadowsAbility.supportsFeature(normalizedFeature));
     }
 
     public static List<AbilityFeature> abilityFeatures() {
@@ -127,7 +133,11 @@ public final class CodedAbilityRegistry {
                 RatioAbility.REINFORCEMENT_RATIO, "Ratio Reinforcement"),
             new AbilityFeature(NewShadowStyleAbility.KEY,
                 NewShadowStyleAbility.SIMPLE_DOMAIN_BINDING_VOW,
-                "Simple Domain Binding Vow")
+                "Simple Domain Binding Vow"),
+            new AbilityFeature(TenShadowsAbility.KEY,
+                TenShadowsAbility.TECHNIQUE, "Ten Shadows Technique"),
+            new AbilityFeature(TenShadowsAbility.KEY,
+                TenShadowsAbility.TOTALITY, "Totality")
         );
     }
 
@@ -251,7 +261,9 @@ public final class CodedAbilityRegistry {
             || (RatioAbility.KEY.equals(normalizedKey)
             && RatioAbility.RATIO_EFFECT.equals(normalizedAction))
             || (NewShadowStyleAbility.KEY.equals(normalizedKey)
-            && NewShadowStyleAbility.ACTIVATE_SIMPLE_DOMAIN.equals(normalizedAction));
+            && NewShadowStyleAbility.ACTIVATE_SIMPLE_DOMAIN.equals(normalizedAction))
+            || (ShikigamiMoveRuntime.KEY.equals(normalizedKey)
+            && ShikigamiMoveRuntime.DESUMMON_SELF.equals(normalizedAction));
     }
 
     public static boolean supportsEffect(
@@ -266,9 +278,9 @@ public final class CodedAbilityRegistry {
         if (RatioAbility.KEY.equals(normalizedKey)) {
             return RatioAbility.supportsTarget(normalizedTarget, stackCount);
         }
-        if (NewShadowStyleAbility.KEY.equals(normalizedKey)) {
-            return NewShadowStyleAbility.supportsTarget(normalizedTarget, stackCount);
-        }
+            if (NewShadowStyleAbility.KEY.equals(normalizedKey)) {
+                return NewShadowStyleAbility.supportsTarget(normalizedTarget, stackCount);
+            }
         return normalizedTarget.isEmpty() && stackCount == null;
     }
 
@@ -277,7 +289,9 @@ public final class CodedAbilityRegistry {
             new EffectAction(MiraclesAbility.KEY, MiraclesAbility.CREATE, "Create Miracle"),
             new EffectAction(RatioAbility.KEY, RatioAbility.RATIO_EFFECT, "Ratio Effect"),
             new EffectAction(NewShadowStyleAbility.KEY,
-                NewShadowStyleAbility.ACTIVATE_SIMPLE_DOMAIN, "Activate Simple Domain")
+                NewShadowStyleAbility.ACTIVATE_SIMPLE_DOMAIN, "Activate Simple Domain"),
+            new EffectAction(ShikigamiMoveRuntime.KEY,
+                ShikigamiMoveRuntime.DESUMMON_SELF, "Desummon self")
         );
     }
 

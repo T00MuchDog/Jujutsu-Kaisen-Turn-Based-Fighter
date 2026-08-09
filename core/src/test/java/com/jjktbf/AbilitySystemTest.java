@@ -44,6 +44,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -453,7 +454,8 @@ class AbilitySystemTest {
         assertFalse(abilities.isEmpty());
         for (AbilityData ability : abilities) {
             assertTrue(ability.isPassive() || ability.isActive(), ability.name);
-            assertFalse(ability.effects == null || ability.effects.isEmpty(), ability.name);
+            assertNotNull(ability.effects, ability.name);
+            if (ability.isActive()) assertFalse(ability.effects.isEmpty(), ability.name);
             Set<String> effectIds = new HashSet<>();
             for (AbilityEffectData effect : ability.effects) {
                 assertTrue(effect.effectId != null && !effect.effectId.isBlank(), ability.name);

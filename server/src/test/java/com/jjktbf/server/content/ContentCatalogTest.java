@@ -14,7 +14,7 @@ class ContentCatalogTest {
     void loadsCanonicalClasspathDefinitionsIntoDomainCharacters() {
         ContentCatalog catalog = ContentCatalog.load();
 
-        assertEquals(6, catalog.characterSummaries().size());
+        assertEquals(8, catalog.characterSummaries().size());
         assertTrue(catalog.findCharacter("000000").isPresent());
         assertTrue(catalog.findCharacter("000003").orElseThrow().getKnownMoves().stream()
             .anyMatch(move -> "Simple Domain".equals(move.getName())));
@@ -57,6 +57,42 @@ class ContentCatalogTest {
         var makiCombatant = new BattleCombatant(maki);
         assertEquals(135, makiCombatant.getEffectiveStats().getCombatAbility());
         assertEquals(108, makiCombatant.computeCurrentDefense(1));
+        var fearsomeMegumi = catalog.findCharacter("000005").orElseThrow();
+        assertEquals("Ten Shadows", fearsomeMegumi.getInnateTechniqueName());
+        assertEquals(45, fearsomeMegumi.getBaseStats().getVitality());
+        assertEquals(18, fearsomeMegumi.getBaseStats().getStrength());
+        assertEquals(30, fearsomeMegumi.getBaseStats().getCombatAbility());
+        assertEquals(45, fearsomeMegumi.getBaseStats().getCursedTechniqueMastery());
+        assertTrue(fearsomeMegumi.getKnownMoves().stream()
+            .anyMatch(move -> "Summon Great Serpent".equals(move.getName())));
+        var fearsomeCombatant = new BattleCombatant(fearsomeMegumi);
+        assertEquals(2, fearsomeCombatant.getAbilityFlags().maxActiveSummons);
+        var summonCosts = fearsomeMegumi.getKnownMoves().stream()
+            .filter(com.jjktbf.model.move.Move::summonsCharacter)
+            .collect(java.util.stream.Collectors.toMap(
+                com.jjktbf.model.move.Move::getName,
+                com.jjktbf.model.move.Move::getBaseCeCost));
+        assertEquals(24, summonCosts.get("Summon White Dog"));
+        assertEquals(24, summonCosts.get("Summon Black Dog"));
+        assertEquals(40, summonCosts.get("Summon Nue"));
+        assertEquals(32, summonCosts.get("Summon Toad"));
+        assertEquals(56, summonCosts.get("Summon Great Serpent"));
+        var kyotoMegumi = catalog.findCharacter("000007").orElseThrow();
+        assertEquals(72, kyotoMegumi.getBaseStats().getCursedTechniqueMastery());
+        assertEquals(65, kyotoMegumi.getBaseStats().getCombatAbility());
+        assertTrue(kyotoMegumi.getKnownMoves().stream()
+            .anyMatch(move -> "Summon Max Elephant".equals(move.getName())));
+        assertEquals(3, new BattleCombatant(kyotoMegumi).getAbilityFlags().maxActiveSummons);
+        assertFalse(kyotoMegumi.getKnownMoves().stream()
+            .anyMatch(move -> "Summon White Dog".equals(move.getName())));
+        var whiteDog = catalog.findCharacter("000008").orElseThrow();
+        assertEquals(com.jjktbf.model.character.CharacterType.SHIKIGAMI, whiteDog.getType());
+        assertEquals(0.2, new BattleCombatant(whiteDog)
+            .getAbilityFlags().summonCeUpkeepPerActiveTick, 0.000001);
+        assertTrue(whiteDog.getKnownMoves().stream()
+            .anyMatch(move -> "Desummon".equals(move.getName())));
+        assertFalse(catalog.characterSummaries().stream()
+            .anyMatch(summary -> "000008".equals(summary.characterId())));
         assertThrows(UnsupportedOperationException.class,
             () -> catalog.characterSummaries().clear());
     }

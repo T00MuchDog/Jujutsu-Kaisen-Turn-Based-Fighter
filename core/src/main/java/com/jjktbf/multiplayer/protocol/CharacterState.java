@@ -29,7 +29,8 @@ public record CharacterState(
     String role,
     String lifecycle,
     String summonerId,
-    int rosterOrder
+    int rosterOrder,
+    Integer maxActiveSummons
 ) {
     public CharacterState {
         statusEffects = statusEffects == null ? List.of() : List.copyOf(statusEffects);
@@ -78,7 +79,39 @@ public record CharacterState(
             "FIGHTER",
             "ACTIVE",
             null,
-            0
+            0,
+            null
         );
+    }
+
+    /** Source-compatible constructor for protocol-v9 multi-combatant callers. */
+    public CharacterState(
+        String characterId,
+        String name,
+        int currentHp,
+        int maxHp,
+        int currentCe,
+        int maxCe,
+        int currentAp,
+        int maxAp,
+        int currentDefense,
+        boolean inBlackFlashState,
+        int consecutiveBfsHits,
+        Integer bfsExpiresAfterRound,
+        List<StatusEffectState> statusEffects,
+        List<CodedAbilityState> codedAbilities,
+        List<MoveState> knownMoves,
+        PlanState plan,
+        String instanceId,
+        String characterType,
+        String role,
+        String lifecycle,
+        String summonerId,
+        int rosterOrder
+    ) {
+        this(characterId, name, currentHp, maxHp, currentCe, maxCe, currentAp, maxAp,
+            currentDefense, inBlackFlashState, consecutiveBfsHits, bfsExpiresAfterRound,
+            statusEffects, codedAbilities, knownMoves, plan, instanceId, characterType,
+            role, lifecycle, summonerId, rosterOrder, null);
     }
 }

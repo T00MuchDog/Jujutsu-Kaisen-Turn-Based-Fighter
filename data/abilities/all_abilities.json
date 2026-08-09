@@ -326,6 +326,50 @@
   } ],
   "masteryThreshold" : 0
 }, {
+  "id" : "000013",
+  "name" : "Ten Shadows Technique",
+  "flavourText" : "The user shapes their shadow into an intermediary for ten distinct shikigami, calling them forth through hand signs.",
+  "mechanicText" : "Unlock the TEN SHADOWS technique tree and its SHIKIGAMI summons.",
+  "category" : "PASSIVE",
+  "sourceType" : "TECHNIQUE",
+  "sourceValue" : "Ten Shadows",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED",
+    "codedAbilityKey" : "TEN_SHADOWS",
+    "codedFeature" : "TECHNIQUE"
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000014",
+  "name" : "Parallel Manifestation",
+  "flavourText" : "With greater command of the shadows, the user sustains several manifested shikigami at once.",
+  "mechanicText" : "Set MAX ACTIVE SUMMONS to 1, increasing to 2 at CTM 30 and 3 at CTM 60.",
+  "category" : "PASSIVE",
+  "sourceType" : "TECHNIQUE",
+  "sourceValue" : "Ten Shadows",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "MAX_ACTIVE_SUMMONS",
+    "intValue" : 1,
+    "masteryProgression" : {
+      "intValue" : {
+        "mode" : "BENCHMARKS",
+        "benchmarks" : [ {
+          "mastery" : 0,
+          "value" : 1
+        }, {
+          "mastery" : 30,
+          "value" : 2
+        }, {
+          "mastery" : 60,
+          "value" : 3
+        } ]
+      }
+    }
+  } ],
+  "masteryThreshold" : 0
+}, {
   "id" : "000015",
   "name" : "Partially Realised Heavenly Restriction",
   "flavourText" : "A binding placed upon Maki at birth suppresses her jujutsu potential in exchange for a body that has only begun to realise its inhuman potential.",
@@ -424,6 +468,224 @@
     "effectId" : "effect-000000",
     "type" : "GRANT_MOVE",
     "moveId" : "000036"
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000020",
+  "name" : "Totality",
+  "flavourText" : "When a shikigami is lost, its strength does not disappear; that power passes into another compatible shadow.",
+  "mechanicText" : "Unlock TOTALITY shikigami formed from inherited or combined power.",
+  "category" : "PASSIVE",
+  "sourceType" : "TECHNIQUE",
+  "sourceValue" : "Ten Shadows",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED",
+    "codedAbilityKey" : "TEN_SHADOWS",
+    "codedFeature" : "TOTALITY"
+  } ],
+  "masteryThreshold" : 50
+}, {
+  "id" : "000021",
+  "name" : "Shadows Unravel",
+  "flavourText" : "When the last of the user's cursed energy fades, every maintained shadow loses its form and returns to darkness.",
+  "mechanicText" : "At 0 CE, DESUMMON every owned SHIKIGAMI.",
+  "category" : "ACTIVE",
+  "sourceType" : "TECHNIQUE",
+  "sourceValue" : "Ten Shadows",
+  "activationConditions" : [ {
+    "condition" : {
+      "type" : "CE_VALUE_AT_OR_BELOW",
+      "actor" : "SELF",
+      "amount" : 0
+    },
+    "targetEffectIds" : [ "effect-000000" ],
+    "matchSameTrigger" : true
+  } ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "DESUMMON_OWNED_SHIKIGAMI"
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000022",
+  "name" : "Ten Shadows Shikigami",
+  "flavourText" : "This familiar is sustained through its summoner's shadow and may withdraw into it at will.",
+  "mechanicText" : "Unlock DESUMMON.",
+  "category" : "PASSIVE",
+  "sourceType" : "SHIKIGAMI",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000053"
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000023",
+  "name" : "White Dog",
+  "flavourText" : "The white Divine Dog pursues cursed traces with exceptional speed and precision.",
+  "mechanicText" : "Unlock DIVINE DOG BITE and TRACKING POUNCE. Drain 0.20 CE from the summoner each active tick.",
+  "category" : "PASSIVE",
+  "sourceType" : "SHIKIGAMI",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000054"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000055"
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
+    "doubleValue" : 0.2
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000024",
+  "name" : "Black Dog",
+  "flavourText" : "The black Divine Dog brings greater force to the hunt, ripping apart anything it corners.",
+  "mechanicText" : "Unlock DIVINE DOG BITE and RENDING POUNCE. Drain 0.20 CE from the summoner each active tick.",
+  "category" : "PASSIVE",
+  "sourceType" : "SHIKIGAMI",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000054"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000056"
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
+    "doubleValue" : 0.2
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000025",
+  "name" : "Nue",
+  "flavourText" : "Nue dominates the air and channels cursed lightning through its wings and talons.",
+  "mechanicText" : "Unlock ELECTRIFIED TALONS and LIGHTNING DISCHARGE. Drain 0.35 CE from the summoner each active tick.",
+  "category" : "PASSIVE",
+  "sourceType" : "SHIKIGAMI",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000057"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000058"
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
+    "doubleValue" : 0.35
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000026",
+  "name" : "Toad",
+  "flavourText" : "Toad controls space with a long, powerful tongue suited to striking and binding prey.",
+  "mechanicText" : "Unlock TONGUE LASH and BINDING TONGUE. Drain 0.20 CE from the summoner each active tick.",
+  "category" : "PASSIVE",
+  "sourceType" : "SHIKIGAMI",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000059"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000060"
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
+    "doubleValue" : 0.2
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000027",
+  "name" : "Great Serpent",
+  "flavourText" : "Great Serpent overwhelms prey with its immense coils before swallowing the opening whole.",
+  "mechanicText" : "Unlock SERPENT CONSTRICT and DEVOURING LUNGE. Drain 0.45 CE from the summoner each active tick.",
+  "category" : "PASSIVE",
+  "sourceType" : "SHIKIGAMI",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000061"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000062"
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
+    "doubleValue" : 0.45
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000028",
+  "name" : "Divine Dog Totality",
+  "flavourText" : "Totality concentrates the Divine Dogs' inherited power into a predator of extraordinary speed and force.",
+  "mechanicText" : "Unlock TOTALITY CLAW and PREDATOR RUSH. Drain 0.40 CE from the summoner each active tick.",
+  "category" : "PASSIVE",
+  "sourceType" : "SHIKIGAMI",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000063"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000064"
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
+    "doubleValue" : 0.4
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000029",
+  "name" : "Max Elephant",
+  "flavourText" : "Max Elephant manifests overwhelming mass and a vast volume of water through the user's shadow.",
+  "mechanicText" : "Unlock CRUSHING STOMP and WATER DELUGE. Drain 0.80 CE from the summoner each active tick.",
+  "category" : "PASSIVE",
+  "sourceType" : "SHIKIGAMI",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000065"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000066"
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
+    "doubleValue" : 0.8
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000030",
+  "name" : "Toad/Nue Totality",
+  "flavourText" : "A swarm of winged toads combines Nue's mobility with Toad's binding tongue through Totality.",
+  "mechanicText" : "Unlock WINGED TONGUE SNARE and AERIAL SWARM. Drain 0.45 CE from the summoner each active tick.",
+  "category" : "PASSIVE",
+  "sourceType" : "SHIKIGAMI",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000067"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000068"
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
+    "doubleValue" : 0.45
   } ],
   "masteryThreshold" : 0
 } ]

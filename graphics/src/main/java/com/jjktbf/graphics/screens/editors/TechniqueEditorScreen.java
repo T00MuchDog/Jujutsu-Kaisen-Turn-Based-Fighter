@@ -183,7 +183,7 @@ public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData>
 
         Table tree = formSection(form, "TECHNIQUE TREE");
         tree.add(formHint(
-            "Drag nodes with left click. Right click a node to attach it or edit prerequisites."))
+            "Drag nodes with left click. Scroll in either direction. Right click a node to attach it or edit prerequisites."))
             .left().row();
         SkillTreeCanvas canvas = new SkillTreeCanvas(
             technique,
@@ -199,7 +199,8 @@ public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData>
         ScrollPane scroll = new AxisLockedScrollPane(canvas, skin);
         scroll.setFadeScrollBars(false);
         scroll.setFlickScroll(false);
-        scroll.setScrollingDisabled(false, true);
+        scroll.setOverscroll(false, false);
+        scroll.setScrollingDisabled(false, false);
         tree.add(scroll).height(SkillTreeCanvas.VIEW_HEIGHT + 24f).growX().row();
         return form;
     }

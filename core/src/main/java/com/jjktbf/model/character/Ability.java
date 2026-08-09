@@ -22,7 +22,7 @@ public class Ability {
     private final String flavourText;
     private final String mechanicText;
     private final String category;        // "PASSIVE" | "ACTIVE"
-    private final String sourceType;      // "CHARACTER" | "TECHNIQUE" | "MOVE" | "STAT_THRESHOLD"
+    private final String sourceType;      // CHARACTER | TECHNIQUE | MOVE | STAT_THRESHOLD | ABILITY | SHIKIGAMI
     private final String sourceValue;     // nullable
     private final List<AbilityEffectData> effects;
     private final List<AbilityConditionRuleData> activationConditions;

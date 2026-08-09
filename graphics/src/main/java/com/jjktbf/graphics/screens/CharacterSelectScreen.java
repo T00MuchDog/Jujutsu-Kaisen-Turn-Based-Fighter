@@ -11,6 +11,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Rectangle;
+import com.jjktbf.controller.BattleController;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.audio.SoundCue;
@@ -63,6 +64,8 @@ public class CharacterSelectScreen implements Screen {
      */
     private com.jjktbf.model.combat.BattleFormat format =
         com.jjktbf.model.combat.BattleFormat.ONE_V_ONE;
+    private BattleController.ControlMode controlMode =
+        BattleController.ControlMode.PLAYER_VS_AI;
 
     private final JJKGame game;
     private final AssetLoader assets;
@@ -127,8 +130,17 @@ public class CharacterSelectScreen implements Screen {
      * {@link JJKGame#showCharacterSelect()}) keep the original 1-pick behaviour.
      */
     public void prepare(com.jjktbf.model.combat.BattleFormat format) {
+        prepare(format, BattleController.ControlMode.PLAYER_VS_AI);
+    }
+
+    public void prepare(
+        com.jjktbf.model.combat.BattleFormat format,
+        BattleController.ControlMode controlMode
+    ) {
         this.format = format != null ? format
             : com.jjktbf.model.combat.BattleFormat.ONE_V_ONE;
+        this.controlMode = controlMode != null ? controlMode
+            : BattleController.ControlMode.PLAYER_VS_AI;
     }
 
     @Override
@@ -317,12 +329,12 @@ public class CharacterSelectScreen implements Screen {
             game.startTeamBattle(
                 new java.util.ArrayList<>(playerPicks),
                 new java.util.ArrayList<>(cpuPicks),
-                moveRepo, abilityRepo, techniqueRepo);
+                moveRepo, abilityRepo, techniqueRepo, controlMode);
         } else {
             // ONE_V_ONE (or any single-fighter format): use the legacy entry point.
             game.startBattle(
                 playerPicks.get(0), cpuPicks.get(0),
-                moveRepo, abilityRepo, techniqueRepo);
+                moveRepo, abilityRepo, techniqueRepo, controlMode);
         }
     }
 
@@ -368,11 +380,13 @@ public class CharacterSelectScreen implements Screen {
             headerBounds.width, headerBounds.height);
         int slot = currentPicks().size() + 1; // 1-indexed slot being filled now
         int slots = format.fightersPerSide();
+        String opposingSide = controlMode == BattleController.ControlMode.HUMAN_CONTROLS_BOTH_TEAMS
+            ? "ENEMY" : "CPU";
         String title = phase == Phase.PLAYER
             ? (slots == 1 ? "SELECT YOUR CHARACTER"
                          : "SELECT PLAYER FIGHTER " + slot + "/" + slots)
-            : (slots == 1 ? "SELECT CPU CHARACTER"
-                         : "SELECT CPU FIGHTER " + slot + "/" + slots);
+            : (slots == 1 ? "SELECT " + opposingSide + " CHARACTER"
+                         : "SELECT " + opposingSide + " FIGHTER " + slot + "/" + slots);
         assets.fontMedium.setColor(BattleUiAssets.YELLOW);
         assets.fontMedium.draw(batch, title, headerBounds.x + 18f, headerBounds.y + 39f);
         assets.fontSmall.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
@@ -415,7 +429,9 @@ public class CharacterSelectScreen implements Screen {
         }
         // Pick badges (P1/P2 on player side, C1/C2 on cpu side) next to names.
         drawPickBadges(rowTop, "P", playerPicks);
-        drawPickBadges(rowTop, "C", cpuPicks);
+        drawPickBadges(rowTop,
+            controlMode == BattleController.ControlMode.HUMAN_CONTROLS_BOTH_TEAMS ? "E" : "C",
+            cpuPicks);
     }
 
     /** Draw a side's slot badges (P1/P2 or C1/C2) next to picked roster rows. */

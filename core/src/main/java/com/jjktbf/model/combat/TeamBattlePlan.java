@@ -1,5 +1,6 @@
 package com.jjktbf.model.combat;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -121,7 +122,15 @@ public final class TeamBattlePlan {
             if (plan.gridLength() != gridLength) {
                 return "Plan for " + entry.getKey() + " does not use the common grid";
             }
+            List<com.jjktbf.model.move.Move> alreadyPlannedMoves = new ArrayList<>();
             for (ActionSegment segment : plan.allSegments()) {
+                String restriction = MoveAvailability.restrictionReason(
+                    state, actor, segment.getMove(), alreadyPlannedMoves);
+                if (restriction != null) {
+                    return "Move '" + segment.getMove().getName() + "' is restricted: "
+                        + restriction;
+                }
+                alreadyPlannedMoves.add(segment.getMove());
                 MoveTargeting targeting = MoveTargeting.forMove(segment.getMove());
                 CombatantId targetId = segment.getTarget();
                 if (targeting.requiresSelectedTarget()) {

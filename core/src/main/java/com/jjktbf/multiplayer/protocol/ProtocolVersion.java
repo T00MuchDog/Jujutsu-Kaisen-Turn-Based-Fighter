@@ -8,8 +8,8 @@ import java.util.Properties;
 public final class ProtocolVersion {
 
     public static final String GAME_VERSION = loadGameVersion();
-    /** Protocol v9 adds authoritative multi-combatant rosters and targeting. */
-    public static final int PROTOCOL_VERSION = 9;
+    /** Protocol v10 exposes summon planning metadata to multiplayer clients. */
+    public static final int PROTOCOL_VERSION = 10;
     public static final String STANDARD_RULESET = "STANDARD";
 
     private ProtocolVersion() {

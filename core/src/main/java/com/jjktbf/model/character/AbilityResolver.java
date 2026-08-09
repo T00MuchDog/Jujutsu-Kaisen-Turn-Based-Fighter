@@ -149,6 +149,7 @@ public final class AbilityResolver {
                 .orElse(false);
             case "ABILITY" -> assignedAbilities.stream().anyMatch(ability ->
                 matchesAbilityReference(ability, definition.sourceValue));
+            case "SHIKIGAMI" -> character.effectiveType() == CharacterType.SHIKIGAMI;
             default -> false;
         };
     }

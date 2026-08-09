@@ -283,8 +283,22 @@ public class JJKGame extends Game {
     }
 
     public void showCharacterSelect(com.jjktbf.model.combat.BattleFormat format) {
-        characterSelectScreen.prepare(format);
+        showCharacterSelect(format, BattleController.ControlMode.PLAYER_VS_AI);
+    }
+
+    private void showCharacterSelect(
+        com.jjktbf.model.combat.BattleFormat format,
+        BattleController.ControlMode controlMode
+    ) {
+        characterSelectScreen.prepare(format, controlMode);
         showScreen(characterSelectScreen, MusicTrack.MENU);
+    }
+
+    public void showAuthorBattle() {
+        requireAuthorControlMode(BattleController.ControlMode.HUMAN_CONTROLS_BOTH_TEAMS);
+        showCharacterSelect(
+            com.jjktbf.model.combat.BattleFormat.ONE_V_ONE,
+            BattleController.ControlMode.HUMAN_CONTROLS_BOTH_TEAMS);
     }
 
     public void showMultiplayerMenu() {
@@ -426,6 +440,15 @@ public class JJKGame extends Game {
     public void startBattle(CharacterData playerData, CharacterData cpuData,
                             MoveRepository moveRepo, AbilityRepository abilityRepo,
                             TechniqueRepository techniqueRepo) {
+        startBattle(playerData, cpuData, moveRepo, abilityRepo, techniqueRepo,
+            BattleController.ControlMode.PLAYER_VS_AI);
+    }
+
+    public void startBattle(CharacterData playerData, CharacterData cpuData,
+                            MoveRepository moveRepo, AbilityRepository abilityRepo,
+                            TechniqueRepository techniqueRepo,
+                            BattleController.ControlMode controlMode) {
+        requireAuthorControlMode(controlMode);
         battleScreen.prepareLocal();
         battleScreen.setCombatantSprites(
             assets.characterBattleSprite(playerData.spriteAsset, false, assets.playerSprite),
@@ -439,7 +462,8 @@ public class JJKGame extends Game {
                 BattleController controller = new BattleController(
                     battleScreen,
                     characterId -> multiplayerCharacterRepository.findById(characterId)
-                        .map(data -> data.toCharacter(moveRepo, abilityRepo, techniqueRepo))
+                        .map(data -> data.toCharacter(moveRepo, abilityRepo, techniqueRepo)),
+                    controlMode
                 );
                 controller.runBattle(player, cpu);
             } catch (Throwable t) {
@@ -477,6 +501,18 @@ public class JJKGame extends Game {
         MoveRepository moveRepo, AbilityRepository abilityRepo,
         TechniqueRepository techniqueRepo
     ) {
+        startTeamBattle(playerTeam, cpuTeam, moveRepo, abilityRepo, techniqueRepo,
+            BattleController.ControlMode.PLAYER_VS_AI);
+    }
+
+    public void startTeamBattle(
+        java.util.List<CharacterData> playerTeam,
+        java.util.List<CharacterData> cpuTeam,
+        MoveRepository moveRepo, AbilityRepository abilityRepo,
+        TechniqueRepository techniqueRepo,
+        BattleController.ControlMode controlMode
+    ) {
+        requireAuthorControlMode(controlMode);
         battleScreen.prepareLocal();
         // Set sprites per side (front fighter per side for now; full 4-fighter
         // rendering is handled by BattleScreen once the state arrives).
@@ -505,7 +541,8 @@ public class JJKGame extends Game {
                 BattleController controller = new BattleController(
                     battleScreen,
                     characterId -> multiplayerCharacterRepository.findById(characterId)
-                        .map(data -> data.toCharacter(moveRepo, abilityRepo, techniqueRepo))
+                        .map(data -> data.toCharacter(moveRepo, abilityRepo, techniqueRepo)),
+                    controlMode
                 );
                 controller.runTeamBattle(state);
             } catch (Throwable t) {
@@ -523,5 +560,12 @@ public class JJKGame extends Game {
         battleScreen.setLocalBattleThread(battleThread);
         battleThread.setDaemon(true);
         battleThread.start();
+    }
+
+    private static void requireAuthorControlMode(BattleController.ControlMode controlMode) {
+        if (controlMode == BattleController.ControlMode.HUMAN_CONTROLS_BOTH_TEAMS
+            && !AppPaths.isAuthoringMode()) {
+            throw new IllegalStateException("Control-both-teams mode requires authoring mode");
+        }
     }
 }

@@ -1,12 +1,12 @@
 package com.jjktbf.controller;
 
-import com.jjktbf.model.character.AbilityApplicator.AbilityFlags;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.combat.Timeline;
+import com.jjktbf.model.combat.MoveAvailability;
 import com.jjktbf.model.move.Move;
 
 import java.util.ArrayList;
@@ -60,14 +60,13 @@ public class GreedyAIStrategy implements AIStrategy {
         int gridLength = Timeline.gridLengthForStrongestAp(
             Math.max(ai.getMaxApBar(), opponent.getMaxApBar()));
         BattlePlan plan = new BattlePlan(ai.getMaxApBar(), ai.getCurrentCe(), gridLength);
-        AbilityFlags abilityFlags = ai.getAbilityFlags();
         List<Move> knownMoves = ai.getCharacter().getKnownMoves();
 
         // Moves that failed placement this round — never retried (see class doc).
         Set<Move> stuck = new HashSet<>();
 
         while (true) {
-            List<Move> candidates = affordableMoves(ai, knownMoves, plan, abilityFlags, stuck);
+            List<Move> candidates = affordableMoves(ai, knownMoves, plan, stuck);
             if (candidates.isEmpty()) break;
 
             Move pick = weightedRandomPick(candidates, plan, rng);
@@ -84,11 +83,11 @@ public class GreedyAIStrategy implements AIStrategy {
 
     /** Known moves that fit both budgets, aren't ability-locked, and aren't stuck this round. */
     private List<Move> affordableMoves(BattleCombatant ai, List<Move> knownMoves, BattlePlan plan,
-                                       AbilityFlags abilityFlags, Set<Move> stuck) {
+                                       Set<Move> stuck) {
         List<Move> affordable = new ArrayList<>();
         for (Move move : knownMoves) {
             if (stuck.contains(move)) continue;
-            if (abilityFlags.lockedMoveTags.stream().anyMatch(move::hasTag)) continue;
+            if (!MoveAvailability.isAvailable(null, ai, move)) continue;
             int ceCost = ai.computeMoveCeCost(move);
             if (plan.canPlace(move, ceCost)) affordable.add(move);
         }

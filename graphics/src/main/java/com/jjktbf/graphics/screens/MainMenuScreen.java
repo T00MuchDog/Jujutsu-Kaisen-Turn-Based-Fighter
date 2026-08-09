@@ -24,6 +24,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.FocusListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Timer;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.jjktbf.AppPaths;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.audio.AudioChannel;
@@ -119,9 +120,12 @@ public class MainMenuScreen implements Screen {
         MenuButton techEd    = makeButton("TECHNIQUE EDITOR", game::showTechniqueEditor);
         MenuButton quit      = makeButton("QUIT", this::exitApplication);
 
-        for (MenuButton button : new MenuButton[]{
-            singlePlayer, teamBattle, multiplayer, charEd, moveEd, abilityEd, techEd, quit
-        }) {
+        List<MenuButton> buttons = new ArrayList<>(List.of(singlePlayer, teamBattle));
+        if (AppPaths.isAuthoringMode()) {
+            buttons.add(makeButton("CONTROL BOTH SIDES (1v1)", game::showAuthorBattle));
+        }
+        buttons.addAll(List.of(multiplayer, charEd, moveEd, abilityEd, techEd, quit));
+        for (MenuButton button : buttons) {
             menuButtons.add(button);
             menuButtonCells.add(commands.add(button).growX().height(46).pad(4));
             commands.row();

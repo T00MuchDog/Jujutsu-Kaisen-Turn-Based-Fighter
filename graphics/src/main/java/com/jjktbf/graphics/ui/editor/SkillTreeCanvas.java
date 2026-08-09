@@ -41,7 +41,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-/** Interactive, horizontally scrollable skill-tree board used by both editors. */
+/** Interactive, scrollable skill-tree board used by both editors. */
 public class SkillTreeCanvas extends WidgetGroup {
 
     public static final float VIEW_HEIGHT = 500f;
@@ -72,6 +72,8 @@ public class SkillTreeCanvas extends WidgetGroup {
     private Table contextMenu;
     private InputListener dismissContextMenuListener;
     private float preferredWidth = MIN_WIDTH;
+    private float preferredHeight = VIEW_HEIGHT;
+    private VerticalBounds verticalBounds = VerticalBounds.empty();
 
     public SkillTreeCanvas(
         InnateTechniqueData technique,
@@ -126,13 +128,13 @@ public class SkillTreeCanvas extends WidgetGroup {
 
     @Override
     public float getPrefHeight() {
-        return VIEW_HEIGHT;
+        return preferredHeight;
     }
 
     @Override
     public void layout() {
         for (NodeView view : viewsByNodeId.values()) {
-            view.setBounds(view.node.x, view.node.y, NODE_WIDTH, NODE_HEIGHT);
+            view.setBounds(view.node.x, verticalBounds.canvasY(view.node.y), NODE_WIDTH, NODE_HEIGHT);
         }
     }
 
@@ -170,12 +172,12 @@ public class SkillTreeCanvas extends WidgetGroup {
             viewsByNodeId.put(node.id, view);
             addActor(view);
         }
-        recalculateWidth();
-        setSize(preferredWidth, VIEW_HEIGHT);
+        recalculateBounds();
+        setSize(preferredWidth, preferredHeight);
         invalidateHierarchy();
     }
 
-    private void recalculateWidth() {
+    private void recalculateBounds() {
         float furthestRight = 0f;
         if (technique.skillTree != null) {
             for (SkillTreeNodeData node : technique.skillTree) {
@@ -183,6 +185,10 @@ public class SkillTreeCanvas extends WidgetGroup {
             }
         }
         preferredWidth = Math.max(MIN_WIDTH, furthestRight + BOARD_PADDING);
+        // Keep the scrollable/drop area finite while leaving a consistent margin
+        // around whichever nodes currently define the top and bottom of the tree.
+        verticalBounds = verticalBoundsFor(technique.skillTree);
+        preferredHeight = verticalBounds.preferredHeight();
     }
 
     private void drawConnectors(Batch batch) {
@@ -194,9 +200,9 @@ public class SkillTreeCanvas extends WidgetGroup {
                 SkillTreeNodeData source = TechniqueSkillTree.nodeById(technique, requirement.nodeId);
                 if (source == null) continue;
                 float startX = source.x + NODE_WIDTH;
-                float startY = source.y + NODE_HEIGHT / 2f;
+                float startY = verticalBounds.canvasY(source.y) + NODE_HEIGHT / 2f;
                 float endX = target.x;
-                float endY = target.y + NODE_HEIGHT / 2f;
+                float endY = verticalBounds.canvasY(target.y) + NODE_HEIGHT / 2f;
                 float middleX = (startX + endX) / 2f;
                 drawHorizontal(batch, startX, middleX, startY);
                 drawVertical(batch, middleX, startY, endY);
@@ -224,9 +230,9 @@ public class SkillTreeCanvas extends WidgetGroup {
                 SkillTreeNodeData source = TechniqueSkillTree.nodeById(technique, requirement.nodeId);
                 if (source == null) continue;
                 float startX = source.x + NODE_WIDTH;
-                float startY = source.y + NODE_HEIGHT / 2f;
+                float startY = verticalBounds.canvasY(source.y) + NODE_HEIGHT / 2f;
                 float endX = target.x;
-                float endY = target.y + NODE_HEIGHT / 2f;
+                float endY = verticalBounds.canvasY(target.y) + NODE_HEIGHT / 2f;
                 float middleX = (startX + endX) / 2f;
                 if (hitsHorizontalConnection(x, y, startX, middleX, startY)
                     || hitsVerticalConnection(x, y, middleX, startY, endY)
@@ -663,6 +669,36 @@ public class SkillTreeCanvas extends WidgetGroup {
         }
     }
 
+    static VerticalBounds verticalBoundsFor(List<SkillTreeNodeData> nodes) {
+        float lowestY = Float.POSITIVE_INFINITY;
+        float highestY = Float.NEGATIVE_INFINITY;
+        if (nodes != null) {
+            for (SkillTreeNodeData node : nodes) {
+                if (node == null) continue;
+                lowestY = Math.min(lowestY, node.y);
+                highestY = Math.max(highestY, node.y);
+            }
+        }
+        if (lowestY == Float.POSITIVE_INFINITY) return VerticalBounds.empty();
+        float bottomY = lowestY - BOARD_PADDING;
+        float topY = highestY + NODE_HEIGHT + BOARD_PADDING;
+        return new VerticalBounds(bottomY, topY, Math.max(VIEW_HEIGHT, topY - bottomY));
+    }
+
+    record VerticalBounds(float bottomY, float topY, float preferredHeight) {
+        private static VerticalBounds empty() {
+            return new VerticalBounds(0f, VIEW_HEIGHT, VIEW_HEIGHT);
+        }
+
+        float canvasY(float nodeY) {
+            return nodeY - bottomY;
+        }
+
+        float clampNodeY(float nodeY) {
+            return MathUtils.clamp(nodeY, bottomY, topY - NODE_HEIGHT);
+        }
+    }
+
     private record AttachedConnection(
         SkillTreeNodeData source,
         SkillTreeNodeData target,
@@ -728,8 +764,8 @@ public class SkillTreeCanvas extends WidgetGroup {
                     }
                     node.x = MathUtils.clamp(startX + deltaX, 0f,
                         Math.max(0f, SkillTreeCanvas.this.getPrefWidth() - NODE_WIDTH));
-                    node.y = MathUtils.clamp(startY + deltaY, 0f, VIEW_HEIGHT - NODE_HEIGHT);
-                    setPosition(node.x, node.y);
+                    node.y = verticalBounds.clampNodeY(startY + deltaY);
+                    setPosition(node.x, verticalBounds.canvasY(node.y));
                 }
 
                 @Override public void touchUp(
@@ -737,9 +773,9 @@ public class SkillTreeCanvas extends WidgetGroup {
                 ) {
                     if (button != Input.Buttons.LEFT) return;
                     if (editable && dragged) {
-                        recalculateWidth();
-                        setWidth(preferredWidth);
-                        invalidateHierarchy();
+                        recalculateBounds();
+                        SkillTreeCanvas.this.setSize(preferredWidth, preferredHeight);
+                        SkillTreeCanvas.this.invalidateHierarchy();
                         soundPlayer.accept(SoundCue.UI_DROP);
                         onChanged.run();
                     } else if (editable && attachingSource != null) {

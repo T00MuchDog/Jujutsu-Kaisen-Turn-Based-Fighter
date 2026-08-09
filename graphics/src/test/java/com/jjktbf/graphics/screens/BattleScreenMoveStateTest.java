@@ -105,6 +105,31 @@ class BattleScreenMoveStateTest {
     }
 
     @Test
+    void summonDefinitionSurvivesOnlineDisplayReconstruction() {
+        MoveState state = new MoveState(
+            "SUMMON", "Summon", "Manifest", MoveCategory.UTILITY.name(),
+            List.of("UTILITY"), PlanBoard.DEFENSIVE,
+            0, List.of(), 1.0, true, 5, 1, true,
+            24, 24, 12, 42, 1, true, null, "DOG", List.of("DOG"));
+
+        assertEquals("DOG", BattleScreen.toDisplayMove(state).getSummonCharacterId());
+    }
+
+    @Test
+    void summonEffectDefinitionsSurviveOnlineDisplayReconstruction() {
+        MoveState state = new MoveState(
+            "SUMMON_EFFECT", "Summon Effect", "Manifest on hit", MoveCategory.UTILITY.name(),
+            List.of("UTILITY"), PlanBoard.DEFENSIVE,
+            0, List.of(), 1.0, true, 5, 1, true,
+            24, 24, 12, 42, 1, true, null, null, List.of("TOAD"));
+
+        Move move = BattleScreen.toDisplayMove(state);
+
+        assertEquals(List.of("TOAD"),
+            com.jjktbf.model.combat.MoveAvailability.summonedDefinitionIds(move));
+    }
+
+    @Test
     void actionTicksSkipGapsAndStunnedSegments() {
         List<ActionSegmentState> segments = List.of(
             actionSegment("FIRST", 1, 2, ActionSegmentStatus.RESOLVED),

@@ -168,6 +168,14 @@ public enum AbilityEffectType {
         "Round-start CE cost",
         "Drains CE before planning each round. Other passive effects remain active at 0 CE.",
         INTEGER),
+    MAX_ACTIVE_SUMMONS(
+        "Maximum active summons",
+        "Caps the number of direct active and pending shikigami summons. Multiple caps use the lowest value.",
+        INTEGER),
+    SUMMON_CE_UPKEEP_PER_ACTIVE_TICK(
+        "Summon CE upkeep per active tick",
+        "Adds this flat CE upkeep rate to the shikigami while it is actively summoned.",
+        DECIMAL),
 
     HEAL_HP(
         "Heal HP",
@@ -275,7 +283,10 @@ public enum AbilityEffectType {
     SUMMON_CHARACTER(
         "Summon character",
         "Summons a shikigami combatant onto the owner's team when activated.",
-        CHARACTER_ID);
+        CHARACTER_ID),
+    DESUMMON_OWNED_SHIKIGAMI(
+        "Desummon owned shikigami",
+        "Voluntarily dismisses every direct shikigami summon owned by this combatant and their descendants.");
 
     /**
      * Effects that require an active ability condition to run at battle time.
@@ -292,7 +303,8 @@ public enum AbilityEffectType {
             BATTLE_STAT_ADD, BATTLE_STAT_MULTIPLY,
             IGNORE_DAMAGE, DAMAGE_SHIELD, SURVIVE_FATAL_DAMAGE,
             GUARANTEE_NEXT_HIT, GUARANTEE_NEXT_DODGE, GUARANTEE_NEXT_BLACK_FLASH,
-            CANCEL_NEXT_MOVE, TEMP_LOCK_MOVE_TAG, SUMMON_CHARACTER);
+            CANCEL_NEXT_MOVE, TEMP_LOCK_MOVE_TAG, SUMMON_CHARACTER,
+            DESUMMON_OWNED_SHIKIGAMI);
 
     private static final Set<StatusEffectType> SUPPORTED_AUTO_STATUSES =
         Collections.unmodifiableSet(EnumSet.allOf(StatusEffectType.class));
@@ -399,6 +411,8 @@ public enum AbilityEffectType {
             case LOCK_MOVE_TAG -> effect.moveTag = MoveTag.PHYSICAL.name();
             case SET_JUJUTSU_ART_SLOTS -> effect.intValue = 0;
             case COST_CE_PER_ROUND -> effect.intValue = 5;
+            case MAX_ACTIVE_SUMMONS -> effect.intValue = 1;
+            case SUMMON_CE_UPKEEP_PER_ACTIVE_TICK -> effect.doubleValue = 0.1;
             case HEAL_HP, RESTORE_CE, DRAIN_CE, DEAL_DIRECT_DAMAGE -> effect.intValue = 10;
             case HEAL_HP_PERCENT, RESTORE_CE_PERCENT, DRAIN_CE_PERCENT,
                  DEAL_MAX_HP_DAMAGE -> effect.doubleValue = 0.10;
@@ -660,6 +674,10 @@ public enum AbilityEffectType {
                 ? "Enter a non-zero status magnitude." : null;
             case COST_CE_PER_ROUND -> effect.intValue <= 0
                 ? "Round-start CE cost must be greater than 0." : null;
+            case MAX_ACTIVE_SUMMONS -> effect.intValue <= 0
+                ? "Maximum active summons must be greater than 0." : null;
+            case SUMMON_CE_UPKEEP_PER_ACTIVE_TICK -> effect.doubleValue <= 0
+                ? "Summon upkeep must be greater than 0." : null;
             case SET_JUJUTSU_ART_SLOTS -> effect.intValue < 0
                 || effect.intValue > CombatStats.MAX_ART_SLOTS
                 ? "Jujutsu Art slots must be between 0 and "
@@ -728,7 +746,8 @@ public enum AbilityEffectType {
                   POISON_IMMUNITY, SOUL_AWARE_ATTACKS,
                   GRANT_MOVE, GRANT_ABILITY, UNLOCK_MOVE,
                   UNLOCK_TECHNIQUE, AUTO_STATUS_APPLY, DEFENSE_FROM_DURABILITY,
-                  SET_JUJUTSU_ART_SLOTS -> true;
+                  SET_JUJUTSU_ART_SLOTS, MAX_ACTIVE_SUMMONS,
+                  SUMMON_CE_UPKEEP_PER_ACTIVE_TICK -> true;
             default -> false;
         };
     }

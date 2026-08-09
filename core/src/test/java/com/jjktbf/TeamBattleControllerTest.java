@@ -153,6 +153,33 @@ class TeamBattleControllerTest {
     }
 
     @Test
+    void humanBothTeamsModePromptsPlayerThenEnemyEveryRoundWithoutUsingAi() {
+        BattleState state = new BattleState(fighter("Player"), fighter("Enemy"));
+        RepeatingBothTeamsView view = new RepeatingBothTeamsView();
+        int[] aiCalls = {0};
+        AIStrategy unusedAi = (actor, opponent, rng) -> {
+            aiCalls[0]++;
+            return new BattlePlan(
+                actor.getMaxApBar(), actor.getCurrentCe(),
+                TeamBattlePlan.gridLengthForRound(state));
+        };
+        BattleController controller = new BattleController(
+            view,
+            new SeededRandomSource(1L),
+            unusedAi,
+            null,
+            BattleController.ControlMode.HUMAN_CONTROLS_BOTH_TEAMS);
+
+        controller.runTeamBattle(state);
+
+        assertEquals(List.of(
+            BattleTeamId.PLAYER, BattleTeamId.ENEMY,
+            BattleTeamId.PLAYER, BattleTeamId.ENEMY), view.promptedTeams);
+        assertEquals(2, view.roundEnds);
+        assertEquals(0, aiCalls[0]);
+    }
+
+    @Test
     void rejectedIncompleteSubmissionClearsEveryActiveActorsStalePlanAndTimeline() {
         BattleCombatant p1 = fighter("P1");
         BattleCombatant p2 = fighter("P2");
@@ -265,5 +292,35 @@ class TeamBattleControllerTest {
             battleOverShown = true;
         }
         @Override public void displayMessage(String message) { }
+    }
+
+    private static final class RepeatingBothTeamsView implements BattleView {
+        private final List<BattleTeamId> promptedTeams = new ArrayList<>();
+        private int roundEnds;
+
+        @Override public void displayRoundStart(BattleState state) { }
+        @Override public BattlePlan promptBattlePlan(BattleCombatant c, BattleCombatant opponent) {
+            throw new AssertionError("Team planning should use the atomic prompt");
+        }
+        @Override public TeamBattlePlan promptTeamBattlePlan(
+            List<BattleCombatant> controlled,
+            BattleState state
+        ) {
+            BattleTeamId teamId = controlled.get(0).getTeamId();
+            promptedTeams.add(teamId);
+            int gridLength = TeamBattlePlan.gridLengthForRound(state);
+            TeamBattlePlan plan = new TeamBattlePlan(teamId, gridLength);
+            for (BattleCombatant actor : controlled) {
+                plan.put(actor.getInstanceId(), new BattlePlan(
+                    actor.getMaxApBar(), actor.getCurrentCe(), gridLength));
+            }
+            return plan;
+        }
+        @Override public void displayCombatEvents(List<CombatEvent> events, BattleState state) { }
+        @Override public void displayRoundEnd(BattleState state) { roundEnds++; }
+        @Override public void awaitNextRound(BattleState state) { }
+        @Override public void displayBattleOver(BattleCombatant winner, BattleState state) { }
+        @Override public void displayMessage(String message) { }
+        @Override public boolean isAborted() { return roundEnds >= 2; }
     }
 }

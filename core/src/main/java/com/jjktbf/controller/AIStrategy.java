@@ -66,6 +66,16 @@ public interface AIStrategy {
         for (BattleCombatant ai : aiTeam) {
             BattleCombatant opponent = state.firstActiveEnemyOf(ai);
             BattlePlan plan = selectPlan(ai, opponent, rng);
+            java.util.List<Move> alreadyPlannedMoves = new java.util.ArrayList<>();
+            for (com.jjktbf.model.combat.ActionSegment segment
+                : new java.util.ArrayList<>(plan.allSegments())) {
+                if (com.jjktbf.model.combat.MoveAvailability.restrictionReason(
+                    state, ai, segment.getMove(), alreadyPlannedMoves) != null) {
+                    plan.remove(segment);
+                } else {
+                    alreadyPlannedMoves.add(segment.getMove());
+                }
+            }
             if (plan.gridLength() != commonGridLength) {
                 BattlePlan normalized = new BattlePlan(
                     plan.apBudget(), plan.ceBudget(), commonGridLength);

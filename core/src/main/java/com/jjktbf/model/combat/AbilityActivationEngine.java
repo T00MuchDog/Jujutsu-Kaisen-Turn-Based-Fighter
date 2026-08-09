@@ -49,6 +49,7 @@ public final class AbilityActivationEngine {
             // counterpart (the other participant), falling back to the first
             // active enemy. Removed combatants must not initiate new triggers.
             for (BattleCombatant owner : state.activeCombatants()) {
+                if (!owner.isActive()) continue;
                 if ((trigger.type() == AbilityTrigger.Type.BATTLE_START
                         || trigger.type() == AbilityTrigger.Type.ROUND_START)
                     && trigger.actor() != null && trigger.actor() != owner) {
@@ -606,6 +607,9 @@ public final class AbilityActivationEngine {
                     state.enqueueSummon(owner, effect.characterId);
                 }
             }
+            case DESUMMON_OWNED_SHIKIGAMI ->
+                state.voluntarilyDesummonOwnedShikigami(owner);
+            case MAX_ACTIVE_SUMMONS, SUMMON_CE_UPKEEP_PER_ACTIVE_TICK -> { }
         }
     }
 

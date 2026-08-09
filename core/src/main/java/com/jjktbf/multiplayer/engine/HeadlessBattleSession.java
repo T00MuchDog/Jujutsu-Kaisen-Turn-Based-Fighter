@@ -13,6 +13,7 @@ import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.CombatResolver;
 import com.jjktbf.model.combat.CombatantId;
 import com.jjktbf.model.combat.MoveTargeting;
+import com.jjktbf.model.combat.MoveAvailability;
 import com.jjktbf.model.combat.SeededRandomSource;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
@@ -450,11 +451,17 @@ public final class HeadlessBattleSession {
                     placement.moveId()
                 );
             }
-            if (isMoveRestricted(actor, move)) {
+            String restriction = MoveAvailability.restrictionReason(
+                battleState,
+                actor,
+                move,
+                canonicalPlan.allSegments().stream().map(ActionSegment::getMove).toList()
+            );
+            if (restriction != null) {
                 return rejectPlacement(
                     commandId,
                     MOVE_RESTRICTED,
-                    "Move is currently restricted for this actor.",
+                    restriction,
                     index,
                     move.getId()
                 );
@@ -1127,7 +1134,8 @@ public final class HeadlessBattleSession {
             combatant.getRole().name(),
             combatant.getLifecycle().name(),
             combatant.getSummonerId() == null ? null : combatant.getSummonerId().value(),
-            combatant.getRosterOrder()
+            combatant.getRosterOrder(),
+            combatant.getAbilityFlags().maxActiveSummons
         );
     }
 
@@ -1172,7 +1180,9 @@ public final class HeadlessBattleSession {
             move.getMaxCeCost(),
             move.getMoveCap(),
             !isMoveRestricted(combatant, move),
-            moveRestrictionReason(combatant, move)
+            moveRestrictionReason(combatant, move),
+            move.getSummonCharacterId(),
+            MoveAvailability.summonedDefinitionIds(move)
         );
     }
 
@@ -1359,12 +1369,7 @@ public final class HeadlessBattleSession {
     }
 
     private String moveRestrictionReason(BattleCombatant combatant, Move move) {
-        boolean abilityLocked = combatant.getAbilityFlags().lockedMoveTags.stream()
-            .anyMatch(move::hasTag);
-        if (abilityLocked) {
-            return "Restricted by an active ability.";
-        }
-        return null;
+        return MoveAvailability.restrictionReason(battleState, combatant, move);
     }
 
     private boolean canUseSharedPlanningVersion(

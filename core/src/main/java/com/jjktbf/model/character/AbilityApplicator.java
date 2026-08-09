@@ -145,6 +145,13 @@ public final class AbilityApplicator {
                         flags.defenseFromDurabilityMultiplier = nvl(eff.doubleValue, 1.0);
                     case MODIFY_AP_BAR           -> flags.apBarBonus       += nvl(eff.intValue, 0);
                     case COST_CE_PER_ROUND       -> flags.ceCostPerRound   += nvl(eff.intValue, 0);
+                    case MAX_ACTIVE_SUMMONS      -> {
+                        int cap = nvl(eff.intValue, 0);
+                        flags.maxActiveSummons = flags.maxActiveSummons == null
+                            ? cap : Math.min(flags.maxActiveSummons, cap);
+                    }
+                    case SUMMON_CE_UPKEEP_PER_ACTIVE_TICK ->
+                        flags.summonCeUpkeepPerActiveTick += nvl(eff.doubleValue, 0.0);
                     case SET_JUJUTSU_ART_SLOTS   -> {
                         int slots = nvl(eff.intValue, 0);
                         flags.jujutsuArtSlots = flags.jujutsuArtSlots == null
@@ -185,8 +192,9 @@ public final class AbilityApplicator {
                           TEMP_STAT_ADD, TEMP_STAT_MULTIPLY, TEMP_STAT_SET_VALUE,
                           BATTLE_STAT_ADD, BATTLE_STAT_MULTIPLY, IGNORE_DAMAGE,
                           DAMAGE_SHIELD, SURVIVE_FATAL_DAMAGE, GUARANTEE_NEXT_HIT,
-                          GUARANTEE_NEXT_DODGE, GUARANTEE_NEXT_BLACK_FLASH,
-                          CANCEL_NEXT_MOVE, TEMP_LOCK_MOVE_TAG -> { }
+                           GUARANTEE_NEXT_DODGE, GUARANTEE_NEXT_BLACK_FLASH,
+                           CANCEL_NEXT_MOVE, TEMP_LOCK_MOVE_TAG,
+                           DESUMMON_OWNED_SHIKIGAMI, SUMMON_CHARACTER -> { }
                 }
             }
         }
@@ -351,6 +359,8 @@ public final class AbilityApplicator {
         public boolean ceCostToMinimum   = false;
         public double  ceCostMultiplier   = 1.0;
         public int     ceCostPerRound     = 0;
+        public Integer maxActiveSummons   = null;
+        public double  summonCeUpkeepPerActiveTick = 0.0;
         public final java.util.List<AbilityEffectData> ceCostToMinimumEffects = new java.util.ArrayList<>();
         public final java.util.List<AbilityEffectData> ceCostMultiplierEffects = new java.util.ArrayList<>();
 
@@ -454,6 +464,13 @@ public final class AbilityApplicator {
                     defenseFromDurabilityMultiplier = nvl(effect.doubleValue, 1.0);
                 case MODIFY_AP_BAR -> apBarBonus += nvl(effect.intValue, 0);
                 case COST_CE_PER_ROUND -> ceCostPerRound += nvl(effect.intValue, 0);
+                case MAX_ACTIVE_SUMMONS -> {
+                    int cap = nvl(effect.intValue, 0);
+                    maxActiveSummons = maxActiveSummons == null
+                        ? cap : Math.min(maxActiveSummons, cap);
+                }
+                case SUMMON_CE_UPKEEP_PER_ACTIVE_TICK ->
+                    summonCeUpkeepPerActiveTick += nvl(effect.doubleValue, 0.0);
                 case SET_JUJUTSU_ART_SLOTS -> {
                     int slots = nvl(effect.intValue, 0);
                     jujutsuArtSlots = jujutsuArtSlots == null
@@ -475,6 +492,8 @@ public final class AbilityApplicator {
             copy.ceCostToMinimum = ceCostToMinimum;
             copy.ceCostMultiplier = ceCostMultiplier;
             copy.ceCostPerRound = ceCostPerRound;
+            copy.maxActiveSummons = maxActiveSummons;
+            copy.summonCeUpkeepPerActiveTick = summonCeUpkeepPerActiveTick;
             copy.accuracyBonus = accuracyBonus;
             copy.accuracyMultiplier = accuracyMultiplier;
             copy.opponentAccuracyBonus = opponentAccuracyBonus;
@@ -585,6 +604,7 @@ public final class AbilityApplicator {
                 || defenseFromDurabilityMultiplier != null
                 || incomingDamageMultiplier != 1.0
                 || bfChanceBonus != 0.0 || apBarBonus != 0 || ceCostPerRound != 0
+                || maxActiveSummons != null || summonCeUpkeepPerActiveTick != 0.0
                 || jujutsuArtSlots != null
                 || !grantedMoveIds.isEmpty() || !unlockedMoveIds.isEmpty() || !lockedMoveTags.isEmpty()
                 || !autoStatusEffects.isEmpty();

@@ -35,6 +35,7 @@ import java.util.Set;
  *   STAT_THRESHOLD — requires a stat to be at or above a threshold ("strength>=200")
  *   ABILITY        — available while another specific ability is assigned (by ID or name)
  *                    e.g. "Precog" is available after assigning "Heavenly Restriction"
+ *   SHIKIGAMI      — available to every SHIKIGAMI character definition
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -56,7 +57,7 @@ public class AbilityData {
     /** "PASSIVE" or "ACTIVE" */
     public String category;
 
-    /** "CHARACTER", "TECHNIQUE", "MOVE", "STAT_THRESHOLD", or "ABILITY" */
+    /** "CHARACTER", "TECHNIQUE", "MOVE", "STAT_THRESHOLD", "ABILITY", or "SHIKIGAMI" */
     public String sourceType;
 
     /**

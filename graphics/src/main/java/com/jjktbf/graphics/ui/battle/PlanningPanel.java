@@ -21,6 +21,8 @@ import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
 import com.jjktbf.model.combat.CombatantId;
+import com.jjktbf.model.combat.BattleState;
+import com.jjktbf.model.combat.MoveAvailability;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.multiplayer.protocol.PlanPlacement;
@@ -63,6 +65,10 @@ public class PlanningPanel {
     private final com.jjktbf.model.character.AbilityApplicator.AbilityFlags abilityFlags;
     private final Map<String, Integer> authoritativeCeCosts;
     private final BattleCombatant localCombatant;
+    private final Integer maxActiveSummons;
+    private final int activeSummonCount;
+    private BattleState localBattleState;
+    private Map<String, String> moveRestrictions = Map.of();
     private final BattleUiAssets ui;
     private final MiraclesMeter miraclesMeter = new MiraclesMeter();
 
@@ -161,11 +167,11 @@ public class PlanningPanel {
         this.abilityFlags = combatant.getAbilityFlags();
         this.authoritativeCeCosts = Map.of();
         this.localCombatant = combatant;
+        this.maxActiveSummons = combatant.getAbilityFlags().maxActiveSummons;
+        this.activeSummonCount = 0;
         this.ui = ui;
         miraclesMeter.setState(findMiraclesState(combatant.getCodedAbilities().states()));
-        for (Move move : combatant.getCharacter().getKnownMoves()) {
-            if (abilityFlags.lockedMoveTags.stream().noneMatch(move::hasTag)) knownMoves.add(move);
-        }
+        knownMoves.addAll(combatant.getCharacter().getKnownMoves());
         createBars();
         resize(screenWidth, screenHeight);
     }
@@ -202,7 +208,7 @@ public class PlanningPanel {
         float screenHeight
     ) {
         this(gridLength, null, List.of(), moves, ceCosts, apBudget, ceBudget,
-            miraclesState, ui, screenWidth, screenHeight);
+            miraclesState, null, 0, ui, screenWidth, screenHeight);
     }
 
     public PlanningPanel(
@@ -218,6 +224,25 @@ public class PlanningPanel {
         float screenWidth,
         float screenHeight
     ) {
+        this(gridLength, actorId, targetOptions, moves, ceCosts, apBudget, ceBudget,
+            miraclesState, null, 0, ui, screenWidth, screenHeight);
+    }
+
+    public PlanningPanel(
+        int gridLength,
+        String actorId,
+        List<TargetOption> targetOptions,
+        List<Move> moves,
+        Map<String, Integer> ceCosts,
+        int apBudget,
+        int ceBudget,
+        CodedAbilityState miraclesState,
+        Integer maxActiveSummons,
+        int activeSummonCount,
+        BattleUiAssets ui,
+        float screenWidth,
+        float screenHeight
+    ) {
         this.gridLength = gridLength;
         this.plan = new BattlePlan(apBudget, ceBudget, gridLength);
         this.actorId = actorId;
@@ -226,6 +251,8 @@ public class PlanningPanel {
         this.abilityFlags = null;
         this.authoritativeCeCosts = ceCosts == null ? Map.of() : Map.copyOf(ceCosts);
         this.localCombatant = null;
+        this.maxActiveSummons = maxActiveSummons;
+        this.activeSummonCount = Math.max(0, activeSummonCount);
         this.ui = ui;
         miraclesMeter.setState(miraclesState);
         if (moves != null) knownMoves.addAll(moves);
@@ -239,6 +266,14 @@ public class PlanningPanel {
 
     public void setSoundPlayer(Consumer<SoundCue> soundPlayer) {
         this.soundPlayer = soundPlayer == null ? cue -> {} : soundPlayer;
+    }
+
+    public void setBattleState(BattleState state) {
+        this.localBattleState = state;
+    }
+
+    public void setMoveRestrictions(Map<String, String> restrictions) {
+        this.moveRestrictions = restrictions == null ? Map.of() : Map.copyOf(restrictions);
     }
 
     /** Builds the two bars at the fight's battle-wide grid length (placeholder bounds; set in {@link #resize}). */
@@ -505,7 +540,8 @@ public class PlanningPanel {
         for (int i = 0; i < cards.size(); i++) {
             MoveCardView card = cards.get(i);
             Move move = card.getMove();
-            card.setDisabled(!plan.canPlace(move, ceCost(move)));
+            boolean restricted = isMoveRestricted(move);
+            card.setDisabled(restricted || !plan.canPlace(move, ceCost(move)));
             card.setHovered(i == hoveredCard);
             card.setDragging(move == draggingMove);
         }
@@ -526,6 +562,19 @@ public class PlanningPanel {
         for (ActionSegmentView view : defensiveViews) {
             view.setHighlighted(view.getSegment() == hoveredSegment || view.getSegment() == selectedSegment);
         }
+    }
+
+    private boolean isMoveRestricted(Move move) {
+        if (moveRestrictions.containsKey(move.getId())) return true;
+        List<Move> alreadyPlannedMoves = plan.allSegments().stream()
+            .map(ActionSegment::getMove)
+            .toList();
+        if (localCombatant != null) {
+            return MoveAvailability.restrictionReason(
+                localBattleState, localCombatant, move, alreadyPlannedMoves) != null;
+        }
+        return MoveAvailability.plannedSummonRestrictionReason(
+            move, alreadyPlannedMoves, maxActiveSummons, activeSummonCount) != null;
     }
 
     public void draw(Batch batch, BitmapFont font, BitmapFont titleFont, BitmapFont statFont) {
@@ -977,7 +1026,7 @@ public class PlanningPanel {
             Move move = draggedMove();
             CombatantId target = draggingSegment == null ? defaultTarget(move) : originalTarget;
             boolean droppedOnTimeline = barFor(draggingBoard).getBounds().contains(dragMouseX, dragMouseY);
-            ActionSegment placed = clickingMoveCard
+            ActionSegment placed = isMoveRestricted(move) ? null : clickingMoveCard
                 ? plan.placeFirstFit(move, ceCost(move), target)
                 : droppedOnTimeline && snapValid
                     ? plan.place(move, draggingTick, ceCost(move), target) : null;
@@ -1096,7 +1145,9 @@ public class PlanningPanel {
                 }
             }
             draggingTick = availableTick > 0 ? availableTick : requestedTick;
-            snapValid = availableTick > 0 && plan.canPlace(move, ceCost(move));
+            snapValid = availableTick > 0
+                && !isMoveRestricted(move)
+                && plan.canPlace(move, ceCost(move));
         }
 
         private void updateHover() {

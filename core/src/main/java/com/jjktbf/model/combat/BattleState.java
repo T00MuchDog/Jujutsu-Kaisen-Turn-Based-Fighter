@@ -12,6 +12,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -66,6 +68,9 @@ public class BattleState {
     private final List<AutomaticStatusApplication> pendingAutomaticStatuses = new ArrayList<>();
     /** Pending summons queued during resolution, applied after the current batch. */
     private final List<PendingSummon> pendingSummons = new ArrayList<>();
+    private final Map<CombatantId, Set<String>> destroyedSummonsByOwner = new LinkedHashMap<>();
+    private final Map<CombatantId, Map<String, Integer>> summonCooldownsByOwner = new LinkedHashMap<>();
+    private final List<BattleCombatant> pendingLifecycleChanges = new ArrayList<>();
 
     public record AutomaticStatusApplication(
         BattleCombatant source,
@@ -418,13 +423,103 @@ public class BattleState {
      * so summons created mid-resolution batch do not retroactively join the
      * current firing list / AOE snapshot.
      */
-    public void enqueueSummon(BattleCombatant summoner, String summonCharacterId) {
+    public boolean enqueueSummon(BattleCombatant summoner, String summonCharacterId) {
         BattleTeam team = teamOf(summoner);
         if (team == null || !summoner.isActive() || summoner.isDefeated()
             || summonCharacterId == null || summonCharacterId.isBlank()) {
-            return;
+            return false;
         }
-        pendingSummons.add(new PendingSummon(team.id(), summoner, summonCharacterId));
+        String definitionId = summonCharacterId.trim();
+        if (summonRestrictionReason(summoner, definitionId) != null) return false;
+        pendingSummons.add(new PendingSummon(team.id(), summoner, definitionId));
+        return true;
+    }
+
+    /** Human-readable reason this definition cannot currently be summoned, or null. */
+    public String summonRestrictionReason(BattleCombatant summoner, String summonCharacterId) {
+        if (summoner == null || summonCharacterId == null || summonCharacterId.isBlank()) {
+            return "A valid summoner and shikigami definition are required.";
+        }
+        String definitionId = summonCharacterId.trim();
+        if (isSummonDestroyed(summoner, definitionId)) {
+            return "This shikigami was destroyed and cannot be summoned again this battle.";
+        }
+        Integer availableRound = summonAvailableRound(summoner, definitionId);
+        if (availableRound != null && roundNumber < availableRound) {
+            return "This shikigami can be summoned again in round " + availableRound + ".";
+        }
+        Integer cap = summoner.getAbilityFlags().maxActiveSummons;
+        if (cap == null) return null;
+        if (hasDirectActiveSummonDefinition(summoner, definitionId)
+            || hasPendingSummonDefinition(summoner, definitionId)) {
+            return "This shikigami is already active or pending.";
+        }
+        if (directActiveSummonCount(summoner) + directPendingSummonCount(summoner) >= cap) {
+            return "Maximum active summons reached.";
+        }
+        return null;
+    }
+
+    public boolean isSummonDestroyed(BattleCombatant summoner, String summonCharacterId) {
+        return summoner != null && summoner.getInstanceId() != null
+            && summonCharacterId != null
+            && destroyedSummonsByOwner.getOrDefault(summoner.getInstanceId(), Set.of())
+                .contains(summonCharacterId.trim());
+    }
+
+    public Set<String> destroyedSummonDefinitionIds(BattleCombatant summoner) {
+        if (summoner == null || summoner.getInstanceId() == null) return Set.of();
+        return Set.copyOf(destroyedSummonsByOwner.getOrDefault(
+            summoner.getInstanceId(), Set.of()));
+    }
+
+    public boolean isSummonOnCooldown(BattleCombatant summoner, String summonCharacterId) {
+        Integer availableRound = summonAvailableRound(summoner, summonCharacterId);
+        return availableRound != null && roundNumber < availableRound;
+    }
+
+    public Integer summonAvailableRound(BattleCombatant summoner, String summonCharacterId) {
+        if (summoner == null || summoner.getInstanceId() == null
+            || summonCharacterId == null) return null;
+        return summonCooldownsByOwner
+            .getOrDefault(summoner.getInstanceId(), Map.of())
+            .get(summonCharacterId.trim());
+    }
+
+    public Set<String> voluntarilyDesummonedDefinitionIds(BattleCombatant summoner) {
+        if (summoner == null || summoner.getInstanceId() == null) return Set.of();
+        Map<String, Integer> cooldowns = summonCooldownsByOwner.getOrDefault(
+            summoner.getInstanceId(), Map.of());
+        Set<String> active = new HashSet<>();
+        cooldowns.forEach((id, availableRound) -> {
+            if (roundNumber < availableRound) active.add(id);
+        });
+        return Set.copyOf(active);
+    }
+
+    private boolean hasDirectActiveSummonDefinition(
+        BattleCombatant summoner, String definitionId
+    ) {
+        return allCombatants().stream().anyMatch(candidate -> candidate.isActive()
+            && summoner.getInstanceId().equals(candidate.getSummonerId())
+            && definitionId.equals(candidate.getCharacter().getId()));
+    }
+
+    private boolean hasPendingSummonDefinition(BattleCombatant summoner, String definitionId) {
+        return pendingSummons.stream().anyMatch(pending -> pending.summoner() == summoner
+            && definitionId.equals(pending.summonCharacterId()));
+    }
+
+    public int directActiveSummonCount(BattleCombatant summoner) {
+        if (summoner == null || summoner.getInstanceId() == null) return 0;
+        return (int) allCombatants().stream().filter(candidate -> candidate.isActive()
+            && summoner.getInstanceId().equals(candidate.getSummonerId())).count();
+    }
+
+    public int directPendingSummonCount(BattleCombatant summoner) {
+        if (summoner == null) return 0;
+        return (int) pendingSummons.stream()
+            .filter(pending -> pending.summoner() == summoner).count();
     }
 
     /**
@@ -484,6 +579,61 @@ public class BattleState {
         return dismissed.size();
     }
 
+    /** Voluntarily dismiss this summon and its descendants until the next round. */
+    public int voluntarilyDesummon(BattleCombatant summon) {
+        if (summon == null || !summon.isActive() || !summon.isSummon()) return 0;
+        return voluntarilyRemoveTrees(List.of(summon));
+    }
+
+    /** Voluntarily dismiss all direct summons and their descendant trees. */
+    public int voluntarilyDesummonOwnedShikigami(BattleCombatant summoner) {
+        if (summoner == null || summoner.getInstanceId() == null) return 0;
+        List<BattleCombatant> roots = allCombatants().stream()
+            .filter(candidate -> candidate.isActive()
+                && summoner.getInstanceId().equals(candidate.getSummonerId()))
+            .toList();
+        for (PendingSummon pending : List.copyOf(pendingSummons)) {
+            if (pending.summoner() != summoner) continue;
+            recordSummonCooldown(summoner, pending.summonCharacterId());
+            pendingSummons.remove(pending);
+        }
+        return voluntarilyRemoveTrees(roots);
+    }
+
+    private int voluntarilyRemoveTrees(List<BattleCombatant> roots) {
+        Set<BattleCombatant> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        List<BattleCombatant> toRemove = new ArrayList<>();
+        List<BattleCombatant> frontier = new ArrayList<>(roots);
+        while (!frontier.isEmpty()) {
+            BattleCombatant current = frontier.remove(0);
+            if (!current.isActive() || !visited.add(current)) continue;
+            toRemove.add(current);
+            if (current.getSummonerId() != null) {
+                BattleCombatant owner = combatant(current.getSummonerId());
+                recordSummonCooldown(owner, current.getCharacter().getId());
+            }
+            for (BattleCombatant candidate : allCombatants()) {
+                if (current.getInstanceId().equals(candidate.getSummonerId())) {
+                    frontier.add(candidate);
+                }
+            }
+        }
+        for (BattleCombatant removed : toRemove) {
+            removed.markRemoved();
+            pendingLifecycleChanges.add(removed);
+        }
+        cancelPendingSummonsForInactiveSummoners();
+        return toRemove.size();
+    }
+
+    private void recordSummonCooldown(BattleCombatant owner, String definitionId) {
+        if (owner == null || owner.getInstanceId() == null
+            || definitionId == null || definitionId.isBlank()) return;
+        summonCooldownsByOwner
+            .computeIfAbsent(owner.getInstanceId(), ignored -> new LinkedHashMap<>())
+            .put(definitionId.trim(), roundNumber + 1);
+    }
+
     private List<BattleCombatant> dismissSummonsOf(BattleCombatant summoner) {
         if (summoner == null || summoner.getInstanceId() == null) return List.of();
         List<BattleCombatant> dismissed = new ArrayList<>();
@@ -521,15 +671,24 @@ public class BattleState {
      * @return the combatants whose lifecycle changed this pass (for event emission)
      */
     public List<BattleCombatant> reconcileDefeats() {
-        List<BattleCombatant> changed = new ArrayList<>();
+        List<BattleCombatant> changed = new ArrayList<>(pendingLifecycleChanges);
+        pendingLifecycleChanges.clear();
         Set<BattleCombatant> recorded = Collections.newSetFromMap(new IdentityHashMap<>());
+        recorded.addAll(changed);
         List<BattleCombatant> newlyDefeated = new ArrayList<>();
         for (BattleCombatant c : presentCombatants()) {
             if (!c.isActive()) continue;
             if (c.isDefeated()) {
+                if (c.isSummon() && c.getSummonerId() != null) {
+                    BattleCombatant owner = combatant(c.getSummonerId());
+                    if (owner != null && owner.getAbilityFlags().maxActiveSummons != null) {
+                        destroyedSummonsByOwner
+                            .computeIfAbsent(owner.getInstanceId(), ignored -> new HashSet<>())
+                            .add(c.getCharacter().getId());
+                    }
+                }
                 c.markLifecycleDefeated();
-                changed.add(c);
-                recorded.add(c);
+                if (recorded.add(c)) changed.add(c);
                 newlyDefeated.add(c);
             }
         }

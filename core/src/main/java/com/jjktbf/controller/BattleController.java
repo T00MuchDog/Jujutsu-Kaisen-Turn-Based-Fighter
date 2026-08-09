@@ -5,6 +5,7 @@ import com.jjktbf.model.combat.*;
 import com.jjktbf.view.BattleView;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 
 /**
@@ -22,17 +23,32 @@ import java.util.Random;
  */
 public class BattleController {
 
+    public enum ControlMode {
+        PLAYER_VS_AI,
+        HUMAN_CONTROLS_BOTH_TEAMS
+    }
+
     private final BattleView   view;
     private final CombatResolver resolver;
     private final AIStrategy   aiStrategy;
     private final RandomSource rng;
+    private final ControlMode controlMode;
 
     public BattleController(BattleView view) {
-        this(view, new SeededRandomSource(), new GreedyAIStrategy(), null);
+        this(view, new SeededRandomSource(), new GreedyAIStrategy(), null,
+            ControlMode.PLAYER_VS_AI);
     }
 
     public BattleController(BattleView view, BattleCharacterLookup characterLookup) {
-        this(view, new SeededRandomSource(), new GreedyAIStrategy(), characterLookup);
+        this(view, characterLookup, ControlMode.PLAYER_VS_AI);
+    }
+
+    public BattleController(
+        BattleView view,
+        BattleCharacterLookup characterLookup,
+        ControlMode controlMode
+    ) {
+        this(view, new SeededRandomSource(), new GreedyAIStrategy(), characterLookup, controlMode);
     }
 
     /** Compatibility constructor for callers that still supply {@link Random}. */
@@ -44,7 +60,8 @@ public class BattleController {
     public BattleController(
         BattleView view, Random rng, BattleCharacterLookup characterLookup
     ) {
-        this(view, new SeededRandomSource(rng), new GreedyAIStrategy(), characterLookup);
+        this(view, new SeededRandomSource(rng), new GreedyAIStrategy(), characterLookup,
+            ControlMode.PLAYER_VS_AI);
     }
 
     public BattleController(BattleView view, RandomSource rng) {
@@ -54,7 +71,7 @@ public class BattleController {
     public BattleController(
         BattleView view, RandomSource rng, BattleCharacterLookup characterLookup
     ) {
-        this(view, rng, new GreedyAIStrategy(), characterLookup);
+        this(view, rng, new GreedyAIStrategy(), characterLookup, ControlMode.PLAYER_VS_AI);
     }
 
     /** Compatibility constructor for callers that still supply {@link Random}. */
@@ -69,7 +86,8 @@ public class BattleController {
         AIStrategy aiStrategy,
         BattleCharacterLookup characterLookup
     ) {
-        this(view, new SeededRandomSource(rng), aiStrategy, characterLookup);
+        this(view, new SeededRandomSource(rng), aiStrategy, characterLookup,
+            ControlMode.PLAYER_VS_AI);
     }
 
     public BattleController(BattleView view, RandomSource rng, AIStrategy aiStrategy) {
@@ -82,10 +100,21 @@ public class BattleController {
         AIStrategy aiStrategy,
         BattleCharacterLookup characterLookup
     ) {
+        this(view, rng, aiStrategy, characterLookup, ControlMode.PLAYER_VS_AI);
+    }
+
+    public BattleController(
+        BattleView view,
+        RandomSource rng,
+        AIStrategy aiStrategy,
+        BattleCharacterLookup characterLookup,
+        ControlMode controlMode
+    ) {
         this.view       = view;
         this.resolver   = new CombatResolver(rng, characterLookup);
         this.aiStrategy = aiStrategy;
         this.rng        = rng;
+        this.controlMode = Objects.requireNonNull(controlMode, "controlMode");
     }
 
     /**
@@ -156,12 +185,15 @@ public class BattleController {
             attachTeamPlan(state, state.playerTeam().id(), playerTeamPlan);
         }
 
-        // --- Enemy team AI plan (all living AI-controlled combatants) ---
-        java.util.List<BattleCombatant> aiControlled = controlledFor(state, state.enemyTeam().id());
-        if (!aiControlled.isEmpty()) {
-            com.jjktbf.model.combat.TeamBattlePlan aiTeamPlan =
-                aiStrategy.selectTeamPlan(state, aiControlled, rng);
-            attachTeamPlan(state, state.enemyTeam().id(), aiTeamPlan);
+        // --- Enemy team plan ---
+        java.util.List<BattleCombatant> enemyControlled =
+            controlledFor(state, state.enemyTeam().id());
+        if (!enemyControlled.isEmpty()) {
+            com.jjktbf.model.combat.TeamBattlePlan enemyTeamPlan =
+                controlMode == ControlMode.HUMAN_CONTROLS_BOTH_TEAMS
+                    ? view.promptTeamBattlePlan(enemyControlled, state)
+                    : aiStrategy.selectTeamPlan(state, enemyControlled, rng);
+            attachTeamPlan(state, state.enemyTeam().id(), enemyTeamPlan);
         }
     }
 

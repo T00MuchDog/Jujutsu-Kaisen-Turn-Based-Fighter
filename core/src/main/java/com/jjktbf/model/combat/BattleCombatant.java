@@ -93,6 +93,7 @@ public class BattleCombatant {
     private int currentCe;
     private int lastAbilityCostRound;
     private int poolClampDeferrals;
+    private double summonCeUpkeepDebt;
 
     private final List<StatusEffect> activeEffects;
 
@@ -155,6 +156,7 @@ public class BattleCombatant {
         this.currentCe               = effectiveCombatStats.getMaxCursedEnergy();
         this.lastAbilityCostRound    = 0;
         this.poolClampDeferrals      = 0;
+        this.summonCeUpkeepDebt      = 0.0;
         this.activeEffects           = new ArrayList<>();
         this.inBlackFlashState       = false;
         this.consecutiveBfsHits   = 0;
@@ -293,6 +295,19 @@ public class BattleCombatant {
         if (roundNumber <= lastAbilityCostRound) return false;
         lastAbilityCostRound = roundNumber;
         return true;
+    }
+
+    /** Add flat summon upkeep and return the newly payable whole CE amount. */
+    public int accrueSummonCeUpkeep(double amount) {
+        if (!Double.isFinite(amount) || amount <= 0.0) return 0;
+        summonCeUpkeepDebt += amount;
+        int due = (int) Math.floor(summonCeUpkeepDebt + 1.0e-9);
+        summonCeUpkeepDebt -= due;
+        return due;
+    }
+
+    public double getSummonCeUpkeepDebt() {
+        return summonCeUpkeepDebt;
     }
 
     // -------------------------------------------------------------------------

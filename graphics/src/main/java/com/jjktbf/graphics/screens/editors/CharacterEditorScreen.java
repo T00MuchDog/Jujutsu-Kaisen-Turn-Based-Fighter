@@ -698,7 +698,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             ScrollPane scroll = new AxisLockedScrollPane(canvas, skin);
             scroll.setFadeScrollBars(false);
             scroll.setFlickScroll(false);
-            scroll.setScrollingDisabled(false, true);
+            scroll.setOverscroll(false, false);
+            scroll.setScrollingDisabled(false, false);
             trees.add(scroll).height(SkillTreeCanvas.VIEW_HEIGHT + 24f).growX().row();
         }
         skillTreeContainer.setActor(trees);
@@ -1373,6 +1374,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             case "MOVE" -> "know move " + ability.sourceValue;
             case "STAT_THRESHOLD" -> ability.sourceValue;
             case "ABILITY" -> "have ability " + ability.sourceValue;
+            case "SHIKIGAMI" -> "be a Shikigami";
             default -> "assign directly";
         };
     }

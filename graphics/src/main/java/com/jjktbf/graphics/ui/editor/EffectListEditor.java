@@ -662,11 +662,17 @@ public class EffectListEditor extends Table {
             summary.append(" | ").append(moveScopeLabel(effect.moveTag));
         }
         if (type.uses(AbilityEffectParameter.INTEGER) && effect.intValue != null) {
-            summary.append(" | ").append(effect.intValue >= 0 ? "+" : "").append(effect.intValue);
+            summary.append(" | ");
+            if (type != AbilityEffectType.MAX_ACTIVE_SUMMONS && effect.intValue >= 0) {
+                summary.append('+');
+            }
+            summary.append(effect.intValue);
         }
         if (type.uses(AbilityEffectParameter.DECIMAL) && effect.doubleValue != null) {
             if (isPercentage(type)) {
                 summary.append(" | ").append(formatNumber(effect.doubleValue * 100.0)).append('%');
+            } else if (type == AbilityEffectType.SUMMON_CE_UPKEEP_PER_ACTIVE_TICK) {
+                summary.append(" | ").append(formatNumber(effect.doubleValue)).append(" CE/tick");
             } else {
                 summary.append(" | x").append(formatNumber(effect.doubleValue));
             }
@@ -979,6 +985,7 @@ public class EffectListEditor extends Table {
             case MOVE_ACCURACY_ADD, OPPONENT_ACCURACY_ADD -> "Accuracy points (+/-)";
             case MODIFY_AP_BAR -> "AP change (+/-)";
             case COST_CE_PER_ROUND -> "CE cost per round";
+            case MAX_ACTIVE_SUMMONS -> "Maximum active summons";
             case HEAL_HP, RESTORE_CE, DRAIN_CE, DEAL_DIRECT_DAMAGE, DAMAGE_SHIELD -> "Amount";
             case TEMP_STAT_ADD -> "Amount (+/-)";
             case TEMP_STAT_SET_VALUE -> "Exact value";
@@ -993,6 +1000,7 @@ public class EffectListEditor extends Table {
             case HEAL_HP_PERCENT, RESTORE_CE_PERCENT, DRAIN_CE_PERCENT,
                  DEAL_MAX_HP_DAMAGE -> "Percentage";
             case BATTLE_STAT_ADD -> "Amount (+/-)";
+            case SUMMON_CE_UPKEEP_PER_ACTIVE_TICK -> "CE per active tick";
             default -> "Multiplier";
         };
     }
