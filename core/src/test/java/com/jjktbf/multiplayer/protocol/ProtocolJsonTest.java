@@ -113,9 +113,10 @@ class ProtocolJsonTest {
             "challenge-1",
             "player-1",
             "Guest Mantis",
-            "character-1",
-            "Yuji Itadori",
+            List.of("character-1"),
+            List.of("Yuji Itadori"),
             ChallengeStatus.OPEN,
+            com.jjktbf.model.combat.BattleFormat.ONE_V_ONE,
             ProtocolVersion.GAME_VERSION,
             ProtocolVersion.PROTOCOL_VERSION,
             ProtocolVersion.STANDARD_RULESET,
@@ -123,7 +124,7 @@ class ProtocolJsonTest {
             1_700_000_300_000L,
             "request-1",
             "player-2",
-            "character-2",
+            List.of("character-2"),
             1_700_000_010_000L,
             null,
             null
@@ -136,6 +137,8 @@ class ProtocolJsonTest {
         assertEquals(summary, restored);
         assertEquals("OPEN", tree.get("status").textValue());
         assertEquals("Yuji Itadori", restored.hostCharacterName());
+        assertEquals("character-1", restored.hostCharacterId());
+        assertEquals(List.of("character-1"), restored.hostCharacterIds());
         assertEquals("player-2", restored.requestedPlayerId());
         assertEquals("request-1", restored.joinRequestId());
         assertFalse(tree.has("matchId"));

@@ -445,6 +445,74 @@ class HeadlessBattleSessionTest {
     }
 
     @Test
+    void twoFighterRosterPerParticipantFieldsAllFourFightersInRosterOrder() {
+        Move attack = physicalAttack("ROSTER_ATTACK", 10, true);
+        CharacterStats stats = new CharacterStats.Builder()
+            .cursedEnergyEfficiency(160)
+            .build();
+        Character playerFighter1 = new SorcererCharacter(
+            "character-1a", "Player Fighter One", stats, null, List.of(attack));
+        Character playerFighter2 = new SorcererCharacter(
+            "character-1b", "Player Fighter Two", stats, null, List.of(attack));
+        Character enemyFighter1 = new SorcererCharacter(
+            "character-2a", "Enemy Fighter One", stats, null, List.of(attack));
+        Character enemyFighter2 = new SorcererCharacter(
+            "character-2b", "Enemy Fighter Two", stats, null, List.of(attack));
+
+        HeadlessBattleSession session = new HeadlessBattleSession(
+            "roster-match",
+            new MatchParticipant("player-1", "Player One",
+                List.of(playerFighter1, playerFighter2), PlayerSide.PLAYER_ONE),
+            new MatchParticipant("player-2", "Player Two",
+                List.of(enemyFighter1, enemyFighter2), PlayerSide.PLAYER_TWO),
+            2200L,
+            HeadlessBattleSession.DEFAULT_MAX_ROUNDS,
+            FIXED_CLOCK
+        );
+        session.setConnected("player-1", true);
+        session.setConnected("player-2", true);
+
+        MatchState state = session.snapshot();
+        PlayerState player = state.player(PlayerSide.PLAYER_ONE).orElseThrow();
+        PlayerState enemy = state.player(PlayerSide.PLAYER_TWO).orElseThrow();
+
+        // Each side fields two FIGHTER combatants, in roster order, with the
+        // canonical {TEAM}-f1 / {TEAM}-f2 instance ids assigned by teamOfFighters.
+        assertEquals(2, player.combatants().size());
+        assertEquals(2, enemy.combatants().size());
+        List<String> playerInstanceIds = player.combatants().stream()
+            .map(com.jjktbf.multiplayer.protocol.CharacterState::instanceId).toList();
+        List<String> enemyInstanceIds = enemy.combatants().stream()
+            .map(com.jjktbf.multiplayer.protocol.CharacterState::instanceId).toList();
+        assertEquals(List.of("PLAYER-f1", "PLAYER-f2"), playerInstanceIds);
+        assertEquals(List.of("ENEMY-f1", "ENEMY-f2"), enemyInstanceIds);
+        assertTrue(player.combatants().stream().allMatch(combatant ->
+            "FIGHTER".equals(combatant.role()) && "ACTIVE".equals(combatant.lifecycle())));
+        // Round-start baseline captures all four fighters for deterministic playback.
+        assertEquals(4, state.roundStartCharacterStates().size());
+
+        // A plan covering both player fighters is accepted and resolves each.
+        String playerOneId = playerInstanceIds.get(0);
+        String playerTwoId = playerInstanceIds.get(1);
+        String targetId = enemyInstanceIds.get(0);
+        CommandResult accepted = session.applyCommand("player-1", ActionCommand.submitPlan(
+            "roster-plan", "roster-match", session.getStateVersion(), List.of(
+                new PlanPlacement(attack.getId(), 1, playerOneId, targetId),
+                new PlanPlacement(attack.getId(), 1, playerTwoId, targetId)
+            )));
+        assertTrue(accepted.accepted());
+        CommandResult resolved = session.applyCommand("player-2", ActionCommand.submitPlan(
+            "enemy-empty", "roster-match", session.getStateVersion(), List.of()));
+        assertTrue(resolved.accepted());
+        PlayerState resolvedPlayer = resolved.state()
+            .player(PlayerSide.PLAYER_ONE).orElseThrow();
+        assertEquals(Set.of(playerOneId, playerTwoId), resolvedPlayer.combatants().stream()
+            .flatMap(combatant -> combatant.plan().resolvedSegments().stream())
+            .map(segment -> segment.actorId())
+            .collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Test
     void forgedTeamActorOrTargetRejectsTheEntirePlanWithoutMutation() {
         Move attack = physicalAttack("OWNERSHIP_ATTACK", 10, true);
         HeadlessBattleSession session = session(1322L, attack, attack);

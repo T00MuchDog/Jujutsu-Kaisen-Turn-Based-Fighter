@@ -94,11 +94,13 @@ class MatchManagerTest {
         assertEquals(playerOne.playerId(), state.players().get(0).playerId());
         assertEquals(PlayerSide.PLAYER_ONE, state.players().get(0).side());
         assertEquals(
-            accepted.playerOne().characterId(), state.players().get(0).character().characterId());
+            accepted.playerOne().primaryCharacterId(),
+            state.players().get(0).character().characterId());
         assertEquals(playerTwo.playerId(), state.players().get(1).playerId());
         assertEquals(PlayerSide.PLAYER_TWO, state.players().get(1).side());
         assertEquals(
-            accepted.playerTwo().characterId(), state.players().get(1).character().characterId());
+            accepted.playerTwo().primaryCharacterId(),
+            state.players().get(1).character().characterId());
         assertFalse(state.players().get(0).connected());
         assertFalse(state.players().get(1).connected());
 
@@ -147,7 +149,7 @@ class MatchManagerTest {
         JoinedConnections joined = joinBoth();
         joined.clearMessages();
         long initialVersion = manager.getLatestState(playerOne, accepted.matchId()).stateVersion();
-        String firstMoveId = accepted.playerOne().character().getKnownMoves().get(0).getId();
+        String firstMoveId = accepted.playerOne().primaryCharacter().getKnownMoves().get(0).getId();
         ActionCommand firstCommand = ActionCommand.submitPlan(
             "first-command",
             accepted.matchId(),
@@ -433,6 +435,7 @@ class MatchManagerTest {
             accepted.challengeId(),
             MatchStatus.ACTIVE,
             accepted.serverSeed(),
+            accepted.format(),
             accepted.gameVersion(),
             accepted.protocolVersion(),
             accepted.ruleset(),

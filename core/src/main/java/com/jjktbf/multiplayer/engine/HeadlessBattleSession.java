@@ -240,11 +240,11 @@ public final class HeadlessBattleSession {
 
         BattleTeam playerTeam = BattleState.teamOfFighters(
             BattleTeamId.PLAYER,
-            List.of(playerOneRuntime.primaryCombatant)
+            playerOneRuntime.combatants
         );
         BattleTeam enemyTeam = BattleState.teamOfFighters(
             BattleTeamId.ENEMY,
-            List.of(playerTwoRuntime.primaryCombatant)
+            playerTwoRuntime.combatants
         );
         this.battleState = new BattleState(playerTeam, enemyTeam);
         this.summonLookup = summonLookup;
@@ -1602,6 +1602,7 @@ public final class HeadlessBattleSession {
     private static final class ParticipantRuntime {
         private final MatchParticipant participant;
         private final BattleTeamId teamId;
+        private final List<BattleCombatant> combatants;
         private final BattleCombatant primaryCombatant;
         private boolean connected;
         private boolean joined;
@@ -1614,10 +1615,10 @@ public final class HeadlessBattleSession {
         private ParticipantRuntime(MatchParticipant participant, BattleTeamId teamId) {
             this.participant = participant;
             this.teamId = teamId;
-            this.primaryCombatant = new BattleCombatant(
-                participant.character(),
-                participant.character().getAbilities()
-            );
+            this.combatants = participant.characters().stream()
+                .map(character -> new BattleCombatant(character, character.getAbilities()))
+                .toList();
+            this.primaryCombatant = this.combatants.get(0);
         }
     }
 

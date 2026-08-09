@@ -216,11 +216,11 @@ class ChallengeServiceTest {
         assertEquals(MatchStatus.WAITING, setup.status());
         assertEquals(PlayerSide.PLAYER_ONE, setup.playerOne().side());
         assertEquals(host.playerId(), setup.playerOne().playerId());
-        assertEquals(firstCharacter, setup.playerOne().characterId());
+        assertEquals(firstCharacter, setup.playerOne().primaryCharacterId());
         assertEquals(PlayerSide.PLAYER_TWO, setup.playerTwo().side());
         assertEquals(accepter.playerId(), setup.playerTwo().playerId());
-        assertEquals(secondCharacter, setup.playerTwo().characterId());
-        assertNotEquals(setup.playerOne().character(), setup.playerTwo().character());
+        assertEquals(secondCharacter, setup.playerTwo().primaryCharacterId());
+        assertNotEquals(setup.playerOne().primaryCharacter(), setup.playerTwo().primaryCharacter());
 
         fixture.database().withConnection(connection -> {
             try (PreparedStatement match = connection.prepareStatement(
@@ -474,7 +474,8 @@ class ChallengeServiceTest {
     void validatesCompatibilityCharactersAndOpenLimit() {
         SessionIdentity host = fixture.createGuest("Validation Host");
         ChallengeCreateRequest incompatible = new ChallengeCreateRequest(
-            firstCharacter,
+            java.util.List.of(firstCharacter),
+            com.jjktbf.model.combat.BattleFormat.ONE_V_ONE,
             "old",
             ProtocolVersion.PROTOCOL_VERSION,
             ProtocolVersion.STANDARD_RULESET

@@ -2655,6 +2655,7 @@
 }, {
   "id" : "000053",
   "name" : "Desummon",
+  "shikigamiMove" : true,
   "description" : "Return this shikigami to its summoner's shadow.",
   "tags" : [ "UTILITY" ],
   "basePower" : 0,
@@ -2700,6 +2701,7 @@
 }, {
   "id" : "000054",
   "name" : "Divine Dog Bite",
+  "shikigamiMove" : true,
   "description" : "Bite into the target with cursed-energy reinforced fangs.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 42,
@@ -2743,6 +2745,7 @@
 }, {
   "id" : "000055",
   "name" : "Tracking Pounce",
+  "shikigamiMove" : true,
   "description" : "Track the target's cursed trace and pounce with an attack that never misses.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 40,
@@ -2786,6 +2789,7 @@
 }, {
   "id" : "000056",
   "name" : "Rending Pounce",
+  "shikigamiMove" : true,
   "description" : "Pounce with enough force to rip through a guarding target.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE", "GUARD_BREAK" ],
   "basePower" : 55,
@@ -2829,6 +2833,7 @@
 }, {
   "id" : "000057",
   "name" : "Electrified Talons",
+  "shikigamiMove" : true,
   "description" : "Rake the target with electrified talons and STUN its active action.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE", "STUN" ],
   "basePower" : 40,
@@ -2873,6 +2878,7 @@
 }, {
   "id" : "000058",
   "name" : "Lightning Discharge",
+  "shikigamiMove" : true,
   "description" : "Release a concentrated bolt of cursed lightning from range.",
   "tags" : [ "CURSED_ENERGY", "ATTACK", "RANGED" ],
   "basePower" : 60,
@@ -2916,6 +2922,7 @@
 }, {
   "id" : "000059",
   "name" : "Tongue Lash",
+  "shikigamiMove" : true,
   "description" : "Lash the target from range with Toad's reinforced tongue.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "RANGED" ],
   "basePower" : 24,
@@ -2959,6 +2966,7 @@
 }, {
   "id" : "000060",
   "name" : "Binding Tongue",
+  "shikigamiMove" : true,
   "description" : "Wrap the target in Toad's tongue and STAGGER it for 4 AP ticks.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "RANGED" ],
   "basePower" : 18,
@@ -3001,6 +3009,7 @@
 }, {
   "id" : "000061",
   "name" : "Serpent Constrict",
+  "shikigamiMove" : true,
   "description" : "Coil around the target at close range and STAGGER it for 8 AP ticks.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 42,
@@ -3043,6 +3052,7 @@
 }, {
   "id" : "000062",
   "name" : "Devouring Lunge",
+  "shikigamiMove" : true,
   "description" : "Commit to a HEAVY lunge that breaks through guards with POTENCY 2.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE", "HEAVY", "GUARD_BREAK" ],
   "basePower" : 62,
@@ -3086,6 +3096,7 @@
 }, {
   "id" : "000063",
   "name" : "Totality Claw",
+  "shikigamiMove" : true,
   "description" : "Tear through the target with Divine Dog Totality's empowered claws.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 70,
@@ -3129,6 +3140,7 @@
 }, {
   "id" : "000064",
   "name" : "Predator Rush",
+  "shikigamiMove" : true,
   "description" : "Rush the target with two consecutive claw strikes.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 84,
@@ -3189,6 +3201,7 @@
 }, {
   "id" : "000065",
   "name" : "Crushing Stomp",
+  "shikigamiMove" : true,
   "description" : "Stomp every enemy beneath immense weight with a POTENCY 2 HEAVY guard-breaking impact.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE", "AOE", "HEAVY", "GUARD_BREAK" ],
   "basePower" : 75,
@@ -3233,6 +3246,7 @@
 }, {
   "id" : "000066",
   "name" : "Water Deluge",
+  "shikigamiMove" : true,
   "description" : "Flood every enemy with a cursed torrent, reducing SPEED by 10 for 1 round.",
   "tags" : [ "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
   "basePower" : 55,
@@ -3275,6 +3289,7 @@
 }, {
   "id" : "000067",
   "name" : "Winged Tongue Snare",
+  "shikigamiMove" : true,
   "description" : "Three winged toads strike with binding tongues that can STUN the target.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "RANGED", "STUN" ],
   "basePower" : 42,
@@ -3343,6 +3358,7 @@
 }, {
   "id" : "000068",
   "name" : "Aerial Swarm",
+  "shikigamiMove" : true,
   "description" : "Swarm every enemy from the air, reducing ACCURACY by 10 for 1 round.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
   "basePower" : 28,

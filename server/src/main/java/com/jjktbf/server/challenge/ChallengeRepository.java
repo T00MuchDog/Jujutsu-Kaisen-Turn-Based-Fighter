@@ -1,5 +1,6 @@
 package com.jjktbf.server.challenge;
 
+import com.jjktbf.model.combat.BattleFormat;
 import com.jjktbf.multiplayer.protocol.ChallengeStatus;
 
 import java.sql.Connection;
@@ -12,11 +13,26 @@ import java.util.Optional;
 
 final class ChallengeRepository {
     private static final int MAX_LISTED_CHALLENGES = 100;
+
+    /**
+     * Canonical column list for every challenge SELECT. {@code host_character_ids},
+     * {@code requested_character_ids}, {@code accepted_character_ids} hold the
+     * ordered roster (comma-joined); the legacy single columns are read only for
+     * back-fill during migration recovery and are otherwise ignored.
+     */
+    private static final String SELECT_COLUMNS =
+        "id, creator_player_id, creator_display_name, status, "
+            + "game_version, protocol_version, ruleset, format, "
+            + "host_character_ids, created_at, expires_at, join_request_id, "
+            + "requested_player_id, requested_character_ids, requested_at, "
+            + "accepted_player_id, accepted_character_ids, accepted_at, "
+            + "accepted_join_request_id, match_id ";
+
     int expireOpen(Connection connection, long now) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
             "UPDATE challenge SET status = 'EXPIRED', join_request_id = NULL, "
                 + "requested_player_id = NULL, "
-                + "requested_character_id = NULL, requested_at = NULL "
+                + "requested_character_ids = NULL, requested_at = NULL "
                 + "WHERE status = 'OPEN' AND expires_at <= ?")) {
             statement.setLong(1, now);
             return statement.executeUpdate();
@@ -36,18 +52,20 @@ final class ChallengeRepository {
     int countOpenByCreator(
         Connection connection,
         String playerId,
+        BattleFormat format,
         String gameVersion,
         int protocolVersion,
         String ruleset
     ) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
             "SELECT COUNT(*) FROM challenge "
-                + "WHERE creator_player_id = ? AND status = 'OPEN' "
+                + "WHERE creator_player_id = ? AND status = 'OPEN' AND format = ? "
                 + "AND game_version = ? AND protocol_version = ? AND ruleset = ?")) {
             statement.setString(1, playerId);
-            statement.setString(2, gameVersion);
-            statement.setInt(3, protocolVersion);
-            statement.setString(4, ruleset);
+            statement.setString(2, format.name());
+            statement.setString(3, gameVersion);
+            statement.setInt(4, protocolVersion);
+            statement.setString(5, ruleset);
             try (ResultSet result = statement.executeQuery()) {
                 result.next();
                 return result.getInt(1);
@@ -71,10 +89,10 @@ final class ChallengeRepository {
         try (PreparedStatement statement = connection.prepareStatement(
             "INSERT INTO challenge ("
                 + "id, creator_player_id, creator_display_name, status, "
-                + "game_version, protocol_version, ruleset, host_character_id, "
-                + "created_at, expires_at, accepted_player_id, accepted_character_id, "
+                + "game_version, protocol_version, ruleset, format, host_character_ids, "
+                + "created_at, expires_at, accepted_player_id, accepted_character_ids, "
                 + "accepted_at, match_id) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL)")) {
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL)")) {
             statement.setString(1, challenge.challengeId());
             statement.setString(2, challenge.creatorPlayerId());
             statement.setString(3, challenge.creatorDisplayName());
@@ -82,9 +100,10 @@ final class ChallengeRepository {
             statement.setString(5, challenge.gameVersion());
             statement.setInt(6, challenge.protocolVersion());
             statement.setString(7, challenge.ruleset());
-            statement.setString(8, challenge.hostCharacterId());
-            statement.setLong(9, challenge.createdAt());
-            statement.setLong(10, challenge.expiresAt());
+            statement.setString(8, challenge.format().name());
+            statement.setString(9, RosterCodec.encode(challenge.hostCharacterIds()));
+            statement.setLong(10, challenge.createdAt());
+            statement.setLong(11, challenge.expiresAt());
             statement.executeUpdate();
         }
     }
@@ -92,11 +111,7 @@ final class ChallengeRepository {
     Optional<ChallengeRecord> findById(Connection connection, String challengeId)
         throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
-            "SELECT id, creator_player_id, creator_display_name, status, "
-                + "game_version, protocol_version, ruleset, host_character_id, "
-                + "created_at, expires_at, join_request_id, requested_player_id, requested_character_id, "
-                + "requested_at, accepted_player_id, accepted_character_id, accepted_at, "
-                + "accepted_join_request_id, match_id FROM challenge WHERE id = ?")) {
+            "SELECT " + SELECT_COLUMNS + "FROM challenge WHERE id = ?")) {
             statement.setString(1, challengeId);
             try (ResultSet result = statement.executeQuery()) {
                 return result.next() ? Optional.of(map(result)) : Optional.empty();
@@ -107,12 +122,7 @@ final class ChallengeRepository {
     Optional<ChallengeRecord> findByMatchId(Connection connection, String matchId)
         throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
-            "SELECT id, creator_player_id, creator_display_name, status, "
-                + "game_version, protocol_version, ruleset, host_character_id, "
-                + "created_at, expires_at, join_request_id, requested_player_id, "
-                + "requested_character_id, requested_at, accepted_player_id, "
-                + "accepted_character_id, accepted_at, accepted_join_request_id, "
-                + "match_id FROM challenge WHERE match_id = ?")) {
+            "SELECT " + SELECT_COLUMNS + "FROM challenge WHERE match_id = ?")) {
             statement.setString(1, matchId);
             try (ResultSet result = statement.executeQuery()) {
                 return result.next() ? Optional.of(map(result)) : Optional.empty();
@@ -129,11 +139,12 @@ final class ChallengeRepository {
     ) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
             "SELECT c.id, c.creator_player_id, c.creator_display_name, c.status, "
-                + "c.game_version, c.protocol_version, c.ruleset, c.host_character_id, "
-                + "c.created_at, c.expires_at, c.join_request_id, c.requested_player_id, "
-                + "c.requested_character_id, c.requested_at, c.accepted_player_id, "
-                + "c.accepted_character_id, c.accepted_at, c.accepted_join_request_id, "
-                + "c.match_id FROM challenge c LEFT JOIN match_record m ON m.id = c.match_id "
+                + "c.game_version, c.protocol_version, c.ruleset, c.format, "
+                + "c.host_character_ids, c.created_at, c.expires_at, c.join_request_id, "
+                + "c.requested_player_id, c.requested_character_ids, c.requested_at, "
+                + "c.accepted_player_id, c.accepted_character_ids, c.accepted_at, "
+                + "c.accepted_join_request_id, c.match_id FROM challenge c "
+                + "LEFT JOIN match_record m ON m.id = c.match_id "
                 + "WHERE c.game_version = ? AND c.protocol_version = ? AND c.ruleset = ? AND ("
                 + "(c.status = 'OPEN' AND c.requested_player_id = ?) "
                 + "OR (c.status = 'ACCEPTED' AND c.accepted_player_id = ? "
@@ -161,11 +172,12 @@ final class ChallengeRepository {
     ) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
             "SELECT c.id, c.creator_player_id, c.creator_display_name, c.status, "
-                + "c.game_version, c.protocol_version, c.ruleset, c.host_character_id, "
-                + "c.created_at, c.expires_at, c.join_request_id, c.requested_player_id, "
-                + "c.requested_character_id, c.requested_at, c.accepted_player_id, "
-                + "c.accepted_character_id, c.accepted_at, c.accepted_join_request_id, "
-                + "c.match_id FROM challenge c LEFT JOIN match_record m ON m.id = c.match_id "
+                + "c.game_version, c.protocol_version, c.ruleset, c.format, "
+                + "c.host_character_ids, c.created_at, c.expires_at, c.join_request_id, "
+                + "c.requested_player_id, c.requested_character_ids, c.requested_at, "
+                + "c.accepted_player_id, c.accepted_character_ids, c.accepted_at, "
+                + "c.accepted_join_request_id, c.match_id FROM challenge c "
+                + "LEFT JOIN match_record m ON m.id = c.match_id "
                 + "WHERE c.creator_player_id = ? AND c.game_version = ? "
                 + "AND c.protocol_version = ? AND c.ruleset = ? AND (c.status = 'OPEN' "
                 + "OR (c.status = 'ACCEPTED' AND c.accepted_join_request_id IS NOT NULL "
@@ -185,26 +197,24 @@ final class ChallengeRepository {
     Optional<ChallengeRecord> findMatchingOpenByCreator(
         Connection connection,
         String playerId,
-        String characterId,
+        BattleFormat format,
+        List<String> characterIds,
         String gameVersion,
         int protocolVersion,
         String ruleset
     ) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
-            "SELECT id, creator_player_id, creator_display_name, status, "
-                + "game_version, protocol_version, ruleset, host_character_id, "
-                + "created_at, expires_at, join_request_id, requested_player_id, "
-                + "requested_character_id, requested_at, accepted_player_id, "
-                + "accepted_character_id, accepted_at, accepted_join_request_id, "
-                + "match_id FROM challenge WHERE creator_player_id = ? AND status = 'OPEN' "
-                + "AND host_character_id = ? AND game_version = ? "
+            "SELECT " + SELECT_COLUMNS + "FROM challenge "
+                + "WHERE creator_player_id = ? AND status = 'OPEN' AND format = ? "
+                + "AND host_character_ids = ? AND game_version = ? "
                 + "AND protocol_version = ? AND ruleset = ? "
                 + "ORDER BY created_at DESC, id DESC")) {
             statement.setString(1, playerId);
-            statement.setString(2, characterId);
-            statement.setString(3, gameVersion);
-            statement.setInt(4, protocolVersion);
-            statement.setString(5, ruleset);
+            statement.setString(2, format.name());
+            statement.setString(3, RosterCodec.encode(characterIds));
+            statement.setString(4, gameVersion);
+            statement.setInt(5, protocolVersion);
+            statement.setString(6, ruleset);
             statement.setMaxRows(1);
             try (ResultSet result = statement.executeQuery()) {
                 return result.next() ? Optional.of(map(result)) : Optional.empty();
@@ -215,26 +225,24 @@ final class ChallengeRepository {
     List<ChallengeRecord> listCompatibleOpen(
         Connection connection,
         String excludedPlayerId,
+        BattleFormat format,
         String gameVersion,
         int protocolVersion,
         String ruleset,
         long now
     ) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
-            "SELECT id, creator_player_id, creator_display_name, status, "
-                + "game_version, protocol_version, ruleset, host_character_id, "
-                + "created_at, expires_at, join_request_id, requested_player_id, requested_character_id, "
-                + "requested_at, accepted_player_id, accepted_character_id, accepted_at, "
-                + "accepted_join_request_id, match_id FROM challenge "
+            "SELECT " + SELECT_COLUMNS + "FROM challenge "
                 + "WHERE status = 'OPEN' AND requested_player_id IS NULL AND expires_at > ? "
-                + "AND creator_player_id <> ? AND game_version = ? "
-                + "AND protocol_version = ? AND ruleset = ? "
+                + "AND creator_player_id <> ? AND format = ? "
+                + "AND game_version = ? AND protocol_version = ? AND ruleset = ? "
                 + "ORDER BY created_at ASC, id ASC")) {
             statement.setLong(1, now);
             statement.setString(2, excludedPlayerId);
-            statement.setString(3, gameVersion);
-            statement.setInt(4, protocolVersion);
-            statement.setString(5, ruleset);
+            statement.setString(3, format == null ? null : format.name());
+            statement.setString(4, gameVersion);
+            statement.setInt(5, protocolVersion);
+            statement.setString(6, ruleset);
             statement.setMaxRows(MAX_LISTED_CHALLENGES);
             try (ResultSet result = statement.executeQuery()) {
                 List<ChallengeRecord> challenges = new ArrayList<>();
@@ -251,7 +259,7 @@ final class ChallengeRepository {
         try (PreparedStatement statement = connection.prepareStatement(
             "UPDATE challenge SET status = 'CANCELLED', join_request_id = NULL, "
                 + "requested_player_id = NULL, "
-                + "requested_character_id = NULL, requested_at = NULL "
+                + "requested_character_ids = NULL, requested_at = NULL "
                 + "WHERE id = ? AND creator_player_id = ? AND status = 'OPEN'")) {
             statement.setString(1, challengeId);
             statement.setString(2, creatorPlayerId);
@@ -264,17 +272,17 @@ final class ChallengeRepository {
         String challengeId,
         String joinRequestId,
         String requestedPlayerId,
-        String requestedCharacterId,
+        List<String> requestedCharacterIds,
         long requestedAt
     ) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
             "UPDATE challenge SET join_request_id = ?, requested_player_id = ?, "
-                + "requested_character_id = ?, requested_at = ? "
+                + "requested_character_ids = ?, requested_at = ? "
                 + "WHERE id = ? AND status = 'OPEN' AND expires_at > ? "
                 + "AND requested_player_id IS NULL")) {
             statement.setString(1, joinRequestId);
             statement.setString(2, requestedPlayerId);
-            statement.setString(3, requestedCharacterId);
+            statement.setString(3, RosterCodec.encode(requestedCharacterIds));
             statement.setLong(4, requestedAt);
             statement.setString(5, challengeId);
             statement.setLong(6, requestedAt);
@@ -295,10 +303,10 @@ final class ChallengeRepository {
         try (PreparedStatement statement = connection.prepareStatement(
             "UPDATE challenge SET status = 'ACCEPTED', "
                 + "accepted_player_id = requested_player_id, "
-                + "accepted_character_id = requested_character_id, accepted_at = ?, "
+                + "accepted_character_ids = requested_character_ids, accepted_at = ?, "
                 + "match_id = ?, accepted_join_request_id = join_request_id, "
                 + "join_request_id = NULL, requested_player_id = NULL, "
-                + "requested_character_id = NULL, "
+                + "requested_character_ids = NULL, "
                 + "requested_at = NULL WHERE id = ? AND creator_player_id = ? "
                 + "AND status = 'OPEN' AND expires_at > ? "
                 + "AND join_request_id = ? AND requested_player_id = ? AND requested_at = ?")) {
@@ -325,7 +333,7 @@ final class ChallengeRepository {
     ) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
             "UPDATE challenge SET join_request_id = NULL, requested_player_id = NULL, "
-                + "requested_character_id = NULL, requested_at = NULL "
+                + "requested_character_ids = NULL, requested_at = NULL "
                 + "WHERE id = ? AND creator_player_id = ? AND status = 'OPEN' "
                 + "AND expires_at > ? AND join_request_id = ? "
                 + "AND requested_player_id = ? AND requested_at = ?")) {
@@ -348,7 +356,7 @@ final class ChallengeRepository {
     ) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
             "UPDATE challenge SET join_request_id = NULL, requested_player_id = NULL, "
-                + "requested_character_id = NULL, requested_at = NULL "
+                + "requested_character_ids = NULL, requested_at = NULL "
                 + "WHERE id = ? AND status = 'OPEN' AND expires_at > ? "
                 + "AND requested_player_id = ? AND join_request_id = ?")) {
             statement.setString(1, challengeId);
@@ -377,6 +385,7 @@ final class ChallengeRepository {
         Long nullableRequestedAt = result.wasNull() ? null : requestedAt;
         long acceptedAt = result.getLong("accepted_at");
         Long nullableAcceptedAt = result.wasNull() ? null : acceptedAt;
+        BattleFormat format = BattleFormat.valueOf(result.getString("format"));
         return new ChallengeRecord(
             result.getString("id"),
             result.getString("creator_player_id"),
@@ -385,15 +394,16 @@ final class ChallengeRepository {
             result.getString("game_version"),
             result.getInt("protocol_version"),
             result.getString("ruleset"),
-            result.getString("host_character_id"),
+            format,
+            RosterCodec.decodeOrEmpty(result.getString("host_character_ids")),
             result.getLong("created_at"),
             result.getLong("expires_at"),
             result.getString("join_request_id"),
             result.getString("requested_player_id"),
-            result.getString("requested_character_id"),
+            RosterCodec.decodeOrEmpty(result.getString("requested_character_ids")),
             nullableRequestedAt,
             result.getString("accepted_player_id"),
-            result.getString("accepted_character_id"),
+            RosterCodec.decodeOrEmpty(result.getString("accepted_character_ids")),
             nullableAcceptedAt,
             result.getString("accepted_join_request_id"),
             result.getString("match_id")

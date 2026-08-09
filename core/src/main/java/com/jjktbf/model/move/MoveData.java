@@ -159,6 +159,12 @@ public class MoveData {
     /** Cannot be assigned directly; an ability must add this move to the character. */
     public boolean mustBeGranted = false;
 
+    /**
+     * Editor-only grouping flag. True places this record under Shikigami in the
+     * Move Editor; null or false places it under Sorcerer. It has no runtime effect.
+     */
+    public Boolean shikigamiMove;
+
     // -------------------------------------------------------------------------
     // Hit component sub-DTO
     // -------------------------------------------------------------------------

@@ -9,10 +9,13 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Array;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
+import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.multiplayer.GuestAccountService;
 import com.jjktbf.graphics.multiplayer.GuestCredentials;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
+import com.jjktbf.model.combat.BattleFormat;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /** Multiplayer entry point, guest identity state, and local fighter selection. */
@@ -21,7 +24,10 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
     private final Label identityLabel;
     private final Label statusLabel;
     private final Label rosterStatusLabel;
-    private final SelectBox<JJKGame.MultiplayerFighter> fighterSelect;
+    private final SelectBox<BattleFormat> formatSelect;
+    private final SelectBox<JJKGame.MultiplayerFighter> fighterOneSelect;
+    private final SelectBox<JJKGame.MultiplayerFighter> fighterTwoSelect;
+    private final Label fighterTwoLabel;
     private final TextButton hostButton;
     private final TextButton searchButton;
     private final TextButton retryButton;
@@ -51,24 +57,51 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
         statusLabel = wrappedLabel("", "small-white");
         panel.add(statusLabel).growX().left().padBottom(14f).row();
 
-        Label fighterTitle = new Label("FIGHTER", assets.editorSkin, "white");
-        panel.add(fighterTitle).growX().left().padBottom(5f).row();
-        fighterSelect = new DynamicSelectBox<>(assets.editorSkin);
-        fighterSelect.addListener(new ChangeListener() {
+        Label formatTitle = new Label("FORMAT", assets.editorSkin, "white");
+        panel.add(formatTitle).growX().left().padBottom(5f).row();
+        formatSelect = new DynamicSelectBox<>(assets.editorSkin);
+        formatSelect.setItems(BattleFormat.ONE_V_ONE, BattleFormat.TWO_V_TWO);
+        formatSelect.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                JJKGame.MultiplayerFighter selected = fighterSelect.getSelected();
+                BattleFormat selected = formatSelect.getSelected();
                 if (selected != null) {
-                    game.setSelectedMultiplayerCharacterId(selected.id());
+                    game.setSelectedMultiplayerFormat(selected);
+                    updateFighterTwoVisibility();
+                    syncSelectionToGame();
                 }
             }
         });
-        panel.add(fighterSelect).growX().height(44f).padBottom(5f).row();
+        panel.add(formatSelect).growX().height(44f).padBottom(12f).row();
+
+        Label fighterOneLabel = new Label("FIGHTER 1", assets.editorSkin, "white");
+        panel.add(fighterOneLabel).growX().left().padBottom(5f).row();
+        fighterOneSelect = new DynamicSelectBox<>(assets.editorSkin);
+        fighterOneSelect.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                syncSelectionToGame();
+                refreshDuplicateGuard();
+            }
+        });
+        panel.add(fighterOneSelect).growX().height(44f).padBottom(8f).row();
+
+        fighterTwoLabel = new Label("FIGHTER 2", assets.editorSkin, "white");
+        panel.add(fighterTwoLabel).growX().left().padBottom(5f).row();
+        fighterTwoSelect = new DynamicSelectBox<>(assets.editorSkin);
+        fighterTwoSelect.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                syncSelectionToGame();
+                refreshDuplicateGuard();
+            }
+        });
+        panel.add(fighterTwoSelect).growX().height(44f).padBottom(5f).row();
 
         rosterStatusLabel = wrappedLabel("", "small-white");
         panel.add(rosterStatusLabel).growX().left().padBottom(14f).row();
 
-        hostButton = button("HOST CHALLENGE", "primary", game::showHostChallenge);
+        hostButton = button("HOST CHALLENGE", "primary", SoundCue.UI_CONFIRM, game::showHostChallenge);
         searchButton = button("SEARCH CHALLENGES", "primary", game::showChallengeBrowser);
         retryButton = button("RETRY CONNECTION", "default", this::retryIdentity);
         TextButton backButton = button("BACK", "default", game::showMainMenu);
@@ -101,24 +134,28 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
 
     private void refreshRoster() {
         game.reloadMultiplayerRoster();
-        List<JJKGame.MultiplayerFighter> roster = game.getMultiplayerRoster();
         Array<JJKGame.MultiplayerFighter> items = new Array<>();
-        items.addAll(roster.toArray(JJKGame.MultiplayerFighter[]::new));
+        items.addAll(game.getMultiplayerRoster().toArray(JJKGame.MultiplayerFighter[]::new));
         if (items.isEmpty()) {
             items.add(new JJKGame.MultiplayerFighter(
                 JJKGame.DEFAULT_MULTIPLAYER_CHARACTER_ID,
                 "Canonical default"
             ));
         }
-        fighterSelect.setItems(items);
+        fighterOneSelect.setItems(items);
+        fighterTwoSelect.setItems(new Array<>(items));
 
-        String selectedId = game.getSelectedMultiplayerCharacterId();
-        for (JJKGame.MultiplayerFighter fighter : items) {
-            if (fighter.id().equals(selectedId)) {
-                fighterSelect.setSelected(fighter);
-                break;
-            }
-        }
+        List<String> selectedIds = game.getSelectedMultiplayerCharacterIds();
+        String slotZero = selectedIds.isEmpty()
+            ? JJKGame.DEFAULT_MULTIPLAYER_CHARACTER_ID : selectedIds.get(0);
+        String slotOne = selectedIds.size() > 1 ? selectedIds.get(1)
+            : JJKGame.DEFAULT_MULTIPLAYER_CHARACTER_ID;
+        selectFighter(fighterOneSelect, slotZero);
+        selectFighter(fighterTwoSelect, slotOne);
+
+        BattleFormat format = game.getSelectedMultiplayerFormat();
+        formatSelect.setSelected(format == null ? BattleFormat.ONE_V_ONE : format);
+        updateFighterTwoVisibility();
 
         String rosterError = game.getMultiplayerRosterError();
         if (rosterError == null) {
@@ -128,6 +165,70 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
         } else {
             setStatus(rosterStatusLabel,
                 rosterError + " Using canonical fighter 000000.", StatusTone.ERROR);
+        }
+    }
+
+    private void selectFighter(
+        SelectBox<JJKGame.MultiplayerFighter> box,
+        String characterId
+    ) {
+        for (JJKGame.MultiplayerFighter fighter : box.getItems()) {
+            if (fighter.id().equals(characterId)) {
+                box.setSelected(fighter);
+                return;
+            }
+        }
+    }
+
+    private void updateFighterTwoVisibility() {
+        boolean twoFighters = formatSelect.getSelected() == BattleFormat.TWO_V_TWO;
+        fighterTwoLabel.setVisible(twoFighters);
+        fighterTwoSelect.setVisible(twoFighters);
+    }
+
+    /**
+     * Write the current format + dropdown picks into game state. Ensures the
+     * roster has exactly the format's slot count and that slot 1 is only set in
+     * 2v2.
+     */
+    private void syncSelectionToGame() {
+        BattleFormat format = formatSelect.getSelected();
+        if (format == null) {
+            return;
+        }
+        game.setSelectedMultiplayerFormat(format);
+        List<String> ids = new ArrayList<>(format.fightersPerSide());
+        ids.add(fighterId(fighterOneSelect));
+        if (format == BattleFormat.TWO_V_TWO) {
+            ids.add(fighterId(fighterTwoSelect));
+        }
+        game.setSelectedMultiplayerCharacterIds(ids);
+    }
+
+    private static String fighterId(SelectBox<JJKGame.MultiplayerFighter> box) {
+        JJKGame.MultiplayerFighter selected = box.getSelected();
+        return selected == null ? JJKGame.DEFAULT_MULTIPLAYER_CHARACTER_ID : selected.id();
+    }
+
+    /**
+     * Surface a warning when both fighter slots reference the same canonical id;
+     * the server will reject the roster, so the player is warned up front. Does
+     * not disable the buttons (the host can still navigate), only nudges.
+     */
+    private void refreshDuplicateGuard() {
+        if (formatSelect.getSelected() != BattleFormat.TWO_V_TWO) {
+            return;
+        }
+        String one = fighterId(fighterOneSelect);
+        String two = fighterId(fighterTwoSelect);
+        if (!one.equals(JJKGame.DEFAULT_MULTIPLAYER_CHARACTER_ID)
+            && one.equals(two)) {
+            setStatus(rosterStatusLabel,
+                "Pick two different fighters for 2v2.", StatusTone.ERROR);
+        } else {
+            setStatus(rosterStatusLabel,
+                "Local roster only. The server validates canonical fighter IDs.",
+                StatusTone.NORMAL);
         }
     }
 
@@ -159,7 +260,7 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
     private void showIdentity(GuestCredentials credentials) {
         identityReady = true;
         identityLabel.setText("GUEST: " + credentials.identity().displayName());
-        setStatus(statusLabel, "Identity ready. Choose a fighter and challenge a player.",
+        setStatus(statusLabel, "Identity ready. Choose a format and fighter(s), then challenge a player.",
             StatusTone.OK);
         retryButton.setVisible(false);
         setIdentityActions(true);
@@ -174,7 +275,9 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
     private void setIdentityActions(boolean enabled) {
         hostButton.setDisabled(!enabled);
         searchButton.setDisabled(!enabled);
-        fighterSelect.setDisabled(false);
+        formatSelect.setDisabled(false);
+        fighterOneSelect.setDisabled(false);
+        fighterTwoSelect.setDisabled(false);
     }
 
     @Override

@@ -168,9 +168,10 @@ class ChallengeServiceTest {
             "33333333-3333-3333-3333-333333333333",
             "44444444-4444-4444-4444-444444444444",
             "Host Guest",
-            "character-one",
-            "Host Fighter",
+            java.util.List.of("character-one"),
+            java.util.List.of("Host Fighter"),
             status,
+            com.jjktbf.model.combat.BattleFormat.ONE_V_ONE,
             ProtocolVersion.GAME_VERSION,
             ProtocolVersion.PROTOCOL_VERSION,
             ProtocolVersion.STANDARD_RULESET,
@@ -178,7 +179,8 @@ class ChallengeServiceTest {
             2_000L,
             requestedPlayerId == null ? null : "request-one",
             requestedPlayerId,
-            requestedCharacterId,
+            requestedCharacterId == null
+                ? java.util.List.of() : java.util.List.of(requestedCharacterId),
             requestedAt,
             status == ChallengeStatus.ACCEPTED ? "request-one" : null,
             matchId

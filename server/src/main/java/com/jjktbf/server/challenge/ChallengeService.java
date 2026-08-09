@@ -1,6 +1,7 @@
 package com.jjktbf.server.challenge;
 
 import com.jjktbf.model.character.Character;
+import com.jjktbf.model.combat.BattleFormat;
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeCreateRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
@@ -24,9 +25,12 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 /** Validates and persists the public challenge lifecycle. */
@@ -78,7 +82,8 @@ public final class ChallengeService {
         }
         validateCompatibility(
             request.gameVersion(), request.protocolVersion(), request.ruleset());
-        requireCharacter(request.characterId());
+        BattleFormat format = request.format();
+        List<String> characterIds = validateRoster(format, request.characterIds());
 
         long now = clock.millis();
         long expiresAt = Math.addExact(
@@ -91,7 +96,8 @@ public final class ChallengeService {
             request.gameVersion(),
             request.protocolVersion(),
             request.ruleset(),
-            request.characterId(),
+            format,
+            characterIds,
             now,
             expiresAt,
             null,
@@ -114,7 +120,8 @@ public final class ChallengeService {
             ChallengeRecord existing = challengeRepository.findMatchingOpenByCreator(
                 connection,
                 creator.playerId(),
-                request.characterId(),
+                format,
+                characterIds,
                 request.gameVersion(),
                 request.protocolVersion(),
                 request.ruleset()
@@ -125,6 +132,7 @@ public final class ChallengeService {
             if (challengeRepository.countOpenByCreator(
                 connection,
                 creator.playerId(),
+                format,
                 request.gameVersion(),
                 request.protocolVersion(),
                 request.ruleset()
@@ -138,10 +146,11 @@ public final class ChallengeService {
             return toSummary(challenge);
         });
         LOGGER.info(
-            "Challenge created challengeId={} creatorPlayerId={} characterId={}",
+            "Challenge created challengeId={} creatorPlayerId={} format={} characterIds={}",
             created.challengeId(),
             creator.playerId(),
-            request.characterId()
+            format,
+            characterIds
         );
         return created;
     }
@@ -154,6 +163,7 @@ public final class ChallengeService {
             return challengeRepository.listCompatibleOpen(
                     connection,
                     caller.playerId(),
+                    null,
                     ProtocolVersion.GAME_VERSION,
                     ProtocolVersion.PROTOCOL_VERSION,
                     ProtocolVersion.STANDARD_RULESET,
@@ -269,7 +279,6 @@ public final class ChallengeService {
         }
         validateCompatibility(
             request.gameVersion(), request.protocolVersion(), request.ruleset());
-        requireCharacter(request.characterId());
         long now = clock.millis();
 
         ChallengeSummary requested = database.transaction(connection -> {
@@ -278,6 +287,11 @@ public final class ChallengeService {
                 .orElseThrow(ChallengeService::challengeNotFound);
             validateCompatibility(
                 challenge.gameVersion(), challenge.protocolVersion(), challenge.ruleset());
+            // The joiner must field the same format as the host.
+            if (challenge.format() != request.format()) {
+                throw formatMismatch(challenge.format(), request.format());
+            }
+            List<String> characterIds = validateRoster(challenge.format(), request.characterIds());
             if (challenge.creatorPlayerId().equals(requester.playerId())) {
                 throw new ServiceException(
                     ServiceErrorCode.CANNOT_ACCEPT_OWN_CHALLENGE,
@@ -287,7 +301,7 @@ public final class ChallengeService {
                 throw challengeNotOpen(challenge.status());
             }
             if (requester.playerId().equals(challenge.requestedPlayerId())
-                && request.characterId().equals(challenge.requestedCharacterId())) {
+                && characterIds.equals(challenge.requestedCharacterIds())) {
                 return toSummary(challenge);
             }
             if (!challengeRepository.lockCreator(connection, requester.playerId())) {
@@ -301,7 +315,7 @@ public final class ChallengeService {
                 throw challengeNotOpen(current.status());
             }
             if (requester.playerId().equals(current.requestedPlayerId())
-                && request.characterId().equals(current.requestedCharacterId())) {
+                && characterIds.equals(current.requestedCharacterIds())) {
                 return toSummary(current);
             }
             if (current.requestedPlayerId() != null) {
@@ -321,7 +335,7 @@ public final class ChallengeService {
                 challengeId,
                 UUID.randomUUID().toString(),
                 requester.playerId(),
-                request.characterId(),
+                characterIds,
                 now
             ) == 1) {
                 return toSummary(challengeRepository.findById(connection, challengeId)
@@ -334,7 +348,7 @@ public final class ChallengeService {
                 throw challengeNotOpen(current.status());
             }
             if (requester.playerId().equals(current.requestedPlayerId())
-                && request.characterId().equals(current.requestedCharacterId())) {
+                && characterIds.equals(current.requestedCharacterIds())) {
                 return toSummary(current);
             }
             throw new ServiceException(
@@ -342,10 +356,10 @@ public final class ChallengeService {
                 "Another join request is already pending for this challenge.");
         });
         LOGGER.info(
-            "Challenge join requested challengeId={} requesterPlayerId={} characterId={}",
+            "Challenge join requested challengeId={} requesterPlayerId={} characterIds={}",
             requested.challengeId(),
             requester.playerId(),
-            request.characterId()
+            requested.requestedCharacterIds()
         );
         return requested;
     }
@@ -423,14 +437,14 @@ public final class ChallengeService {
                 matchId,
                 current.creatorPlayerId(),
                 PlayerSide.PLAYER_ONE,
-                current.hostCharacterId()
+                current.hostCharacterIds()
             );
             matchRepository.insertParticipant(
                 connection,
                 matchId,
                 current.acceptedPlayerId(),
                 PlayerSide.PLAYER_TWO,
-                current.acceptedCharacterId()
+                current.acceptedCharacterIds()
             );
             return acceptedSetup(connection, current);
         });
@@ -545,7 +559,8 @@ public final class ChallengeService {
     ) throws SQLException {
         if (challenge.status() != ChallengeStatus.ACCEPTED
             || challenge.acceptedPlayerId() == null
-            || challenge.acceptedCharacterId() == null) {
+            || challenge.acceptedCharacterIds() == null
+            || challenge.acceptedCharacterIds().isEmpty()) {
             throw new IllegalStateException("Accepted challenge data is incomplete");
         }
         MatchRepository.PersistedMatch match = matchRepository
@@ -560,21 +575,22 @@ public final class ChallengeService {
             challenge.creatorPlayerId(),
             challenge.creatorDisplayName(),
             PlayerSide.PLAYER_ONE,
-            challenge.hostCharacterId(),
-            requireCharacter(challenge.hostCharacterId())
+            challenge.hostCharacterIds(),
+            resolveCharacters(challenge.hostCharacterIds())
         );
         AcceptedMatchParticipant playerTwo = new AcceptedMatchParticipant(
             challenge.acceptedPlayerId(),
             requesterDisplayName,
             PlayerSide.PLAYER_TWO,
-            challenge.acceptedCharacterId(),
-            requireCharacter(challenge.acceptedCharacterId())
+            challenge.acceptedCharacterIds(),
+            resolveCharacters(challenge.acceptedCharacterIds())
         );
         return new AcceptedMatchSetup(
             match.matchId(),
             challenge.challengeId(),
             match.status(),
             match.serverSeed(),
+            challenge.format(),
             challenge.gameVersion(),
             challenge.protocolVersion(),
             challenge.ruleset(),
@@ -585,18 +601,15 @@ public final class ChallengeService {
     }
 
     private ChallengeSummary toSummary(ChallengeRecord challenge) {
-        String characterName = catalog.findCharacter(challenge.hostCharacterId())
-            .map(Character::getName)
-            .orElseThrow(() -> new IllegalStateException(
-                "Persisted challenge references unknown canonical character "
-                    + challenge.hostCharacterId()));
+        List<String> hostNames = resolveCharacterNames(challenge.hostCharacterIds());
         return new ChallengeSummary(
             challenge.challengeId(),
             challenge.creatorPlayerId(),
             challenge.creatorDisplayName(),
-            challenge.hostCharacterId(),
-            characterName,
+            challenge.hostCharacterIds(),
+            hostNames,
             challenge.status(),
+            challenge.format(),
             challenge.gameVersion(),
             challenge.protocolVersion(),
             challenge.ruleset(),
@@ -604,11 +617,53 @@ public final class ChallengeService {
             challenge.expiresAt(),
             challenge.joinRequestId(),
             challenge.requestedPlayerId(),
-            challenge.requestedCharacterId(),
+            challenge.requestedCharacterIds(),
             challenge.requestedAt(),
             challenge.acceptedJoinRequestId(),
             challenge.matchId()
         );
+    }
+
+    /**
+     * Validate a roster against a format: exactly {@code format.fightersPerSide()}
+     * canonical ids, all selectable, no duplicates. Returns a normalized copy.
+     */
+    private List<String> validateRoster(BattleFormat format, List<String> characterIds) {
+        Objects.requireNonNull(format, "format");
+        if (characterIds == null || characterIds.size() != format.fightersPerSide()) {
+            throw invalidRoster(format);
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        List<String> normalized = new ArrayList<>(characterIds.size());
+        for (String id : characterIds) {
+            if (id == null || id.isBlank() || !seen.add(id)) {
+                throw invalidRoster(format);
+            }
+            // Resolve each id through the selectable catalog (rejects hidden /
+            // summon-only shikigami definitions a crafted request might name).
+            requireCharacter(id);
+            normalized.add(id);
+        }
+        return List.copyOf(normalized);
+    }
+
+    private List<Character> resolveCharacters(List<String> characterIds) {
+        List<Character> resolved = new ArrayList<>(characterIds.size());
+        for (String id : characterIds) {
+            resolved.add(requireCharacter(id));
+        }
+        return List.copyOf(resolved);
+    }
+
+    private List<String> resolveCharacterNames(List<String> characterIds) {
+        List<String> names = new ArrayList<>(characterIds.size());
+        for (String id : characterIds) {
+            names.add(catalog.findCharacter(id)
+                .map(Character::getName)
+                .orElseThrow(() -> new IllegalStateException(
+                    "Persisted challenge references unknown canonical character " + id)));
+        }
+        return List.copyOf(names);
     }
 
     /**
@@ -676,6 +731,24 @@ public final class ChallengeService {
                 ServiceErrorCode.FORBIDDEN,
                 "Only the challenge creator can " + operation + ".");
         }
+    }
+
+    private static ServiceException invalidRoster(BattleFormat format) {
+        return new ServiceException(
+            ServiceErrorCode.INVALID_CHARACTER,
+            "Select exactly " + format.fightersPerSide()
+                + " unique fighters for " + format + ".");
+    }
+
+    private static ServiceException formatMismatch(
+        BattleFormat expected,
+        BattleFormat requested
+    ) {
+        return new ServiceException(
+            ServiceErrorCode.INCOMPATIBLE_VERSION,
+            "This challenge is " + expected + "; switch formats to join it.",
+            Map.of("expected", expected.name(), "requested", requested.name())
+        );
     }
 
     private static ServiceException incompatibleVersion() {

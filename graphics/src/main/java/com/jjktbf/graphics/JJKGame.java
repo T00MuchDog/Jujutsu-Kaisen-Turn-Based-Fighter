@@ -111,7 +111,13 @@ public class JJKGame extends Game {
     private List<MultiplayerFighter> multiplayerRoster = List.of();
     private String multiplayerRosterError;
     private String multiplayerConfigurationError;
-    private String selectedMultiplayerCharacterId = DEFAULT_MULTIPLAYER_CHARACTER_ID;
+    // N-fighter multiplayer selection: a chosen format plus an ordered roster
+    // (one slot for 1v1, two for 2v2). Slot 0 is the legacy "primary" fighter
+    // exposed via getSelectedMultiplayerCharacterId() for older callers.
+    private com.jjktbf.model.combat.BattleFormat selectedMultiplayerFormat =
+        com.jjktbf.model.combat.BattleFormat.ONE_V_ONE;
+    private List<String> selectedMultiplayerCharacterIds =
+        List.of(DEFAULT_MULTIPLAYER_CHARACTER_ID);
 
     // ── Screen instances ───────────────────────────────────────────────────────
     // The menu and editors are rebuilt on entry so inactive-stage pointer state
@@ -370,17 +376,13 @@ public class JJKGame extends Game {
                 .toList();
             multiplayerRosterError = multiplayerRoster.isEmpty()
                 ? "The local fighter roster is empty." : null;
-            boolean selectedStillExists = multiplayerRoster.stream()
-                .anyMatch(fighter -> fighter.id().equals(selectedMultiplayerCharacterId));
-            if (!selectedStillExists) {
-                selectedMultiplayerCharacterId = DEFAULT_MULTIPLAYER_CHARACTER_ID;
-            }
+            reconcileSelectedMultiplayerRoster();
         } catch (IOException | RuntimeException failure) {
             multiplayerRosterError = "The local fighter roster could not be loaded.";
             System.err.println("Multiplayer roster load failed: "
                 + failure.getClass().getSimpleName());
             if (multiplayerRoster.isEmpty()) {
-                selectedMultiplayerCharacterId = DEFAULT_MULTIPLAYER_CHARACTER_ID;
+                selectedMultiplayerCharacterIds = List.of(DEFAULT_MULTIPLAYER_CHARACTER_ID);
             }
         }
     }
@@ -397,16 +399,82 @@ public class JJKGame extends Game {
         return multiplayerConfigurationError;
     }
 
-    public String getSelectedMultiplayerCharacterId() {
-        return selectedMultiplayerCharacterId;
+    public com.jjktbf.model.combat.BattleFormat getSelectedMultiplayerFormat() {
+        return selectedMultiplayerFormat;
     }
 
+    public void setSelectedMultiplayerFormat(
+        com.jjktbf.model.combat.BattleFormat format
+    ) {
+        selectedMultiplayerFormat = format == null
+            ? com.jjktbf.model.combat.BattleFormat.ONE_V_ONE : format;
+        // Grow/shrink the selection to match the new format, resetting any slot
+        // that pointed at a fighter no longer in the roster.
+        reconcileSelectedMultiplayerRoster();
+    }
+
+    public List<String> getSelectedMultiplayerCharacterIds() {
+        return selectedMultiplayerCharacterIds;
+    }
+
+    /**
+     * Set the ordered multiplayer fighter roster. Exactly
+     * {@link com.jjktbf.model.combat.BattleFormat#fightersPerSide()} ids are
+     * kept; blanks and duplicates are rejected by the server at challenge time,
+     * so the client only enforces length here.
+     */
+    public void setSelectedMultiplayerCharacterIds(List<String> characterIds) {
+        int slots = selectedMultiplayerFormat.fightersPerSide();
+        if (characterIds == null || characterIds.isEmpty()) {
+            selectedMultiplayerCharacterIds = List.of(DEFAULT_MULTIPLAYER_CHARACTER_ID);
+            return;
+        }
+        java.util.List<String> copy = new java.util.ArrayList<>(slots);
+        for (int index = 0; index < slots; index++) {
+            String id = index < characterIds.size() ? characterIds.get(index) : null;
+            copy.add(id == null || id.isBlank() ? DEFAULT_MULTIPLAYER_CHARACTER_ID : id);
+        }
+        selectedMultiplayerCharacterIds = List.copyOf(copy);
+    }
+
+    /** Legacy singular view: slot 0 (the primary fighter). */
+    public String getSelectedMultiplayerCharacterId() {
+        return selectedMultiplayerCharacterIds.isEmpty()
+            ? DEFAULT_MULTIPLAYER_CHARACTER_ID : selectedMultiplayerCharacterIds.get(0);
+    }
+
+    /** Legacy singular setter: writes slot 0 and grows the list to one entry. */
     public void setSelectedMultiplayerCharacterId(String characterId) {
         if (characterId == null || characterId.isBlank()) {
-            selectedMultiplayerCharacterId = DEFAULT_MULTIPLAYER_CHARACTER_ID;
-        } else {
-            selectedMultiplayerCharacterId = characterId;
+            characterId = DEFAULT_MULTIPLAYER_CHARACTER_ID;
         }
+        java.util.List<String> ids = new java.util.ArrayList<>(
+            selectedMultiplayerCharacterIds);
+        if (ids.isEmpty()) {
+            ids.add(characterId);
+        } else {
+            ids.set(0, characterId);
+        }
+        selectedMultiplayerCharacterIds = List.copyOf(ids);
+    }
+
+    /**
+     * Reset any selected slot pointing at a fighter no longer in the roster to
+     * the default, and ensure the slot count matches the chosen format.
+     */
+    private void reconcileSelectedMultiplayerRoster() {
+        java.util.Set<String> available = multiplayerRoster.stream()
+            .map(MultiplayerFighter::id)
+            .collect(java.util.stream.Collectors.toSet());
+        int slots = selectedMultiplayerFormat.fightersPerSide();
+        java.util.List<String> reconciled = new java.util.ArrayList<>(slots);
+        for (int index = 0; index < slots; index++) {
+            String current = index < selectedMultiplayerCharacterIds.size()
+                ? selectedMultiplayerCharacterIds.get(index) : null;
+            reconciled.add(current != null && available.contains(current)
+                ? current : DEFAULT_MULTIPLAYER_CHARACTER_ID);
+        }
+        selectedMultiplayerCharacterIds = List.copyOf(reconciled);
     }
 
     public String multiplayerFighterName(String characterId) {
@@ -427,6 +495,18 @@ public class JJKGame extends Game {
             .filter(spriteAsset -> spriteAsset != null && !spriteAsset.isBlank())
             .findFirst()
             .orElse(null);
+    }
+
+    /**
+     * Returns bundled visual metadata for an ordered authoritative roster, in
+     * the same order as the input ids. Unknown ids yield a {@code null} entry
+     * (callers fall back to the default sprite).
+     */
+    public java.util.List<String> multiplayerSpriteAssets(java.util.List<String> characterIds) {
+        if (characterIds == null) return java.util.List.of();
+        return characterIds.stream()
+            .map(this::multiplayerSpriteAsset)
+            .toList();
     }
 
     /**

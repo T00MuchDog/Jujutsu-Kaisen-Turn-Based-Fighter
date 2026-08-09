@@ -73,6 +73,18 @@ import java.util.function.Consumer;
  */
 public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
+    private static final String SORCERER_SECTION = "SORCERER";
+    private static final String SHIKIGAMI_SECTION = "SHIKIGAMI";
+    private static final List<String> MOVE_RECORD_SECTIONS = List.of(
+        SORCERER_SECTION,
+        SORCERER_SECTION + "/ATTACK",
+        SORCERER_SECTION + "/DEFENSE",
+        SORCERER_SECTION + "/UTILITY",
+        SHIKIGAMI_SECTION,
+        SHIKIGAMI_SECTION + "/ATTACK",
+        SHIKIGAMI_SECTION + "/DEFENSE",
+        SHIKIGAMI_SECTION + "/UTILITY");
+
     private static final List<MoveTag> COMPONENT_DAMAGE_TAGS = List.of(
         MoveTag.PHYSICAL,
         MoveTag.CURSED_ENERGY,
@@ -202,6 +214,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         d.requiredTechniqueId   = s.requiredTechniqueId;
         d.isFreeMove            = s.isFreeMove;
         d.mustBeGranted         = s.mustBeGranted;
+        d.shikigamiMove         = s.shikigamiMove;
         d.moveCap               = s.moveCap;
         d.summonCharacterId     = s.summonCharacterId;
         d.aoeType               = s.aoeType;
@@ -345,11 +358,21 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     }
 
     @Override protected List<String> recordSections() {
-        return List.of("ATTACK", "DEFENSE", "UTILITY");
+        return MOVE_RECORD_SECTIONS;
     }
 
     @Override protected String recordSection(MoveData record) {
-        return moveRecordSection(record);
+        return moveRecordGroup(record) + "/" + moveRecordSection(record);
+    }
+
+    @Override protected String recordSectionParent(String section) {
+        int separator = section.indexOf('/');
+        return separator < 0 ? null : section.substring(0, separator);
+    }
+
+    @Override protected String recordSectionLabel(String section) {
+        int separator = section.lastIndexOf('/');
+        return separator < 0 ? section : section.substring(separator + 1);
     }
 
     /** Assign multi-purpose legacy data by Attack, then Defense, then Utility priority. */
@@ -358,6 +381,11 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         if (tags.contains(MoveTag.ATTACK.name())) return "ATTACK";
         if (tags.contains(MoveTag.DEFENSIVE.name())) return "DEFENSE";
         return "UTILITY";
+    }
+
+    static String moveRecordGroup(MoveData record) {
+        return Boolean.TRUE.equals(record.shikigamiMove)
+            ? SHIKIGAMI_SECTION : SORCERER_SECTION;
     }
 
     @Override protected boolean isNewDraft(MoveData draft) {
@@ -817,6 +845,19 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             }
         });
         misc.add(freeCb).left().row();
+
+        CheckBox shikigamiCb = new CheckBox(" Shikigami move", skin);
+        shikigamiCb.setChecked(Boolean.TRUE.equals(d.shikigamiMove));
+        shikigamiCb.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                game.audio().play(SoundCue.UI_TOGGLE);
+                d.shikigamiMove = shikigamiCb.isChecked() ? Boolean.TRUE : null;
+                markDirty();
+            }
+        });
+        misc.add(shikigamiCb).left().row();
+        misc.add(formHint("Organizes this record under Shikigami in the Move Editor."))
+            .left().row();
 
         CheckBox grantedCb = new CheckBox(" Must be granted", skin);
         grantedCb.setChecked(d.mustBeGranted);

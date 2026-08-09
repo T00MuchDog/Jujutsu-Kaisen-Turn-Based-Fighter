@@ -1,6 +1,9 @@
 package com.jjktbf.server.challenge;
 
+import com.jjktbf.model.combat.BattleFormat;
 import com.jjktbf.multiplayer.protocol.ChallengeStatus;
+
+import java.util.List;
 
 record ChallengeRecord(
     String challengeId,
@@ -10,15 +13,16 @@ record ChallengeRecord(
     String gameVersion,
     int protocolVersion,
     String ruleset,
-    String hostCharacterId,
+    BattleFormat format,
+    List<String> hostCharacterIds,
     long createdAt,
     long expiresAt,
     String joinRequestId,
     String requestedPlayerId,
-    String requestedCharacterId,
+    List<String> requestedCharacterIds,
     Long requestedAt,
     String acceptedPlayerId,
-    String acceptedCharacterId,
+    List<String> acceptedCharacterIds,
     Long acceptedAt,
     String acceptedJoinRequestId,
     String matchId

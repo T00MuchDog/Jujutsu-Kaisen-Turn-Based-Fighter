@@ -617,8 +617,9 @@ public final class MatchManager implements AutoCloseable {
             participant.accepted.playerId(),
             opponent.accepted.playerId(),
             opponent.accepted.displayName(),
-            participant.accepted.characterId(),
-            opponent.accepted.characterId(),
+            participant.accepted.characterIds(),
+            opponent.accepted.characterIds(),
+            match.setup.format(),
             match.setup.gameVersion(),
             match.setup.protocolVersion(),
             match.setup.ruleset(),
@@ -831,7 +832,7 @@ public final class MatchManager implements AutoCloseable {
         return new MatchParticipant(
             accepted.playerId(),
             accepted.displayName(),
-            accepted.character(),
+            accepted.characters(),
             accepted.side()
         );
     }
@@ -848,15 +849,33 @@ public final class MatchManager implements AutoCloseable {
         if (setup.playerOne().playerId().equals(setup.playerTwo().playerId())) {
             throw new IllegalArgumentException("Match participant IDs must be unique");
         }
-        if (!setup.playerOne().characterId().equals(setup.playerOne().character().getId())
-            || !setup.playerTwo().characterId().equals(setup.playerTwo().character().getId())) {
+        if (!rosterMatchesCharacters(setup.playerOne())
+            || !rosterMatchesCharacters(setup.playerTwo())) {
             throw new IllegalArgumentException(
                 "Accepted participants must reference their canonical characters");
+        }
+        if (setup.playerOne().characterIds().size() != setup.format().fightersPerSide()
+            || setup.playerTwo().characterIds().size() != setup.format().fightersPerSide()) {
+            throw new IllegalArgumentException(
+                "Accepted participant rosters do not match the match format");
         }
         if (!ProtocolVersion.isCompatible(
             setup.gameVersion(), setup.protocolVersion(), setup.ruleset())) {
             throw new IllegalArgumentException("Accepted match compatibility is unsupported");
         }
+    }
+
+    private static boolean rosterMatchesCharacters(AcceptedMatchParticipant participant) {
+        if (participant.characterIds().size() != participant.characters().size()) {
+            return false;
+        }
+        for (int index = 0; index < participant.characterIds().size(); index++) {
+            if (!participant.characterIds().get(index)
+                .equals(participant.characters().get(index).getId())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean sameSetup(
@@ -881,7 +900,7 @@ public final class MatchManager implements AutoCloseable {
         return first.playerId().equals(second.playerId())
             && first.displayName().equals(second.displayName())
             && first.side() == second.side()
-            && first.characterId().equals(second.characterId());
+            && first.characterIds().equals(second.characterIds());
     }
 
     private MatchState existingState(ActiveMatch existing, AcceptedMatchSetup setup) {

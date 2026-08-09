@@ -8,8 +8,13 @@ import java.util.Properties;
 public final class ProtocolVersion {
 
     public static final String GAME_VERSION = loadGameVersion();
-    /** Protocol v10 exposes summon planning metadata to multiplayer clients. */
-    public static final int PROTOCOL_VERSION = 10;
+    /**
+     * Protocol v11 threads a {@link com.jjktbf.model.combat.BattleFormat} and an
+     * ordered character roster through the challenge/accept/match chain so a
+     * multiplayer match can field N fighters per side. v10 exposed summon
+     * planning metadata; v10 clients are rejected by the v11 bump.
+     */
+    public static final int PROTOCOL_VERSION = 11;
     public static final String STANDARD_RULESET = "STANDARD";
 
     private ProtocolVersion() {

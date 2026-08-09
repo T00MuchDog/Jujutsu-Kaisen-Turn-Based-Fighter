@@ -208,6 +208,15 @@ public abstract class EditorScreenBase<D> implements Screen {
     protected String recordSection(D record) { return null; }
 
     /**
+     * Optional parent for a record section. A collapsed parent hides all of its
+     * child section headers and records while preserving each child's own state.
+     */
+    protected String recordSectionParent(String section) { return null; }
+
+    /** User-facing title for a record section. */
+    protected String recordSectionLabel(String section) { return section; }
+
+    /**
      * Build the detail form Actor for the current draft. Called every time the
      * selection changes or a new record is created. Use {@link #markDirty()} on
      * any field change.
@@ -616,12 +625,14 @@ public abstract class EditorScreenBase<D> implements Screen {
                 }
 
                 for (String section : sections) {
+                    if (isRecordSectionHiddenByCollapsedAncestor(section)) continue;
                     Table header = createRecordSectionHeader(section);
                     masterListContent.add(header).growX().row();
                     masterSectionViews.add(new MasterSectionView(section, header));
 
                     if (Boolean.TRUE.equals(collapsedRecordSections.get(section))) continue;
                     List<D> sectionRecords = recordsBySection.get(section);
+                    if (sectionRecords.isEmpty()) continue;
                     List<String> ids = sectionRecords.stream().map(this::idOf).toList();
                     HoverList<String> list = new HoverList<>(skin);
                     configureMasterRecordList(list);
@@ -798,7 +809,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         });
         header.pad(6f, 10f, 6f, 10f);
 
-        Label title = new Label(section, skin, "white");
+        Label title = new Label(recordSectionLabel(section), skin, "white");
         title.setColor(Color.WHITE);
         title.setTouchable(Touchable.disabled);
         header.add(title).left().growX();
@@ -813,6 +824,16 @@ public abstract class EditorScreenBase<D> implements Screen {
         });
         header.add(collapseButton).right().size(24f, 22f);
         return header;
+    }
+
+    /** True when any ancestor of {@code section} is minimized. */
+    private boolean isRecordSectionHiddenByCollapsedAncestor(String section) {
+        String ancestor = recordSectionParent(section);
+        while (ancestor != null) {
+            if (Boolean.TRUE.equals(collapsedRecordSections.get(ancestor))) return true;
+            ancestor = recordSectionParent(ancestor);
+        }
+        return false;
     }
 
     /** Accumulates headers at the top once their original rows scroll past. */

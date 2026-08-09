@@ -1469,18 +1469,20 @@ public class BattleScreen implements Screen, BattleView {
         multiplayerConnectionState = MultiplayerSession.ConnectionState.DISCONNECTED;
         long run = ++multiplayerRun;
 
-        setCombatantSprites(
-            assets.characterBattleSprite(
-                game.multiplayerSpriteAsset(multiplayerSetup.playerCharacterId()),
-                false,
-                assets.playerSprite
-            ),
-            assets.characterBattleSprite(
-                game.multiplayerSpriteAsset(multiplayerSetup.opponentCharacterId()),
-                true,
-                assets.enemySprite
-            )
-        );
+        // Load one sprite per fighter id per side so 2v2 fields both fighters.
+        // Each side's sprite list is in MatchSetup roster order; the layout
+        // builder turns a two-entry list into the stacked secondary panel.
+        java.util.List<Texture> playerSprites = new java.util.ArrayList<>();
+        for (String id : multiplayerSetup.playerCharacterIds()) {
+            playerSprites.add(assets.characterBattleSprite(
+                game.multiplayerSpriteAsset(id), false, assets.playerSprite));
+        }
+        java.util.List<Texture> enemySprites = new java.util.ArrayList<>();
+        for (String id : multiplayerSetup.opponentCharacterIds()) {
+            enemySprites.add(assets.characterBattleSprite(
+                game.multiplayerSpriteAsset(id), true, assets.enemySprite));
+        }
+        setTeamSprites(playerSprites, enemySprites);
 
         multiplayerListener = new MultiplayerBattleListener(run, multiplayerSetup.matchId());
         multiplayerMatchService.addListener(multiplayerListener);
@@ -2507,7 +2509,7 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     private boolean hasSecondaryTeamSprite(List<Texture> teamSprites) {
-        return mode == BattleMode.LOCAL && teamSprites.size() > 1;
+        return teamSprites.size() > 1;
     }
 
     private Rectangle spriteBounds(Texture sprite, float centerX, float bottomY, float baseSize) {
@@ -2602,6 +2604,25 @@ public class BattleScreen implements Screen, BattleView {
             if (enemyPanel != null && onlineEnemy != null) {
                 enemyPanel.update(
                     onlineEnemyHp, onlineEnemyMaxHp, onlineEnemyCe, onlineEnemyMaxCe);
+            }
+            // Secondary panels: HP/CE come straight from the second combatant in
+            // each side's roster (2v2 only). Summons are filtered out so a
+            // summoned shikigami never displaces the second human fighter's card.
+            CharacterState playerFighter2 = onlinePlayer == null ? null
+                : onlinePlayer.combatants().stream()
+                    .filter(c -> "FIGHTER".equals(c.role()) && "ACTIVE".equals(c.lifecycle()))
+                    .skip(1).findFirst().orElse(null);
+            CharacterState enemyFighter2 = onlineEnemy == null ? null
+                : onlineEnemy.combatants().stream()
+                    .filter(c -> "FIGHTER".equals(c.role()) && "ACTIVE".equals(c.lifecycle()))
+                    .skip(1).findFirst().orElse(null);
+            if (playerPanel2 != null && playerFighter2 != null) {
+                playerPanel2.update(playerFighter2.currentHp(), playerFighter2.maxHp(),
+                    playerFighter2.currentCe(), playerFighter2.maxCe());
+            }
+            if (enemyPanel2 != null && enemyFighter2 != null) {
+                enemyPanel2.update(enemyFighter2.currentHp(), enemyFighter2.maxHp(),
+                    enemyFighter2.currentCe(), enemyFighter2.maxCe());
             }
             return;
         }

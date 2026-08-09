@@ -8,6 +8,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.List;
 import java.util.Optional;
 
 final class MatchRepository {
@@ -44,16 +45,16 @@ final class MatchRepository {
         String matchId,
         String playerId,
         PlayerSide side,
-        String characterId
+        List<String> characterIds
     ) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
             "INSERT INTO match_participant "
-                + "(match_id, player_id, side, character_id, joined_at, disconnected_at) "
+                + "(match_id, player_id, side, character_ids, joined_at, disconnected_at) "
                 + "VALUES (?, ?, ?, ?, ?, ?)")) {
             statement.setString(1, matchId);
             statement.setString(2, playerId);
             statement.setString(3, side.name());
-            statement.setString(4, characterId);
+            statement.setString(4, RosterCodec.encode(characterIds));
             statement.setNull(5, Types.BIGINT);
             statement.setNull(6, Types.BIGINT);
             statement.executeUpdate();

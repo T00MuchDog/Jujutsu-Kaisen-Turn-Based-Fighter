@@ -1,5 +1,6 @@
 package com.jjktbf.graphics.multiplayer;
 
+import com.jjktbf.model.combat.BattleFormat;
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeCreateRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
@@ -8,6 +9,7 @@ import com.jjktbf.multiplayer.protocol.ChallengeStatus;
 import com.jjktbf.multiplayer.protocol.ChallengeSummary;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -27,6 +29,18 @@ public final class ChallengeService {
     public CompletableFuture<ChallengeSummary> createChallenge(String characterId) {
         return withToken(token -> api.createChallenge(
             token, ChallengeCreateRequest.standard(characterId)));
+    }
+
+    /**
+     * Host a challenge for the given format carrying an ordered fighter roster.
+     * The roster length must match {@link BattleFormat#fightersPerSide()}.
+     */
+    public CompletableFuture<ChallengeSummary> createChallenge(
+        BattleFormat format,
+        List<String> characterIds
+    ) {
+        return withToken(token -> api.createChallenge(
+            token, ChallengeCreateRequest.standard(format, characterIds)));
     }
 
     public CompletableFuture<ChallengeListResponse> listChallenges() {
@@ -49,17 +63,29 @@ public final class ChallengeService {
         String challengeId,
         String characterId
     ) {
+        return requestJoin(challengeId, BattleFormat.ONE_V_ONE, List.of(characterId));
+    }
+
+    /**
+     * Request to join a challenge carrying an ordered fighter roster. The roster
+     * length and format must match the host challenge's format.
+     */
+    public CompletableFuture<ChallengeSummary> requestJoin(
+        String challengeId,
+        BattleFormat format,
+        List<String> characterIds
+    ) {
         CompletableFuture<ChallengeSummary> attempt = withToken(token -> api.requestJoin(
             token,
             challengeId,
-            ChallengeAcceptRequest.standard(characterId)
+            ChallengeAcceptRequest.standard(format, characterIds)
         ));
         return attempt.handle((challenge, failure) -> {
             if (failure == null) return CompletableFuture.completedFuture(challenge);
             if (!isAmbiguous(failure)) {
                 return CompletableFuture.<ChallengeSummary>failedFuture(unwrap(failure));
             }
-            return recoverJoinRequest(challengeId, characterId).handle((recovered, recoveryFailure) -> {
+            return recoverJoinRequest(challengeId, characterIds).handle((recovered, recoveryFailure) -> {
                 if (recoveryFailure == null) return recovered;
                 throw new CompletionException(unwrap(failure));
             });
@@ -155,17 +181,17 @@ public final class ChallengeService {
 
     private CompletableFuture<ChallengeSummary> recoverJoinRequest(
         String challengeId,
-        String characterId
+        List<String> characterIds
     ) {
         String playerId = session.guestCredentials()
             .map(credentials -> credentials.identity().playerId())
             .orElse(null);
-        return recoverJoinRequest(challengeId, characterId, playerId, 0);
+        return recoverJoinRequest(challengeId, characterIds, playerId, 0);
     }
 
     private CompletableFuture<ChallengeSummary> recoverJoinRequest(
         String challengeId,
-        String characterId,
+        List<String> characterIds,
         String playerId,
         int attempt
     ) {
@@ -173,7 +199,7 @@ public final class ChallengeService {
             .thenCompose(challenge -> {
                 if (challenge.status() == ChallengeStatus.OPEN
                     && Objects.equals(playerId, challenge.requestedPlayerId())
-                    && Objects.equals(characterId, challenge.requestedCharacterId())) {
+                    && Objects.equals(characterIds, challenge.requestedCharacterIds())) {
                     return CompletableFuture.completedFuture(challenge);
                 }
                 if (challenge.status() == ChallengeStatus.ACCEPTED
@@ -189,7 +215,7 @@ public final class ChallengeService {
                                 200L, java.util.concurrent.TimeUnit.MILLISECONDS)
                         )
                         .thenCompose(ignored -> recoverJoinRequest(
-                            challengeId, characterId, playerId, attempt + 1));
+                            challengeId, characterIds, playerId, attempt + 1));
                 }
                 return CompletableFuture.failedFuture(
                     new IllegalStateException("Join request was not committed"));

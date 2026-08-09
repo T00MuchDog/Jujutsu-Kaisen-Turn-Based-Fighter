@@ -10,10 +10,13 @@ import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.editor.AxisLockedScrollPane;
 import com.jjktbf.graphics.multiplayer.ChallengeService;
 import com.jjktbf.graphics.multiplayer.GuestAccountService;
+import com.jjktbf.model.combat.BattleFormat;
 import com.jjktbf.multiplayer.protocol.ChallengeStatus;
 import com.jjktbf.multiplayer.protocol.ChallengeSummary;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -42,7 +45,8 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
     private ScheduledFuture<?> pollTask;
     private volatile long pollCycle;
     private ChallengeSummary challenge;
-    private String selectedCharacterId;
+    private BattleFormat selectedFormat;
+    private List<String> selectedCharacterIds;
     private boolean ensuringGuest;
     private boolean creating;
     private boolean cancelling;
@@ -107,7 +111,8 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
     protected void onShown(long generation) {
         stopPolling();
         challenge = null;
-        selectedCharacterId = game.getSelectedMultiplayerCharacterId();
+        selectedFormat = game.getSelectedMultiplayerFormat();
+        selectedCharacterIds = List.copyOf(game.getSelectedMultiplayerCharacterIds());
         ensuringGuest = true;
         creating = false;
         cancelling = false;
@@ -116,8 +121,7 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         fetchingMatch = false;
 
         guestLabel.setText("GUEST: CONNECTING");
-        fighterLabel.setText("FIGHTER: " + game.multiplayerFighterName(selectedCharacterId)
-            + " [" + selectedCharacterId + "]");
+        fighterLabel.setText(fighterSummary(selectedFormat, selectedCharacterIds));
         challengeLabel.setText("CHALLENGE: --");
         challengeStatusLabel.setText("STATUS: PREPARING");
         setStatus(messageLabel, "Validating guest identity...", StatusTone.NORMAL);
@@ -191,7 +195,8 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         setStatus(messageLabel, "Publishing challenge to the server...", StatusTone.NORMAL);
         refreshButtons();
 
-        challengeService.createChallenge(selectedCharacterId).whenComplete((created, failure) ->
+        challengeService.createChallenge(selectedFormat, selectedCharacterIds)
+            .whenComplete((created, failure) ->
             postIfCurrentOrElse(expectedGeneration, () -> {
                 creating = false;
                 if (failure != null) {
@@ -218,9 +223,9 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
     private void showChallenge(ChallengeSummary current) {
         challenge = current;
         challengeService.rememberChallenge(current);
-        selectedCharacterId = current.hostCharacterId();
-        fighterLabel.setText("FIGHTER: " + current.hostCharacterName()
-            + " [" + current.hostCharacterId() + "]");
+        selectedFormat = current.format();
+        selectedCharacterIds = List.copyOf(current.hostCharacterIds());
+        fighterLabel.setText(fighterSummary(selectedFormat, selectedCharacterIds));
         challengeLabel.setText("CHALLENGE: " + current.challengeId());
         challengeStatusLabel.setText("STATUS: " + current.status());
         switch (current.status()) {
@@ -438,8 +443,22 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         return current != null
             && current.status() == ChallengeStatus.OPEN
             && current.requestedPlayerId() != null
-            && current.requestedCharacterId() != null
+            && !current.requestedCharacterIds().isEmpty()
             && current.requestedAt() != null;
+    }
+
+    /** Format the fighter roster for the header label, e.g. "FIGHTERS: A, B [1, 2]". */
+    private String fighterSummary(BattleFormat format, List<String> characterIds) {
+        List<String> names = new ArrayList<>();
+        List<String> ids = characterIds == null ? List.of() : characterIds;
+        for (String id : ids) {
+            names.add(game.multiplayerFighterName(id) + " [" + id + "]");
+        }
+        if (names.isEmpty()) {
+            names.add("--");
+        }
+        String label = (format == BattleFormat.TWO_V_TWO ? "FIGHTERS: " : "FIGHTER: ");
+        return label + String.join(", ", names);
     }
 
     private void stopPolling() {

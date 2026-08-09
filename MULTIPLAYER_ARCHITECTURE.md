@@ -186,6 +186,12 @@ Both host and requester poll `GET /api/challenges/{id}`. Approval leads both cli
 
 An open challenge expires after `CHALLENGE_EXPIRY_MINUTES`. A per-player open-challenge limit prevents spam, and listings are capped at 100 rows. Only the creator can cancel, and a player cannot accept their own challenge.
 
+### Battle format and N-fighter rosters (protocol v11)
+
+A challenge carries a `BattleFormat` (`ONE_V_ONE` or `TWO_V_TWO`) plus an ordered canonical-character roster per side (one id for 1v1, two for 2v2). The host picks a format and roster on the multiplayer menu; the listing and recovery queries filter by format so a joiner only sees challenges matching the format they have selected, and the joiner must field the same format. The server re-validates that each roster has exactly `format.fightersPerSide()` selectable canonical ids with no duplicates — a crafted request naming a hidden or summon-only shikigami is rejected.
+
+Rosters are stored comma-joined in single `*_character_ids` columns (`host_character_ids`, `requested_character_ids`, `accepted_character_ids`, `match_participant.character_ids`); the V4 migration back-fills them from the legacy single-character columns. The engine consumes each participant's `List<Character>` roster: `HeadlessBattleSession` builds each side via `BattleState.teamOfFighters`, assigning `{TEAM}-f1` / `{TEAM}-f2` instance ids in roster order — the same path single-player 2v2 uses. Plan validation, targeting, concealment, and round resolution were already multi-combatant; only setup needed the roster threaded through. Shikigami summoning during a round needs no protocol support: the server injects its `ContentCatalog` summon lookup into the authoritative session, and `CombatResolver` materializes/charges/dismisses summons during resolution, surfacing them to both clients as additional `SUMMON` combatants in `PlayerState.combatants`.
+
 ## Disconnects and Reconnection
 
 Closing a match WebSocket marks that participant disconnected, broadcasts `PLAYER_DISCONNECTED`, and schedules a grace timeout. Token expiry also closes an otherwise idle socket at its absolute expiry time. The match remains authoritative and unchanged during the grace period. Reconnecting with the same valid guest token and `JOIN_MATCH` cancels the timeout, marks the player connected, and sends the latest viewer-safe state.

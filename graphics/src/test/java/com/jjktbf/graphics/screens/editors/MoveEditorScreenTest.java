@@ -426,6 +426,21 @@ class MoveEditorScreenTest {
     }
 
     @Test
+    void shikigamiMoveGroupingIsPreservedBySaveCopy() {
+        MoveData move = new MoveData();
+        move.tags = new ArrayList<>(List.of(MoveTag.UTILITY.name()));
+        move.shikigamiMove = true;
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(move);
+
+        assertEquals("SHIKIGAMI", MoveEditorScreen.moveRecordGroup(move));
+        assertTrue(Boolean.TRUE.equals(saved.shikigamiMove));
+
+        move.shikigamiMove = null;
+        assertEquals("SORCERER", MoveEditorScreen.moveRecordGroup(move));
+    }
+
+    @Test
     void saveCopyForcesWeaponRequirementForSwordTaggedMoves() {
         MoveData swordMove = new MoveData();
         swordMove.tags = new ArrayList<>(List.of(MoveTag.ATTACK.name(), MoveTag.SWORD.name()));

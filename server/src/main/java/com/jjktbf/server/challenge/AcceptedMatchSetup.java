@@ -1,5 +1,6 @@
 package com.jjktbf.server.challenge;
 
+import com.jjktbf.model.combat.BattleFormat;
 import com.jjktbf.multiplayer.protocol.MatchStatus;
 
 import java.util.List;
@@ -11,6 +12,7 @@ public record AcceptedMatchSetup(
     String challengeId,
     MatchStatus status,
     long serverSeed,
+    BattleFormat format,
     String gameVersion,
     int protocolVersion,
     String ruleset,
@@ -22,6 +24,7 @@ public record AcceptedMatchSetup(
         Objects.requireNonNull(matchId, "matchId");
         Objects.requireNonNull(challengeId, "challengeId");
         Objects.requireNonNull(status, "status");
+        Objects.requireNonNull(format, "format");
         Objects.requireNonNull(gameVersion, "gameVersion");
         Objects.requireNonNull(ruleset, "ruleset");
         Objects.requireNonNull(playerOne, "playerOne");
