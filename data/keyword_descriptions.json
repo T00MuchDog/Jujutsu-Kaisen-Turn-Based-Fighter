@@ -41,7 +41,7 @@
   },
   {
     "term": "BLACK FLASH",
-    "description": "A rare critical hit that deals 2.5 times damage and restores 5% of maximum CE."
+    "description": "A rare critical hit for PHYSICAL + CURSED_ENERGY moves without technique tags. It deals 2.5 times damage and restores 5% of maximum CE."
   },
   {
     "term": "BLOCK",

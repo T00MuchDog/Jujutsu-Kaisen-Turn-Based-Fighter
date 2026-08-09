@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class StatVerificationTest {
@@ -961,6 +962,30 @@ public class StatVerificationTest {
             .cursedEnergyOutput(80).cursedEnergyReserves(80).cursedEnergyEfficiency(80).build();
         assertEquals((80 * 3 + 80 * 2 + 80) / 6,
             PowerCalculator.compute(MoveCategory.CURSED_ENERGY, stats));
+    }
+
+    @Test
+    void blackFlashRequiresPhysicalCursedEnergyWithoutTechniqueTags() {
+        HitComponent physicalCursedEnergy = new HitComponent(50,
+            Set.of(MoveTag.PHYSICAL, MoveTag.CURSED_ENERGY), 0, false, true);
+        HitComponent innateTechnique = new HitComponent(50,
+            Set.of(MoveTag.PHYSICAL, MoveTag.CURSED_ENERGY, MoveTag.INNATE_TECHNIQUE),
+            0, false, true);
+        HitComponent nonInnateTechnique = new HitComponent(50,
+            Set.of(MoveTag.PHYSICAL, MoveTag.CURSED_ENERGY, MoveTag.NON_INNATE_TECHNIQUE),
+            0, false, true);
+        HitComponent bothTechniqueTags = new HitComponent(50,
+            Set.of(MoveTag.PHYSICAL, MoveTag.CURSED_ENERGY, MoveTag.INNATE_TECHNIQUE,
+                MoveTag.NON_INNATE_TECHNIQUE),
+            0, false, true);
+
+        assertTrue(physicalCursedEnergy.isBlackFlashEligible());
+        assertFalse(innateTechnique.isBlackFlashEligible(),
+            "An innate-technique tag makes a hit ineligible for Black Flash.");
+        assertFalse(nonInnateTechnique.isBlackFlashEligible(),
+            "A non-innate-technique tag makes a hit ineligible for Black Flash.");
+        assertFalse(bothTechniqueTags.isBlackFlashEligible(),
+            "Any technique tag makes a hit ineligible for Black Flash.");
     }
 
     @Test

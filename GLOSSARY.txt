@@ -377,8 +377,8 @@ tag names below.
                           interaction. Backed by Move.isHeavy().
 
   Black Flash eligibility rule (evaluated per hit component): a component must
-    contain PHYSICAL AND at least one of {CURSED_ENERGY, INNATE_TECHNIQUE,
-    NON_INNATE_TECHNIQUE}.
+    contain both PHYSICAL and CURSED_ENERGY, and must not contain
+    INNATE_TECHNIQUE or NON_INNATE_TECHNIQUE.
 
 ================================================================================
   6. MOVE CATEGORIES  (MoveCategory.java)
@@ -394,16 +394,15 @@ eligibility. Pool (slot budget) is derived separately from the raw tags (§7).
   INNATE_TECHNIQUE                        {INNATE_TECHNIQUE}                No
   NON_INNATE_TECHNIQUE                    {NON_INNATE_TECHNIQUE}            No
   PHYSICAL_CURSED_ENERGY                  {PHYSICAL, CURSED_ENERGY}         Yes
-  PHYSICAL_INNATE_TECHNIQUE               {PHYSICAL, INNATE_TECHNIQUE}      Yes
-  PHYSICAL_NON_INNATE_TECHNIQUE           {PHYSICAL, NON_INNATE_TECHNIQUE}  Yes
+  PHYSICAL_INNATE_TECHNIQUE               {PHYSICAL, INNATE_TECHNIQUE}      No
+  PHYSICAL_NON_INNATE_TECHNIQUE           {PHYSICAL, NON_INNATE_TECHNIQUE}  No
   INNATE_NON_INNATE_TECHNIQUE             {INNATE_TECHNIQUE, NON_INNATE_TECHNIQUE}  No
-  PHYSICAL_INNATE_NON_INNATE_TECHNIQUE    {all three technique tags}        Yes
+  PHYSICAL_INNATE_NON_INNATE_TECHNIQUE    {all three technique tags}        No
   UTILITY                                 {UTILITY}                         No
   DEFENSIVE                               {DEFENSIVE}                       No
 
-  Black Flash eligible (the four categories containing PHYSICAL):
-    PHYSICAL_CURSED_ENERGY, PHYSICAL_INNATE_TECHNIQUE,
-    PHYSICAL_NON_INNATE_TECHNIQUE, PHYSICAL_INNATE_NON_INNATE_TECHNIQUE.
+  Black Flash eligible (the only category with PHYSICAL + CURSED_ENERGY and
+  no technique tag): PHYSICAL_CURSED_ENERGY.
 
   MoveData.derivedCategory() collapses DEFENSIVE and UTILITY first (regardless of
   any other tags) and falls back to UTILITY for unknown combinations.

@@ -64,13 +64,13 @@ public enum MoveCategory {
     /** Physical + InnateT. 4:1 InnateT:Physical. */
     PHYSICAL_INNATE_TECHNIQUE(
         EnumSet.of(MoveTag.PHYSICAL, MoveTag.INNATE_TECHNIQUE),
-        true
+        false   // No BF: technique-tagged moves are ineligible
     ),
 
     /** Physical + NonInnateT. 3:1 NonInnateT:Physical. */
     PHYSICAL_NON_INNATE_TECHNIQUE(
         EnumSet.of(MoveTag.PHYSICAL, MoveTag.NON_INNATE_TECHNIQUE),
-        true
+        false   // No BF: technique-tagged moves are ineligible
     ),
 
     /** InnateT + NonInnateT. 3:2 InnateT:NonInnateT. */
@@ -82,7 +82,7 @@ public enum MoveCategory {
     /** Physical + InnateT + NonInnateT. 1:3:2. */
     PHYSICAL_INNATE_NON_INNATE_TECHNIQUE(
         EnumSet.of(MoveTag.PHYSICAL, MoveTag.INNATE_TECHNIQUE, MoveTag.NON_INNATE_TECHNIQUE),
-        true
+        false   // No BF: technique-tagged moves are ineligible
     ),
 
     // -------------------------------------------------------------------------

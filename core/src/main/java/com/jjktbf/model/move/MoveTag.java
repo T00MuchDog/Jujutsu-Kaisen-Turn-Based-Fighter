@@ -8,7 +8,8 @@ import java.util.Set;
  * Tags serve three purposes:
  *  1. Determine the Power formula used during damage calculation.
  *  2. Gate which characters can learn/use the move.
- *  3. Determine whether a Black Flash can proc (requires PHYSICAL + any CE-bearing tag).
+ *  3. Determine whether a Black Flash can proc (requires PHYSICAL + CURSED_ENERGY
+ *     with no technique tag).
  *
  * Tag combinations and their Power formulae:
  *
@@ -18,10 +19,10 @@ import java.util.Set;
  *  CURSED_ENERGY only  (raw CE attack — dedicated CURSED_ENERGY category)
  *      Power = (CE_Output × CE_Reserves × CE_Efficiency)  [3:2:1 ratio]
  *
- *  INNATE_TECHNIQUE  (implies CURSED_ENERGY tag for BF purposes)
+ *  INNATE_TECHNIQUE  (uses cursed energy)
  *      Power = CursedEnergy_component × CursedTechniqueMastery  [50:50]
  *
- *  NON_INNATE_TECHNIQUE  (implies CURSED_ENERGY tag for BF purposes)
+ *  NON_INNATE_TECHNIQUE  (uses cursed energy)
  *      Power = CursedEnergy_component × JujutsuSkill  [50:50]
  *
  *  PHYSICAL + CURSED_ENERGY
@@ -39,8 +40,9 @@ import java.util.Set;
  *  PHYSICAL + INNATE_TECHNIQUE + NON_INNATE_TECHNIQUE
  *      Power = 1:3:2  Physical : InnateT : NonInnateT
  *
- * Black Flash eligibility: move must contain PHYSICAL and at least one of
- *   {CURSED_ENERGY, INNATE_TECHNIQUE, NON_INNATE_TECHNIQUE}.
+ * Black Flash eligibility: a hit component must contain PHYSICAL and
+ * CURSED_ENERGY, and must not contain INNATE_TECHNIQUE or
+ * NON_INNATE_TECHNIQUE.
  */
 public enum MoveTag {
 

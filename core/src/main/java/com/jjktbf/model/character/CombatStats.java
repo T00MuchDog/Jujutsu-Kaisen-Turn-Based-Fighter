@@ -80,7 +80,8 @@ package com.jjktbf.model.character;
  *      BFS hit 2 → 20%
  *      BFS hit 3 → 35%
  *      BFS hit 4+ → 50% (cap)
- *    BF only rolls on moves that are BlackFlashEligible (PHYSICAL + CE component).
+ *    BF only rolls on moves that are BlackFlashEligible (PHYSICAL + CURSED_ENERGY,
+ *    without an innate or non-innate technique tag).
  *
  *  DEFENSE (computed combat stat — applied on each hit AFTER defensive moves)
  *    Defense is computed during damage calculation, after BLOCK defensive moves
