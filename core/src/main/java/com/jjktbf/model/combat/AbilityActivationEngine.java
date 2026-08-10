@@ -5,6 +5,7 @@ import com.jjktbf.model.character.coded.CodedAbilityBinding;
 import com.jjktbf.model.character.coded.CodedHitModifiers;
 import com.jjktbf.model.character.coded.CodedMoveResponse;
 import com.jjktbf.model.move.StatusEffect;
+import com.jjktbf.model.move.StatusEffectMessages;
 import com.jjktbf.model.move.StatusEffectType;
 import com.jjktbf.model.progression.TechniqueMasteryProgressions;
 import com.jjktbf.model.progression.TechniqueMasteryResolver;
@@ -490,6 +491,15 @@ public final class AbilityActivationEngine {
                     if (damage > 0) {
                         followUps.add(AbilityTrigger.amount(
                             AbilityTrigger.Type.DAMAGE, owner, target, damage, tick));
+                        if (target.removeStatusEffects(StatusEffectType.SLEEP) > 0) {
+                            events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
+                                .source(owner).target(target).tick(tick)
+                                .message(target.getCharacter().getName()
+                                    + " wakes from Sleep!").build());
+                            followUps.add(AbilityTrigger.status(
+                                AbilityTrigger.Type.STATUS_REMOVED,
+                                target, StatusEffectType.SLEEP, tick));
+                        }
                     }
                 }
             }
@@ -511,8 +521,11 @@ public final class AbilityActivationEngine {
                     if (!accepted) continue;
                     events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                         .source(owner).target(target).tick(tick)
-                        .message(target.getCharacter().getName() + " receives "
-                            + status.displayName() + "!").build());
+                        .message(StatusEffectMessages.applicationMessage(
+                            owner.getCharacter().getName(),
+                            target.getCharacter().getName(),
+                            status,
+                            owner == target)).build());
                     appendResourceMaximumEvents(
                         owner, target, previousMaxHp, previousMaxCe, tick, events);
                     followUps.add(AbilityTrigger.status(AbilityTrigger.Type.STATUS_APPLIED, target, status, tick));
@@ -586,8 +599,11 @@ public final class AbilityActivationEngine {
                     if (!applied) continue;
                     events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                         .source(owner).target(target).tick(tick)
-                        .message(target.getCharacter().getName() + " receives "
-                            + status.displayName() + "!").build());
+                        .message(StatusEffectMessages.applicationMessage(
+                            owner.getCharacter().getName(),
+                            target.getCharacter().getName(),
+                            status,
+                            owner == target)).build());
                     appendResourceMaximumEvents(
                         owner, target, previousMaxHp, previousMaxCe, tick, events);
                     followUps.add(AbilityTrigger.status(

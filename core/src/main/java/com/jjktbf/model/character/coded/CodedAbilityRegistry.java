@@ -98,6 +98,9 @@ public final class CodedAbilityRegistry {
                 runtime = new ShikigamiMoveRuntime();
             } else if (TenShadowsAbility.KEY.equals(entry.getKey())) {
                 runtime = new TenShadowsAbility(entry.getValue());
+            } else if (CursedSpeechAbility.KEY.equals(entry.getKey())) {
+                runtime = new CursedSpeechAbility(
+                    owner, entry.getValue(), bindingsByKey.getOrDefault(entry.getKey(), Map.of()));
             }
             if (runtime != null) {
                 runtimes.add(new CodedAbilities.RuntimeEntry(
@@ -118,7 +121,9 @@ public final class CodedAbilityRegistry {
             || (NewShadowStyleAbility.KEY.equals(normalizedKey)
             && NewShadowStyleAbility.supportsFeature(normalizedFeature))
             || (TenShadowsAbility.KEY.equals(normalizedKey)
-            && TenShadowsAbility.supportsFeature(normalizedFeature));
+            && TenShadowsAbility.supportsFeature(normalizedFeature))
+            || (CursedSpeechAbility.KEY.equals(normalizedKey)
+            && CursedSpeechAbility.supportsFeature(normalizedFeature));
     }
 
     public static List<AbilityFeature> abilityFeatures() {
@@ -137,7 +142,11 @@ public final class CodedAbilityRegistry {
             new AbilityFeature(TenShadowsAbility.KEY,
                 TenShadowsAbility.TECHNIQUE, "Ten Shadows Technique"),
             new AbilityFeature(TenShadowsAbility.KEY,
-                TenShadowsAbility.TOTALITY, "Totality")
+                TenShadowsAbility.TOTALITY, "Totality"),
+            new AbilityFeature(CursedSpeechAbility.KEY,
+                CursedSpeechAbility.TECHNIQUE, "Cursed Speech"),
+            new AbilityFeature(CursedSpeechAbility.KEY,
+                CursedSpeechAbility.REFINED_COMMANDS, "Refined Commands")
         );
     }
 
@@ -173,6 +182,12 @@ public final class CodedAbilityRegistry {
                     RatioAbility.MAX_STACKS),
                 percent(RatioAbility.DEFENSE_PERCENT, "Defense remaining %", 1, 100, 30));
         }
+        if (CursedSpeechAbility.KEY.equals(normalizedKey)
+            && CursedSpeechAbility.REFINED_COMMANDS.equals(normalizedFeature)) {
+            return List.of(percent(
+                CursedSpeechAbility.SUCCESS_BONUS_PERCENT,
+                "Command success bonus %", 0, 100, 10));
+        }
         return List.of();
     }
 
@@ -203,6 +218,14 @@ public final class CodedAbilityRegistry {
                     percent(RatioAbility.TRIGGER_CHANCE_PERCENT, "Ratio chance %", 0, 100, 100),
                     percent(RatioAbility.DEFENSE_PERCENT, "Defense remaining %", 1, 100, 30));
             }
+        }
+        if (CursedSpeechAbility.KEY.equals(normalizedKey)
+            && CursedSpeechAbility.COMMAND.equals(normalizedAction)) {
+            return List.of(
+                percent(CursedSpeechAbility.BASE_CHANCE_PERCENT,
+                    "Base command chance %", 0, 100, 50),
+                integer(CursedSpeechAbility.BASE_RECOIL,
+                    "Base recoil", 0, 9999, 1));
         }
         return List.of();
     }
@@ -263,7 +286,9 @@ public final class CodedAbilityRegistry {
             || (NewShadowStyleAbility.KEY.equals(normalizedKey)
             && NewShadowStyleAbility.ACTIVATE_SIMPLE_DOMAIN.equals(normalizedAction))
             || (ShikigamiMoveRuntime.KEY.equals(normalizedKey)
-            && ShikigamiMoveRuntime.DESUMMON_SELF.equals(normalizedAction));
+            && ShikigamiMoveRuntime.DESUMMON_SELF.equals(normalizedAction))
+            || (CursedSpeechAbility.KEY.equals(normalizedKey)
+            && CursedSpeechAbility.COMMAND.equals(normalizedAction));
     }
 
     public static boolean supportsEffect(
@@ -278,9 +303,12 @@ public final class CodedAbilityRegistry {
         if (RatioAbility.KEY.equals(normalizedKey)) {
             return RatioAbility.supportsTarget(normalizedTarget, stackCount);
         }
-            if (NewShadowStyleAbility.KEY.equals(normalizedKey)) {
-                return NewShadowStyleAbility.supportsTarget(normalizedTarget, stackCount);
-            }
+        if (CursedSpeechAbility.KEY.equals(normalizedKey)) {
+            return CursedSpeechAbility.supportsTarget(normalizedTarget, stackCount);
+        }
+        if (NewShadowStyleAbility.KEY.equals(normalizedKey)) {
+            return NewShadowStyleAbility.supportsTarget(normalizedTarget, stackCount);
+        }
         return normalizedTarget.isEmpty() && stackCount == null;
     }
 
@@ -291,7 +319,9 @@ public final class CodedAbilityRegistry {
             new EffectAction(NewShadowStyleAbility.KEY,
                 NewShadowStyleAbility.ACTIVATE_SIMPLE_DOMAIN, "Activate Simple Domain"),
             new EffectAction(ShikigamiMoveRuntime.KEY,
-                ShikigamiMoveRuntime.DESUMMON_SELF, "Desummon self")
+                ShikigamiMoveRuntime.DESUMMON_SELF, "Desummon self"),
+            new EffectAction(CursedSpeechAbility.KEY,
+                CursedSpeechAbility.COMMAND, "Cursed Speech command")
         );
     }
 

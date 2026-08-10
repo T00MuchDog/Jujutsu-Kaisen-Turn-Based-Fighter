@@ -636,4 +636,270 @@
       "attached" : true
     } ]
   } ]
+}, {
+  "id" : "000003",
+  "name" : "Cursed Speech",
+  "description" : "An inherited technique that imbues spoken commands with cursed energy, compelling every listener who fails to resist while recoiling against the user's throat.",
+  "skillTree" : [ {
+    "id" : "node-000000",
+    "contentType" : "ABILITY",
+    "contentId" : "000031",
+    "x" : 40.0,
+    "y" : 300.0,
+    "prerequisites" : [ ]
+  }, {
+    "id" : "node-000001",
+    "contentType" : "MOVE",
+    "contentId" : "000069",
+    "x" : 390.0,
+    "y" : 300.0,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000000",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 0
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyReserves",
+      "minimum" : 20
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyEfficiency",
+      "minimum" : 40
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyOutput",
+      "minimum" : 25
+    }, {
+      "type" : "STAT",
+      "stat" : "jujutsuSkill",
+      "minimum" : 35
+    } ]
+  }, {
+    "id" : "node-000002",
+    "contentType" : "MOVE",
+    "contentId" : "000070",
+    "x" : 740.0,
+    "y" : 300.0,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000001",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 20
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyReserves",
+      "minimum" : 25
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyEfficiency",
+      "minimum" : 45
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyOutput",
+      "minimum" : 35
+    }, {
+      "type" : "STAT",
+      "stat" : "jujutsuSkill",
+      "minimum" : 45
+    } ]
+  }, {
+    "id" : "node-000003",
+    "contentType" : "MOVE",
+    "contentId" : "000071",
+    "x" : 1090.0,
+    "y" : 300.0,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000002",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 35
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyReserves",
+      "minimum" : 30
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyEfficiency",
+      "minimum" : 50
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyOutput",
+      "minimum" : 35
+    }, {
+      "type" : "STAT",
+      "stat" : "jujutsuSkill",
+      "minimum" : 50
+    } ]
+  }, {
+    "id" : "node-000004",
+    "contentType" : "MOVE",
+    "contentId" : "000072",
+    "x" : 1440.0,
+    "y" : 300.0,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000003",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 50
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyReserves",
+      "minimum" : 35
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyEfficiency",
+      "minimum" : 55
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyOutput",
+      "minimum" : 45
+    }, {
+      "type" : "STAT",
+      "stat" : "jujutsuSkill",
+      "minimum" : 55
+    } ]
+  }, {
+    "id" : "node-000005",
+    "contentType" : "ABILITY",
+    "contentId" : "000032",
+    "x" : 1620.0,
+    "y" : 60.0,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000004",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 60
+    } ]
+  }, {
+    "id" : "node-000006",
+    "contentType" : "MOVE",
+    "contentId" : "000073",
+    "x" : 1790.0,
+    "y" : 300.0,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000004",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 70
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyReserves",
+      "minimum" : 40
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyEfficiency",
+      "minimum" : 65
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyOutput",
+      "minimum" : 50
+    }, {
+      "type" : "STAT",
+      "stat" : "jujutsuSkill",
+      "minimum" : 65
+    } ]
+  }, {
+    "id" : "node-000007",
+    "contentType" : "MOVE",
+    "contentId" : "000074",
+    "x" : 2140.0,
+    "y" : 300.0,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000006",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 85
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyReserves",
+      "minimum" : 40
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyEfficiency",
+      "minimum" : 70
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyOutput",
+      "minimum" : 50
+    }, {
+      "type" : "STAT",
+      "stat" : "jujutsuSkill",
+      "minimum" : 70
+    } ]
+  }, {
+    "id" : "node-000008",
+    "contentType" : "MOVE",
+    "contentId" : "000075",
+    "x" : 2490.0,
+    "y" : 300.0,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000007",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 100
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyReserves",
+      "minimum" : 45
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyEfficiency",
+      "minimum" : 80
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyOutput",
+      "minimum" : 60
+    }, {
+      "type" : "STAT",
+      "stat" : "jujutsuSkill",
+      "minimum" : 75
+    } ]
+  }, {
+    "id" : "node-000009",
+    "contentType" : "MOVE",
+    "contentId" : "000076",
+    "x" : 2840.0,
+    "y" : 300.0,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000008",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 120
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyReserves",
+      "minimum" : 45
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyEfficiency",
+      "minimum" : 85
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyOutput",
+      "minimum" : 65
+    }, {
+      "type" : "STAT",
+      "stat" : "jujutsuSkill",
+      "minimum" : 80
+    } ]
+  } ]
 } ]

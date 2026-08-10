@@ -56,6 +56,10 @@
     "description": "A move tag for raw cursed-energy actions governed by CE Output, Reserves, and Efficiency."
   },
   {
+    "term": "CURSED SPEECH",
+    "description": "An innate technique that compels listeners with spoken commands, with success scaling from Cursed Technique Mastery and recoil borne by the user."
+  },
+  {
     "term": "CURSED_ENERGY",
     "description": "A move tag for raw cursed-energy actions governed by CE Output, Reserves, and Efficiency."
   },
@@ -148,6 +152,10 @@
     "description": "An attack carrying both the Physical and Cursed Energy tags."
   },
   {
+    "term": "RECOIL",
+    "description": "Damage suffered by a Cursed Speech user after attempting a command."
+  },
+  {
     "term": "ROUND",
     "description": "One complete planning and resolution cycle."
   },
@@ -186,6 +194,10 @@
   {
     "term": "SPEED",
     "description": "The character stat that primarily determines AP and Evasion."
+  },
+  {
+    "term": "SLEEP",
+    "description": "A Cursed Speech command effect that prevents actions until damage wakes the target or the current round ends."
   },
   {
     "term": "COMBAT ABILITY",

@@ -1,5 +1,6 @@
 package com.jjktbf.server.match;
 
+import com.jjktbf.model.combat.MoveTargeting;
 import com.jjktbf.multiplayer.protocol.ActionCommand;
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeCreateRequest;
@@ -148,13 +149,22 @@ class MatchManagerTest {
     void acceptedActionsBroadcastAndDuplicateOrStaleCommandsRejectOnlySender() {
         JoinedConnections joined = joinBoth();
         joined.clearMessages();
-        long initialVersion = manager.getLatestState(playerOne, accepted.matchId()).stateVersion();
-        String firstMoveId = accepted.playerOne().primaryCharacter().getKnownMoves().get(0).getId();
+        MatchState initialState = manager.getLatestState(playerOne, accepted.matchId());
+        long initialVersion = initialState.stateVersion();
+        var firstMove = accepted.playerOne().primaryCharacter().getKnownMoves().get(0);
+        String actorId = initialState.player(PlayerSide.PLAYER_ONE).orElseThrow()
+            .character().instanceId();
+        String targetId = initialState.player(PlayerSide.PLAYER_TWO).orElseThrow()
+            .character().instanceId();
+        List<String> targetIds = switch (MoveTargeting.forMove(firstMove)) {
+            case SINGLE_ENEMY, MULTIPLE_ENEMIES -> List.of(targetId);
+            default -> List.of();
+        };
         ActionCommand firstCommand = ActionCommand.submitPlan(
             "first-command",
             accepted.matchId(),
             initialVersion,
-            List.of(new PlanPlacement(firstMoveId, 1))
+            List.of(new PlanPlacement(firstMove.getId(), 1, actorId, targetIds))
         );
 
         CommandResult firstResult = manager.submitAction(

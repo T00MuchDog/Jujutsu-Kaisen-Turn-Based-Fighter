@@ -5,6 +5,7 @@ import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectTarget;
 import com.jjktbf.model.character.AbilityEffectTiming;
 import com.jjktbf.model.character.coded.CodedMoveResponse;
+import com.jjktbf.model.character.coded.CursedSpeechAbility;
 import com.jjktbf.model.move.*;
 import com.jjktbf.model.progression.TechniqueMasteryResolver;
 
@@ -327,6 +328,7 @@ public class CombatResolver {
                     applyActiveStaggers(combatant, tick, events);
                 }
                 if (finishBattleIfNeeded(state, events, tick)) return events;
+                if (stopSleepingAction(entry, tick, events)) continue;
                 if (!entry.attacker.isActive() || entry.segment.isStunned()) continue;
                 resolveMove(entry, state, tick, events);
             // This also handles a stagger that lands while the target is charging
@@ -585,6 +587,9 @@ public class CombatResolver {
          * Keyed by combatant instance id.
          */
         private final Map<CombatantId, boolean[]> connectedByTarget;
+        private int pendingRecoilDamage;
+        private HitComponent recoilComponent;
+        private final List<BattleCombatant> recoilTargets = new ArrayList<>();
 
         private MoveExecution(
             FiringEntry entry,
@@ -604,9 +609,37 @@ public class CombatResolver {
                     new boolean[entry.segment.getMove().getHitComponents().size()]);
             }
         }
+
+        private void addRecoil(
+            int damage,
+            HitComponent component,
+            BattleCombatant target
+        ) {
+            if (damage <= 0) return;
+            pendingRecoilDamage = (int) Math.min(
+                Integer.MAX_VALUE, (long) pendingRecoilDamage + damage);
+            if (recoilComponent == null) recoilComponent = component;
+            recoilTargets.add(target);
+        }
+
+        private RecoilBatch drainRecoil() {
+            if (pendingRecoilDamage <= 0) return null;
+            RecoilBatch batch = new RecoilBatch(
+                pendingRecoilDamage, recoilComponent, List.copyOf(recoilTargets));
+            pendingRecoilDamage = 0;
+            recoilComponent = null;
+            recoilTargets.clear();
+            return batch;
+        }
     }
 
     private record PendingComponent(MoveExecution execution, int componentIndex, BattleCombatant target) {}
+
+    private record RecoilBatch(
+        int damage,
+        HitComponent component,
+        List<BattleCombatant> targets
+    ) {}
 
     private record TieBreak(double randomKey, int insertionOrder) {}
 
@@ -726,8 +759,8 @@ public class CombatResolver {
      *       deterministically to the first living enemy if invalid (emits a
      *       retarget event). Once fired, the target is fixed; if it leaves
      *       before a delayed impact, that impact produces no hit.</li>
-     *   <li>{@link MoveTargeting#MULTIPLE_ENEMIES} — the first N active enemies
-     *       (in roster order), where N is the move's {@code aoeTargetCount}.</li>
+     *   <li>{@link MoveTargeting#MULTIPLE_ENEMIES} — the explicitly selected active
+     *       enemies, refilled in roster order only up to the original selection count.</li>
      *   <li>{@link MoveTargeting#ALL_ENEMIES} / {@link MoveTargeting#ALL_OTHERS}
      *       — a snapshot of every active enemy / every active combatant except
      *       the caster, taken now so summons created afterward are excluded.</li>
@@ -764,14 +797,25 @@ public class CombatResolver {
             case ALL_ENEMIES:
                 return TargetSet.multiple(state.activeEnemiesOf(attacker));
             case MULTIPLE_ENEMIES: {
-                // MULTIPLE AOE hits a fixed number of enemies, auto-selected in
-                // deterministic roster order at fire time. Fewer living enemies
-                // than the count simply means the move hits all of them.
-                int count = Math.max(1, move.getAoeTargetCount());
                 List<BattleCombatant> enemies = state.activeEnemiesOf(attacker);
                 List<BattleCombatant> selected = new ArrayList<>();
-                for (int i = 0; i < count && i < enemies.size(); i++) {
-                    selected.add(enemies.get(i));
+                int requestedCount = Math.min(
+                    Math.max(1, entry.segment.getTargets().isEmpty()
+                        ? move.getAoeTargetCount() : entry.segment.getTargets().size()),
+                    Math.max(1, move.getAoeTargetCount()));
+                for (CombatantId selectedId : entry.segment.getTargets()) {
+                    BattleCombatant candidate = state.combatant(selectedId);
+                    if (candidate != null && candidate.isActive()
+                        && !candidate.isAlliedWith(attacker) && !selected.contains(candidate)
+                        && CursedSpeechAbility.canTarget(move, candidate)) {
+                        selected.add(candidate);
+                    }
+                }
+                for (BattleCombatant enemy : enemies) {
+                    if (selected.size() >= requestedCount) break;
+                    if (!selected.contains(enemy) && CursedSpeechAbility.canTarget(move, enemy)) {
+                        selected.add(enemy);
+                    }
                 }
                 return TargetSet.multiple(selected);
             }
@@ -936,11 +980,13 @@ public class CombatResolver {
         pending.sort(Comparator
             .comparingLong((PendingComponent value) -> value.execution.launchSequence)
             .thenComparingInt(PendingComponent::componentIndex));
+        Set<MoveExecution> executions = new LinkedHashSet<>();
 
         // Resolve every target in one AOE hit-component batch before checking
         // team victory, allowing friendly-fire simultaneous wipes and draws.
         for (PendingComponent value : pending) {
             MoveExecution execution = value.execution;
+            executions.add(execution);
             int componentIndex = value.componentIndex;
             BattleCombatant target = value.target;
             // Once a projectile has fired, its target is fixed. If that target
@@ -964,6 +1010,16 @@ public class CombatResolver {
             // Do NOT finish-battle mid-batch: resolve every pending target in
             // this batch first so a simultaneous friendly-fire wipe can draw.
             for (BattleCombatant c : state.activeCombatants()) applyActiveStaggers(c, tick, events);
+        }
+        // Cursed Speech rolls independently per target, then applies one summed
+        // recoil hit only after every selected target in this impact batch resolves.
+        for (MoveExecution execution : executions) {
+            RecoilBatch recoil = execution.drainRecoil();
+            if (recoil == null) continue;
+            applyCursedSpeechRecoil(
+                state, execution.entry.attacker, execution.entry.segment.getMove(),
+                recoil.component(), recoil.damage(), recoil.targets(), tick, events);
+            reconcileLifecycle(state, tick, events);
         }
         // Reconcile defeats and check victory only after the whole batch resolves.
         finishBattleIfNeeded(state, events, tick);
@@ -1000,6 +1056,11 @@ public class CombatResolver {
             aoeBypassesDodge,
             trigger -> abilityActivations.onAttackConnected(state, trigger));
         events.addAll(result.getCodedEvents());
+        execution.addRecoil(result.getRecoilDamage(), component, defender);
+
+        if (result.isResisted()) {
+            return false;
+        }
 
         if (result.isMiss()) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_MISSED)
@@ -1040,8 +1101,9 @@ public class CombatResolver {
                 events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                     .source(defender).target(attacker).move(move).componentIndex(componentIndex)
                     .tick(tick)
-                    .message(attacker.getCharacter().getName()
-                             + " is staggered by the parry!")
+                    .message(defender.getCharacter().getName() + "'s parry applies "
+                             + StatusEffectType.STAGGER.displayName() + " to "
+                             + attacker.getCharacter().getName() + "!")
                     .build());
                 stunActiveSegments(attacker, tick, false);
             }
@@ -1091,23 +1153,26 @@ public class CombatResolver {
                 componentIndex, tick, events);
         }
 
-        events.add(CombatEvent.of(appliedDamage == 0
-                ? CombatEvent.Type.DAMAGE_IGNORED : CombatEvent.Type.DAMAGE_DEALT)
-            .source(attacker).target(defender).move(move).componentIndex(componentIndex)
-            .intValue(appliedDamage)
-            .tick(tick)
-            .message(appliedDamage == 0
-                ? defender.getCharacter().getName() + " ignores all damage from " + move.getName() + "!"
-                : attacker.getCharacter().getName() + "'s " + move.getName()
-                    + " hits " + defender.getCharacter().getName()
-                    + " for " + appliedDamage + " damage!"
-                    + hitQualifier(move, componentIndex))
-            .build());
+        if (component.getBasePower() > 0 || appliedDamage > 0) {
+            events.add(CombatEvent.of(appliedDamage == 0
+                    ? CombatEvent.Type.DAMAGE_IGNORED : CombatEvent.Type.DAMAGE_DEALT)
+                .source(attacker).target(defender).move(move).componentIndex(componentIndex)
+                .intValue(appliedDamage)
+                .tick(tick)
+                .message(appliedDamage == 0
+                    ? defender.getCharacter().getName() + " ignores all damage from " + move.getName() + "!"
+                    : attacker.getCharacter().getName() + "'s " + move.getName()
+                        + " hits " + defender.getCharacter().getName()
+                        + " for " + appliedDamage + " damage!"
+                        + hitQualifier(move, componentIndex))
+                .build());
+        }
         events.addAll(abilityActivations.process(state, AbilityTrigger.move(
             AbilityTrigger.Type.ATTACK_HIT, attacker, defender, move, tick)));
         if (appliedDamage > 0) {
             events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
                 AbilityTrigger.Type.DAMAGE, attacker, defender, appliedDamage, tick)));
+            wakeFromSleep(state, attacker, defender, move, componentIndex, tick, events);
         }
 
         if (result.isBlackFlash()) {
@@ -1146,7 +1211,8 @@ public class CombatResolver {
         applyOnHitEffects(state, attacker, defender, move, component, componentIndex, tick, events);
         applyAbilityOnHitEffects(
             state, attacker, defender, move, componentIndex, tick, events);
-        if (move.isStun()) resolveStunTag(defender, move, componentIndex, tick, events);
+        if (move.isStun()) resolveStunTag(
+            attacker, defender, move, componentIndex, tick, events);
         return true;
     }
 
@@ -1206,6 +1272,7 @@ public class CombatResolver {
      * firing spuriously for already-resolved moves.)
      */
     private void resolveStunTag(
+        BattleCombatant   attacker,
         BattleCombatant   defender,
         Move              move,
         int               componentIndex,
@@ -1214,12 +1281,13 @@ public class CombatResolver {
     ) {
         if (stunActiveSegments(defender, tick, true)) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
-                .target(defender)
+                .source(attacker).target(defender)
                 .move(move)
                 .componentIndex(componentIndex)
                 .tick(tick)
-                .message(defender.getCharacter().getName()
-                         + " was stunned and could not move.")
+                .message(attacker.getCharacter().getName() + "'s " + move.getName()
+                         + " stunned " + defender.getCharacter().getName()
+                         + ", who could not move.")
                 .build());
         }
     }
@@ -1238,6 +1306,25 @@ public class CombatResolver {
                     + " was staggered and could not move.")
                 .build());
         }
+    }
+
+    /** Stop an action only when it reaches its fire tick while its user is asleep. */
+    private static boolean stopSleepingAction(
+        FiringEntry entry,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        if (entry == null || !entry.attacker.isActive() || entry.segment.isStunned()
+            || !entry.attacker.hasEffect(StatusEffectType.SLEEP)) {
+            return false;
+        }
+        entry.segment.stun();
+        events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
+            .target(entry.attacker).move(entry.segment.getMove()).tick(tick)
+            .message(entry.attacker.getCharacter().getName() + " tried to use "
+                + entry.segment.getMove().getName() + " but was asleep!")
+            .build());
+        return true;
     }
 
     private void applyActiveStaggers(
@@ -1448,8 +1535,13 @@ public class CombatResolver {
             // instead of being applied as a status — this is how a technique move's
             // hardcoded on-hit behaviour is stored on an editable effect row.
             if (effect.isCoded()) {
-                events.addAll(attacker.getCodedAbilities().onEffectFired(
-                    state, effect, attacker, defender, tick));
+                if (CursedSpeechAbility.isCommand(effect)) {
+                    applyCursedSpeechCommandOutcome(
+                        state, attacker, defender, move, effect, componentIndex, tick, events);
+                } else {
+                    events.addAll(attacker.getCodedAbilities().onEffectFired(
+                        state, effect, attacker, defender, tick));
+                }
                 continue;
             }
             int previousMaxHp = defender.getMaxHp();
@@ -1459,14 +1551,165 @@ public class CombatResolver {
                 .source(attacker).target(defender).move(move)
                 .componentIndex(componentIndex)
                 .tick(tick)
-                .message(defender.getCharacter().getName()
-                         + " receives " + effect.getType().displayName() + "!")
+                .message(StatusEffectMessages.applicationMessage(
+                    attacker.getCharacter().getName(),
+                    defender.getCharacter().getName(),
+                    effect.getType(),
+                    attacker == defender))
                 .build());
             appendResourceMaximumEvents(
                 attacker, defender, previousMaxHp, previousMaxCe, tick, events);
             events.addAll(abilityActivations.process(state, AbilityTrigger.status(
                 AbilityTrigger.Type.STATUS_APPLIED, defender, effect.getType(), tick)));
         }
+    }
+
+    private void applyCursedSpeechRecoil(
+        BattleState state,
+        BattleCombatant attacker,
+        Move move,
+        HitComponent component,
+        int requested,
+        List<BattleCombatant> targets,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        if (requested <= 0 || attacker == null) return;
+        int applied = attacker.receiveDamage(requested,
+            fatalAmount -> abilityActivations.preventFatalDamage(
+                state, AbilityTrigger.fatalDamage(
+                    attacker, attacker, move, component, fatalAmount, tick)));
+        events.addAll(attacker.getCodedAbilities().drainPendingEvents(tick));
+        events.add(CombatEvent.of(applied == 0
+                ? CombatEvent.Type.DAMAGE_IGNORED : CombatEvent.Type.DAMAGE_DEALT)
+            .source(attacker).target(attacker).move(move).intValue(applied).tick(tick)
+            .message(applied == 0
+                ? attacker.getCharacter().getName() + " avoids the recoil from " + move.getName() + "."
+                : attacker.getCharacter().getName() + " takes " + applied
+                    + " recoil damage from commanding " + recoilTargetLabel(targets) + "!")
+            .build());
+        if (applied > 0) {
+            events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
+                AbilityTrigger.Type.DAMAGE, attacker, attacker, applied, tick)));
+            wakeFromSleep(state, attacker, attacker, move, -1, tick, events);
+        }
+    }
+
+    private static String recoilTargetLabel(List<BattleCombatant> targets) {
+        if (targets != null && targets.size() == 1 && targets.get(0) != null) {
+            return targets.get(0).getCharacter().getName();
+        }
+        return (targets == null ? 0 : targets.size()) + " targets";
+    }
+
+    private void applyCursedSpeechCommandOutcome(
+        BattleState state,
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move move,
+        StatusEffect command,
+        int componentIndex,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        String mode = command.getCodedTarget() == null
+            ? "" : command.getCodedTarget().toUpperCase(Locale.ROOT);
+        switch (mode) {
+            case CursedSpeechAbility.DONT_MOVE ->
+                applyCommandStatus(state, attacker, defender, move,
+                    StatusEffectType.STAGGER, 0, 6, componentIndex, tick, events);
+            case CursedSpeechAbility.BLAST_AWAY ->
+                applyCommandStatus(state, attacker, defender, move,
+                    StatusEffectType.STAGGER, 0, 3, componentIndex, tick, events);
+            case CursedSpeechAbility.SLEEP ->
+                applyCommandStatus(state, attacker, defender, move,
+                    StatusEffectType.SLEEP, 1, 0, componentIndex, tick, events);
+            case CursedSpeechAbility.PLUMMET ->
+                applyCommandStatus(state, attacker, defender, move,
+                    StatusEffectType.STAGGER, 0, 4, componentIndex, tick, events);
+            case CursedSpeechAbility.RETURN -> {
+                if (defender.isSummon()) state.voluntarilyDesummon(defender);
+            }
+            case CursedSpeechAbility.DIE -> {
+                int applied = defender.receiveInstantKill(
+                    fatalAmount -> abilityActivations.preventFatalDamage(
+                        state, AbilityTrigger.fatalDamage(
+                            attacker, defender, move, null, fatalAmount, tick)));
+                boolean defeated = defender.isDefeated();
+                events.addAll(defender.getCodedAbilities().drainPendingEvents(tick));
+                events.add(CombatEvent.of(applied == 0
+                        ? CombatEvent.Type.DAMAGE_IGNORED : CombatEvent.Type.DAMAGE_DEALT)
+                    .source(attacker).target(defender).move(move)
+                    .componentIndex(componentIndex).intValue(applied).tick(tick)
+                    .message(applied == 0
+                        ? defender.getCharacter().getName() + " survives the command to die!"
+                        : defeated
+                            ? defender.getCharacter().getName()
+                                + " is struck down by Cursed Speech!"
+                            : defender.getCharacter().getName() + " takes " + applied
+                                + " damage but survives the command to die!")
+                    .build());
+                if (applied > 0) {
+                    events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
+                        AbilityTrigger.Type.DAMAGE, attacker, defender, applied, tick)));
+                    wakeFromSleep(
+                        state, attacker, defender, move, componentIndex, tick, events);
+                }
+            }
+            default -> { }
+        }
+    }
+
+    private void applyCommandStatus(
+        BattleState state,
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move move,
+        StatusEffectType type,
+        int rounds,
+        int ticks,
+        int componentIndex,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        StatusEffect status = new StatusEffect(type, rounds, ticks, 0.0);
+        if (!defender.addStatusEffect(status, state.getCurrentPhase())) return;
+        events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
+            .source(attacker).target(defender).move(move).componentIndex(componentIndex)
+            .tick(tick).message(StatusEffectMessages.applicationMessage(
+                attacker.getCharacter().getName(),
+                defender.getCharacter().getName(),
+                type,
+                attacker == defender)).build());
+        events.addAll(abilityActivations.process(state, AbilityTrigger.status(
+            AbilityTrigger.Type.STATUS_APPLIED, defender, type, tick)));
+        boolean cancelled = type != StatusEffectType.SLEEP
+            && stunActiveSegments(defender, tick, false);
+        if (cancelled) {
+            events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
+                .source(attacker).target(defender).tick(tick)
+                .message(defender.getCharacter().getName() + " cannot act: "
+                    + type.displayName() + " from " + attacker.getCharacter().getName()
+                    + "'s " + move.getName() + "!")
+                .build());
+        }
+    }
+
+    private void wakeFromSleep(
+        BattleState state,
+        BattleCombatant source,
+        BattleCombatant target,
+        Move move,
+        int componentIndex,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        if (target == null || target.removeStatusEffects(StatusEffectType.SLEEP) == 0) return;
+        events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
+            .source(source).target(target).move(move).componentIndex(componentIndex)
+            .tick(tick).message(target.getCharacter().getName() + " wakes from Sleep!").build());
+        events.addAll(abilityActivations.process(state, AbilityTrigger.status(
+            AbilityTrigger.Type.STATUS_REMOVED, target, StatusEffectType.SLEEP, tick)));
     }
 
     private void applySelfEffects(
@@ -1503,8 +1746,11 @@ public class CombatResolver {
             events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                 .source(combatant).move(move)
                 .tick(tick)
-                .message(combatant.getCharacter().getName()
-                         + " gains " + effect.getType().displayName() + "!")
+                .message(StatusEffectMessages.applicationMessage(
+                    combatant.getCharacter().getName(),
+                    combatant.getCharacter().getName(),
+                    effect.getType(),
+                    true))
                 .build());
             appendResourceMaximumEvents(
                 combatant, combatant, previousMaxHp, previousMaxCe, tick, events);
@@ -1553,8 +1799,11 @@ public class CombatResolver {
                 .source(defender).move(move)
                 .componentIndex(componentIndex)
                 .tick(tick)
-                .message(defender.getCharacter().getName()
-                         + " gains " + effect.getType().displayName() + "!")
+                .message(StatusEffectMessages.applicationMessage(
+                    defender.getCharacter().getName(),
+                    defender.getCharacter().getName(),
+                    effect.getType(),
+                    true))
                 .build());
             appendResourceMaximumEvents(
                 defender, defender, previousMaxHp, previousMaxCe, tick, events);
@@ -1585,11 +1834,13 @@ public class CombatResolver {
                     .source(attacker).target(target).move(move)
                     .componentIndex(componentIndex)
                     .tick(tick)
-                    .message(target.getCharacter().getName()
-                        + " receives " + StatusEffectType.fromName(
-                            effect.stringValue, effect.magnitude != null ? effect.magnitude : 0.0)
-                            .displayName()
-                        + " from an ability!")
+                    .message(StatusEffectMessages.applicationMessage(
+                        attacker.getCharacter().getName(),
+                        target.getCharacter().getName(),
+                        StatusEffectType.fromName(
+                            effect.stringValue,
+                            effect.magnitude != null ? effect.magnitude : 0.0),
+                        attacker == target))
                     .build());
                 appendResourceMaximumEvents(
                     attacker, target, previousMaxHp, previousMaxCe, tick, events);
@@ -1790,8 +2041,11 @@ public class CombatResolver {
             events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                 .source(application.source())
                 .target(application.target())
-                .message(application.target().getCharacter().getName()
-                    + " receives " + application.status().displayName() + " from an ability!")
+                .message(StatusEffectMessages.applicationMessage(
+                    application.source().getCharacter().getName(),
+                    application.target().getCharacter().getName(),
+                    application.status(),
+                    application.source() == application.target()))
                 .build());
             appendResourceMaximumEvents(
                 application.source(), application.target(),

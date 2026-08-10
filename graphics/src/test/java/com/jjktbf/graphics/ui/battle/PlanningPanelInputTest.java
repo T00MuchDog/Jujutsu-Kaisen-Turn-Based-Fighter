@@ -2,15 +2,22 @@ package com.jjktbf.graphics.ui.battle;
 
 import com.badlogic.gdx.Input.Buttons;
 import com.jjktbf.graphics.audio.SoundCue;
+import com.jjktbf.graphics.multiplayer.TargetListSupport;
+import com.jjktbf.model.character.coded.CursedSpeechAbility;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.CombatantId;
+import com.jjktbf.model.move.AoeType;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveData;
+import com.jjktbf.model.move.MoveTag;
+import com.jjktbf.model.move.StatusEffect;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -174,7 +181,7 @@ class PlanningPanelInputTest {
     void targetSelectionIsValidatedAndIncludedInWirePlacements() {
         Move move = move("TARGETED", 10);
         PlanningPanel panel = targetedPanel(move);
-        ActionSegment segment = panel.restorePlacement(move, 1, 0, null);
+        ActionSegment segment = panel.restorePlacement(move, 1, 0, (String) null);
 
         assertNotNull(segment);
         assertFalse(panel.chooseTarget(segment, "unknown"));
@@ -197,6 +204,116 @@ class PlanningPanelInputTest {
 
         ActionSegment relocated = panel.getPlan().offensiveTimeline().getSegments().get(0);
         assertEquals(new CombatantId("target-1"), relocated.getTarget());
+    }
+
+    @Test
+    void multipleTargetSelectionTogglesUpToCapAndRequiresDoneBeforeLocking() {
+        Move move = multipleMove("CURSED_SPEECH", 3);
+        PlanningPanel panel = targetedPanel(move, List.of(
+            new PlanningPanel.TargetOption("target-1", "First target"),
+            new PlanningPanel.TargetOption("target-2", "Second target"),
+            new PlanningPanel.TargetOption("target-3", "Third target"),
+            new PlanningPanel.TargetOption("target-4", "Fourth target")
+        ));
+        PlanningPanel.PlanningInputProcessor input = panel.inputProcessor();
+
+        clickCard(input);
+        ActionSegment segment = panel.getPlan().offensiveTimeline().getSegments().get(0);
+        assertEquals(List.of(), panel.getSelectedTargetIds(segment));
+        assertEquals(3, panel.getTargetCap(segment));
+        assertFalse(panel.confirmTargetSelection(segment));
+
+        assertTrue(panel.chooseTarget(segment, "target-1"));
+        assertTrue(panel.chooseTarget(segment, "target-1"));
+        assertEquals(List.of(), panel.getSelectedTargetIds(segment));
+        assertTrue(panel.chooseTarget(segment, "target-1"));
+        assertTrue(panel.chooseTarget(segment, "target-2"));
+        assertTrue(panel.chooseTarget(segment, "target-3"));
+        assertFalse(panel.chooseTarget(segment, "target-4"));
+        assertEquals(List.of("target-1", "target-2", "target-3"),
+            panel.getSelectedTargetIds(segment));
+        List<String> wireTargets = TargetListSupport.targetIds(panel.getPlacements().get(0));
+        if (hasRecordComponent(panel.getPlacements().get(0).getClass(), "targetIds")) {
+            assertEquals(List.of("target-1", "target-2", "target-3"), wireTargets);
+        } else {
+            assertEquals(List.of("target-1"), wireTargets);
+        }
+
+        input.touchDown(820, HEIGHT - 830, 0, Buttons.LEFT);
+        assertFalse(panel.isConfirmed(), "the open multiple-target menu must be finished first");
+        assertTrue(panel.confirmTargetSelection(segment));
+        input.touchDown(820, HEIGHT - 830, 0, Buttons.LEFT);
+        assertTrue(panel.isConfirmed());
+    }
+
+    @Test
+    void multipleTargetMoveDefaultsToTheOnlyOpponentWithoutOpeningTargetSelection() {
+        Move move = multipleMove("SOLE_TARGET", 3);
+        PlanningPanel panel = targetedPanel(move);
+        PlanningPanel.PlanningInputProcessor input = panel.inputProcessor();
+
+        clickCard(input);
+
+        ActionSegment placed = panel.getPlan().offensiveTimeline().getSegments().get(0);
+        assertEquals(List.of("target-1"), panel.getSelectedTargetIds(placed));
+        input.touchDown(820, HEIGHT - 830, 0, Buttons.LEFT);
+        assertTrue(panel.isConfirmed());
+    }
+
+    @Test
+    void returnOffersOnlySummonTargets() {
+        Move move = returnCommand();
+        PlanningPanel panel = targetedPanel(move, List.of(
+            new PlanningPanel.TargetOption("fighter", "Fighter"),
+            new PlanningPanel.TargetOption("summon", "Summon", true)
+        ));
+        ActionSegment segment = panel.restorePlacement(move, 1, 0, List.of());
+
+        assertNotNull(segment);
+        assertFalse(panel.chooseTarget(segment, "fighter"));
+        assertTrue(panel.chooseTarget(segment, "summon"));
+        assertEquals(List.of("summon"), panel.getSelectedTargetIds(segment));
+    }
+
+    @Test
+    void relocatingMultipleTargetSegmentPreservesOrderedTargetList() {
+        Move move = multipleMove("RELOCATE_MULTIPLE", 3);
+        PlanningPanel panel = targetedPanel(move, List.of(
+            new PlanningPanel.TargetOption("target-1", "First target"),
+            new PlanningPanel.TargetOption("target-2", "Second target"),
+            new PlanningPanel.TargetOption("target-3", "Third target")
+        ));
+        ActionSegment original = panel.restorePlacement(
+            move, 1, 0, List.of("target-2", "target-1"));
+        PlanningPanel.PlanningInputProcessor input = panel.inputProcessor();
+
+        input.touchDown(160, HEIGHT - 580, 0, Buttons.LEFT);
+        input.touchDragged(300, HEIGHT - 580, 0);
+        input.touchUp(300, HEIGHT - 580, 0, Buttons.LEFT);
+
+        ActionSegment relocated = panel.getPlan().offensiveTimeline().getSegments().get(0);
+        assertEquals(List.of("target-2", "target-1"), panel.getSelectedTargetIds(relocated));
+        assertFalse(original == relocated);
+    }
+
+    @Test
+    void editedMultipleTargetsCannotLockUntilSelectionIsConfirmed() {
+        Move move = multipleMove("EDIT_MULTIPLE", 3);
+        PlanningPanel panel = targetedPanel(move, List.of(
+            new PlanningPanel.TargetOption("target-1", "First target"),
+            new PlanningPanel.TargetOption("target-2", "Second target")
+        ));
+        ActionSegment segment = panel.restorePlacement(
+            move, 1, 0, List.of("target-1"));
+
+        assertTrue(panel.chooseTarget(segment, "target-2"));
+        panel.inputProcessor().touchDown(820, HEIGHT - 830, 0, Buttons.LEFT);
+        assertFalse(panel.isConfirmed());
+        assertTrue(panel.getLockError().contains("Finish selecting targets"));
+
+        assertTrue(panel.confirmTargetSelection(segment));
+        panel.inputProcessor().touchDown(820, HEIGHT - 830, 0, Buttons.LEFT);
+        assertTrue(panel.isConfirmed());
     }
 
     @Test
@@ -272,5 +389,44 @@ class PlanningPanelInputTest {
         data.apCost = apCost;
         data.unleashPoint = 1;
         return data.toMove();
+    }
+
+    private static Move multipleMove(String id, int targetCount) {
+        MoveData data = new MoveData();
+        data.id = id;
+        data.name = id;
+        data.tags = List.of("ATTACK", "AOE");
+        data.apCost = 10;
+        data.unleashPoint = 1;
+        data.aoeType = AoeType.MULTIPLE.name();
+        data.aoeTargetCount = targetCount;
+        return data.toMove();
+    }
+
+    private static Move returnCommand() {
+        StatusEffect command = StatusEffect.coded(
+            CursedSpeechAbility.KEY,
+            CursedSpeechAbility.COMMAND,
+            CursedSpeechAbility.RETURN,
+            null,
+            Map.of(),
+            null);
+        return new Move.Builder("RETURN")
+            .name("Return")
+            .category(MoveCategory.CURSED_ENERGY)
+            .tags(Set.of(MoveTag.ATTACK, MoveTag.AOE, MoveTag.CURSED_ENERGY))
+            .basePower(0)
+            .neverMiss(true)
+            .apCost(10)
+            .unleashPoint(1)
+            .aoeType(AoeType.MULTIPLE)
+            .aoeTargetCount(3)
+            .onHitEffects(List.of(command))
+            .build();
+    }
+
+    private static boolean hasRecordComponent(Class<?> type, String name) {
+        return java.util.Arrays.stream(type.getRecordComponents())
+            .anyMatch(component -> component.getName().equals(name));
     }
 }

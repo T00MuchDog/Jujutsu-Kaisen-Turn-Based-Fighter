@@ -1,7 +1,7 @@
 package com.jjktbf.model.move;
 
 /**
- * Human-readable flavour lines for a status effect expiring on a combatant.
+ * Human-readable lifecycle lines for status effects on combatants.
  *
  * <p>The combat engine logs both the activation and the expiry of moves and
  * effects. Status effects are distinct from defensive blocks, so their expiry
@@ -23,5 +23,22 @@ public final class StatusEffectMessages {
     public static String expiryMessage(String characterName, StatusEffectType type) {
         String name = characterName == null ? "Someone" : characterName;
         return name + "'s " + type.displayName().toLowerCase() + " effect expires.";
+    }
+
+    /**
+     * Describe a newly applied status with both its source and recipient. Self-applied
+     * effects retain the more natural "gains" wording.
+     */
+    public static String applicationMessage(
+        String sourceName,
+        String targetName,
+        StatusEffectType type,
+        boolean sourceIsTarget
+    ) {
+        String source = sourceName == null || sourceName.isBlank() ? null : sourceName;
+        String target = targetName == null || targetName.isBlank() ? "Someone" : targetName;
+        if (source == null) return target + " receives " + type.displayName() + "!";
+        if (sourceIsTarget) return target + " gains " + type.displayName() + "!";
+        return source + " applies " + type.displayName() + " to " + target + "!";
     }
 }

@@ -109,10 +109,7 @@ public class MainMenuScreen implements Screen {
         commandTitle.setColor(new Color(1.000f, 0.835f, 0.180f, 1f));
         commands.add(commandTitle).left().padBottom(10).row();
 
-        MenuButton singlePlayer = makeButton("SINGLE PLAYER (1v1)",
-            () -> game.showCharacterSelect(com.jjktbf.model.combat.BattleFormat.ONE_V_ONE));
-        MenuButton teamBattle = makeButton("TEAM BATTLE (2v2)",
-            () -> game.showCharacterSelect(com.jjktbf.model.combat.BattleFormat.TWO_V_TWO));
+        MenuButton singlePlayer = makeButton("SINGLE PLAYER", game::showSinglePlayerBattle);
         MenuButton multiplayer  = makeButton("MULTIPLAYER", game::showMultiplayerMenu);
         MenuButton moveEd    = makeButton("MOVE EDITOR", game::showMoveEditor);
         MenuButton charEd    = makeButton("CHARACTER EDITOR", game::showCharacterEditor);
@@ -120,11 +117,11 @@ public class MainMenuScreen implements Screen {
         MenuButton techEd    = makeButton("TECHNIQUE EDITOR", game::showTechniqueEditor);
         MenuButton quit      = makeButton("QUIT", this::exitApplication);
 
-        List<MenuButton> buttons = new ArrayList<>(List.of(singlePlayer, teamBattle));
+        List<MenuButton> buttons = new ArrayList<>(List.of(singlePlayer, multiplayer));
         if (AppPaths.isAuthoringMode()) {
-            buttons.add(makeButton("CONTROL BOTH SIDES (1v1)", game::showAuthorBattle));
+            buttons.add(makeButton("AUTHOR BATTLE (CONTROL BOTH SIDES)", game::showAuthorBattle));
         }
-        buttons.addAll(List.of(multiplayer, charEd, moveEd, abilityEd, techEd, quit));
+        buttons.addAll(List.of(charEd, moveEd, abilityEd, techEd, quit));
         for (MenuButton button : buttons) {
             menuButtons.add(button);
             menuButtonCells.add(commands.add(button).growX().height(46).pad(4));
@@ -151,16 +148,10 @@ public class MainMenuScreen implements Screen {
                     }
                     return false;
                 }
+                if (activateShortcut(keycode)) return true;
                 if (keycode == Input.Keys.UP) moveSelection(-1);
                 else if (keycode == Input.Keys.DOWN) moveSelection(1);
                 else if (keycode == Input.Keys.ENTER) activateSelection();
-                else if (keycode == Input.Keys.NUM_1) activateShortcut(game::showCharacterSelect);
-                else if (keycode == Input.Keys.NUM_2) activateShortcut(game::showMoveEditor);
-                else if (keycode == Input.Keys.NUM_3) activateShortcut(game::showCharacterEditor);
-                else if (keycode == Input.Keys.NUM_4) activateShortcut(game::showAbilityEditor);
-                else if (keycode == Input.Keys.NUM_5) activateShortcut(game::showTechniqueEditor);
-                else if (keycode == Input.Keys.NUM_6) exitApplication();
-                else if (keycode == Input.Keys.NUM_7) activateShortcut(game::showMultiplayerMenu);
                 else if (keycode == Input.Keys.ESCAPE || keycode == Input.Keys.Q) exitApplication();
                 else return false;
                 return true;
@@ -267,9 +258,22 @@ public class MainMenuScreen implements Screen {
         return button;
     }
 
-    private void activateShortcut(Runnable action) {
-        game.audio().play(SoundCue.UI_CONFIRM);
-        action.run();
+    private boolean activateShortcut(int keycode) {
+        int buttonIndex = switch (keycode) {
+            case Input.Keys.NUM_1 -> 0;
+            case Input.Keys.NUM_2 -> 1;
+            case Input.Keys.NUM_3 -> 2;
+            case Input.Keys.NUM_4 -> 3;
+            case Input.Keys.NUM_5 -> 4;
+            case Input.Keys.NUM_6 -> 5;
+            case Input.Keys.NUM_7 -> 6;
+            case Input.Keys.NUM_8 -> 7;
+            case Input.Keys.NUM_9 -> 8;
+            default -> -1;
+        };
+        if (buttonIndex < 0 || buttonIndex >= menuButtons.size()) return false;
+        menuButtons.get(buttonIndex).activate();
+        return true;
     }
 
     private void exitApplication() {

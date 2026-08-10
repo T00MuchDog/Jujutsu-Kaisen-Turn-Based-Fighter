@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.math.Rectangle;
 import com.jjktbf.graphics.audio.SoundCue;
+import com.jjktbf.graphics.multiplayer.TargetListSupport;
 import com.jjktbf.model.character.coded.CodedAbilityState;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
@@ -153,7 +154,8 @@ public final class TeamPlanningPanel {
         for (ActionSegmentState segment : segments) {
             Move move = moves.get(segment.moveId());
             if (move != null) {
-                panel.restorePlacement(move, segment.startTick(), segment.ceCost(), segment.targetId());
+                panel.restorePlacement(
+                    move, segment.startTick(), segment.ceCost(), TargetListSupport.targetIds(segment));
             }
         }
     }

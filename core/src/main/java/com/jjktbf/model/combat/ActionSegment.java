@@ -2,6 +2,9 @@ package com.jjktbf.model.combat;
 
 import com.jjktbf.model.move.Move;
 
+import java.util.LinkedHashSet;
+import java.util.List;
+
 /**
  * A single move's occupancy on the AP timeline for one round.
  *
@@ -40,28 +43,36 @@ public class ActionSegment {
     private final int    actualCeCost;
 
     /**
-     * The selected target combatant instance id for a hostile single-target move,
-     * or {@code null} for self/AOE/no-target moves. An incomplete target is
-     * permitted while editing, but locking/submission is rejected if a required
-     * target is missing (see {@link BattlePlan#requiresTarget(Move)}).
+     * Ordered target combatant instance ids for hostile selected-target moves.
+     * An incomplete list is permitted while editing, but locking/submission is
+     * rejected when the move's required target count is not met.
      *
      * <p>Once a move has fired, the resolver fixes the target: if the selected
-     * target is invalid (defeated/removed) it is deterministically retargeted to
-     * the first living enemy in stable roster order. This field holds the
-     * <em>planned</em> target; the resolver reads it at fire time.
+     * target is invalid (defeated/removed), the resolver refills in stable roster
+     * order up to the number originally selected. These are planned targets; the
+     * resolver fixes the final target snapshot at fire time.
      */
-    private CombatantId target;
+    private List<CombatantId> targets;
 
     public ActionSegment(Move move, int startTick, int actualCeCost) {
-        this(move, startTick, actualCeCost, null);
+        this(move, startTick, actualCeCost, List.of());
     }
 
     public ActionSegment(Move move, int startTick, int actualCeCost, CombatantId target) {
+        this(move, startTick, actualCeCost, target == null ? List.of() : List.of(target));
+    }
+
+    public ActionSegment(
+        Move move,
+        int startTick,
+        int actualCeCost,
+        List<CombatantId> targets
+    ) {
         this.move          = move;
         this.startTick     = startTick;
         this.fireTick      = startTick + move.getUnleashPoint() - 1;
         this.actualCeCost  = actualCeCost;
-        this.target        = target;
+        setTargets(targets);
         this.stunned       = false;
         this.fired         = false;
     }
@@ -79,11 +90,28 @@ public class ActionSegment {
     public boolean isStunned()        { return stunned; }
     public boolean isInstant()        { return move.getUnleashPoint() == 1; }
 
-    /** The planned single-target combatant, or {@code null}. */
-    public CombatantId getTarget()    { return target; }
-    /** Set/replace the planned target (e.g. via the planning UI's target menu). */
-    public void        setTarget(CombatantId target) { this.target = target; }
-    /** True when this segment needs an explicit single-enemy target to be valid. */
+    /** Ordered, distinct combatant instance ids explicitly selected for this move. */
+    public List<CombatantId> getTargets() { return targets; }
+
+    public void setTargets(List<CombatantId> targets) {
+        LinkedHashSet<CombatantId> normalized = new LinkedHashSet<>();
+        if (targets != null) {
+            for (CombatantId target : targets) {
+                if (target != null) normalized.add(target);
+            }
+        }
+        this.targets = List.copyOf(normalized);
+    }
+
+    /** Singular compatibility view used by single-target callers. */
+    public CombatantId getTarget() { return targets.isEmpty() ? null : targets.get(0); }
+
+    /** Singular compatibility setter used by single-target callers. */
+    public void setTarget(CombatantId target) {
+        setTargets(target == null ? List.of() : List.of(target));
+    }
+
+    /** True when this segment needs explicit enemy targets to be valid. */
     public boolean     needsTarget()  { return BattlePlan.requiresTarget(move); }
 
     /** True once this segment's move has actually resolved this round. */

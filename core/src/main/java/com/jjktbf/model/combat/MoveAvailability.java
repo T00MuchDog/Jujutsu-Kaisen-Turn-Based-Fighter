@@ -2,6 +2,7 @@ package com.jjktbf.model.combat;
 
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.StatusEffect;
+import com.jjktbf.model.move.StatusEffectType;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -36,6 +37,9 @@ public final class MoveAvailability {
         List<Move> alreadyPlannedMoves
     ) {
         if (actor == null || move == null) return "A valid actor and move are required.";
+        if (actor.hasEffect(StatusEffectType.SLEEP)) {
+            return "Cannot act while asleep.";
+        }
         if (actor.getAbilityFlags().lockedMoveTags.stream().anyMatch(move::hasTag)) {
             return "Restricted by an active ability.";
         }

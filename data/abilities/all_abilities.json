@@ -688,4 +688,43 @@
     "doubleValue" : 0.45
   } ],
   "masteryThreshold" : 0
+}, {
+  "id" : "000031",
+  "name" : "Cursed Speech",
+  "flavourText" : "The snake-and-fangs seal turns spoken commands into compulsory cursed energy, forcing listeners to obey at a cost to the user's throat.",
+  "mechanicText" : "Enable CURSED SPEECH commands. Each selected target independently resists using current CE; every attempt inflicts target-CE-scaled RECOIL even when resisted.",
+  "category" : "PASSIVE",
+  "sourceType" : "TECHNIQUE",
+  "sourceValue" : "Cursed Speech",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED",
+    "codedAbilityKey" : "CURSED_SPEECH",
+    "codedFeature" : "TECHNIQUE"
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000032",
+  "name" : "Refined Commands",
+  "flavourText" : "Careful diction and disciplined cursed-energy control make each command harder to resist without increasing its strain.",
+  "mechanicText" : "At CTM 60, add min(20, CTM / 12) percentage points to CURSED SPEECH command success chance.",
+  "category" : "PASSIVE",
+  "sourceType" : "TECHNIQUE",
+  "sourceValue" : "Cursed Speech",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED",
+    "codedAbilityKey" : "CURSED_SPEECH",
+    "codedFeature" : "REFINED_COMMANDS",
+    "codedParameters" : {
+      "successBonusPercent" : 10
+    },
+    "masteryProgression" : {
+      "successBonusPercent" : {
+        "mode" : "FORMULA",
+        "formula" : "min(20,ctm/12)"
+      }
+    }
+  } ],
+  "masteryThreshold" : 60
 } ]

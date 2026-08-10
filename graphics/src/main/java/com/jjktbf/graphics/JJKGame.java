@@ -23,6 +23,7 @@ import com.jjktbf.graphics.multiplayer.MatchWebSocketClient;
 import com.jjktbf.graphics.multiplayer.MultiplayerMatchService;
 import com.jjktbf.graphics.multiplayer.MultiplayerSession;
 import com.jjktbf.graphics.screens.BattleScreen;
+import com.jjktbf.graphics.screens.BattleFormatScreen;
 import com.jjktbf.graphics.screens.CharacterSelectScreen;
 import com.jjktbf.graphics.screens.ChallengeBrowserScreen;
 import com.jjktbf.graphics.screens.HostChallengeScreen;
@@ -123,6 +124,7 @@ public class JJKGame extends Game {
     // The menu and editors are rebuilt on entry so inactive-stage pointer state
     // cannot leak across transitions. Other screens retain their reusable state.
     private MainMenuScreen        mainMenuScreen;
+    private BattleFormatScreen    battleFormatScreen;
     private CharacterSelectScreen characterSelectScreen;
     private BattleScreen          battleScreen;
     private MoveEditorScreen       moveEditorScreen;
@@ -171,6 +173,7 @@ public class JJKGame extends Game {
         reloadMultiplayerRoster();
 
         mainMenuScreen        = new MainMenuScreen(this, assets);
+        battleFormatScreen    = new BattleFormatScreen(this, assets);
         characterSelectScreen = new CharacterSelectScreen(this, assets);
         battleScreen          = new BattleScreen(this, assets);
         moveEditorScreen      = new MoveEditorScreen(this, assets);
@@ -260,6 +263,7 @@ public class JJKGame extends Game {
         // Screens release their stages/schedulers before the shared skin and
         // textures disappear. Every screen instance is disposed exactly once.
         if (mainMenuScreen != null) mainMenuScreen.dispose();
+        if (battleFormatScreen != null) battleFormatScreen.dispose();
         if (characterSelectScreen != null) characterSelectScreen.dispose();
         if (battleScreen != null) battleScreen.dispose();
         if (moveEditorScreen != null) moveEditorScreen.dispose();
@@ -292,6 +296,11 @@ public class JJKGame extends Game {
         showCharacterSelect(format, BattleController.ControlMode.PLAYER_VS_AI);
     }
 
+    /** Opens the local-play format choice before character selection. */
+    public void showSinglePlayerBattle() {
+        showBattleFormatSelection(BattleController.ControlMode.PLAYER_VS_AI);
+    }
+
     private void showCharacterSelect(
         com.jjktbf.model.combat.BattleFormat format,
         BattleController.ControlMode controlMode
@@ -302,9 +311,12 @@ public class JJKGame extends Game {
 
     public void showAuthorBattle() {
         requireAuthorControlMode(BattleController.ControlMode.HUMAN_CONTROLS_BOTH_TEAMS);
-        showCharacterSelect(
-            com.jjktbf.model.combat.BattleFormat.ONE_V_ONE,
-            BattleController.ControlMode.HUMAN_CONTROLS_BOTH_TEAMS);
+        showBattleFormatSelection(BattleController.ControlMode.HUMAN_CONTROLS_BOTH_TEAMS);
+    }
+
+    private void showBattleFormatSelection(BattleController.ControlMode controlMode) {
+        battleFormatScreen.prepare(format -> showCharacterSelect(format, controlMode));
+        showScreen(battleFormatScreen, MusicTrack.MENU);
     }
 
     public void showMultiplayerMenu() {

@@ -25,13 +25,80 @@ public record MoveState(
     boolean available,
     String restrictionReason,
     String summonCharacterId,
-    List<String> summonedCharacterIds
+    List<String> summonedCharacterIds,
+    String aoeType,
+    int aoeTargetCount,
+    String commandMode
 ) {
     public MoveState {
         tags = tags == null ? List.of() : List.copyOf(tags);
         hitComponents = hitComponents == null ? List.of() : List.copyOf(hitComponents);
         summonedCharacterIds = summonedCharacterIds == null
             ? List.of() : List.copyOf(summonedCharacterIds);
+    }
+
+    /** Source-compatible constructor for early protocol-v12 callers. */
+    public MoveState(
+        String moveId,
+        String name,
+        String description,
+        String category,
+        List<String> tags,
+        PlanBoard board,
+        int basePower,
+        List<HitComponentState> hitComponents,
+        double baseAccuracy,
+        boolean neverMiss,
+        int apCost,
+        int unleashPoint,
+        boolean hasCeCost,
+        int baseCeCost,
+        int effectiveCeCost,
+        int minCeCost,
+        int maxCeCost,
+        int moveCap,
+        boolean available,
+        String restrictionReason,
+        String summonCharacterId,
+        List<String> summonedCharacterIds,
+        String aoeType,
+        int aoeTargetCount
+    ) {
+        this(moveId, name, description, category, tags, board, basePower, hitComponents,
+            baseAccuracy, neverMiss, apCost, unleashPoint, hasCeCost, baseCeCost,
+            effectiveCeCost, minCeCost, maxCeCost, moveCap, available, restrictionReason,
+            summonCharacterId, summonedCharacterIds, aoeType, aoeTargetCount, null);
+    }
+
+    /** Source-compatible constructor for protocol-v11 callers with summon metadata. */
+    public MoveState(
+        String moveId,
+        String name,
+        String description,
+        String category,
+        List<String> tags,
+        PlanBoard board,
+        int basePower,
+        List<HitComponentState> hitComponents,
+        double baseAccuracy,
+        boolean neverMiss,
+        int apCost,
+        int unleashPoint,
+        boolean hasCeCost,
+        int baseCeCost,
+        int effectiveCeCost,
+        int minCeCost,
+        int maxCeCost,
+        int moveCap,
+        boolean available,
+        String restrictionReason,
+        String summonCharacterId,
+        List<String> summonedCharacterIds
+    ) {
+        this(moveId, name, description, category, tags, board, basePower, hitComponents,
+            baseAccuracy, neverMiss, apCost, unleashPoint, hasCeCost, baseCeCost,
+            effectiveCeCost, minCeCost, maxCeCost, moveCap, available, restrictionReason,
+            summonCharacterId, summonedCharacterIds, null, 0, null);
     }
 
     /** Source-compatible constructor for protocol-v9 callers. */
@@ -60,7 +127,7 @@ public record MoveState(
         this(moveId, name, description, category, tags, board, basePower, hitComponents,
             baseAccuracy, neverMiss, apCost, unleashPoint, hasCeCost, baseCeCost,
             effectiveCeCost, minCeCost, maxCeCost, moveCap, available, restrictionReason,
-            null, List.of());
+            null, List.of(), null, 0, null);
     }
 
     /** Source-compatible constructor for protocol-v7 callers with hit components. */
@@ -88,7 +155,7 @@ public record MoveState(
         this(moveId, name, description, category, tags, board, basePower, hitComponents,
             baseAccuracy, neverMiss, apCost, unleashPoint, hasCeCost, baseCeCost,
             effectiveCeCost, minCeCost, maxCeCost, 0, available, restrictionReason,
-            null, List.of());
+            null, List.of(), null, 0, null);
     }
 
     /** Source-compatible constructor for protocol-v6 callers. */
@@ -115,6 +182,6 @@ public record MoveState(
         this(moveId, name, description, category, tags, board, basePower, List.of(),
             baseAccuracy, neverMiss, apCost, unleashPoint, hasCeCost, baseCeCost,
             effectiveCeCost, minCeCost, maxCeCost, 0, available, restrictionReason,
-            null, List.of());
+            null, List.of(), null, 0, null);
     }
 }

@@ -1,10 +1,12 @@
 package com.jjktbf.graphics.ui.battle;
 
 import com.badlogic.gdx.Input;
+import com.jjktbf.graphics.multiplayer.TargetListSupport;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleTeamId;
 import com.jjktbf.model.combat.CombatantId;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.AoeType;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.multiplayer.protocol.ActionSegmentState;
 import com.jjktbf.multiplayer.protocol.ActionSegmentStatus;
@@ -80,22 +82,8 @@ class TeamPlanningPanelTest {
 
     @Test
     void reconnectRestoresActorAndTargetIntentFromAuthoritativePlan() {
-        Move move = move("RESTORED");
-        ActionSegmentState segment = new ActionSegmentState(
-            "segment-1",
-            move.getId(),
-            move.getName(),
-            PlanBoard.OFFENSIVE,
-            7,
-            16,
-            7,
-            10,
-            0,
-            ActionSegmentStatus.QUEUED,
-            null,
-            "actor-1",
-            "enemy-2"
-        );
+        Move move = multipleMove("RESTORED", 3);
+        ActionSegmentState segment = restoredSegment(move);
         PlanState restored = new PlanState(1, 150, 10, 0, 0, List.of(segment), List.of());
         TeamPlanningPanel panel = new TeamPlanningPanel(
             BattleTeamId.PLAYER,
@@ -108,8 +96,30 @@ class TeamPlanningPanelTest {
 
         PlanPlacement placement = panel.getPlacements().get(0);
         assertEquals("actor-1", placement.actorId());
-        assertEquals("enemy-2", placement.targetId());
+        List<String> expectedTargets = hasRecordComponent(PlanPlacement.class, "targetIds")
+            ? List.of("enemy-2", "enemy-1") : List.of("enemy-2");
+        assertEquals(expectedTargets, TargetListSupport.targetIds(placement));
         assertEquals(7, placement.startTick());
+    }
+
+    @Test
+    void navigationPreservesMultipleTargetListsOnEachPage() {
+        Move firstMove = multipleMove("FIRST_MULTIPLE", 3);
+        Move secondMove = multipleMove("SECOND_MULTIPLE", 2);
+        TeamPlanningPanel panel = panel(firstMove, secondMove);
+
+        ActionSegment first = panel.activePlanningPanel().restorePlacement(
+            firstMove, 1, 0, List.of("enemy-2", "enemy-1"));
+        panel.nextPage();
+        ActionSegment second = panel.activePlanningPanel().restorePlacement(
+            secondMove, 1, 0, List.of("enemy-1"));
+        panel.previousPage();
+
+        assertEquals(List.of("enemy-2", "enemy-1"),
+            panel.activePlanningPanel().getSelectedTargetIds(first));
+        panel.nextPage();
+        assertEquals(List.of("enemy-1"),
+            panel.activePlanningPanel().getSelectedTargetIds(second));
     }
 
     private static TeamPlanningPanel panel(Move first, Move second) {
@@ -163,5 +173,43 @@ class TeamPlanningPanelTest {
         data.apCost = 10;
         data.unleashPoint = 1;
         return data.toMove();
+    }
+
+    private static Move multipleMove(String id, int targetCount) {
+        MoveData data = new MoveData();
+        data.id = id;
+        data.name = id;
+        data.tags = List.of("ATTACK", "AOE");
+        data.basePower = 10;
+        data.apCost = 10;
+        data.unleashPoint = 1;
+        data.aoeType = AoeType.MULTIPLE.name();
+        data.aoeTargetCount = targetCount;
+        return data.toMove();
+    }
+
+    private static ActionSegmentState restoredSegment(Move move) {
+        try {
+            return ActionSegmentState.class.getConstructor(
+                String.class, String.class, String.class, PlanBoard.class,
+                int.class, int.class, int.class, int.class, int.class,
+                ActionSegmentStatus.class, Integer.class, String.class, List.class)
+                .newInstance(
+                    "segment-1", move.getId(), move.getName(), PlanBoard.OFFENSIVE,
+                    7, 16, 7, 10, 0, ActionSegmentStatus.QUEUED, null, "actor-1",
+                    List.of("enemy-2", "enemy-1"));
+        } catch (NoSuchMethodException ignored) {
+            return new ActionSegmentState(
+                "segment-1", move.getId(), move.getName(), PlanBoard.OFFENSIVE,
+                7, 16, 7, 10, 0, ActionSegmentStatus.QUEUED, null,
+                "actor-1", "enemy-2");
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
+
+    private static boolean hasRecordComponent(Class<?> type, String name) {
+        return java.util.Arrays.stream(type.getRecordComponents())
+            .anyMatch(component -> component.getName().equals(name));
     }
 }

@@ -17,8 +17,8 @@ import com.jjktbf.model.move.MoveTag;
  *   <li>{@link #NONE} — no target selection needed (defensive, self-only utility,
  *       summon-only moves).</li>
  *   <li>{@link #SINGLE_ENEMY} — one hostile combatant must be selected.</li>
- *   <li>{@link #MULTIPLE_ENEMIES} — {@link AoeType#MULTIPLE}: hits a fixed number
- *       of active enemies, auto-selected in roster order at fire time.</li>
+     *   <li>{@link #MULTIPLE_ENEMIES} — {@link AoeType#MULTIPLE}: the player selects
+     *       between one and the move's configured maximum active enemies.</li>
  *   <li>{@link #ALL_ENEMIES} — {@link AoeType#ALL_ENEMIES}: hits every active
  *       enemy of the caster.</li>
  *   <li>{@link #ALL_OTHERS} — {@link AoeType#ALL_OTHERS}: hits every active
@@ -56,6 +56,11 @@ public enum MoveTargeting {
     /** True when this targeting requires an explicit selected target. */
     public boolean requiresSelectedTarget() {
         return this == SINGLE_ENEMY;
+    }
+
+    /** True when the player must explicitly select one or more combatants. */
+    public boolean requiresSelectedTargets() {
+        return this == SINGLE_ENEMY || this == MULTIPLE_ENEMIES;
     }
 
     /** True when this targeting fans out over multiple combatants. */

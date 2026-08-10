@@ -16,14 +16,14 @@ class ContentCatalogTest {
 
         assertEquals(8, catalog.characterSummaries().size());
         assertTrue(catalog.findCharacter("000000").isPresent());
-        assertTrue(catalog.findCharacter("000003").orElseThrow().getKnownMoves().stream()
+        assertTrue(catalog.findCharacter("000002").orElseThrow().getKnownMoves().stream()
             .anyMatch(move -> "Simple Domain".equals(move.getName())));
-        assertTrue(catalog.findCharacter("000003").orElseThrow().hasWeapon());
-        assertTrue(catalog.findCharacter("000003").orElseThrow().getKnownMoves().stream()
+        assertTrue(catalog.findCharacter("000002").orElseThrow().hasWeapon());
+        assertTrue(catalog.findCharacter("000002").orElseThrow().getKnownMoves().stream()
             .anyMatch(move -> "Sword Slash".equals(move.getName())));
         assertFalse(catalog.findCharacter("missing").isPresent());
         assertFalse(catalog.findCharacter("000000").orElseThrow().getKnownMoves().isEmpty());
-        var yuji = catalog.findCharacter("000004").orElseThrow();
+        var yuji = catalog.findCharacter("000003").orElseThrow();
         assertEquals(15, yuji.getBaseStats().getJujutsuSkill());
         assertEquals(95, yuji.getBaseStats().getCombatAbility());
         assertFalse(yuji.getKnownMoves().stream()
@@ -35,7 +35,7 @@ class ContentCatalogTest {
         assertEquals(2, divergentFist.getHitComponents().size());
         assertEquals(2, divergentFist.getHitComponents().get(1).getDelayTicks());
         assertFalse(divergentFist.isBlackFlashEligible());
-        var maki = catalog.findCharacter("000006").orElseThrow();
+        var maki = catalog.findCharacter("000005").orElseThrow();
         assertTrue(maki.hasWeapon());
         assertEquals(75, maki.getBaseStats().getVitality());
         assertEquals(80, maki.getBaseStats().getStrength());
@@ -57,7 +57,7 @@ class ContentCatalogTest {
         var makiCombatant = new BattleCombatant(maki);
         assertEquals(135, makiCombatant.getEffectiveStats().getCombatAbility());
         assertEquals(108, makiCombatant.computeCurrentDefense(1));
-        var fearsomeMegumi = catalog.findCharacter("000005").orElseThrow();
+        var fearsomeMegumi = catalog.findCharacter("000004").orElseThrow();
         assertEquals("Ten Shadows", fearsomeMegumi.getInnateTechniqueName());
         assertEquals(45, fearsomeMegumi.getBaseStats().getVitality());
         assertEquals(18, fearsomeMegumi.getBaseStats().getStrength());
@@ -77,7 +77,7 @@ class ContentCatalogTest {
         assertEquals(40, summonCosts.get("Summon Nue"));
         assertEquals(32, summonCosts.get("Summon Toad"));
         assertEquals(56, summonCosts.get("Summon Great Serpent"));
-        var kyotoMegumi = catalog.findCharacter("000007").orElseThrow();
+        var kyotoMegumi = catalog.findCharacter("000006").orElseThrow();
         assertEquals(72, kyotoMegumi.getBaseStats().getCursedTechniqueMastery());
         assertEquals(65, kyotoMegumi.getBaseStats().getCombatAbility());
         assertTrue(kyotoMegumi.getKnownMoves().stream()
@@ -85,14 +85,20 @@ class ContentCatalogTest {
         assertEquals(3, new BattleCombatant(kyotoMegumi).getAbilityFlags().maxActiveSummons);
         assertFalse(kyotoMegumi.getKnownMoves().stream()
             .anyMatch(move -> "Summon White Dog".equals(move.getName())));
-        var whiteDog = catalog.findCharacter("000008").orElseThrow();
+        var whiteDog = catalog.findCharacter("000007").orElseThrow();
         assertEquals(com.jjktbf.model.character.CharacterType.SHIKIGAMI, whiteDog.getType());
         assertEquals(0.2, new BattleCombatant(whiteDog)
             .getAbilityFlags().summonCeUpkeepPerActiveTick, 0.000001);
         assertTrue(whiteDog.getKnownMoves().stream()
             .anyMatch(move -> "Desummon".equals(move.getName())));
         assertFalse(catalog.characterSummaries().stream()
-            .anyMatch(summary -> "000008".equals(summary.characterId())));
+            .anyMatch(summary -> "000007".equals(summary.characterId())));
+        var inumaki = catalog.findCharacter("000015").orElseThrow();
+        assertEquals("Cursed Speech", inumaki.getInnateTechniqueName());
+        assertEquals(120, inumaki.getBaseStats().getCursedTechniqueMastery());
+        assertEquals(6, inumaki.getKnownMoves().stream()
+            .filter(move -> "Cursed Speech".equals(move.getRequiredTechniqueId()))
+            .count());
         assertThrows(UnsupportedOperationException.class,
             () -> catalog.characterSummaries().clear());
     }

@@ -43,6 +43,12 @@ class ProtocolJsonTest {
         assertEquals(4, tree.at(
             "/players/0/combatants/0/knownMoves/0/hitComponents/1/delayTicks").intValue());
         assertEquals(1, restored.recentEvents().get(0).componentIndex());
+        assertEquals(List.of("ENEMY-f1", "ENEMY-f2"), restored.players().get(0).character()
+            .plan().queuedSegments().get(0).targetIds());
+        assertTrue(tree.at(
+            "/players/0/combatants/0/plan/queuedSegments/0/targetIds").isArray());
+        assertFalse(tree.at(
+            "/players/0/combatants/0/plan/queuedSegments/0").has("targetId"));
         assertTrue(restored.players().get(0).readyForNextRound());
         assertThrows(UnsupportedOperationException.class, () -> restored.players().add(null));
         assertThrows(UnsupportedOperationException.class,
@@ -71,9 +77,28 @@ class ProtocolJsonTest {
     }
 
     @Test
+    void aoePlanningMetadataRoundTrips() throws Exception {
+        MoveState multiple = new MoveState(
+            "MULTI", "Multiple", "Choose several enemies.", "PHYSICAL",
+            List.of("ATTACK", "AOE", "PHYSICAL"), PlanBoard.OFFENSIVE,
+            20, List.of(), 1.0, true, 5, 1, false, 0, 0, 0, 0,
+            0, true, null, null, List.of(), "MULTIPLE", 3, "RETURN");
+
+        String json = mapper.writeValueAsString(multiple);
+        MoveState restored = mapper.readValue(json, MoveState.class);
+        JsonNode tree = mapper.readTree(json);
+
+        assertEquals(multiple, restored);
+        assertEquals("MULTIPLE", tree.get("aoeType").textValue());
+        assertEquals(3, tree.get("aoeTargetCount").intValue());
+        assertEquals("RETURN", tree.get("commandMode").textValue());
+    }
+
+    @Test
     void actionCommandRoundTripsAndCopiesIntent() throws Exception {
         List<PlanPlacement> placements = new ArrayList<>();
-        placements.add(new PlanPlacement("000004", 13, "PLAYER-f1", "ENEMY-f1"));
+        placements.add(new PlanPlacement(
+            "000004", 13, "PLAYER-f1", List.of("ENEMY-f1", "ENEMY-f2")));
         placements.add(new PlanPlacement("000001", 48));
         ActionCommand command = ActionCommand.submitPlan("command-1", "match-1", 41, placements);
         placements.clear();
@@ -87,8 +112,14 @@ class ProtocolJsonTest {
         assertEquals(2, restored.payload().placements().size());
         assertEquals(4, tree.at("/payload/placements/0").size());
         assertEquals("PLAYER-f1", restored.payload().placements().get(0).actorId());
+        assertEquals(List.of("ENEMY-f1", "ENEMY-f2"),
+            restored.payload().placements().get(0).targetIds());
         assertEquals("ENEMY-f1", restored.payload().placements().get(0).targetId());
+        assertTrue(tree.at("/payload/placements/0/targetIds").isArray());
+        assertFalse(tree.at("/payload/placements/0").has("targetId"));
         assertEquals(List.of(), new SubmitPlanPayload(null).placements());
+        assertThrows(UnsupportedOperationException.class,
+            () -> restored.payload().placements().get(0).targetIds().add("ENEMY-f3"));
         assertThrows(UnsupportedOperationException.class,
             () -> restored.payload().placements().add(new PlanPlacement("other", 1)));
     }
@@ -179,10 +210,13 @@ class ProtocolJsonTest {
         SocketMessage joined = messages.get(1);
         assertEquals(ProtocolVersion.GAME_VERSION, joined.gameVersion());
         assertEquals(ProtocolVersion.PROTOCOL_VERSION, joined.protocolVersion());
+        assertEquals(12, joined.protocolVersion());
         assertEquals(42L, joined.stateVersion());
         assertEquals(1_700_000_060_000L, messages.get(6).disconnectDeadline());
         assertTrue(ProtocolVersion.isCompatible(
             joined.gameVersion(), joined.protocolVersion(), joined.ruleset()));
+        assertFalse(ProtocolVersion.isCompatible(
+            joined.gameVersion(), 11, joined.ruleset()));
     }
 
     private static MatchState completeMatchState() {
@@ -243,7 +277,9 @@ class ProtocolJsonTest {
             25,
             32,
             ActionSegmentStatus.QUEUED,
-            null
+            null,
+            "PLAYER-f1",
+            List.of("ENEMY-f1", "ENEMY-f2")
         );
         ActionSegmentState resolved = new ActionSegmentState(
             "segment-2-2",

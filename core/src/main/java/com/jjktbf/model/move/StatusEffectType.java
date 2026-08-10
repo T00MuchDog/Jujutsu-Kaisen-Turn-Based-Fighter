@@ -60,6 +60,9 @@ public enum StatusEffectType {
      */
     STAGGER("Stagger", 0),
 
+    /** Prevents actions while active and ends on damage or at the current round's expiry. */
+    SLEEP("Sleep", 0),
+
     /** Round-duration poison template. Magnitude is flat damage per round. */
     POISON("Poison", 1);
 
@@ -121,7 +124,7 @@ public enum StatusEffectType {
 
     /** Whether this status rejects AP-tick durations. */
     public boolean requiresRoundDuration() {
-        return this == POISON;
+        return this == POISON || this == SLEEP;
     }
 
     public double signedMagnitude(double magnitude) {

@@ -32,7 +32,13 @@ public final class BattleSpriteScaleConfig {
     private static final Map<String, Scale> SCALE_BY_SPRITE_ASSET = Map.ofEntries(
         Map.entry(
             "assets/sprites/shikigami/DivineDogTotality_frontsprite.png",
-            Scale.X_1_2)
+            Scale.X_1_2),
+        Map.entry(
+            "assets/sprites/shikigami/MaxElephant_frontsprite.png",
+            Scale.X_1_2),
+        Map.entry(
+            "assets/sprites/shikigami/ToadNueTotality_frontsprite.png",
+            Scale.X_0_8)
     );
 
     private BattleSpriteScaleConfig() {}

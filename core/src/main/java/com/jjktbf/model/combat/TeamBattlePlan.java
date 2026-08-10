@@ -1,5 +1,7 @@
 package com.jjktbf.model.combat;
 
+import com.jjktbf.model.character.coded.CursedSpeechAbility;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -132,21 +134,23 @@ public final class TeamBattlePlan {
                 }
                 alreadyPlannedMoves.add(segment.getMove());
                 MoveTargeting targeting = MoveTargeting.forMove(segment.getMove());
-                CombatantId targetId = segment.getTarget();
-                if (targeting.requiresSelectedTarget()) {
-                    if (targetId == null) {
-                        return "Move '" + segment.getMove().getName()
-                            + "' requires a target (combatant " + entry.getKey() + ")";
-                    }
+                List<CombatantId> targetIds = segment.getTargets();
+                int minimumTargets = targeting == MoveTargeting.SINGLE_ENEMY ? 1
+                    : targeting == MoveTargeting.MULTIPLE_ENEMIES ? 1 : 0;
+                int maximumTargets = targeting == MoveTargeting.SINGLE_ENEMY ? 1
+                    : targeting == MoveTargeting.MULTIPLE_ENEMIES
+                        ? segment.getMove().getAoeTargetCount() : 0;
+                if (targetIds.size() < minimumTargets || targetIds.size() > maximumTargets) {
+                    return "Move '" + segment.getMove().getName()
+                        + "' has an invalid target count (combatant " + entry.getKey() + ")";
+                }
+                for (CombatantId targetId : targetIds) {
                     BattleCombatant target = state.combatant(targetId);
-                    if (target == null || !target.isActive()
-                        || state.teamOf(target) == team) {
+                    if (target == null || !target.isActive() || state.teamOf(target) == team
+                        || !CursedSpeechAbility.canTarget(segment.getMove(), target)) {
                         return "Move '" + segment.getMove().getName()
                             + "' has an invalid target (combatant " + entry.getKey() + ")";
                     }
-                } else if (targetId != null) {
-                    return "Move '" + segment.getMove().getName()
-                        + "' must not select a target (combatant " + entry.getKey() + ")";
                 }
             }
         }

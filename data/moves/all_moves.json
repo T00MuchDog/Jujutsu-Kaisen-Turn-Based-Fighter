@@ -31,11 +31,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000001",
   "name" : "Basic Block",
@@ -74,11 +74,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000002",
   "name" : "Jab",
@@ -120,11 +120,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000003",
   "name" : "Elbow Strike",
@@ -163,11 +163,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000004",
   "name" : "Body Blow",
@@ -209,11 +209,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000005",
   "name" : "Sweeping Kick",
@@ -252,11 +252,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000006",
   "name" : "Knee Strike",
@@ -299,11 +299,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000007",
   "name" : "Overhand Punch",
@@ -345,11 +345,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000008",
   "name" : "Reinforced Jab",
@@ -395,11 +395,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000009",
   "name" : "Reinforced Elbow",
@@ -444,11 +444,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000010",
   "name" : "Reinforced Knee",
@@ -494,11 +494,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000011",
   "name" : "Cursed Energy Burst",
@@ -538,11 +538,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000012",
   "name" : "Cursed Energy Blast",
@@ -585,11 +585,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000013",
   "name" : "Deflection",
@@ -634,11 +634,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000014",
   "name" : "Reinforced Deflection",
@@ -687,11 +687,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000015",
   "name" : "Cross Guard",
@@ -732,11 +732,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000016",
   "name" : "Reinforced Cross Guard",
@@ -780,11 +780,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000017",
   "name" : "Braced Guard",
@@ -829,11 +829,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : true,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : true
 }, {
   "id" : "000018",
   "name" : "Reinforced Braced Guard",
@@ -880,11 +880,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : true,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : true
 }, {
   "id" : "000019",
   "name" : "Reinforced Basic Block",
@@ -927,11 +927,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000020",
   "name" : "Cursed Energy Focus",
@@ -980,11 +980,11 @@
   "moveCap" : 2,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000021",
   "name" : "Cursed Energy Surge",
@@ -1033,11 +1033,11 @@
   "moveCap" : 2,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000022",
   "name" : "Miracle Creation",
@@ -1104,11 +1104,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000023",
   "name" : "Sword Slash",
@@ -1150,11 +1150,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000024",
   "name" : "Sword Throw",
@@ -1196,11 +1196,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000025",
   "name" : "Ratio Mark",
@@ -1296,11 +1296,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000026",
   "name" : "Ratio Strike",
@@ -1341,11 +1341,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000027",
   "name" : "Batto Sword Drawing",
@@ -1390,11 +1390,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000028",
   "name" : "Simple Domain",
@@ -1445,11 +1445,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000029",
   "name" : "Sidestep",
@@ -1491,11 +1491,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true
+  "dodge" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000030",
   "name" : "Weapon Parry",
@@ -1539,11 +1539,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : true,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000031",
   "name" : "Evasive Dash",
@@ -1585,11 +1585,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true
+  "dodge" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000032",
   "name" : "Divergent Fist",
@@ -1652,11 +1652,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000033",
   "name" : "Summon White Dog",
@@ -1700,11 +1700,11 @@
   "summonCharacterId" : "000007",
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000034",
   "name" : "Summon Black Dog",
@@ -1748,11 +1748,11 @@
   "summonCharacterId" : "000008",
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000035",
   "name" : "Katana Combination",
@@ -1819,11 +1819,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000036",
   "name" : "Cursed Sword Slash",
@@ -1869,11 +1869,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000037",
   "name" : "Cursed Tool Deflection",
@@ -1916,11 +1916,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : true,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000038",
   "name" : "Keen Observation",
@@ -1972,11 +1972,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000039",
   "name" : "Summon Nue",
@@ -2020,11 +2020,11 @@
   "summonCharacterId" : "000009",
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000040",
   "name" : "Summon Toad",
@@ -2068,11 +2068,11 @@
   "summonCharacterId" : "000010",
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000041",
   "name" : "Summon Great Serpent",
@@ -2116,11 +2116,11 @@
   "summonCharacterId" : "000011",
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000042",
   "name" : "Summon Divine Dog Totality",
@@ -2164,11 +2164,11 @@
   "summonCharacterId" : "000012",
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000043",
   "name" : "Summon Toad/Nue Totality",
@@ -2212,11 +2212,11 @@
   "summonCharacterId" : "000014",
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000044",
   "name" : "Summon Max Elephant",
@@ -2260,11 +2260,11 @@
   "summonCharacterId" : "000013",
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000045",
   "name" : "Dog Ambush",
@@ -2305,11 +2305,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000046",
   "name" : "Nue Lightning Strike",
@@ -2350,11 +2350,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000047",
   "name" : "Toad Pull",
@@ -2396,11 +2396,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true
+  "dodge" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000048",
   "name" : "Serpent Snare",
@@ -2441,11 +2441,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000049",
   "name" : "Totality Rush",
@@ -2486,11 +2486,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000050",
   "name" : "Winged Toad Snare",
@@ -2555,11 +2555,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000051",
   "name" : "Elephant Drop",
@@ -2601,11 +2601,11 @@
   "aoeType" : "ALL_ENEMIES",
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000052",
   "name" : "Shadow Movement",
@@ -2647,15 +2647,14 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true
+  "dodge" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000053",
   "name" : "Desummon",
-  "shikigamiMove" : true,
   "description" : "Return this shikigami to its summoner's shadow.",
   "tags" : [ "UTILITY" ],
   "basePower" : 0,
@@ -2693,15 +2692,15 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000054",
   "name" : "Divine Dog Bite",
-  "shikigamiMove" : true,
   "description" : "Bite into the target with cursed-energy reinforced fangs.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 42,
@@ -2728,24 +2727,27 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
-    "strength" : 40,
-    "speed" : 55,
-    "combatAbility" : 50
+    "strength" : 0,
+    "speed" : 0,
+    "combatAbility" : 0
   },
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000055",
   "name" : "Tracking Pounce",
-  "shikigamiMove" : true,
   "description" : "Track the target's cursed trace and pounce with an attack that never misses.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 40,
@@ -2772,24 +2774,27 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
-    "strength" : 35,
-    "speed" : 70,
-    "combatAbility" : 60
+    "strength" : 0,
+    "speed" : 0,
+    "combatAbility" : 0
   },
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000056",
   "name" : "Rending Pounce",
-  "shikigamiMove" : true,
   "description" : "Pounce with enough force to rip through a guarding target.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE", "GUARD_BREAK" ],
   "basePower" : 55,
@@ -2816,24 +2821,27 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
-    "strength" : 50,
-    "speed" : 65,
-    "combatAbility" : 60
+    "strength" : 0,
+    "speed" : 0,
+    "combatAbility" : 6
   },
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000057",
   "name" : "Electrified Talons",
-  "shikigamiMove" : true,
   "description" : "Rake the target with electrified talons and STUN its active action.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE", "STUN" ],
   "basePower" : 40,
@@ -2860,25 +2868,28 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
-    "strength" : 40,
-    "speed" : 65,
-    "combatAbility" : 55,
-    "cursedEnergyOutput" : 50
+    "strength" : 0,
+    "speed" : 0,
+    "combatAbility" : 0,
+    "cursedEnergyOutput" : 0
   },
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000058",
   "name" : "Lightning Discharge",
-  "shikigamiMove" : true,
   "description" : "Release a concentrated bolt of cursed lightning from range.",
   "tags" : [ "CURSED_ENERGY", "ATTACK", "RANGED" ],
   "basePower" : 60,
@@ -2905,24 +2916,28 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
-    "cursedEnergyOutput" : 60,
-    "jujutsuSkill" : 30,
-    "combatAbility" : 55
+    "combatAbility" : 0,
+    "cursedEnergyEfficiency" : 0,
+    "cursedEnergyOutput" : 0,
+    "jujutsuSkill" : 0
   },
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000059",
   "name" : "Tongue Lash",
-  "shikigamiMove" : true,
   "description" : "Lash the target from range with Toad's reinforced tongue.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "RANGED" ],
   "basePower" : 24,
@@ -2949,24 +2964,27 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
-    "strength" : 30,
-    "speed" : 40,
-    "combatAbility" : 35
+    "strength" : 0,
+    "combatAbility" : 0,
+    "speed" : 0
   },
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000060",
   "name" : "Binding Tongue",
-  "shikigamiMove" : true,
   "description" : "Wrap the target in Toad's tongue and STAGGER it for 4 AP ticks.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "RANGED" ],
   "basePower" : 18,
@@ -2991,25 +3009,29 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
+  "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
-    "strength" : 35,
-    "combatAbility" : 40,
-    "jujutsuSkill" : 10
+    "strength" : 0,
+    "combatAbility" : 0,
+    "jujutsuSkill" : 0
   },
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000061",
   "name" : "Serpent Constrict",
-  "shikigamiMove" : true,
   "description" : "Coil around the target at close range and STAGGER it for 8 AP ticks.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 42,
@@ -3034,25 +3056,29 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
+  "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
-    "strength" : 65,
-    "durability" : 55,
-    "combatAbility" : 50
+    "strength" : 0,
+    "durability" : 0,
+    "combatAbility" : 0
   },
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000062",
   "name" : "Devouring Lunge",
-  "shikigamiMove" : true,
   "description" : "Commit to a HEAVY lunge that breaks through guards with POTENCY 2.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE", "HEAVY", "GUARD_BREAK" ],
   "basePower" : 62,
@@ -3079,24 +3105,27 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
-    "strength" : 75,
-    "speed" : 50,
-    "combatAbility" : 50
+    "strength" : 0,
+    "speed" : 0,
+    "combatAbility" : 0
   },
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000063",
   "name" : "Totality Claw",
-  "shikigamiMove" : true,
   "description" : "Tear through the target with Divine Dog Totality's empowered claws.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 70,
@@ -3123,26 +3152,29 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
-    "strength" : 90,
-    "speed" : 90,
-    "combatAbility" : 80
+    "strength" : 0,
+    "speed" : 0,
+    "combatAbility" : 0
   },
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000064",
   "name" : "Predator Rush",
-  "shikigamiMove" : true,
   "description" : "Rush the target with two consecutive claw strikes.",
-  "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
+  "tags" : [ "ATTACK", "MELEE", "PHYSICAL", "CURSED_ENERGY" ],
   "basePower" : 84,
   "hitComponents" : [ {
     "basePower" : 42,
@@ -3184,24 +3216,27 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
-    "strength" : 100,
-    "speed" : 100,
-    "combatAbility" : 85
+    "speed" : 0,
+    "strength" : 0,
+    "combatAbility" : 0
   },
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000065",
   "name" : "Crushing Stomp",
-  "shikigamiMove" : true,
   "description" : "Stomp every enemy beneath immense weight with a POTENCY 2 HEAVY guard-breaking impact.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE", "AOE", "HEAVY", "GUARD_BREAK" ],
   "basePower" : 75,
@@ -3228,25 +3263,29 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
-    "strength" : 70,
-    "durability" : 85,
-    "combatAbility" : 55
+    "strength" : 0,
+    "durability" : 0,
+    "combatAbility" : 0,
+    "cursedEnergyReserves" : 0
   },
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeType" : "ALL_ENEMIES",
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000066",
   "name" : "Water Deluge",
-  "shikigamiMove" : true,
   "description" : "Flood every enemy with a cursed torrent, reducing SPEED by 10 for 1 round.",
   "tags" : [ "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
   "basePower" : 55,
@@ -3271,27 +3310,31 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
+  "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
-    "cursedEnergyOutput" : 80,
-    "jujutsuSkill" : 10
+    "cursedEnergyOutput" : 0,
+    "jujutsuSkill" : 0
   },
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeType" : "ALL_ENEMIES",
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000067",
   "name" : "Winged Tongue Snare",
-  "shikigamiMove" : true,
   "description" : "Three winged toads strike with binding tongues that can STUN the target.",
-  "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "RANGED", "STUN" ],
+  "tags" : [ "ATTACK", "RANGED", "STUN", "PHYSICAL", "CURSED_ENERGY" ],
   "basePower" : 42,
   "hitComponents" : [ {
     "basePower" : 14,
@@ -3341,24 +3384,27 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
-    "speed" : 70,
-    "combatAbility" : 55,
-    "jujutsuSkill" : 10
+    "speed" : 0,
+    "combatAbility" : 0,
+    "jujutsuSkill" : 0
   },
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000068",
   "name" : "Aerial Swarm",
-  "shikigamiMove" : true,
   "description" : "Swarm every enemy from the air, reducing ACCURACY by 10 for 1 round.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
   "basePower" : 28,
@@ -3394,9 +3440,546 @@
   "aoeType" : "ALL_ENEMIES",
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
+  "shikigamiMove" : true,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
+}, {
+  "id" : "000069",
+  "name" : "Don't Move",
+  "description" : "Command up to three enemies to stop. Success applies STAGGER for 6 AP ticks; every target contributes 4 BASE RECOIL scaled by current CE.",
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "basePower" : 0,
+  "baseAccuracy" : 1.0,
+  "neverMiss" : true,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 7,
+  "unleashPoint" : 1,
+  "baseCeCost" : 8,
+  "hasCeCost" : true,
+  "minCeCost" : 4,
+  "maxCeCost" : 14,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "onHitEffects" : [ {
+    "durationRounds" : 1,
+    "durationTicks" : 0,
+    "magnitude" : 1.0,
+    "codedAbilityKey" : "CURSED_SPEECH",
+    "codedAction" : "COMMAND",
+    "codedTarget" : "DONT_MOVE",
+    "codedParameters" : {
+      "baseChancePercent" : 85,
+      "baseRecoil" : 4
+    },
+    "masteryProgression" : {
+      "baseChancePercent" : {
+        "mode" : "FORMULA",
+        "formula" : "min(95,65+ctm/6)"
+      }
+    }
+  } ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "prerequisites" : {
+    "cursedTechniqueMastery" : 0,
+    "cursedEnergyReserves" : 20,
+    "cursedEnergyEfficiency" : 40,
+    "cursedEnergyOutput" : 25,
+    "jujutsuSkill" : 35
+  },
+  "requiredTechniqueId" : "Cursed Speech",
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "aoeType" : "MULTIPLE",
+  "aoeTargetCount" : 3,
+  "mustBeGranted" : false,
+  "anyBlock" : false,
+  "parry" : false,
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
+}, {
+  "id" : "000070",
+  "name" : "Blast Away",
+  "description" : "Blast up to three enemies away with 40 BASE POWER and 3-tick STAGGER on success; every target contributes 8 BASE RECOIL.",
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "basePower" : 40,
+  "baseAccuracy" : 1.0,
+  "neverMiss" : true,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 12,
+  "unleashPoint" : 4,
+  "baseCeCost" : 18,
+  "hasCeCost" : true,
+  "minCeCost" : 9,
+  "maxCeCost" : 32,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "onHitEffects" : [ {
+    "durationRounds" : 1,
+    "durationTicks" : 0,
+    "magnitude" : 1.0,
+    "codedAbilityKey" : "CURSED_SPEECH",
+    "codedAction" : "COMMAND",
+    "codedTarget" : "BLAST_AWAY",
+    "codedParameters" : {
+      "baseChancePercent" : 80,
+      "baseRecoil" : 8
+    },
+    "masteryProgression" : {
+      "baseChancePercent" : {
+        "mode" : "FORMULA",
+        "formula" : "min(95,56+ctm/5)"
+      }
+    }
+  } ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "prerequisites" : {
+    "cursedTechniqueMastery" : 20,
+    "cursedEnergyReserves" : 25,
+    "cursedEnergyEfficiency" : 45,
+    "cursedEnergyOutput" : 35,
+    "jujutsuSkill" : 45
+  },
+  "requiredTechniqueId" : "Cursed Speech",
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "aoeType" : "MULTIPLE",
+  "aoeTargetCount" : 3,
+  "mustBeGranted" : false,
+  "anyBlock" : false,
+  "parry" : false,
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
+}, {
+  "id" : "000071",
+  "name" : "Sleep",
+  "description" : "Command up to three enemies to SLEEP until damaged or the end of the current round; every target contributes 6 BASE RECOIL.",
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "basePower" : 0,
+  "baseAccuracy" : 1.0,
+  "neverMiss" : true,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 10,
+  "unleashPoint" : 3,
+  "baseCeCost" : 16,
+  "hasCeCost" : true,
+  "minCeCost" : 8,
+  "maxCeCost" : 28,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "onHitEffects" : [ {
+    "durationRounds" : 1,
+    "durationTicks" : 0,
+    "magnitude" : 1.0,
+    "codedAbilityKey" : "CURSED_SPEECH",
+    "codedAction" : "COMMAND",
+    "codedTarget" : "SLEEP",
+    "codedParameters" : {
+      "baseChancePercent" : 75,
+      "baseRecoil" : 6
+    },
+    "masteryProgression" : {
+      "baseChancePercent" : {
+        "mode" : "FORMULA",
+        "formula" : "min(95,51+ctm/5)"
+      }
+    }
+  } ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "prerequisites" : {
+    "cursedTechniqueMastery" : 35,
+    "cursedEnergyReserves" : 30,
+    "cursedEnergyEfficiency" : 50,
+    "cursedEnergyOutput" : 35,
+    "jujutsuSkill" : 50
+  },
+  "requiredTechniqueId" : "Cursed Speech",
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "aoeType" : "MULTIPLE",
+  "aoeTargetCount" : 3,
+  "mustBeGranted" : false,
+  "anyBlock" : false,
+  "parry" : false,
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
+}, {
+  "id" : "000072",
+  "name" : "Plummet",
+  "description" : "Drive up to three enemies downward with 65 BASE POWER and 4-tick STAGGER on success; every target contributes 12 BASE RECOIL.",
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "basePower" : 65,
+  "baseAccuracy" : 1.0,
+  "neverMiss" : true,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 15,
+  "unleashPoint" : 7,
+  "baseCeCost" : 26,
+  "hasCeCost" : true,
+  "minCeCost" : 13,
+  "maxCeCost" : 46,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "onHitEffects" : [ {
+    "durationRounds" : 1,
+    "durationTicks" : 0,
+    "magnitude" : 1.0,
+    "codedAbilityKey" : "CURSED_SPEECH",
+    "codedAction" : "COMMAND",
+    "codedTarget" : "PLUMMET",
+    "codedParameters" : {
+      "baseChancePercent" : 70,
+      "baseRecoil" : 12
+    },
+    "masteryProgression" : {
+      "baseChancePercent" : {
+        "mode" : "FORMULA",
+        "formula" : "min(90,46+ctm/5)"
+      }
+    }
+  } ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "prerequisites" : {
+    "cursedTechniqueMastery" : 50,
+    "cursedEnergyReserves" : 35,
+    "cursedEnergyEfficiency" : 55,
+    "cursedEnergyOutput" : 45,
+    "jujutsuSkill" : 55
+  },
+  "requiredTechniqueId" : "Cursed Speech",
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "aoeType" : "MULTIPLE",
+  "aoeTargetCount" : 3,
+  "mustBeGranted" : false,
+  "anyBlock" : false,
+  "parry" : false,
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
+}, {
+  "id" : "000073",
+  "name" : "Get Twisted",
+  "description" : "Twist up to three enemies with 90 BASE POWER on success; every target contributes 20 BASE RECOIL.",
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "basePower" : 90,
+  "baseAccuracy" : 1.0,
+  "neverMiss" : true,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 17,
+  "unleashPoint" : 9,
+  "baseCeCost" : 36,
+  "hasCeCost" : true,
+  "minCeCost" : 18,
+  "maxCeCost" : 63,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "onHitEffects" : [ {
+    "durationRounds" : 1,
+    "durationTicks" : 0,
+    "magnitude" : 1.0,
+    "codedAbilityKey" : "CURSED_SPEECH",
+    "codedAction" : "COMMAND",
+    "codedTarget" : "GET_TWISTED",
+    "codedParameters" : {
+      "baseChancePercent" : 60,
+      "baseRecoil" : 20
+    },
+    "masteryProgression" : {
+      "baseChancePercent" : {
+        "mode" : "FORMULA",
+        "formula" : "min(85,36+ctm/5)"
+      }
+    }
+  } ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "prerequisites" : {
+    "cursedTechniqueMastery" : 70,
+    "cursedEnergyReserves" : 40,
+    "cursedEnergyEfficiency" : 65,
+    "cursedEnergyOutput" : 50,
+    "jujutsuSkill" : 65
+  },
+  "requiredTechniqueId" : "Cursed Speech",
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "aoeType" : "MULTIPLE",
+  "aoeTargetCount" : 3,
+  "mustBeGranted" : false,
+  "anyBlock" : false,
+  "parry" : false,
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
+}, {
+  "id" : "000074",
+  "name" : "Return",
+  "description" : "Command up to three enemy summons to return on success; every target contributes 10 BASE RECOIL.",
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "basePower" : 0,
+  "baseAccuracy" : 1.0,
+  "neverMiss" : true,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 10,
+  "unleashPoint" : 3,
+  "baseCeCost" : 18,
+  "hasCeCost" : true,
+  "minCeCost" : 9,
+  "maxCeCost" : 32,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "onHitEffects" : [ {
+    "durationRounds" : 1,
+    "durationTicks" : 0,
+    "magnitude" : 1.0,
+    "codedAbilityKey" : "CURSED_SPEECH",
+    "codedAction" : "COMMAND",
+    "codedTarget" : "RETURN",
+    "codedParameters" : {
+      "baseChancePercent" : 80,
+      "baseRecoil" : 10
+    },
+    "masteryProgression" : {
+      "baseChancePercent" : {
+        "mode" : "FORMULA",
+        "formula" : "min(95,56+ctm/5)"
+      }
+    }
+  } ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "prerequisites" : {
+    "cursedTechniqueMastery" : 85,
+    "cursedEnergyReserves" : 40,
+    "cursedEnergyEfficiency" : 70,
+    "cursedEnergyOutput" : 50,
+    "jujutsuSkill" : 70
+  },
+  "requiredTechniqueId" : "Cursed Speech",
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "aoeType" : "MULTIPLE",
+  "aoeTargetCount" : 3,
+  "mustBeGranted" : false,
+  "anyBlock" : false,
+  "parry" : false,
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
+}, {
+  "id" : "000075",
+  "name" : "Explode",
+  "description" : "Detonate up to three enemies with 135 BASE POWER on success; every target contributes 36 BASE RECOIL.",
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "basePower" : 135,
+  "baseAccuracy" : 1.0,
+  "neverMiss" : true,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 21,
+  "unleashPoint" : 14,
+  "baseCeCost" : 55,
+  "hasCeCost" : true,
+  "minCeCost" : 28,
+  "maxCeCost" : 96,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "onHitEffects" : [ {
+    "durationRounds" : 1,
+    "durationTicks" : 0,
+    "magnitude" : 1.0,
+    "codedAbilityKey" : "CURSED_SPEECH",
+    "codedAction" : "COMMAND",
+    "codedTarget" : "EXPLODE",
+    "codedParameters" : {
+      "baseChancePercent" : 50,
+      "baseRecoil" : 36
+    },
+    "masteryProgression" : {
+      "baseChancePercent" : {
+        "mode" : "FORMULA",
+        "formula" : "min(80,26+ctm/5)"
+      }
+    }
+  } ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "prerequisites" : {
+    "cursedTechniqueMastery" : 100,
+    "cursedEnergyReserves" : 45,
+    "cursedEnergyEfficiency" : 80,
+    "cursedEnergyOutput" : 60,
+    "jujutsuSkill" : 75
+  },
+  "requiredTechniqueId" : "Cursed Speech",
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "aoeType" : "MULTIPLE",
+  "aoeTargetCount" : 3,
+  "mustBeGranted" : false,
+  "anyBlock" : false,
+  "parry" : false,
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
+}, {
+  "id" : "000076",
+  "name" : "Die",
+  "description" : "Command up to three enemies to die, respecting fatal protection; every target contributes 80 BASE RECOIL.",
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "basePower" : 0,
+  "baseAccuracy" : 1.0,
+  "neverMiss" : true,
+  "stun" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 24,
+  "unleashPoint" : 20,
+  "baseCeCost" : 85,
+  "hasCeCost" : true,
+  "minCeCost" : 43,
+  "maxCeCost" : 149,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "onHitEffects" : [ {
+    "durationRounds" : 1,
+    "durationTicks" : 0,
+    "magnitude" : 1.0,
+    "codedAbilityKey" : "CURSED_SPEECH",
+    "codedAction" : "COMMAND",
+    "codedTarget" : "DIE",
+    "codedParameters" : {
+      "baseChancePercent" : 25,
+      "baseRecoil" : 80
+    },
+    "masteryProgression" : {
+      "baseChancePercent" : {
+        "mode" : "FORMULA",
+        "formula" : "min(60,1+ctm/5)"
+      }
+    }
+  } ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "prerequisites" : {
+    "cursedTechniqueMastery" : 120,
+    "cursedEnergyReserves" : 45,
+    "cursedEnergyEfficiency" : 85,
+    "cursedEnergyOutput" : 65,
+    "jujutsuSkill" : 80
+  },
+  "requiredTechniqueId" : "Cursed Speech",
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "aoeType" : "MULTIPLE",
+  "aoeTargetCount" : 3,
+  "mustBeGranted" : false,
+  "anyBlock" : false,
+  "parry" : false,
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 } ]

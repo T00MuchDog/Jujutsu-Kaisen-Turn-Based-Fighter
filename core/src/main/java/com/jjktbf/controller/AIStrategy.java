@@ -1,5 +1,6 @@
 package com.jjktbf.controller;
 
+import com.jjktbf.model.character.coded.CursedSpeechAbility;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
@@ -80,12 +81,13 @@ public interface AIStrategy {
                 BattlePlan normalized = new BattlePlan(
                     plan.apBudget(), plan.ceBudget(), commonGridLength);
                 for (com.jjktbf.model.combat.ActionSegment segment : plan.allSegments()) {
-                    if (normalized.place(
-                        segment.getMove(), segment.getStartTick(),
-                        segment.getActualCeCost(), segment.getTarget()) == null) {
+                    com.jjktbf.model.combat.ActionSegment normalizedSegment = normalized.place(
+                        segment.getMove(), segment.getStartTick(), segment.getActualCeCost());
+                    if (normalizedSegment == null) {
                         throw new IllegalArgumentException(
                             "AI plan cannot be normalized to the battle grid");
                     }
+                    normalizedSegment.setTargets(segment.getTargets());
                 }
                 plan = normalized;
             }
@@ -96,10 +98,8 @@ public interface AIStrategy {
     }
 
     /**
-     * Ensure every hostile single-target segment in {@code plan} has an explicit
-     * selected target, chosen deterministically from the active enemies under the
-     * shared seeded RNG. Without this, a single-target segment would rely on
-     * fire-time retargeting; the spec requires the AI to assign targets itself.
+     * Ensure every hostile segment that requires selection has eligible explicit
+     * targets, chosen deterministically under the shared seeded RNG.
      */
     default void assignExplicitTargets(
         BattleState state, BattlePlan plan, BattleCombatant ai, RandomSource rng
@@ -107,13 +107,50 @@ public interface AIStrategy {
         if (plan == null) return;
         List<BattleCombatant> enemies = state.activeEnemiesOf(ai);
         if (enemies.isEmpty()) return;
-        for (com.jjktbf.model.combat.ActionSegment segment : plan.allSegments()) {
-            if (segment.getTarget() != null) continue;
+        for (com.jjktbf.model.combat.ActionSegment segment
+            : new java.util.ArrayList<>(plan.allSegments())) {
             Move move = segment.getMove();
-            if (MoveTargeting.forMove(move).requiresSelectedTarget()) {
+            MoveTargeting targeting = MoveTargeting.forMove(move);
+            List<BattleCombatant> eligibleEnemies = enemies.stream()
+                .filter(enemy -> CursedSpeechAbility.canTarget(move, enemy))
+                .toList();
+            if (eligibleEnemies.isEmpty()) {
+                if (targeting == MoveTargeting.SINGLE_ENEMY
+                    || targeting == MoveTargeting.MULTIPLE_ENEMIES) {
+                    plan.remove(segment);
+                }
+                continue;
+            }
+            if (!segment.getTargets().isEmpty()) {
+                if (CursedSpeechAbility.RETURN.equalsIgnoreCase(
+                    CursedSpeechAbility.commandMode(move))) {
+                    segment.setTargets(segment.getTargets().stream()
+                        .map(state::combatant)
+                        .filter(eligibleEnemies::contains)
+                        .map(BattleCombatant::getInstanceId)
+                        .distinct()
+                        .limit(move.getAoeTargetCount())
+                        .toList());
+                }
+                if (!segment.getTargets().isEmpty()) continue;
+            }
+            if (targeting == MoveTargeting.SINGLE_ENEMY) {
                 // Deterministic pick under the shared seeded RNG.
-                BattleCombatant chosen = enemies.get(rng.nextInt(enemies.size()));
+                BattleCombatant chosen = eligibleEnemies.get(rng.nextInt(eligibleEnemies.size()));
                 segment.setTarget(chosen.getInstanceId());
+            } else if (targeting == MoveTargeting.MULTIPLE_ENEMIES) {
+                java.util.List<BattleCombatant> shuffled =
+                    new java.util.ArrayList<>(eligibleEnemies);
+                for (int i = shuffled.size() - 1; i > 0; i--) {
+                    int swap = rng.nextInt(i + 1);
+                    BattleCombatant value = shuffled.get(i);
+                    shuffled.set(i, shuffled.get(swap));
+                    shuffled.set(swap, value);
+                }
+                segment.setTargets(shuffled.stream()
+                    .limit(Math.min(move.getAoeTargetCount(), shuffled.size()))
+                    .map(BattleCombatant::getInstanceId)
+                    .toList());
             }
         }
     }

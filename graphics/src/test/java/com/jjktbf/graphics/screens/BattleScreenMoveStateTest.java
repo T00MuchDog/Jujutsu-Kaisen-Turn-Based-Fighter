@@ -1,7 +1,9 @@
 package com.jjktbf.graphics.screens;
 
+import com.jjktbf.model.character.coded.CursedSpeechAbility;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.AoeType;
 import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.multiplayer.protocol.ActionSegmentState;
@@ -10,6 +12,7 @@ import com.jjktbf.multiplayer.protocol.HitComponentState;
 import com.jjktbf.multiplayer.protocol.MoveState;
 import com.jjktbf.multiplayer.protocol.PlanBoard;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Assumptions;
 
 import java.util.List;
 
@@ -130,6 +133,30 @@ class BattleScreenMoveStateTest {
     }
 
     @Test
+    void multipleAoeMetadataSurvivesOnlineDisplayReconstruction() {
+        MoveState state = multipleAoeMoveState();
+        Assumptions.assumeTrue(state != null, "requires MoveState AOE protocol fields");
+
+        Move move = BattleScreen.toDisplayMove(state);
+
+        assertEquals(AoeType.MULTIPLE, move.getAoeType());
+        assertEquals(3, move.getAoeTargetCount());
+    }
+
+    @Test
+    void cursedSpeechCommandModeSurvivesOnlineDisplayReconstruction() {
+        MoveState state = new MoveState(
+            "RETURN", "Return", "Dismiss a summon.", MoveCategory.INNATE_TECHNIQUE.name(),
+            List.of("ATTACK", "AOE", "CURSED_ENERGY", "INNATE_TECHNIQUE"),
+            PlanBoard.OFFENSIVE, 0, List.of(), 1.0, true, 5, 1, true,
+            10, 10, 5, 20, 0, true, null, null, List.of(), "MULTIPLE", 3, "RETURN");
+
+        Move move = BattleScreen.toDisplayMove(state);
+
+        assertEquals(CursedSpeechAbility.RETURN, CursedSpeechAbility.commandMode(move));
+    }
+
+    @Test
     void actionTicksSkipGapsAndStunnedSegments() {
         List<ActionSegmentState> segments = List.of(
             actionSegment("FIRST", 1, 2, ActionSegmentStatus.RESOLVED),
@@ -207,5 +234,26 @@ class BattleScreenMoveStateTest {
             status,
             startTick
         );
+    }
+
+    private static MoveState multipleAoeMoveState() {
+        try {
+            return MoveState.class.getConstructor(
+                String.class, String.class, String.class, String.class, List.class,
+                PlanBoard.class, int.class, List.class, double.class, boolean.class,
+                int.class, int.class, boolean.class, int.class, int.class, int.class,
+                int.class, int.class, boolean.class, String.class, String.class,
+                List.class, String.class, int.class)
+                .newInstance(
+                    "CURSED_SPEECH", "Cursed Speech", "Command up to three targets",
+                    MoveCategory.PHYSICAL_CURSED_ENERGY.name(),
+                    List.of("ATTACK", "AOE", "CURSED_ENERGY"), PlanBoard.OFFENSIVE,
+                    20, List.of(), 1.0, true, 10, 1, true, 20, 20, 10, 30, 0,
+                    true, null, null, List.of(), "MULTIPLE", 3);
+        } catch (NoSuchMethodException ignored) {
+            return null;
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 }

@@ -3,6 +3,7 @@ package com.jjktbf.model.combat;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.CombatStats;
 import com.jjktbf.model.character.coded.CodedHitModifiers;
+import com.jjktbf.model.character.coded.CursedSpeechAbility;
 import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
@@ -176,6 +177,7 @@ public final class DamageCalculator {
         CharacterStats acs = attacker.getEffectiveStats();
 
         Timeline defTimeline = defender.getTimeline();
+        boolean cursedSpeechCommand = CursedSpeechAbility.commandMode(move) != null;
 
         // --- 0. Dodge roll (chance-based, no potency gate) ---
         // A live DODGE defense reacts to a scope-matching incoming attack with a
@@ -197,7 +199,9 @@ public final class DamageCalculator {
         // --- 1. Hit roll ---
         if (component.isAvoidable()) {
             boolean hit;
-            if (defender.consumeGuaranteedDodge()) {
+            if (cursedSpeechCommand) {
+                hit = true;
+            } else if (defender.consumeGuaranteedDodge()) {
                 hit = false;
             } else if (move.isNeverMiss() || attacker.consumeGuaranteedHit()) {
                 hit = true;
@@ -234,10 +238,16 @@ public final class DamageCalculator {
             : connectedHitHook.onAttackConnected(AbilityTrigger.attackConnected(
                 attacker, defender, move, component, currentTick));
 
+        if (codedModifiers.negateHit()) {
+            return DamageResult.resisted(
+                move, component, codedModifiers.events(), codedModifiers.recoilDamage());
+        }
+
         // --- 1b. Parry check (potency-gated; GUARD_BREAK does NOT bypass parry) ---
         // A parry negates the hit entirely. If the parry would stagger the attacker
         // (non-GUARD_BREAK, parryStaggerTicks > 0), the resolver applies the stagger.
-        if (component.isAvoidable() && defTimeline != null) {
+        if (!codedModifiers.bypassConventionalDefenses()
+            && component.isAvoidable() && defTimeline != null) {
             ActionSegment parrySeg = defTimeline.activeDefenseAt(
                 currentTick, move, component, com.jjktbf.model.move.DefenseType.PARRY,
                 requireFiredDefense);
@@ -245,14 +255,17 @@ public final class DamageCalculator {
                 boolean stagger = parrySeg.getMove().parryStaggersAttacker(move);
                 int staggerTicks = stagger ? parrySeg.getMove().getParryStaggerTicks() : 0;
                 return DamageResult.parried(
-                    move, component, parrySeg, staggerTicks, codedModifiers.events());
+                    move, component, parrySeg, staggerTicks, codedModifiers.events())
+                    .withRecoil(codedModifiers.recoilDamage());
             }
         }
 
         if (forceFullBlock && !move.isGuardBreak()) {
-            return DamageResult.blocked(move, component, null, codedModifiers.events());
+            return DamageResult.blocked(move, component, null, codedModifiers.events())
+                .withRecoil(codedModifiers.recoilDamage());
         }
-        boolean bypassBlock = move.isGuardBreak() || codedModifiers.bypassBlock();
+        boolean bypassBlock = move.isGuardBreak() || codedModifiers.bypassBlock()
+            || codedModifiers.bypassConventionalDefenses();
 
         // --- 2. Check block ---
         // A GUARD_BREAK move ignores blocking defensive moves (BLOCK). Dodges and
@@ -288,7 +301,8 @@ public final class DamageCalculator {
             attackValue = activeBlockSegment.getMove().applyBlockTo(attackValue);
             if (attackValue == 0) {
                 return DamageResult.blocked(
-                    move, component, activeBlockSegment, codedModifiers.events());
+                    move, component, activeBlockSegment, codedModifiers.events())
+                    .withRecoil(codedModifiers.recoilDamage());
             }
         }
 
@@ -304,7 +318,7 @@ public final class DamageCalculator {
                 * attacker.getAbilityFlags().damageMultiplierFor(move)
                 * defender.getAbilityFlags().incomingDamageMultiplierFor(move)
         );
-        rawDamage = Math.max(1, rawDamage);
+        rawDamage = attackValue <= 0.0 ? 0 : Math.max(1, rawDamage);
         rawDamage = Math.max(0, (int) Math.round(
             attacker.modifyBattleStat(com.jjktbf.model.character.BattleStatKey.DAMAGE_DEALT, rawDamage)));
 
@@ -323,7 +337,8 @@ public final class DamageCalculator {
         }
 
         return DamageResult.hit(move, component, finalDamage, rawDamage, blackFlash,
-            bypassBlock, codedModifiers.events(), activeBlockSegment);
+            bypassBlock, codedModifiers.events(), activeBlockSegment)
+            .withRecoil(codedModifiers.recoilDamage());
     }
 
     private static HitComponent firstComponent(Move move) {
@@ -361,7 +376,7 @@ public final class DamageCalculator {
 
     public static class DamageResult {
 
-        public enum Outcome { MISS, BLOCKED, HIT, DODGED, PARRIED }
+        public enum Outcome { MISS, BLOCKED, HIT, DODGED, PARRIED, RESISTED }
 
         private final Outcome outcome;
         private final Move    move;
@@ -375,6 +390,7 @@ public final class DamageCalculator {
         private final ActionSegment defenseSegment;
         /** For a PARRIED result: ticks to stagger the attacker (0 = no stagger). */
         private final int parryStaggerTicks;
+        private final int recoilDamage;
 
         private DamageResult(
             Outcome outcome,
@@ -386,7 +402,8 @@ public final class DamageCalculator {
             boolean bypassedBlock,
             List<CombatEvent> codedEvents,
             ActionSegment defenseSegment,
-            int parryStaggerTicks
+            int parryStaggerTicks,
+            int recoilDamage
         ) {
             this.outcome     = outcome;
             this.move        = move;
@@ -398,6 +415,7 @@ public final class DamageCalculator {
             this.codedEvents = codedEvents == null ? List.of() : List.copyOf(codedEvents);
             this.defenseSegment = defenseSegment;
             this.parryStaggerTicks = parryStaggerTicks;
+            this.recoilDamage = Math.max(0, recoilDamage);
         }
 
         public static DamageResult miss(Move move) {
@@ -405,7 +423,7 @@ public final class DamageCalculator {
         }
         public static DamageResult miss(Move move, HitComponent component) {
             return new DamageResult(
-                Outcome.MISS, move, component, 0, 0, false, false, List.of(), null, 0);
+                Outcome.MISS, move, component, 0, 0, false, false, List.of(), null, 0, 0);
         }
         public static DamageResult blocked(Move move, List<CombatEvent> codedEvents) {
             return blocked(move, firstComponent(move), null, codedEvents);
@@ -418,7 +436,7 @@ public final class DamageCalculator {
         ) {
             return new DamageResult(
                 Outcome.BLOCKED, move, component, 0, 0, false, false,
-                codedEvents, defenseSegment, 0);
+                codedEvents, defenseSegment, 0, 0);
         }
         /** Dodge outcome — the defender avoided the attack entirely. */
         public static DamageResult dodged(Move move, ActionSegment dodgeSegment,
@@ -432,7 +450,7 @@ public final class DamageCalculator {
             List<CombatEvent> codedEvents
         ) {
             return new DamageResult(Outcome.DODGED, move, component, 0, 0, false, false,
-                codedEvents, dodgeSegment, 0);
+                codedEvents, dodgeSegment, 0, 0);
         }
         /** Parry outcome — the defender negated the attack; {@code staggerTicks} stagger the attacker. */
         public static DamageResult parried(Move move, ActionSegment parrySegment,
@@ -447,7 +465,7 @@ public final class DamageCalculator {
             List<CombatEvent> codedEvents
         ) {
             return new DamageResult(Outcome.PARRIED, move, component, 0, 0, false, false,
-                codedEvents, parrySegment, staggerTicks);
+                codedEvents, parrySegment, staggerTicks, 0);
         }
         public static DamageResult hit(Move move, int finalDmg, int rawDmg, boolean bf) {
             return hit(move, finalDmg, rawDmg, bf, move.isGuardBreak(), List.of());
@@ -474,7 +492,24 @@ public final class DamageCalculator {
             ActionSegment defenseSegment
         ) {
             return new DamageResult(Outcome.HIT, move, component, finalDmg, rawDmg, bf,
-                bypassedBlock, codedEvents, defenseSegment, 0);
+                bypassedBlock, codedEvents, defenseSegment, 0, 0);
+        }
+
+        public static DamageResult resisted(
+            Move move,
+            HitComponent component,
+            List<CombatEvent> codedEvents,
+            int recoilDamage
+        ) {
+            return new DamageResult(Outcome.RESISTED, move, component, 0, 0, false,
+                true, codedEvents, null, 0, recoilDamage);
+        }
+
+        private DamageResult withRecoil(int recoilDamage) {
+            if (recoilDamage <= 0) return this;
+            return new DamageResult(outcome, move, component, finalDamage, rawDamage,
+                blackFlash, bypassedBlock, codedEvents, defenseSegment,
+                parryStaggerTicks, recoilDamage);
         }
 
         public Outcome getOutcome()     { return outcome; }
@@ -487,11 +522,13 @@ public final class DamageCalculator {
         public List<CombatEvent> getCodedEvents() { return codedEvents; }
         public ActionSegment getDefenseSegment() { return defenseSegment; }
         public int getParryStaggerTicks() { return parryStaggerTicks; }
+        public int getRecoilDamage() { return recoilDamage; }
         public boolean isHit()          { return outcome == Outcome.HIT; }
         public boolean isMiss()         { return outcome == Outcome.MISS; }
         public boolean isBlocked()      { return outcome == Outcome.BLOCKED; }
         public boolean isDodged()       { return outcome == Outcome.DODGED; }
         public boolean isParried()      { return outcome == Outcome.PARRIED; }
+        public boolean isResisted()     { return outcome == Outcome.RESISTED; }
         /** True iff a parry should stagger the attacker (PARRIED + staggerTicks > 0). */
         public boolean staggersAttacker() {
             return outcome == Outcome.PARRIED && parryStaggerTicks > 0;

@@ -1,6 +1,7 @@
 package com.jjktbf.graphics.multiplayer;
 
 import com.jjktbf.model.combat.BattlePlan;
+import com.jjktbf.model.move.AoeType;
 import com.jjktbf.multiplayer.protocol.MoveState;
 import com.jjktbf.multiplayer.protocol.PlanBoard;
 import com.jjktbf.multiplayer.protocol.PlanPlacement;
@@ -18,12 +19,23 @@ public final class MultiplayerPlanDraft {
         MOVE_CAP_REACHED,
         INSUFFICIENT_AP,
         INSUFFICIENT_CE,
+        INVALID_TARGET_SELECTION,
         BOARD_FULL
     }
 
-    public record DraftPlacement(MoveState move, int startTick) {
+    public record DraftPlacement(
+        MoveState move,
+        int startTick,
+        String actorId,
+        List<String> targetIds
+    ) {
         public DraftPlacement {
             Objects.requireNonNull(move, "move");
+            targetIds = targetIds == null ? List.of() : List.copyOf(targetIds);
+        }
+
+        public DraftPlacement(MoveState move, int startTick) {
+            this(move, startTick, null, List.of());
         }
 
         public int endTick() {
@@ -31,7 +43,7 @@ public final class MultiplayerPlanDraft {
         }
 
         public PlanPlacement toIntent() {
-            return new PlanPlacement(move.moveId(), startTick);
+            return TargetListSupport.placement(move.moveId(), startTick, actorId, targetIds);
         }
     }
 
@@ -82,6 +94,11 @@ public final class MultiplayerPlanDraft {
 
     /** Places the move at the first free range on its server-declared board. */
     public AddResult addFirstFit(MoveState move) {
+        return addFirstFit(move, null, List.of());
+    }
+
+    /** Places target-aware intent while the server remains authoritative. */
+    public AddResult addFirstFit(MoveState move, String actorId, List<String> targetIds) {
         if (!valid(move)) {
             return new AddResult(AddStatus.INVALID_MOVE, null);
         }
@@ -97,12 +114,17 @@ public final class MultiplayerPlanDraft {
         if (ceUsed + move.effectiveCeCost() > ceBudget) {
             return new AddResult(AddStatus.INSUFFICIENT_CE, null);
         }
+        List<String> selectedTargets = distinctTargets(targetIds);
+        if (!validTargetSelection(move, targetIds, selectedTargets)) {
+            return new AddResult(AddStatus.INVALID_TARGET_SELECTION, null);
+        }
 
         int lastStart = lastStartTick(move);
         for (int startTick = 1; startTick <= lastStart; startTick++) {
             int endTick = startTick + move.apCost() - 1;
             if (rangeFree(move.board(), startTick, endTick)) {
-                DraftPlacement placement = new DraftPlacement(move, startTick);
+                DraftPlacement placement = new DraftPlacement(
+                    move, startTick, actorId, selectedTargets);
                 placements.add(placement);
                 apUsed += move.apCost();
                 ceUsed += move.effectiveCeCost();
@@ -113,9 +135,15 @@ public final class MultiplayerPlanDraft {
     }
 
     public boolean canAdd(MoveState move) {
+        return canAdd(move, List.of());
+    }
+
+    public boolean canAdd(MoveState move, List<String> targetIds) {
+        List<String> selectedTargets = distinctTargets(targetIds);
         if (!valid(move) || !move.available() || !hasRemainingUses(move)
             || apUsed + move.apCost() > apBudget
-            || ceUsed + move.effectiveCeCost() > ceBudget) {
+            || ceUsed + move.effectiveCeCost() > ceBudget
+            || !validTargetSelection(move, targetIds, selectedTargets)) {
             return false;
         }
         int lastStart = lastStartTick(move);
@@ -210,6 +238,36 @@ public final class MultiplayerPlanDraft {
             && move.hitComponents().stream().allMatch(component ->
                 component.basePower() >= 0 && component.delayTicks() >= 0)
             && move.effectiveCeCost() >= 0;
+    }
+
+    private static boolean validTargetSelection(
+        MoveState move,
+        List<String> requestedTargets,
+        List<String> selectedTargets
+    ) {
+        int requestedCount = requestedTargets == null ? 0 : requestedTargets.size();
+        if (requestedCount != selectedTargets.size()) return false;
+        boolean hostile = move.tags().contains("ATTACK");
+        if (!hostile) return selectedTargets.isEmpty();
+        AoeType aoeType = TargetListSupport.moveStateAoeType(move);
+        if (aoeType != AoeType.MULTIPLE) {
+            return aoeType != null || move.tags().contains("AOE")
+                ? selectedTargets.isEmpty()
+                : selectedTargets.size() == 1;
+        }
+        int cap = TargetListSupport.moveStateAoeTargetCount(move);
+        return !selectedTargets.isEmpty() && selectedTargets.size() <= cap;
+    }
+
+    private static List<String> distinctTargets(List<String> targetIds) {
+        if (targetIds == null || targetIds.isEmpty()) return List.of();
+        List<String> result = new ArrayList<>();
+        for (String targetId : targetIds) {
+            if (targetId != null && !targetId.isBlank() && !result.contains(targetId)) {
+                result.add(targetId);
+            }
+        }
+        return List.copyOf(result);
     }
 
     /** Latest start tick at which {@code move} fits within this round's battle grid. */

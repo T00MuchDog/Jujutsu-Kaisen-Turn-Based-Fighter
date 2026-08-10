@@ -9,12 +9,12 @@ public final class ProtocolVersion {
 
     public static final String GAME_VERSION = loadGameVersion();
     /**
-     * Protocol v11 threads a {@link com.jjktbf.model.combat.BattleFormat} and an
-     * ordered character roster through the challenge/accept/match chain so a
-     * multiplayer match can field N fighters per side. v10 exposed summon
-     * planning metadata; v10 clients are rejected by the v11 bump.
+     * Protocol v12 carries explicit target lists for single- and multiple-target
+     * moves and exposes each move's authoritative AOE shape/count and command
+     * targeting metadata. v11 clients are rejected because their singular target
+     * field cannot represent this.
      */
-    public static final int PROTOCOL_VERSION = 11;
+    public static final int PROTOCOL_VERSION = 12;
     public static final String STANDARD_RULESET = "STANDARD";
 
     private ProtocolVersion() {

@@ -11,10 +11,12 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.audio.SoundCue;
+import com.jjktbf.graphics.multiplayer.TargetListSupport;
 import com.jjktbf.graphics.ui.MiraclesMeter;
 import com.jjktbf.graphics.ui.text.KeywordPopupPosition;
 import com.jjktbf.graphics.ui.text.KeywordTextLayout;
 import com.jjktbf.model.character.coded.CodedAbilityState;
+import com.jjktbf.model.character.coded.CursedSpeechAbility;
 import com.jjktbf.model.character.coded.MiraclesAbility;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
@@ -25,11 +27,16 @@ import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.MoveAvailability;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.AoeType;
 import com.jjktbf.multiplayer.protocol.PlanPlacement;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -39,7 +46,11 @@ import java.util.function.Consumer;
  */
 public class PlanningPanel {
 
-    public record TargetOption(String instanceId, String label) { }
+    public record TargetOption(String instanceId, String label, boolean summon) {
+        public TargetOption(String instanceId, String label) {
+            this(instanceId, label, false);
+        }
+    }
 
     private static final float MARGIN = 34f;
     /** Fixed gap between a timeline icon and the left edge of its bar. */
@@ -105,7 +116,8 @@ public class PlanningPanel {
     private BattlePlan.Board draggingBoard;
     private int originalTick;
     private int originalCeCost;
-    private CombatantId originalTarget;
+    private List<CombatantId> originalTargets = List.of();
+    private boolean originalTargetsPending;
     private int draggingTick;
     private boolean snapValid;
     private boolean clickingMoveCard;
@@ -126,6 +138,10 @@ public class PlanningPanel {
     private String lockError;
     private ActionSegment targetMenuSegment;
     private final List<Rectangle> targetOptionBounds = new ArrayList<>();
+    private final Rectangle targetDoneBounds = new Rectangle();
+    private final Map<ActionSegment, List<CombatantId>> targetLists = new IdentityHashMap<>();
+    private final Set<ActionSegment> pendingTargetSelections =
+        Collections.newSetFromMap(new IdentityHashMap<>());
     private Runnable onConfirm = () -> {};
     private Consumer<SoundCue> soundPlayer = cue -> {};
 
@@ -295,11 +311,11 @@ public class PlanningPanel {
     /** Returns server-safe intent without exposing local domain objects. */
     public List<PlanPlacement> getPlacements() {
         return plan.allSegments().stream()
-            .map(segment -> new PlanPlacement(
+            .map(segment -> TargetListSupport.placement(
                 segment.getMove().getId(),
                 segment.getStartTick(),
                 actorId,
-                segment.getTarget() == null ? null : segment.getTarget().value()))
+                getSelectedTargetIds(segment)))
             .toList();
     }
 
@@ -312,13 +328,18 @@ public class PlanningPanel {
     /** Displays an already accepted authoritative plan as immutable. */
     public void lock() {
         cancelActiveDrag();
+        closeTargetMenu();
+        pendingTargetSelections.clear();
         confirmed = true;
     }
 
     private void cancelActiveDrag() {
         if (draggingSegment != null) {
-            selectedSegment = plan.place(
-                draggingSegment.getMove(), originalTick, originalCeCost, originalTarget);
+            selectedSegment = place(
+                draggingSegment.getMove(), originalTick, originalCeCost, originalTargets);
+            if (originalTargetsPending && selectedSegment != null) {
+                pendingTargetSelections.add(selectedSegment);
+            }
         }
         draggingMove = null;
         draggingSegment = null;
@@ -329,27 +350,113 @@ public class PlanningPanel {
         snapValid = false;
         clickingMoveCard = false;
         dragSoundPlayed = false;
-        originalTarget = null;
+        originalTargets = List.of();
+        originalTargetsPending = false;
     }
 
     public boolean chooseTarget(ActionSegment segment, String targetId) {
-        if (segment == null || !segment.needsTarget()) return false;
-        boolean valid = targetOptions.stream().anyMatch(option -> option.instanceId().equals(targetId));
+        if (segment == null || !requiresExplicitTargets(segment.getMove())) return false;
+        boolean valid = eligibleTargetOptions(segment.getMove()).stream()
+            .anyMatch(option -> option.instanceId().equals(targetId));
         if (!valid) return false;
-        segment.setTarget(new CombatantId(targetId));
+
+        CombatantId target = new CombatantId(targetId);
+        if (isMultipleTargetMove(segment.getMove())) {
+            pendingTargetSelections.add(segment);
+            List<CombatantId> selected = new ArrayList<>(targetsOf(segment));
+            if (selected.remove(target)) {
+                setTargets(segment, selected);
+            } else {
+                if (selected.size() >= targetCap(segment.getMove())) return false;
+                selected.add(target);
+                setTargets(segment, selected);
+            }
+        } else {
+            setTargets(segment, List.of(target));
+            closeTargetMenu();
+        }
         lockError = null;
-        closeTargetMenu();
         return true;
     }
 
-    private CombatantId defaultTarget(Move move) {
-        if (!BattlePlan.requiresTarget(move) || targetOptions.isEmpty()) return null;
-        return new CombatantId(targetOptions.get(0).instanceId());
+    public boolean confirmTargetSelection(ActionSegment segment) {
+        if (segment == null || !isMultipleTargetMove(segment.getMove())) return false;
+        int count = targetsOf(segment).size();
+        if (count < 1 || count > targetCap(segment.getMove())) return false;
+        pendingTargetSelections.remove(segment);
+        if (targetMenuSegment == segment) closeTargetMenu();
+        lockError = null;
+        return true;
+    }
+
+    public List<String> getSelectedTargetIds(ActionSegment segment) {
+        return targetsOf(segment).stream().map(CombatantId::value).toList();
+    }
+
+    public int getTargetCap(ActionSegment segment) {
+        return segment == null ? 0 : targetCap(segment.getMove());
+    }
+
+    private List<CombatantId> defaultTargets(Move move) {
+        List<TargetOption> eligible = eligibleTargetOptions(move);
+        if (!requiresExplicitTargets(move) || eligible.isEmpty()) return List.of();
+        if (isMultipleTargetMove(move) && eligible.size() != 1) return List.of();
+        return List.of(new CombatantId(eligible.get(0).instanceId()));
     }
 
     public ActionSegment restorePlacement(Move move, int startTick, int ceCost, String targetId) {
-        return plan.place(move, startTick, ceCost,
-            targetId == null ? null : new CombatantId(targetId));
+        return restorePlacement(move, startTick, ceCost,
+            targetId == null ? List.of() : List.of(targetId));
+    }
+
+    public ActionSegment restorePlacement(
+        Move move,
+        int startTick,
+        int ceCost,
+        List<String> targetIds
+    ) {
+        List<CombatantId> targets = targetIds == null ? List.of() : targetIds.stream()
+            .filter(id -> id != null && !id.isBlank())
+            .map(CombatantId::new)
+            .distinct()
+            .toList();
+        return place(move, startTick, ceCost, targets);
+    }
+
+    private ActionSegment place(Move move, int startTick, int ceCost, List<CombatantId> targets) {
+        ActionSegment segment = plan.place(move, startTick, ceCost);
+        if (segment != null) setTargets(segment, targets);
+        return segment;
+    }
+
+    private ActionSegment placeFirstFit(Move move, int ceCost, List<CombatantId> targets) {
+        ActionSegment segment = plan.placeFirstFit(move, ceCost);
+        if (segment != null) setTargets(segment, targets);
+        return segment;
+    }
+
+    private List<CombatantId> targetsOf(ActionSegment segment) {
+        List<CombatantId> selected = targetLists.get(segment);
+        return selected == null ? TargetListSupport.segmentTargets(segment) : selected;
+    }
+
+    private void setTargets(ActionSegment segment, List<CombatantId> targets) {
+        List<CombatantId> normalized = targets == null ? List.of() :
+            List.copyOf(new LinkedHashSet<>(targets));
+        targetLists.put(segment, normalized);
+        TargetListSupport.setSegmentTargets(segment, normalized);
+    }
+
+    private static boolean isMultipleTargetMove(Move move) {
+        return move != null && move.getAoeType() == AoeType.MULTIPLE;
+    }
+
+    private static boolean requiresExplicitTargets(Move move) {
+        return BattlePlan.requiresTarget(move) || isMultipleTargetMove(move);
+    }
+
+    private static int targetCap(Move move) {
+        return isMultipleTargetMove(move) ? Math.max(1, move.getAoeTargetCount()) : 1;
     }
 
     private static List<TargetOption> targetOptions(List<BattleCombatant> targets) {
@@ -359,7 +466,8 @@ public class PlanningPanel {
             if (target == null || target.getInstanceId() == null || !target.isActive()) continue;
             options.add(new TargetOption(
                 target.getInstanceId().value(),
-                target.getCharacter().getName() + " #" + (target.getRosterOrder() + 1)));
+                target.getCharacter().getName() + " #" + (target.getRosterOrder() + 1),
+                target.isSummon()));
         }
         return List.copyOf(options);
     }
@@ -711,15 +819,36 @@ public class PlanningPanel {
     }
 
     private void drawTargetMenu(Batch batch, BitmapFont font) {
-        if (targetMenuSegment == null || targetOptions.isEmpty()) return;
+        if (targetMenuSegment == null) return;
+        List<TargetOption> eligibleTargets = eligibleTargetOptions(targetMenuSegment.getMove());
+        if (eligibleTargets.isEmpty()) return;
         layoutTargetMenu();
-        for (int i = 0; i < targetOptions.size(); i++) {
+        boolean multiple = isMultipleTargetMove(targetMenuSegment.getMove());
+        List<String> selectedIds = getSelectedTargetIds(targetMenuSegment);
+        for (int i = 0; i < eligibleTargets.size(); i++) {
             Rectangle bounds = targetOptionBounds.get(i);
             boolean hovered = bounds.contains(dragMouseX, dragMouseY);
-            (hovered ? ui.cardOver : ui.card).draw(
+            TargetOption option = eligibleTargets.get(i);
+            boolean selected = selectedIds.contains(option.instanceId());
+            (hovered || selected ? ui.cardOver : ui.card).draw(
                 batch, bounds.x, bounds.y, bounds.width, bounds.height);
             font.setColor(BattleUiAssets.TEXT);
-            font.draw(batch, targetOptions.get(i).label(), bounds.x + 8f, bounds.y + 20f);
+            String prefix = multiple ? (selected ? "[x] " : "[ ] ") : "";
+            font.draw(batch, prefix + option.label(), bounds.x + 8f, bounds.y + 20f);
+        }
+        if (multiple) {
+            int count = selectedIds.size();
+            int cap = targetCap(targetMenuSegment.getMove());
+            font.setColor(BattleUiAssets.YELLOW);
+            font.draw(batch, "SELECT TARGETS  " + count + "/" + cap,
+                targetDoneBounds.x,
+                targetDoneBounds.y + targetDoneBounds.height * (eligibleTargets.size() + 1) + 20f);
+            boolean canFinish = count > 0 && count <= cap;
+            (canFinish && targetDoneBounds.contains(dragMouseX, dragMouseY)
+                ? ui.cardOver : ui.card).draw(batch, targetDoneBounds.x, targetDoneBounds.y,
+                    targetDoneBounds.width, targetDoneBounds.height);
+            font.setColor(canFinish ? BattleUiAssets.TEXT : BattleUiAssets.MUTED);
+            font.draw(batch, "DONE", targetDoneBounds.x + 8f, targetDoneBounds.y + 20f);
         }
     }
 
@@ -732,14 +861,19 @@ public class PlanningPanel {
         float y = selectedView == null
             ? dragMouseY : selectedView.getBounds().y + selectedView.getBounds().height + 4f;
         x = clamp(x, 10f, Math.max(10f, screenWidth - width - 10f));
-        float totalHeight = rowHeight * targetOptions.size();
+        boolean multiple = isMultipleTargetMove(targetMenuSegment.getMove());
+        List<TargetOption> eligibleTargets = eligibleTargetOptions(targetMenuSegment.getMove());
+        float totalHeight = rowHeight * (eligibleTargets.size() + (multiple ? 2 : 0));
         if (y + totalHeight > screenHeight - 10f) {
             y = Math.max(10f, (selectedView == null ? y : selectedView.getBounds().y) - totalHeight - 4f);
         }
-        for (int i = 0; i < targetOptions.size(); i++) {
+        float optionsY = y + (multiple ? rowHeight : 0f);
+        for (int i = 0; i < eligibleTargets.size(); i++) {
             targetOptionBounds.add(new Rectangle(
-                x, y + (targetOptions.size() - i - 1) * rowHeight, width, rowHeight));
+                x, optionsY + (eligibleTargets.size() - i - 1) * rowHeight, width, rowHeight));
         }
+        if (multiple) targetDoneBounds.set(x, y, width, rowHeight);
+        else targetDoneBounds.set(0f, 0f, 0f, 0f);
     }
 
     private ActionSegmentView viewFor(ActionSegment segment) {
@@ -753,11 +887,16 @@ public class PlanningPanel {
     }
 
     private void openTargetMenu(ActionSegment segment) {
-        if (segment == null || !segment.needsTarget() || targetOptions.isEmpty()) return;
-        if (targetOptions.size() == 1) {
-            chooseTarget(segment, targetOptions.get(0).instanceId());
+        if (segment == null || !requiresExplicitTargets(segment.getMove())) return;
+        List<TargetOption> eligibleTargets = eligibleTargetOptions(segment.getMove());
+        if (eligibleTargets.isEmpty()) return;
+        if (eligibleTargets.size() == 1) {
+            setTargets(segment, List.of(new CombatantId(eligibleTargets.get(0).instanceId())));
+            pendingTargetSelections.remove(segment);
+            closeTargetMenu();
             return;
         }
+        if (isMultipleTargetMove(segment.getMove())) pendingTargetSelections.add(segment);
         targetMenuSegment = segment;
         layoutTargetMenu();
     }
@@ -765,20 +904,57 @@ public class PlanningPanel {
     private void closeTargetMenu() {
         targetMenuSegment = null;
         targetOptionBounds.clear();
+        targetDoneBounds.set(0f, 0f, 0f, 0f);
     }
 
     private boolean handleTargetMenuClick() {
         if (targetMenuSegment == null) return false;
         layoutTargetMenu();
+        List<TargetOption> eligibleTargets = eligibleTargetOptions(targetMenuSegment.getMove());
+        if (isMultipleTargetMove(targetMenuSegment.getMove())
+            && targetDoneBounds.contains(dragMouseX, dragMouseY)) {
+            boolean confirmedTargets = confirmTargetSelection(targetMenuSegment);
+            soundPlayer.accept(confirmedTargets ? SoundCue.UI_CONFIRM : SoundCue.UI_DENIED);
+            return true;
+        }
         for (int i = 0; i < targetOptionBounds.size(); i++) {
             if (targetOptionBounds.get(i).contains(dragMouseX, dragMouseY)) {
-                chooseTarget(targetMenuSegment, targetOptions.get(i).instanceId());
-                soundPlayer.accept(SoundCue.UI_CONFIRM);
+                boolean changed = chooseTarget(targetMenuSegment, eligibleTargets.get(i).instanceId());
+                soundPlayer.accept(changed ? SoundCue.UI_CONFIRM : SoundCue.UI_DENIED);
                 return true;
             }
         }
+        if (isMultipleTargetMove(targetMenuSegment.getMove())) return true;
         closeTargetMenu();
         return false;
+    }
+
+    private String targetSelectionError() {
+        for (ActionSegment segment : plan.allSegments()) {
+            int count = targetsOf(segment).size();
+            if (isMultipleTargetMove(segment.getMove())) {
+                if (pendingTargetSelections.contains(segment)) {
+                    return "Finish selecting targets for '" + segment.getMove().getName() + "'";
+                }
+                if (count < 1) {
+                    return "Move '" + segment.getMove().getName() + "' requires at least one target";
+                }
+                if (count > targetCap(segment.getMove())) {
+                    return "Move '" + segment.getMove().getName() + "' has too many targets";
+                }
+            } else if (BattlePlan.requiresTarget(segment.getMove()) && count == 0) {
+                return "Move '" + segment.getMove().getName() + "' requires a target";
+            }
+        }
+        return plan.missingTargetError();
+    }
+
+    private List<TargetOption> eligibleTargetOptions(Move move) {
+        if (!CursedSpeechAbility.RETURN.equalsIgnoreCase(
+            CursedSpeechAbility.commandMode(move))) {
+            return targetOptions;
+        }
+        return targetOptions.stream().filter(TargetOption::summon).toList();
     }
 
     private void drawStat(Batch batch, BitmapFont font, float x, float y, float width, String label,
@@ -908,6 +1084,8 @@ public class PlanningPanel {
             if (button == Buttons.RIGHT) {
                 ActionSegmentView hit = hitSegment();
                 if (hit == null || !plan.remove(hit.getSegment())) return false;
+                targetLists.remove(hit.getSegment());
+                pendingTargetSelections.remove(hit.getSegment());
                 if (selectedSegment == hit.getSegment()) selectedSegment = null;
                 if (targetMenuSegment == hit.getSegment()) closeTargetMenu();
                 hoveredSegment = null;
@@ -932,7 +1110,7 @@ public class PlanningPanel {
             }
 
             if (lockInBounds.contains(dragMouseX, dragMouseY)) {
-                lockError = plan.missingTargetError();
+                lockError = targetSelectionError();
                 if (lockError != null) {
                     soundPlayer.accept(SoundCue.UI_DENIED);
                     return true;
@@ -1024,19 +1202,25 @@ public class PlanningPanel {
             updateSnap();
 
             Move move = draggedMove();
-            CombatantId target = draggingSegment == null ? defaultTarget(move) : originalTarget;
+            boolean newPlacement = draggingSegment == null;
+            List<CombatantId> targets = draggingSegment == null
+                ? defaultTargets(move) : originalTargets;
             boolean droppedOnTimeline = barFor(draggingBoard).getBounds().contains(dragMouseX, dragMouseY);
             ActionSegment placed = isMoveRestricted(move) ? null : clickingMoveCard
-                ? plan.placeFirstFit(move, ceCost(move), target)
+                ? placeFirstFit(move, ceCost(move), targets)
                 : droppedOnTimeline && snapValid
-                    ? plan.place(move, draggingTick, ceCost(move), target) : null;
+                    ? place(move, draggingTick, ceCost(move), targets) : null;
             if (placed != null) {
                 selectedSegment = placed;
+                if (originalTargetsPending) pendingTargetSelections.add(placed);
                 soundPlayer.accept(SoundCue.UI_PLAN_PLACE);
             } else if (droppedOnTimeline && draggingSegment != null) {
                 // A cancelled relocation must never destroy an already planned move.
-                selectedSegment = plan.place(
-                    draggingSegment.getMove(), originalTick, originalCeCost, originalTarget);
+                selectedSegment = place(
+                    draggingSegment.getMove(), originalTick, originalCeCost, originalTargets);
+                if (originalTargetsPending && selectedSegment != null) {
+                    pendingTargetSelections.add(selectedSegment);
+                }
                 soundPlayer.accept(SoundCue.UI_DENIED);
             } else if (!droppedOnTimeline) {
                 selectedSegment = null;
@@ -1046,6 +1230,9 @@ public class PlanningPanel {
                 soundPlayer.accept(SoundCue.UI_DENIED);
             }
             clearDrag();
+            if (placed != null && newPlacement && isMultipleTargetMove(placed.getMove())) {
+                openTargetMenu(placed);
+            }
             return true;
         }
 
@@ -1087,9 +1274,11 @@ public class PlanningPanel {
         private void startMoveDrag(ActionSegment segment, BattlePlan.Board board) {
             originalTick = segment.getStartTick();
             originalCeCost = segment.getActualCeCost();
-            originalTarget = segment.getTarget();
+            originalTargets = targetsOf(segment);
+            originalTargetsPending = pendingTargetSelections.remove(segment);
             closeTargetMenu();
             plan.remove(segment);
+            targetLists.remove(segment);
             draggingSegment = segment;
             draggingMove = null;
             draggingBoard = board;
@@ -1106,6 +1295,7 @@ public class PlanningPanel {
             snapValid = false;
             clickingMoveCard = false;
             dragSoundPlayed = false;
+            originalTargetsPending = false;
             updateHover();
         }
 

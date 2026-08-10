@@ -24,8 +24,10 @@ import com.jjktbf.graphics.ui.RatioMeter;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 import com.jjktbf.graphics.ui.battle.PlanningPanel;
 import com.jjktbf.graphics.ui.battle.TeamPlanningPanel;
+import com.jjktbf.graphics.multiplayer.TargetListSupport;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.coded.CodedAbilityState;
+import com.jjktbf.model.character.coded.CursedSpeechAbility;
 import com.jjktbf.model.character.coded.MiraclesAbility;
 import com.jjktbf.model.character.coded.RatioAbility;
 import com.jjktbf.model.combat.BattleCombatant;
@@ -563,7 +565,7 @@ public class BattleScreen implements Screen, BattleView {
             float y = Gdx.graphics.getHeight() - Gdx.input.getY();
             nextRoundHovered = nextRoundBounds.contains(x, y);
 
-            if (Gdx.input.justTouched() && nextRoundHovered) {
+            if (!nextRoundConfirmed && Gdx.input.justTouched() && nextRoundHovered) {
                 if (mode == BattleMode.MULTIPLAYER) {
                     if (submitReadyNextRound()) {
                         game.audio().play(SoundCue.UI_CONFIRM);
@@ -636,7 +638,7 @@ public class BattleScreen implements Screen, BattleView {
 
     }
 
-    /** Draw one side's shared plate, equal-scale fighters, then its stacked HUDs. */
+    /** Draw one side's shared plate, left-to-right fighters, then its stacked HUDs. */
     private void drawCombatantSide(
         CombatantPanel primaryPanel,
         String primaryName,
@@ -649,11 +651,21 @@ public class BattleScreen implements Screen, BattleView {
         }
 
         primaryPanel.drawPlate(batch);
-        primaryPanel.drawSprite(batch, frameDelta);
-        secondaryPanel.drawSprite(batch, frameDelta);
+        // SpriteBatch composites later draws on top, so the rightmost fighter stays in front.
+        if (primarySpriteDrawsFirst(primaryPanel.spriteCenterX(), secondaryPanel.spriteCenterX())) {
+            primaryPanel.drawSprite(batch, frameDelta);
+            secondaryPanel.drawSprite(batch, frameDelta);
+        } else {
+            secondaryPanel.drawSprite(batch, frameDelta);
+            primaryPanel.drawSprite(batch, frameDelta);
+        }
         primaryPanel.drawHud(batch, assets.fontMedium, assets.fontSmall, primaryName, frameDelta);
         secondaryPanel.drawHud(batch, assets.fontMedium, assets.fontSmall,
             secondaryCombatant.getCharacter().getName(), frameDelta);
+    }
+
+    static boolean primarySpriteDrawsFirst(float primaryCenterX, float secondaryCenterX) {
+        return primaryCenterX <= secondaryCenterX;
     }
 
     /** Draw the selected backdrop without distorting it at different viewport sizes. */
@@ -798,7 +810,8 @@ public class BattleScreen implements Screen, BattleView {
                 nextRoundBounds.width, nextRoundBounds.height);
         }
         assets.fontMedium.setColor(Color.WHITE);
-        String label = mode == BattleMode.MULTIPLAYER && localReadyForNextRound()
+        String label = (mode == BattleMode.LOCAL && nextRoundConfirmed)
+            || (mode == BattleMode.MULTIPLAYER && localReadyForNextRound())
             ? "WAITING..." : "NEXT ROUND";
         GlyphLayout layout = new GlyphLayout(assets.fontMedium, label);
         assets.fontMedium.draw(batch, label,
@@ -1172,6 +1185,8 @@ public class BattleScreen implements Screen, BattleView {
             renderPlayer = combatant;
             renderEnemy  = opponent;
             syncLocalHpFromModel();
+            awaitingNextRound = false;
+            nextRoundHovered = false;
             executionUiActive = true;
             planningPanel = new com.jjktbf.graphics.ui.battle.PlanningPanel(
                 gridLength, combatant, List.of(opponent), assets.battleUi,
@@ -1208,7 +1223,8 @@ public class BattleScreen implements Screen, BattleView {
                 && game.getScreen() == this) {
                 holder.set(planningPanel == null ? null : planningPanel.getPlan());
                 Gdx.input.setInputProcessor(null);
-                planningPanel = null;
+                // Keep the locked planner visible until the next planner or the
+                // resolution UI replaces it, preventing an execution-HUD flash.
             }
             panelClosed.countDown();
         });
@@ -1243,6 +1259,8 @@ public class BattleScreen implements Screen, BattleView {
         inputConfirmed = false;
         postLocal(() -> {
             syncLocalHpFromModel();
+            awaitingNextRound = false;
+            nextRoundHovered = false;
             executionUiActive = true;
             teamPlanningPanel = new TeamPlanningPanel(
                 gridLength,
@@ -1277,7 +1295,8 @@ public class BattleScreen implements Screen, BattleView {
                 && game.getScreen() == this) {
                 holder.set(teamPlanningPanel == null ? null : teamPlanningPanel.getTeamPlan());
                 Gdx.input.setInputProcessor(null);
-                teamPlanningPanel = null;
+                // Keep the locked planner visible until the next planner or the
+                // resolution UI replaces it, preventing an execution-HUD flash.
             }
             panelClosed.countDown();
         });
@@ -1378,6 +1397,8 @@ public class BattleScreen implements Screen, BattleView {
         // fired a move. Move animations continue independently of this pace.
         if (resolvingTicks) {
             abortableSleepMs(TICK_DURATION_MS);
+        } else {
+            postLocal(this::showExecutionUi);
         }
         currentExecutionTick = tick;
         resolvingTicks = true;
@@ -1393,6 +1414,7 @@ public class BattleScreen implements Screen, BattleView {
         }
         resolvingTicks = false;
         postLocal(() -> {
+            showExecutionUi();
             // Re-seed from the model so end-of-round maintenance (poison, max-HP
             // changes, etc.) converges the deferred bars back to the true HP.
             syncLocalHpFromModel();
@@ -1413,10 +1435,8 @@ public class BattleScreen implements Screen, BattleView {
             sleepMs(16);
         }
 
-        postLocal(() -> {
-            awaitingNextRound = false;
-            nextRoundHovered = false;
-        });
+        // Keep the completed round visible until the next planning panel is
+        // ready. Clearing this here exposed the execution HUD for a frame.
     }
 
     @Override
@@ -1582,7 +1602,8 @@ public class BattleScreen implements Screen, BattleView {
             .filter(BattleScreen::isActiveCombatant)
             .map(combatant -> new PlanningPanel.TargetOption(
                 combatant.instanceId(),
-                combatant.name() + " #" + (combatant.rosterOrder() + 1)))
+                combatant.name() + " #" + (combatant.rosterOrder() + 1),
+                "SUMMON".equalsIgnoreCase(combatant.role())))
             .toList();
         List<TeamPlanningPanel.PageSpec> pages = new ArrayList<>();
         for (CharacterState character : local.combatants()) {
@@ -1678,6 +1699,16 @@ public class BattleScreen implements Screen, BattleView {
         if (nonInnateTechnique) {
             prerequisites.put("jujutsuSkill", 0);
         }
+        List<StatusEffect> commandEffects = state.commandMode() == null
+            || state.commandMode().isBlank()
+            ? List.of()
+            : List.of(StatusEffect.coded(
+                CursedSpeechAbility.KEY,
+                CursedSpeechAbility.COMMAND,
+                state.commandMode(),
+                null,
+                Map.of(),
+                null));
 
         Move.Builder builder = new Move.Builder(state.moveId())
             .name(state.name())
@@ -1702,11 +1733,16 @@ public class BattleScreen implements Screen, BattleView {
                 .filter(id -> !id.equals(state.summonCharacterId()))
                 .map(StatusEffect::new)
                 .toList())
+            .onHitEffects(commandEffects)
             .prerequisites(prerequisites)
             .freeMove(true);
+        if (TargetListSupport.moveStateAoeType(state) != null) {
+            builder.aoeType(TargetListSupport.moveStateAoeType(state))
+                .aoeTargetCount(TargetListSupport.moveStateAoeTargetCount(state));
+        }
         if (!state.hitComponents().isEmpty()) {
             builder.hitComponents(state.hitComponents().stream()
-                .map(BattleScreen::toDisplayHitComponent)
+                .map(component -> toDisplayHitComponent(component, commandEffects))
                 .toList());
         }
         if (innateTechnique) {
@@ -1715,7 +1751,10 @@ public class BattleScreen implements Screen, BattleView {
         return builder.build();
     }
 
-    private static HitComponent toDisplayHitComponent(HitComponentState state) {
+    private static HitComponent toDisplayHitComponent(
+        HitComponentState state,
+        List<StatusEffect> onHitEffects
+    ) {
         EnumSet<MoveTag> tags = EnumSet.noneOf(MoveTag.class);
         for (String tagName : state.tags()) {
             try {
@@ -1729,12 +1768,12 @@ public class BattleScreen implements Screen, BattleView {
             return new HitComponent(
                 state.basePower(), tags, state.delayTicks(),
                 state.requiresPreviousConnection(), state.avoidable(),
-                state.baseAccuracy(), null);
+                state.baseAccuracy(), onHitEffects);
         }
         return new HitComponent(
             state.basePower(), MoveCategory.valueOf(state.category()).getTags(),
             state.delayTicks(), state.requiresPreviousConnection(), state.avoidable(),
-            state.baseAccuracy(), null);
+            state.baseAccuracy(), onHitEffects);
     }
 
     private void submitOnlinePlan() {
@@ -2090,6 +2129,14 @@ public class BattleScreen implements Screen, BattleView {
         planningPanel = null;
         teamPlanningPanel = null;
         Gdx.input.setInputProcessor(null);
+    }
+
+    /** Replace a retained locked planner with the execution UI. */
+    private void showExecutionUi() {
+        closePlanningPanel();
+        awaitingNextRound = false;
+        nextRoundHovered = false;
+        executionUiActive = true;
     }
 
     private void leaveMultiplayer() {

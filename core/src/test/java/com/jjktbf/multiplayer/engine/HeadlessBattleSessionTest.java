@@ -12,6 +12,7 @@ import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.ShikigamiCharacter;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
+import com.jjktbf.model.move.AoeType;
 import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
@@ -43,6 +44,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HeadlessBattleSessionTest {
 
+    private static final String PLAYER_ONE_ID = "PLAYER-f1";
+    private static final String PLAYER_TWO_ID = "ENEMY-f1";
+
     private static final Clock FIXED_CLOCK = Clock.fixed(
         Instant.parse("2026-01-02T03:04:05Z"),
         ZoneOffset.UTC
@@ -59,7 +63,7 @@ class HeadlessBattleSessionTest {
 
         CommandResult first = session.applyCommand(
             "player-1",
-            command(session, "command-1", new PlanPlacement(attack.getId(), 1))
+            command(session, "command-1", targeted(attack, 1, PlayerSide.PLAYER_ONE))
         );
 
         assertTrue(first.accepted());
@@ -74,7 +78,7 @@ class HeadlessBattleSessionTest {
 
         CommandResult second = session.applyCommand(
             "player-2",
-            command(session, "command-2", new PlanPlacement(attack.getId(), 1))
+            command(session, "command-2", targeted(attack, 1, PlayerSide.PLAYER_TWO))
         );
 
         assertTrue(second.accepted());
@@ -135,8 +139,8 @@ class HeadlessBattleSessionTest {
         CommandResult result = session.applyCommand(
             "player-1",
             command(session, "over-cap",
-                new PlanPlacement(capped.getId(), 1),
-                new PlanPlacement(capped.getId(), 6)));
+                targeted(capped, 1, PlayerSide.PLAYER_ONE),
+                targeted(capped, 6, PlayerSide.PLAYER_ONE)));
 
         assertFalse(result.accepted());
         assertEquals("MOVE_CAP_REACHED", result.error().code());
@@ -159,7 +163,7 @@ class HeadlessBattleSessionTest {
 
         assertTrue(session.applyCommand(
             "player-1",
-            command(session, "first-plan", new PlanPlacement(playerOneMove.getId(), 1))
+            command(session, "first-plan", targeted(playerOneMove, 1, PlayerSide.PLAYER_ONE))
         ).accepted());
 
         CommandResult repeatedPlan = session.applyCommand(
@@ -176,6 +180,142 @@ class HeadlessBattleSessionTest {
         );
         assertFalse(outsider.accepted());
         assertEquals("PLAYER_NOT_IN_MATCH", outsider.error().code());
+    }
+
+    @Test
+    void singleTargetMovesRequireExactlyOneExplicitActiveEnemy() {
+        Move attack = physicalAttack("EXPLICIT_SINGLE", 10, true);
+        HeadlessBattleSession session = session(120L, attack, attack);
+        MatchState before = session.snapshot();
+
+        CommandResult missing = session.applyCommand("player-1", command(
+            session, "single-missing",
+            new PlanPlacement(attack.getId(), 1, PLAYER_ONE_ID, List.of())));
+        CommandResult excessive = session.applyCommand("player-1", command(
+            session, "single-excessive",
+            new PlanPlacement(attack.getId(), 1, PLAYER_ONE_ID,
+                List.of(PLAYER_TWO_ID, "ENEMY-f2"))));
+        CommandResult allied = session.applyCommand("player-1", command(
+            session, "single-allied",
+            new PlanPlacement(attack.getId(), 1, PLAYER_ONE_ID, List.of(PLAYER_ONE_ID))));
+
+        assertFalse(missing.accepted());
+        assertEquals("INVALID_TARGET", missing.error().code());
+        assertFalse(excessive.accepted());
+        assertEquals("INVALID_TARGET", excessive.error().code());
+        assertFalse(allied.accepted());
+        assertEquals("INVALID_TARGET", allied.error().code());
+        assertEquals(before, session.snapshot());
+
+        CommandResult accepted = session.applyCommand("player-1", command(
+            session, "single-valid",
+            new PlanPlacement(attack.getId(), 1, PLAYER_ONE_ID, List.of(PLAYER_TWO_ID))));
+        assertTrue(accepted.accepted());
+        assertEquals(List.of(PLAYER_TWO_ID), accepted.state()
+            .player(PlayerSide.PLAYER_ONE).orElseThrow().character().plan()
+            .queuedSegments().get(0).targetIds());
+    }
+
+    @Test
+    void singleTargetMovesRejectDefeatedCombatants() {
+        Move knockout = physicalAttack("TARGET_KNOCKOUT", 10_000, true);
+        HeadlessBattleSession session = session(1201L, knockout, knockout);
+        String backupEnemy = session.addFighterForTesting(
+            "player-2", character("character-2b", "Backup Enemy", knockout));
+
+        assertTrue(session.applyCommand("player-1", command(
+            session, "defeat-target",
+            new PlanPlacement(knockout.getId(), 1, PLAYER_ONE_ID,
+                List.of(PLAYER_TWO_ID)))).accepted());
+        assertTrue(session.applyCommand("player-2", ActionCommand.submitPlan(
+            "empty-opponent", "match-1", session.getStateVersion(), List.of())).accepted());
+        long readyVersion = session.getStateVersion();
+        assertTrue(session.applyCommand(
+            "player-1", readyAt("inactive-ready-1", readyVersion)).accepted());
+        assertTrue(session.applyCommand(
+            "player-2", readyAt("inactive-ready-2", readyVersion)).accepted());
+
+        CommandResult defeated = session.applyCommand("player-1", command(
+            session, "defeated-target",
+            new PlanPlacement(knockout.getId(), 1, PLAYER_ONE_ID,
+                List.of(PLAYER_TWO_ID))));
+        assertFalse(defeated.accepted());
+        assertEquals("INVALID_TARGET", defeated.error().code());
+
+        CommandResult active = session.applyCommand("player-1", command(
+            session, "active-target",
+            new PlanPlacement(knockout.getId(), 1, PLAYER_ONE_ID,
+                List.of(backupEnemy))));
+        assertTrue(active.accepted());
+    }
+
+    @Test
+    void multipleTargetMovesValidateAndPreserveExplicitEnemyLists() {
+        Move multiple = multipleAttack("EXPLICIT_MULTIPLE", AoeType.MULTIPLE, 2);
+        HeadlessBattleSession session = session(121L, multiple, multiple);
+        String enemyTwo = session.addFighterForTesting(
+            "player-2", character("character-2b", "Enemy Two", multiple));
+        String enemyThree = session.addFighterForTesting(
+            "player-2", character("character-2c", "Enemy Three", multiple));
+        MatchState before = session.snapshot();
+
+        List<PlanPlacement> invalidPlacements = List.of(
+            new PlanPlacement(multiple.getId(), 1, PLAYER_ONE_ID, List.of()),
+            new PlanPlacement(multiple.getId(), 1, PLAYER_ONE_ID,
+                List.of(PLAYER_TWO_ID, PLAYER_TWO_ID)),
+            new PlanPlacement(multiple.getId(), 1, PLAYER_ONE_ID,
+                List.of(PLAYER_TWO_ID, enemyTwo, enemyThree)),
+            new PlanPlacement(multiple.getId(), 1, PLAYER_ONE_ID, List.of(PLAYER_ONE_ID)),
+            new PlanPlacement(multiple.getId(), 1, PLAYER_ONE_ID, List.of("missing-enemy"))
+        );
+        for (int index = 0; index < invalidPlacements.size(); index++) {
+            CommandResult rejected = session.applyCommand("player-1", command(
+                session, "multiple-invalid-" + index, invalidPlacements.get(index)));
+            assertFalse(rejected.accepted());
+            assertEquals("INVALID_TARGET", rejected.error().code());
+            assertEquals(before, session.snapshot());
+        }
+
+        CommandResult accepted = session.applyCommand("player-1", command(
+            session, "multiple-valid",
+            new PlanPlacement(multiple.getId(), 1, PLAYER_ONE_ID,
+                List.of(enemyTwo, PLAYER_TWO_ID))));
+
+        assertTrue(accepted.accepted());
+        var player = accepted.state().player(PlayerSide.PLAYER_ONE).orElseThrow().character();
+        assertEquals("MULTIPLE", player.knownMoves().get(0).aoeType());
+        assertEquals(2, player.knownMoves().get(0).aoeTargetCount());
+        assertEquals(List.of(enemyTwo, PLAYER_TWO_ID),
+            player.plan().queuedSegments().get(0).targetIds());
+    }
+
+    @Test
+    void derivedAoeAndNoTargetMovesRejectExplicitTargets() {
+        Move allEnemies = multipleAttack("DERIVED_AOE", AoeType.ALL_ENEMIES, 2);
+        HeadlessBattleSession aoeSession = session(122L, allEnemies, allEnemies);
+
+        CommandResult explicitAoe = aoeSession.applyCommand("player-1", command(
+            aoeSession, "derived-explicit",
+            new PlanPlacement(allEnemies.getId(), 1, PLAYER_ONE_ID, List.of(PLAYER_TWO_ID))));
+        assertFalse(explicitAoe.accepted());
+        assertEquals("INVALID_TARGET", explicitAoe.error().code());
+        assertTrue(aoeSession.applyCommand("player-1", command(
+            aoeSession, "derived-empty",
+            new PlanPlacement(allEnemies.getId(), 1, PLAYER_ONE_ID, List.of()))).accepted());
+
+        Move defensive = new Move.Builder("NO_TARGET")
+            .name("No Target")
+            .category(MoveCategory.DEFENSIVE)
+            .apCost(5)
+            .unleashPoint(1)
+            .freeMove(true)
+            .build();
+        HeadlessBattleSession noneSession = session(123L, defensive, defensive);
+        CommandResult explicitNone = noneSession.applyCommand("player-1", command(
+            noneSession, "none-explicit",
+            new PlanPlacement(defensive.getId(), 1, PLAYER_ONE_ID, List.of(PLAYER_TWO_ID))));
+        assertFalse(explicitNone.accepted());
+        assertEquals("INVALID_TARGET", explicitNone.error().code());
     }
 
     @Test
@@ -196,7 +336,7 @@ class HeadlessBattleSessionTest {
         HeadlessBattleSession session = session(13L, attack, attack);
         long activeVersion = session.getStateVersion();
         ActionCommand accepted = command(
-            session, "accepted-command", new PlanPlacement(attack.getId(), 1));
+            session, "accepted-command", targeted(attack, 1, PlayerSide.PLAYER_ONE));
 
         assertTrue(session.applyCommand("player-1", accepted).accepted());
         assertEquals(activeVersion + 1, session.getStateVersion());
@@ -224,11 +364,11 @@ class HeadlessBattleSessionTest {
 
         CommandResult first = session.applyCommand(
             "player-1",
-            commandAt("shared-first", sharedVersion, new PlanPlacement(attack.getId(), 1))
+            commandAt("shared-first", sharedVersion, targeted(attack, 1, PlayerSide.PLAYER_ONE))
         );
         CommandResult second = session.applyCommand(
             "player-2",
-            commandAt("shared-second", sharedVersion, new PlanPlacement(attack.getId(), 1))
+            commandAt("shared-second", sharedVersion, targeted(attack, 1, PlayerSide.PLAYER_TWO))
         );
 
         assertTrue(first.accepted());
@@ -366,7 +506,7 @@ class HeadlessBattleSessionTest {
 
         assertTrue(session.applyCommand(
             "player-1",
-            command(session, "secret-plan", new PlanPlacement(attack.getId(), 7))
+            command(session, "secret-plan", targeted(attack, 7, PlayerSide.PLAYER_ONE))
         ).accepted());
 
         PlayerState ownerView = session.snapshotFor("player-1")
@@ -602,11 +742,11 @@ class HeadlessBattleSessionTest {
 
         CommandResult first = session.applyCommand(
             "player-1",
-            command(session, "version-1", new PlanPlacement(attack.getId(), 1))
+            command(session, "version-1", targeted(attack, 1, PlayerSide.PLAYER_ONE))
         );
         CommandResult second = session.applyCommand(
             "player-2",
-            command(session, "version-2", new PlanPlacement(attack.getId(), 1))
+            command(session, "version-2", targeted(attack, 1, PlayerSide.PLAYER_TWO))
         );
 
         assertEquals(activeVersion + 1, first.state().stateVersion());
@@ -624,7 +764,7 @@ class HeadlessBattleSessionTest {
 
         assertTrue(session.applyCommand(
             "player-1",
-            command(session, "ko-plan", new PlanPlacement(knockout.getId(), 1))
+            command(session, "ko-plan", targeted(knockout, 1, PlayerSide.PLAYER_ONE))
         ).accepted());
         CommandResult result = session.applyCommand(
             "player-2",
@@ -656,7 +796,7 @@ class HeadlessBattleSessionTest {
         HeadlessBattleSession session = session(16L, attack, attack);
         session.applyCommand(
             "player-1",
-            command(session, "json-command", new PlanPlacement(attack.getId(), 7))
+            command(session, "json-command", targeted(attack, 7, PlayerSide.PLAYER_ONE))
         );
 
         ObjectMapper mapper = new ObjectMapper();
@@ -732,7 +872,7 @@ class HeadlessBattleSessionTest {
 
         assertTrue(session.applyCommand(
             "player-1",
-            command(session, "multi-plan", new PlanPlacement(multiHit.getId(), 1)))
+            command(session, "multi-plan", targeted(multiHit, 1, PlayerSide.PLAYER_ONE)))
             .accepted());
         CommandResult result = session.applyCommand(
             "player-2",
@@ -892,10 +1032,12 @@ class HeadlessBattleSessionTest {
         session.setConnected("player-2", true);
 
         assertTrue(session.applyCommand(
-            "player-1", command(session, "round-end-1", new PlanPlacement(attack.getId(), 1)))
+            "player-1", command(session, "round-end-1",
+                targeted(attack, 1, PlayerSide.PLAYER_ONE)))
             .accepted());
         CommandResult result = session.applyCommand(
-            "player-2", command(session, "round-end-2", new PlanPlacement(attack.getId(), 1)));
+            "player-2", command(session, "round-end-2",
+                targeted(attack, 1, PlayerSide.PLAYER_TWO)));
 
         assertTrue(result.accepted());
         assertEquals(MatchStatus.ENDED, result.state().status());
@@ -916,11 +1058,13 @@ class HeadlessBattleSessionTest {
     ) {
         assertTrue(session.applyCommand(
             "player-1",
-            command(session, "command-1" + commandSuffix, new PlanPlacement(first.getId(), 1))
+            command(session, "command-1" + commandSuffix,
+                targeted(first, 1, PlayerSide.PLAYER_ONE))
         ).accepted());
         assertTrue(session.applyCommand(
             "player-2",
-            command(session, "command-2" + commandSuffix, new PlanPlacement(second.getId(), 1))
+            command(session, "command-2" + commandSuffix,
+                targeted(second, 1, PlayerSide.PLAYER_TWO))
         ).accepted());
     }
 
@@ -983,6 +1127,28 @@ class HeadlessBattleSessionTest {
             .cursedEnergyEfficiency(160)
             .build();
         return new SorcererCharacter(id, name, stats, null, List.of(move));
+    }
+
+    private static PlanPlacement targeted(Move move, int tick, PlayerSide actorSide) {
+        String actorId = actorSide == PlayerSide.PLAYER_ONE ? PLAYER_ONE_ID : PLAYER_TWO_ID;
+        String targetId = actorSide == PlayerSide.PLAYER_ONE ? PLAYER_TWO_ID : PLAYER_ONE_ID;
+        return new PlanPlacement(move.getId(), tick, actorId, List.of(targetId));
+    }
+
+    private static Move multipleAttack(String id, AoeType aoeType, int targetCount) {
+        return new Move.Builder(id)
+            .name(id)
+            .description("A test AOE attack.")
+            .category(MoveCategory.PHYSICAL)
+            .tags(Set.of(MoveTag.PHYSICAL, MoveTag.ATTACK, MoveTag.AOE))
+            .basePower(10)
+            .neverMiss(true)
+            .apCost(5)
+            .unleashPoint(1)
+            .aoeType(aoeType)
+            .aoeTargetCount(targetCount)
+            .freeMove(true)
+            .build();
     }
 
     private static Move physicalAttack(String id, int power, boolean neverMiss) {

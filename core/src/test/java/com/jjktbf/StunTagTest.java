@@ -85,8 +85,10 @@ public class StunTagTest {
             .findFirst().orElse(null);
         assertNotNull(stunEvent, "A MOVE_STUNNED event should be emitted.");
         assertEquals("Defender", stunEvent.getTarget().getCharacter().getName());
-        assertTrue(stunEvent.getMessage().contains("was stunned and could not move"),
+        assertEquals("Attacker's Stun Strike stunned Defender, who could not move.",
+            stunEvent.getMessage(),
             "Unexpected stun message: " + stunEvent.getMessage());
+        assertEquals("Attacker", stunEvent.getSource().getCharacter().getName());
 
         // The attacker's move fired; the defender's move did NOT fire.
         boolean attackerFired = events.stream()

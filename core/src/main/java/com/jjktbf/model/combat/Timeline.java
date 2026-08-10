@@ -75,18 +75,29 @@ public class Timeline {
      *         (out of bounds or overlapping).
      */
     public ActionSegment placeAt(Move move, int startTick, int actualCeCost) {
-        return placeAt(move, startTick, actualCeCost, null);
+        return placeAtWithTargets(move, startTick, actualCeCost, List.of());
     }
 
     /** Target-aware placement; stamps {@code target} onto the created segment. */
     public ActionSegment placeAt(Move move, int startTick, int actualCeCost, CombatantId target) {
+        return placeAtWithTargets(move, startTick, actualCeCost,
+            target == null ? List.of() : List.of(target));
+    }
+
+    /** Target-list-aware placement; preserves the player's explicit order. */
+    public ActionSegment placeAtWithTargets(
+        Move move,
+        int startTick,
+        int actualCeCost,
+        List<CombatantId> targets
+    ) {
         long endTickLong = (long) startTick + move.getApCost() - 1L;
         long fireTick = (long) startTick + move.getUnleashPoint() - 1L;
         long finalImpactTick = fireTick + move.getMaxHitDelayTicks();
         if (startTick < 1 || endTickLong > gridLength || finalImpactTick > gridLength) return null;
         int endTick = (int) endTickLong;
         if (!isRangeFree(startTick, endTick)) return null;
-        ActionSegment segment = new ActionSegment(move, startTick, actualCeCost, target);
+        ActionSegment segment = new ActionSegment(move, startTick, actualCeCost, targets);
         segments.add(segment);
         return segment;
     }
@@ -96,22 +107,32 @@ public class Timeline {
      * Returns {@code null} if no gap large enough exists.
      */
     public ActionSegment placeAtFirstFit(Move move, int actualCeCost) {
-        return placeAtFirstFit(move, actualCeCost, null);
+        return placeAtFirstFitWithTargets(move, actualCeCost, List.of());
     }
 
     /** Target-aware first-fit placement. */
     public ActionSegment placeAtFirstFit(Move move, int actualCeCost, CombatantId target) {
+        return placeAtFirstFitWithTargets(move, actualCeCost,
+            target == null ? List.of() : List.of(target));
+    }
+
+    /** Target-list-aware first-fit placement. */
+    public ActionSegment placeAtFirstFitWithTargets(
+        Move move,
+        int actualCeCost,
+        List<CombatantId> targets
+    ) {
         int need = move.getApCost();
         int cursor = 1;
         for (ActionSegment s : sortedByStart()) {
             int gap = s.getStartTick() - cursor;
             if (gap >= need) {
-                return placeAt(move, cursor, actualCeCost, target);
+                return placeAtWithTargets(move, cursor, actualCeCost, targets);
             }
             cursor = Math.max(cursor, s.getEndTick() + 1);
         }
         if (gridLength - cursor + 1 >= need) {
-            return placeAt(move, cursor, actualCeCost, target);
+            return placeAtWithTargets(move, cursor, actualCeCost, targets);
         }
         return null;
     }

@@ -275,8 +275,10 @@ are the Move/MoveData field names.
                           ALL_OTHERS. Drives MoveTargeting (NONE / SINGLE_ENEMY /
                           MULTIPLE_ENEMIES / ALL_ENEMIES / ALL_OTHERS). AOE bypasses
                           dodge (snapshot taken at fire time; later summons excluded).
-    aoeTargetCount        MULTIPLE only — number of targets hit (min 2). Others/allies
-                          excluded; targets auto-selected in roster order.
+    aoeTargetCount        MULTIPLE only — maximum selected enemies hit (min 2).
+                          Planning requires 1..N distinct active enemies. Invalid
+                          targets are refilled in stable roster order at fire time,
+                          but never beyond the number originally selected.
 
   Learning / gating
     prerequisites         Map<stat name → minimum value>. All must be met to
@@ -955,11 +957,17 @@ Non-stat control status:
     the affected character's active, not-yet-fired action segments. This is a
     character status, not the STUN move tag, so HEAVY does not resist it.
 
+  SLEEP
+    Must use rounds > 0 with 0 ticks. When an affected combatant reaches an
+    action's fire tick, that action fails and the battle log names the attempted
+    move. Damage wakes the combatant immediately and allows later actions;
+    otherwise SLEEP expires at the end of the current round.
+
   POISON
     Must use rounds > 0 with 0 ticks, or be permanent. Magnitude stores flat
     damage per round for future poison resolution.
 
-Total: 17 stat pairs plus STAGGER and POISON = 36 constants.
+Total: 17 stat pairs plus STAGGER, SLEEP, and POISON = 37 constants.
 
 Legacy aliases (StatusEffectType.fromName resolves these; "signed" names can mean
 either direction depending on the stored magnitude's sign):

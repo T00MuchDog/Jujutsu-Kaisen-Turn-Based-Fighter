@@ -1,6 +1,7 @@
 package com.jjktbf.multiplayer.engine;
 
 import com.jjktbf.model.character.Character;
+import com.jjktbf.model.character.coded.CursedSpeechAbility;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCharacterLookup;
 import com.jjktbf.model.combat.BattleCombatant;
@@ -476,39 +477,68 @@ public final class HeadlessBattleSession {
                 );
             }
 
-            CombatantId targetId = null;
+            List<CombatantId> targetIds = new ArrayList<>();
             MoveTargeting targeting = MoveTargeting.forMove(move);
-            if (targeting.requiresSelectedTarget()) {
-                BattleCombatant target;
-                if (placement.targetId() == null) {
-                    List<BattleCombatant> activeEnemies = battleState.activeEnemiesOf(actor);
-                    if (activeActors.size() != 1 || activeEnemies.size() != 1) {
-                        return rejectPlacement(
-                            commandId,
-                            INVALID_TARGET,
-                            "Hostile single-target move must identify an active opposing target.",
-                            index,
-                            move.getId()
-                        );
-                    }
-                    target = activeEnemies.get(0);
-                } else {
-                    if (placement.targetId().isBlank()) {
-                        return rejectPlacement(
-                            commandId,
-                            INVALID_TARGET,
-                            "Placement target ID cannot be blank.",
-                            index,
-                            move.getId()
-                        );
-                    }
-                    target = battleState.combatant(new CombatantId(placement.targetId()));
+            int minimumTargets;
+            int maximumTargets;
+            switch (targeting) {
+                case SINGLE_ENEMY -> {
+                    minimumTargets = 1;
+                    maximumTargets = 1;
                 }
+                case MULTIPLE_ENEMIES -> {
+                    minimumTargets = 1;
+                    maximumTargets = move.getAoeTargetCount();
+                }
+                default -> {
+                    minimumTargets = 0;
+                    maximumTargets = 0;
+                }
+            }
+            List<String> requestedTargetIds = placement.targetIds();
+            if (requestedTargetIds.size() < minimumTargets
+                || requestedTargetIds.size() > maximumTargets) {
+                String message = switch (targeting) {
+                    case SINGLE_ENEMY -> "Hostile single-target move must identify exactly one target.";
+                    case MULTIPLE_ENEMIES -> "Multiple-target move must identify between 1 and "
+                        + move.getAoeTargetCount() + " targets.";
+                    default -> "This move must not select targets; the server derives its affected set.";
+                };
+                return rejectPlacement(
+                    commandId,
+                    INVALID_TARGET,
+                    message,
+                    index,
+                    move.getId()
+                );
+            }
+            Set<String> uniqueTargetIds = new LinkedHashSet<>();
+            for (String requestedTargetId : requestedTargetIds) {
+                if (isBlank(requestedTargetId)) {
+                    return rejectPlacement(
+                        commandId,
+                        INVALID_TARGET,
+                        "Placement target IDs cannot be blank.",
+                        index,
+                        move.getId()
+                    );
+                }
+                if (!uniqueTargetIds.add(requestedTargetId)) {
+                    return rejectPlacement(
+                        commandId,
+                        INVALID_TARGET,
+                        "Placement target IDs must not contain duplicates.",
+                        index,
+                        move.getId()
+                    );
+                }
+                BattleCombatant target = battleState.combatant(new CombatantId(requestedTargetId));
                 if (target == null
                     || !target.isActive()
                     || target.getTeamId() == null
                     || participant.teamId.equals(target.getTeamId())
-                    || battleState.teamOf(target) == null) {
+                    || battleState.teamOf(target) == null
+                    || !CursedSpeechAbility.canTarget(move, target)) {
                     return rejectPlacement(
                         commandId,
                         INVALID_TARGET,
@@ -517,15 +547,7 @@ public final class HeadlessBattleSession {
                         move.getId()
                     );
                 }
-                targetId = target.getInstanceId();
-            } else if (placement.targetId() != null) {
-                return rejectPlacement(
-                    commandId,
-                    INVALID_TARGET,
-                    "This move must not select a target; the server derives its affected set.",
-                    index,
-                    move.getId()
-                );
+                targetIds.add(target.getInstanceId());
             }
 
             int ceCost = actor.computeMoveCeCost(move);
@@ -584,8 +606,7 @@ public final class HeadlessBattleSession {
             ActionSegment segment = canonicalPlan.place(
                 move,
                 placement.startTick(),
-                ceCost,
-                targetId
+                ceCost
             );
             if (segment == null) {
                 return rejectPlacement(
@@ -596,12 +617,14 @@ public final class HeadlessBattleSession {
                     move.getId()
                 );
             }
+            assignSegmentTargets(segment, targetIds);
             List<SegmentRuntime> actorSegments = canonicalSegments.get(actor.getInstanceId());
             actorSegments.add(new SegmentRuntime(
                 segmentId(actor.getInstanceId(), actorSegments.size()),
                 actor.getInstanceId(),
                 segment,
-                board
+                board,
+                targetIds
             ));
         }
 
@@ -992,7 +1015,10 @@ public final class HeadlessBattleSession {
             }
             for (int index = 0; index < plannedOrder.size(); index++) {
                 SegmentRuntime segment = byPlannedSegment.get(plannedOrder.get(index));
-                if (segment != null) segment.executionSegment = executionOrder.get(index);
+                if (segment != null) {
+                    segment.executionSegment = executionOrder.get(index);
+                    assignSegmentTargets(segment.executionSegment, segment.targetIds);
+                }
             }
             attachedPlans.put(actor.getInstanceId(), plan);
             attachedSegments.put(actor.getInstanceId(), List.copyOf(segments));
@@ -1182,7 +1208,10 @@ public final class HeadlessBattleSession {
             !isMoveRestricted(combatant, move),
             moveRestrictionReason(combatant, move),
             move.getSummonCharacterId(),
-            MoveAvailability.summonedDefinitionIds(move)
+            MoveAvailability.summonedDefinitionIds(move),
+            move.getAoeType() == null ? null : move.getAoeType().name(),
+            move.getAoeTargetCount(),
+            CursedSpeechAbility.commandMode(move)
         );
     }
 
@@ -1246,7 +1275,7 @@ public final class HeadlessBattleSession {
             segment.status,
             segment.resolvedTick,
             segment.actorId.value(),
-            planned.getTarget() == null ? null : planned.getTarget().value()
+            segment.targetIds.stream().map(CombatantId::value).toList()
         );
     }
 
@@ -1586,6 +1615,38 @@ public final class HeadlessBattleSession {
         return value == null || value.isBlank();
     }
 
+    /**
+     * Bridges the in-flight ActionSegment target migration without coupling this
+     * transport workstream to either version of that class.
+     */
+    private static void assignSegmentTargets(
+        ActionSegment segment,
+        List<CombatantId> targetIds
+    ) {
+        List<CombatantId> immutableTargets = List.copyOf(targetIds);
+        try {
+            segment.getClass().getMethod("setTargets", List.class)
+                .invoke(segment, immutableTargets);
+            return;
+        } catch (NoSuchMethodException ignored) {
+            // Fall through to the pre-v12 singular API while the core migration lands.
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Could not assign action segment targets", exception);
+        }
+
+        // The old core cannot retain MULTIPLE intent. SegmentRuntime still does,
+        // and the list setter above becomes authoritative once that migration lands.
+        if (immutableTargets.size() > 1) return;
+        try {
+            segment.getClass().getMethod("setTarget", CombatantId.class)
+                .invoke(segment, immutableTargets.isEmpty() ? null : immutableTargets.get(0));
+        } catch (NoSuchMethodException exception) {
+            throw new IllegalStateException("ActionSegment exposes no target setter", exception);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Could not assign action segment target", exception);
+        }
+    }
+
     private static MatchParticipant participantAt(List<MatchParticipant> participants, int index) {
         if (participants == null || participants.size() != 2) {
             throw new IllegalArgumentException("A match requires exactly two participants");
@@ -1627,6 +1688,7 @@ public final class HeadlessBattleSession {
         private final CombatantId actorId;
         private final ActionSegment plannedSegment;
         private final BattlePlan.Board board;
+        private final List<CombatantId> targetIds;
         private ActionSegment executionSegment;
         private ActionSegmentStatus status = ActionSegmentStatus.QUEUED;
         private Integer resolvedTick;
@@ -1635,12 +1697,14 @@ public final class HeadlessBattleSession {
             String segmentId,
             CombatantId actorId,
             ActionSegment plannedSegment,
-            BattlePlan.Board board
+            BattlePlan.Board board,
+            List<CombatantId> targetIds
         ) {
             this.segmentId = segmentId;
             this.actorId = actorId;
             this.plannedSegment = plannedSegment;
             this.board = board;
+            this.targetIds = List.copyOf(targetIds);
         }
     }
 }

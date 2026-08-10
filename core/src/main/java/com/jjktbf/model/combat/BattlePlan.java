@@ -118,7 +118,7 @@ public class BattlePlan {
      *         (wrong board, out of bounds, overlapping, or over budget).
      */
     public ActionSegment place(Move move, int tick, int ceCost) {
-        return place(move, tick, ceCost, null);
+        return placeWithTargets(move, tick, ceCost, List.of());
     }
 
     /**
@@ -128,10 +128,21 @@ public class BattlePlan {
      * used to reject locking/submission when a required target is absent.
      */
     public ActionSegment place(Move move, int tick, int ceCost, CombatantId target) {
+        return placeWithTargets(move, tick, ceCost,
+            target == null ? List.of() : List.of(target));
+    }
+
+    /** Target-list-aware placement. */
+    public ActionSegment placeWithTargets(
+        Move move,
+        int tick,
+        int ceCost,
+        List<CombatantId> targets
+    ) {
         if (!canPlace(move, ceCost)) return null;
         Board board = boardFor(move);
         Timeline tl = boardTimeline(board);
-        ActionSegment segment = tl.placeAt(move, tick, ceCost, target);
+        ActionSegment segment = tl.placeAtWithTargets(move, tick, ceCost, targets);
         if (segment == null) return null;
         apUsed += move.getApCost();
         ceUsed += ceCost;
@@ -140,14 +151,24 @@ public class BattlePlan {
 
     /** Place at the first free range on the move's board that fits it. */
     public ActionSegment placeFirstFit(Move move, int ceCost) {
-        return placeFirstFit(move, ceCost, null);
+        return placeFirstFitWithTargets(move, ceCost, List.of());
     }
 
     /** Target-aware first-fit placement. */
     public ActionSegment placeFirstFit(Move move, int ceCost, CombatantId target) {
+        return placeFirstFitWithTargets(move, ceCost,
+            target == null ? List.of() : List.of(target));
+    }
+
+    /** Target-list-aware first-fit placement. */
+    public ActionSegment placeFirstFitWithTargets(
+        Move move,
+        int ceCost,
+        List<CombatantId> targets
+    ) {
         if (!canPlace(move, ceCost)) return null;
         Timeline tl = boardTimeline(boardFor(move));
-        ActionSegment segment = tl.placeAtFirstFit(move, ceCost, target);
+        ActionSegment segment = tl.placeAtFirstFitWithTargets(move, ceCost, targets);
         if (segment == null) return null;
         apUsed += move.getApCost();
         ceUsed += ceCost;
@@ -160,7 +181,7 @@ public class BattlePlan {
      * AOE, and summon-only moves do not.
      */
     public static boolean requiresTarget(Move move) {
-        return MoveTargeting.forMove(move).requiresSelectedTarget();
+        return MoveTargeting.forMove(move).requiresSelectedTargets();
     }
 
     /**
@@ -170,8 +191,15 @@ public class BattlePlan {
      */
     public String missingTargetError() {
         for (ActionSegment s : allSegments()) {
-            if (requiresTarget(s.getMove()) && s.getTarget() == null) {
-                return "Move '" + s.getMove().getName() + "' requires a target";
+            MoveTargeting targeting = MoveTargeting.forMove(s.getMove());
+            int count = s.getTargets().size();
+            if (targeting == MoveTargeting.SINGLE_ENEMY && count != 1) {
+                return "Move '" + s.getMove().getName() + "' requires exactly one target";
+            }
+            if (targeting == MoveTargeting.MULTIPLE_ENEMIES
+                && (count < 1 || count > s.getMove().getAoeTargetCount())) {
+                return "Move '" + s.getMove().getName() + "' requires between 1 and "
+                    + s.getMove().getAoeTargetCount() + " targets";
             }
         }
         return null;
@@ -242,7 +270,7 @@ public class BattlePlan {
         // never make it into the merged timeline and never fire.
         for (ActionSegment s : allSegments()) {
             merged.addSegment(new ActionSegment(
-                s.getMove(), s.getStartTick(), s.getActualCeCost(), s.getTarget()));
+                s.getMove(), s.getStartTick(), s.getActualCeCost(), s.getTargets()));
         }
         return merged;
     }

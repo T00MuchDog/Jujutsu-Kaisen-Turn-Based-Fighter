@@ -5,6 +5,7 @@ import com.jjktbf.multiplayer.protocol.HitComponentState;
 import com.jjktbf.multiplayer.protocol.MoveState;
 import com.jjktbf.multiplayer.protocol.PlanBoard;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Assumptions;
 
 import java.util.List;
 
@@ -131,8 +132,8 @@ class MultiplayerPlanDraftTest {
 
         assertEquals(0, draft.lastStartTick(delayed));
         assertEquals(MultiplayerPlanDraft.AddStatus.BOARD_FULL,
-            draft.addFirstFit(delayed).status());
-        assertFalse(draft.canAdd(delayed));
+            draft.addFirstFit(delayed, null, List.of("enemy")).status());
+        assertFalse(draft.canAdd(delayed, List.of("enemy")));
     }
 
     @Test
@@ -167,6 +168,52 @@ class MultiplayerPlanDraftTest {
         assertTrue(topTier.addFirstFit(dot).added());
     }
 
+    @Test
+    void multipleTargetIntentRequiresDistinctTargetsWithinServerDeclaredCap() {
+        MultiplayerPlanDraft draft = new MultiplayerPlanDraft();
+        draft.beginRound(1, 20, 0);
+        MoveState multiple = multipleMove("cursed-speech", 3);
+        Assumptions.assumeTrue(multiple != null, "requires MoveState AOE protocol fields");
+
+        assertFalse(draft.canAdd(multiple));
+        assertEquals(MultiplayerPlanDraft.AddStatus.INVALID_TARGET_SELECTION,
+            draft.addFirstFit(multiple).status());
+        assertEquals(MultiplayerPlanDraft.AddStatus.INVALID_TARGET_SELECTION,
+            draft.addFirstFit(multiple, "actor-1", List.of("one", "one")).status());
+        assertEquals(MultiplayerPlanDraft.AddStatus.INVALID_TARGET_SELECTION,
+            draft.addFirstFit(multiple, "actor-1", List.of("one", "two", "three", "four"))
+                .status());
+
+        assertTrue(draft.canAdd(multiple, List.of("three", "one")));
+        MultiplayerPlanDraft.AddResult result = draft.addFirstFit(
+            multiple, "actor-1", List.of("three", "one"));
+        assertTrue(result.added());
+        assertEquals("actor-1", result.placement().actorId());
+        assertEquals(List.of("three", "one"), result.placement().targetIds());
+        assertEquals(List.of("three", "one"),
+            TargetListSupport.targetIds(draft.toIntent().get(0)));
+    }
+
+    @Test
+    void targetValidationMatchesServerTargetingShapes() {
+        MultiplayerPlanDraft draft = new MultiplayerPlanDraft();
+        draft.beginRound(1, 40, 0);
+        MoveState single = targetedMove("single", List.of("ATTACK", "PHYSICAL"), null, 0);
+
+        assertFalse(draft.canAdd(single));
+        assertFalse(draft.canAdd(single, List.of("one", "two")));
+        assertTrue(draft.canAdd(single, List.of("one")));
+
+        MoveState derived = targetedMove(
+            "all", List.of("ATTACK", "AOE", "PHYSICAL"), "ALL_ENEMIES", 0);
+        assertTrue(draft.canAdd(derived));
+        assertFalse(draft.canAdd(derived, List.of("one")));
+
+        MoveState utility = targetedMove("utility", List.of("UTILITY"), null, 0);
+        assertTrue(draft.canAdd(utility));
+        assertFalse(draft.canAdd(utility, List.of("one")));
+    }
+
     private static MoveState move(String id, PlanBoard board, int apCost, int ceCost) {
         return move(id, board, apCost, ceCost, true);
     }
@@ -198,5 +245,37 @@ class MultiplayerPlanDraftTest {
             available,
             available ? null : "Restricted for test"
         );
+    }
+
+    private static MoveState multipleMove(String id, int targetCount) {
+        try {
+            return MoveState.class.getConstructor(
+                String.class, String.class, String.class, String.class, List.class,
+                PlanBoard.class, int.class, List.class, double.class, boolean.class,
+                int.class, int.class, boolean.class, int.class, int.class, int.class,
+                int.class, int.class, boolean.class, String.class, String.class,
+                List.class, String.class, int.class)
+                .newInstance(
+                    id, id, "Multiple targets", "PHYSICAL",
+                    List.of("ATTACK", "AOE", "PHYSICAL"), PlanBoard.OFFENSIVE,
+                    10, List.of(), 1.0, true, 5, 1, false, 0, 0, 0, 0, 0,
+                    true, null, null, List.of(), "MULTIPLE", targetCount);
+        } catch (NoSuchMethodException ignored) {
+            return null;
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
+
+    private static MoveState targetedMove(
+        String id,
+        List<String> tags,
+        String aoeType,
+        int targetCount
+    ) {
+        return new MoveState(
+            id, id, "Targeted move", "PHYSICAL", tags, PlanBoard.OFFENSIVE,
+            10, List.of(), 1.0, true, 5, 1, false, 0, 0, 0, 0, 0,
+            true, null, null, List.of(), aoeType, targetCount);
     }
 }

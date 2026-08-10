@@ -6,6 +6,7 @@ import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.ShikigamiCharacter;
 import com.jjktbf.model.character.SorcererCharacter;
+import com.jjktbf.model.character.coded.CursedSpeechAbility;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
@@ -14,14 +15,17 @@ import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.SeededRandomSource;
 import com.jjktbf.model.combat.TeamBattlePlan;
 import com.jjktbf.model.move.HitComponent;
+import com.jjktbf.model.move.AoeType;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveTag;
+import com.jjktbf.model.move.StatusEffect;
 import com.jjktbf.view.BattleView;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -92,6 +96,34 @@ class TeamBattleControllerTest {
             a.get(stateA.playerTeam().active().get(0).getInstanceId()).allSegments().get(0).getTarget(),
             b.get(stateB.playerTeam().active().get(0).getInstanceId()).allSegments().get(0).getTarget(),
             "same seed picks the same target");
+    }
+
+    @Test
+    void aiReturnTargetsOnlyActiveSummons() {
+        Move returnCommand = cursedSpeechReturn();
+        BattleCombatant ai = fighter("AI", List.of(returnCommand));
+        BattleCombatant enemy = fighter("ENEMY");
+        BattleState state = new BattleState(
+            BattleState.teamOfFighters(BattleTeamId.PLAYER, List.of(ai)),
+            BattleState.teamOfFighters(BattleTeamId.ENEMY, List.of(enemy)));
+        Character summonDefinition = new ShikigamiCharacter(
+            "SUMMON", "Summon", new CharacterStats.Builder().vitality(50).build(),
+            null, List.of());
+        assertTrue(state.enqueueSummon(enemy, summonDefinition.getId()));
+        BattleCombatant summon = state.drainPendingSummons(
+            id -> java.util.Optional.of(summonDefinition)).get(0);
+
+        AIStrategy strategy = (actor, opponent, rng) -> {
+            BattlePlan plan = new BattlePlan(actor.getMaxApBar(), actor.getCurrentCe(), 60);
+            plan.place(returnCommand, 1, 0);
+            return plan;
+        };
+
+        BattlePlan plan = strategy.selectTeamPlan(
+            state, state.playerTeam().active(), new SeededRandomSource(2L))
+            .get(ai.getInstanceId());
+
+        assertEquals(List.of(summon.getInstanceId()), plan.allSegments().get(0).getTargets());
     }
 
     @Test
@@ -240,10 +272,41 @@ class TeamBattleControllerTest {
     }
 
     private static BattleCombatant fighter(String name) {
+        return fighter(name, List.of());
+    }
+
+    private static BattleCombatant fighter(String name, List<Move> moves) {
         CharacterStats stats = new CharacterStats.Builder().vitality(300).speed(100).build();
         SorcererCharacter c = new SorcererCharacter(
-            name.toLowerCase(), name, stats, null, List.of(), List.of(), false);
+            name.toLowerCase(), name, stats,
+            moves.isEmpty() ? null : "Cursed Speech", moves, List.of(), false);
         return new BattleCombatant(c, List.of());
+    }
+
+    private static Move cursedSpeechReturn() {
+        StatusEffect command = StatusEffect.coded(
+            CursedSpeechAbility.KEY,
+            CursedSpeechAbility.COMMAND,
+            CursedSpeechAbility.RETURN,
+            null,
+            Map.of(
+                CursedSpeechAbility.BASE_CHANCE_PERCENT, 95,
+                CursedSpeechAbility.BASE_RECOIL, 0),
+            null);
+        return new Move.Builder("RETURN")
+            .name("Return")
+            .category(MoveCategory.INNATE_TECHNIQUE)
+            .tags(Set.of(MoveTag.INNATE_TECHNIQUE, MoveTag.CURSED_ENERGY,
+                MoveTag.ATTACK, MoveTag.RANGED, MoveTag.AOE))
+            .neverMiss(true)
+            .apCost(1)
+            .unleashPoint(1)
+            .aoeType(AoeType.MULTIPLE)
+            .aoeTargetCount(3)
+            .requiredTechniqueId("Cursed Speech")
+            .prerequisites(Map.of("cursedTechniqueMastery", 0))
+            .onHitEffects(List.of(command))
+            .build();
     }
 
     private static Move physicalAttack(String id) {
