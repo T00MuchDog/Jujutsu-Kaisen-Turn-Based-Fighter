@@ -18,6 +18,7 @@ import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.character.coded.NewShadowStyleAbility;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveData;
+import com.jjktbf.model.move.MoveEffectData;
 import com.jjktbf.model.technique.InnateTechniqueData;
 import com.jjktbf.model.technique.SkillTreeNodeData;
 import com.jjktbf.model.technique.TechniqueSkillTree;
@@ -160,7 +161,7 @@ public final class ContentCatalog {
 
         Map<String, Move> movesById = new LinkedHashMap<>();
         Map<String, MoveData> moveDataById = new LinkedHashMap<>();
-        Map<String, List<MoveData.StatusEffectData>> codedEffectsByMoveId =
+        Map<String, List<MoveEffectData>> codedEffectsByMoveId =
             new LinkedHashMap<>();
         for (MoveData definition : moveDefinitions) {
             if (definition == null) {
@@ -168,12 +169,13 @@ public final class ContentCatalog {
             }
             requireIdentifier(definition.id, "move ID");
             requireText(definition.name, "move name for " + definition.id);
+            definition.migrateLegacyEffects();
             // Coded bindings now live on effect rows (self or on-hit), not on the
             // move. Validate every coded effect row against the registry allow-list.
             // Keep these rows because legacy on-hit migration clears the DTO field.
-            List<MoveData.StatusEffectData> codedEffects = codedEffectRows(definition);
+            List<MoveEffectData> codedEffects = codedEffectRows(definition);
             codedEffectsByMoveId.put(definition.id, codedEffects);
-            for (MoveData.StatusEffectData effect : codedEffects) {
+            for (MoveEffectData effect : codedEffects) {
                 if (!CodedAbilityRegistry.supportsEffect(
                     effect.codedAbilityKey,
                     effect.codedAction,
@@ -194,13 +196,23 @@ public final class ContentCatalog {
             }
         }
         for (MoveData definition : moveDefinitions) {
-            for (MoveData.StatusEffectData effect : codedEffectsByMoveId.get(definition.id)) {
+            for (MoveEffectData effect : codedEffectsByMoveId.get(definition.id)) {
                 if (NewShadowStyleAbility.KEY.equalsIgnoreCase(effect.codedAbilityKey)
                     && NewShadowStyleAbility.ACTIVATE_SIMPLE_DOMAIN.equalsIgnoreCase(effect.codedAction)
                     && !NewShadowStyleAbility.isValidReactionMove(
                         movesById.get(effect.codedTarget))) {
                     throw invalid(MOVES_RESOURCE, "Simple Domain move " + definition.id
                         + " must reference a physical, reinforced, stunning melee SWORD move");
+                }
+            }
+            for (MoveEffectData effect : definition.effects == null
+                ? List.<MoveEffectData>of() : definition.effects) {
+                if (effect == null) continue;
+                String missingMove = missingConditionMove(
+                    effect.condition, movesById.keySet());
+                if (missingMove != null) {
+                    throw invalid(MOVES_RESOURCE, "move " + definition.id
+                        + " effect condition references unknown move " + missingMove);
                 }
             }
         }
@@ -363,12 +375,23 @@ public final class ContentCatalog {
         Map<String, ? extends Character> charactersById
     ) {
         for (MoveData definition : moves == null ? List.<MoveData>of() : moves) {
-            if (definition == null || definition.summonCharacterId == null
-                || definition.summonCharacterId.isBlank()) {
-                continue;
+            if (definition == null) continue;
+            if (definition.summonCharacterId != null
+                && !definition.summonCharacterId.isBlank()) {
+                verifySummonReference(definition.summonCharacterId, charactersById,
+                    MOVES_RESOURCE, "move " + definition.id);
             }
-            verifySummonReference(definition.summonCharacterId, charactersById,
-                MOVES_RESOURCE, "move " + definition.id);
+            if (definition.effects == null) continue;
+            for (com.jjktbf.model.move.MoveEffectData effect : definition.effects) {
+                if (effect == null || !AbilityEffectType.SUMMON_CHARACTER.name()
+                    .equalsIgnoreCase(effect.type)) continue;
+                if (effect.characterId == null || effect.characterId.isBlank()) {
+                    throw invalid(MOVES_RESOURCE,
+                        "move " + definition.id + " has no summon target");
+                }
+                verifySummonReference(effect.characterId, charactersById,
+                    MOVES_RESOURCE, "move " + definition.id);
+            }
         }
         for (AbilityData definition : abilities == null ? List.<AbilityData>of() : abilities) {
             if (definition == null || definition.effects == null) continue;
@@ -468,35 +491,13 @@ public final class ContentCatalog {
     }
 
     /** The coded effect rows carried by a move, validated against the ability registry. */
-    private static List<MoveData.StatusEffectData> codedEffectRows(MoveData move) {
-        List<MoveData.StatusEffectData> rows = new ArrayList<>();
-        addCodedEffects(rows, move.selfEffects);
-        addCodedEffects(rows, move.onHitEffects);
-        addCodedEffects(rows, move.onBlockEffects);
-        addCodedEffects(rows, move.onParryEffects);
-        addCodedEffects(rows, move.onDodgeEffects);
-        if (move.hitComponents != null) {
-            for (MoveData.HitComponentData component : move.hitComponents) {
-                if (component != null) {
-                    addCodedEffects(rows, component.onHitEffects);
-                }
-            }
-        }
-        return rows;
-    }
-
-    private static void addCodedEffects(
-        List<MoveData.StatusEffectData> rows,
-        List<MoveData.StatusEffectData> effects
-    ) {
-        if (effects == null) {
-            return;
-        }
-        for (MoveData.StatusEffectData effect : effects) {
-            if (effect != null && effect.isCoded()) {
-                rows.add(effect);
-            }
-        }
+    private static List<MoveEffectData> codedEffectRows(MoveData move) {
+        if (move.effects == null) return List.of();
+        return move.effects.stream()
+            .filter(Objects::nonNull)
+            .filter(effect -> AbilityEffectType.CODED_MOVE_ACTION.name()
+                .equalsIgnoreCase(effect.type))
+            .toList();
     }
 
     private static void requireIdentifier(String value, String field) {

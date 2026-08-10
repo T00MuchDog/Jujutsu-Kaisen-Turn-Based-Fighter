@@ -385,8 +385,29 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (moves == null || characterId == null) return null;
         return moves.stream()
             .filter(java.util.Objects::nonNull)
-            .filter(move -> characterId.equals(move.summonCharacterId))
+            .filter(move -> moveSummonsCharacter(move, characterId))
             .findFirst().orElse(null);
+    }
+
+    private static boolean moveSummonsCharacter(MoveData move, String characterId) {
+        if (move == null || characterId == null) return false;
+        if (characterId.equals(move.summonCharacterId)) return true;
+        if (move.effects != null && move.effects.stream()
+            .filter(java.util.Objects::nonNull)
+            .anyMatch(effect -> characterId.equals(effect.characterId))) return true;
+        java.util.List<MoveData.StatusEffectData> legacy = new java.util.ArrayList<>();
+        if (move.selfEffects != null) legacy.addAll(move.selfEffects);
+        if (move.onHitEffects != null) legacy.addAll(move.onHitEffects);
+        if (move.onBlockEffects != null) legacy.addAll(move.onBlockEffects);
+        if (move.onParryEffects != null) legacy.addAll(move.onParryEffects);
+        if (move.onDodgeEffects != null) legacy.addAll(move.onDodgeEffects);
+        if (move.hitComponents != null) {
+            move.hitComponents.stream().filter(java.util.Objects::nonNull)
+                .filter(component -> component.onHitEffects != null)
+                .forEach(component -> legacy.addAll(component.onHitEffects));
+        }
+        return legacy.stream().filter(java.util.Objects::nonNull)
+            .anyMatch(effect -> characterId.equals(effect.summonCharacterId));
     }
 
     static AbilityData firstAbilitySummoningCharacter(
@@ -410,14 +431,48 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (moves == null || remappedIds == null || remappedIds.isEmpty()) return false;
         boolean changed = false;
         for (MoveData move : moves) {
-            if (move == null || move.summonCharacterId == null) continue;
+            if (move == null) continue;
             String remapped = remappedIds.get(move.summonCharacterId);
             if (remapped != null && !remapped.equals(move.summonCharacterId)) {
                 move.summonCharacterId = remapped;
                 changed = true;
             }
+            if (move.effects != null) {
+                for (com.jjktbf.model.move.MoveEffectData effect : move.effects) {
+                    if (effect == null || effect.characterId == null) continue;
+                    remapped = remappedIds.get(effect.characterId);
+                    if (remapped != null && !remapped.equals(effect.characterId)) {
+                        effect.characterId = remapped;
+                        changed = true;
+                    }
+                }
+            }
+            for (MoveData.StatusEffectData effect : legacyMoveEffects(move)) {
+                if (effect == null || effect.summonCharacterId == null) continue;
+                remapped = remappedIds.get(effect.summonCharacterId);
+                if (remapped != null && !remapped.equals(effect.summonCharacterId)) {
+                    effect.summonCharacterId = remapped;
+                    changed = true;
+                }
+            }
         }
         return changed;
+    }
+
+    private static List<MoveData.StatusEffectData> legacyMoveEffects(MoveData move) {
+        if (move == null) return List.of();
+        List<MoveData.StatusEffectData> effects = new java.util.ArrayList<>();
+        if (move.selfEffects != null) effects.addAll(move.selfEffects);
+        if (move.onHitEffects != null) effects.addAll(move.onHitEffects);
+        if (move.onBlockEffects != null) effects.addAll(move.onBlockEffects);
+        if (move.onParryEffects != null) effects.addAll(move.onParryEffects);
+        if (move.onDodgeEffects != null) effects.addAll(move.onDodgeEffects);
+        if (move.hitComponents != null) {
+            move.hitComponents.stream().filter(java.util.Objects::nonNull)
+                .filter(component -> component.onHitEffects != null)
+                .forEach(component -> effects.addAll(component.onHitEffects));
+        }
+        return effects;
     }
 
     /** Remap {@code AbilityEffectData.characterId} after character resequencing. */

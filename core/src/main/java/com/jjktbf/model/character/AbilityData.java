@@ -145,7 +145,7 @@ public class AbilityData {
     }
 
     /** Assign deterministic IDs only to rows that do not already have one. */
-    public static boolean ensureEffectIds(List<AbilityEffectData> effects) {
+    public static boolean ensureEffectIds(List<? extends AbilityEffectData> effects) {
         if (effects == null) return false;
         boolean changed = false;
         Set<String> used = new HashSet<>();

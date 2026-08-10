@@ -3,6 +3,10 @@ package com.jjktbf.model.move;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.jjktbf.model.character.AbilityData;
+import com.jjktbf.model.character.AbilityEffectTarget;
+import com.jjktbf.model.character.AbilityEffectType;
+import com.jjktbf.model.character.coded.CursedSpeechAbility;
 import com.jjktbf.model.progression.TechniqueMasteryProgressionData;
 import com.jjktbf.model.progression.TechniqueMasteryProgressions;
 
@@ -120,6 +124,13 @@ public class MoveData {
     /** Status effects applied to the defender when a DODGE avoids a hit. */
     public List<StatusEffectData> onDodgeEffects;
 
+    /**
+     * Canonical mutable composition of shared effect primitives. Each row owns
+     * its move trigger, target, optional extra condition, and optional chance.
+     * A non-null list is authoritative over the legacy attachment fields above.
+     */
+    public List<MoveEffectData> effects;
+
     /** Prerequisite stats: {"strength": 80, "speed": 60, ...} */
     public Map<String, Integer> prerequisites;
 
@@ -161,7 +172,8 @@ public class MoveData {
 
     /**
      * Editor-only grouping flag. True places this record under Shikigami in the
-     * Move Editor; null or false places it under Sorcerer. It has no runtime effect.
+     * Move Editor, taking precedence over cursed-technique grouping. It has no
+     * runtime effect.
      */
     public Boolean shikigamiMove;
 
@@ -433,6 +445,15 @@ public class MoveData {
             .aoeType(AoeType.fromName(aoeType))
             .aoeTargetCount(aoeTargetCount >= 2 ? aoeTargetCount : 2);
 
+        if (effects != null) {
+            java.util.ArrayList<MoveEffectData> copiedEffects = effects.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(MoveEffectData::copy)
+                .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+            AbilityData.ensureEffectIds(copiedEffects);
+            b.effects(copiedEffects);
+        }
+
         if (!rawTags.isEmpty()) b.tags(rawTags);
         if (hitComponents != null && !hitComponents.isEmpty()) {
             // Legacy migration: on-hit effects used to live on the move itself.
@@ -509,20 +530,29 @@ public class MoveData {
 
     private void validateProgressionEligibility(Set<MoveTag> rawTags) {
         if (rawTags.contains(MoveTag.INNATE_TECHNIQUE)) return;
-        List<StatusEffectData> effects = new java.util.ArrayList<>();
-        if (onHitEffects != null) effects.addAll(onHitEffects);
-        if (selfEffects != null) effects.addAll(selfEffects);
-        if (onBlockEffects != null) effects.addAll(onBlockEffects);
-        if (onParryEffects != null) effects.addAll(onParryEffects);
-        if (onDodgeEffects != null) effects.addAll(onDodgeEffects);
+        List<StatusEffectData> legacyEffects = new java.util.ArrayList<>();
+        if (onHitEffects != null) legacyEffects.addAll(onHitEffects);
+        if (selfEffects != null) legacyEffects.addAll(selfEffects);
+        if (onBlockEffects != null) legacyEffects.addAll(onBlockEffects);
+        if (onParryEffects != null) legacyEffects.addAll(onParryEffects);
+        if (onDodgeEffects != null) legacyEffects.addAll(onDodgeEffects);
         if (hitComponents != null) {
             for (HitComponentData component : hitComponents) {
                 if (component != null && component.onHitEffects != null) {
-                    effects.addAll(component.onHitEffects);
+                    legacyEffects.addAll(component.onHitEffects);
                 }
             }
         }
-        boolean hasProgression = effects.stream()
+        if (this.effects != null) {
+            boolean hasUnifiedProgression = this.effects.stream()
+                .filter(java.util.Objects::nonNull)
+                .anyMatch(MoveData::hasMasteryProgression);
+            if (hasUnifiedProgression) {
+                throw new IllegalArgumentException(
+                    "Only INNATE_TECHNIQUE moves may use mastery progression.");
+            }
+        }
+        boolean hasProgression = legacyEffects.stream()
             .filter(java.util.Objects::nonNull)
             .anyMatch(effect -> effect.masteryProgression != null
                 && !effect.masteryProgression.isEmpty());
@@ -530,6 +560,24 @@ public class MoveData {
             throw new IllegalArgumentException(
                 "Only INNATE_TECHNIQUE moves may use mastery progression.");
         }
+    }
+
+    private static boolean hasMasteryProgression(MoveEffectData effect) {
+        if (effect.masteryProgression != null && !effect.masteryProgression.isEmpty()) return true;
+        if (effect.activationMasteryProgression != null
+            && !effect.activationMasteryProgression.isEmpty()) return true;
+        return hasMasteryProgression(effect.condition);
+    }
+
+    private static boolean hasMasteryProgression(
+        com.jjktbf.model.character.AbilityConditionData condition
+    ) {
+        if (condition == null) return false;
+        if (condition.masteryProgression != null && !condition.masteryProgression.isEmpty()) {
+            return true;
+        }
+        return condition.children != null
+            && condition.children.stream().anyMatch(MoveData::hasMasteryProgression);
     }
 
     private static List<StatusEffect> toStatusEffects(List<StatusEffectData> dtos) {
@@ -716,22 +764,185 @@ public class MoveData {
         d.prerequisites       = move.getPrerequisites().isEmpty() ? null
                                     : new java.util.LinkedHashMap<>(move.getPrerequisites());
 
-        // Positive-power on-hit effects are serialized per HitComponent. A
-        // zero-power attack keeps its synthetic component in the legacy
-        // move-level shape populated above.
-        if (!move.getSelfEffects().isEmpty()) {
-            d.selfEffects = move.getSelfEffects().stream().map(MoveData::toEffectData).toList();
-        }
-        if (!move.getOnBlockEffects().isEmpty()) {
-            d.onBlockEffects = move.getOnBlockEffects().stream().map(MoveData::toEffectData).toList();
-        }
-        if (!move.getOnParryEffects().isEmpty()) {
-            d.onParryEffects = move.getOnParryEffects().stream().map(MoveData::toEffectData).toList();
-        }
-        if (!move.getOnDodgeEffects().isEmpty()) {
-            d.onDodgeEffects = move.getOnDodgeEffects().stream().map(MoveData::toEffectData).toList();
+        if (move.usesUnifiedEffects()) {
+            d.effects = move.getEffects().stream().map(MoveEffectData::copy).toList();
+            d.summonCharacterId = null;
+            d.onHitEffects = null;
+            d.selfEffects = null;
+            d.onBlockEffects = null;
+            d.onParryEffects = null;
+            d.onDodgeEffects = null;
+            if (d.hitComponents != null) {
+                d.hitComponents.forEach(component -> component.onHitEffects = null);
+            }
+        } else {
+            // Positive-power on-hit effects are serialized per HitComponent. A
+            // zero-power attack keeps its synthetic component in the legacy
+            // move-level shape populated above.
+            if (!move.getSelfEffects().isEmpty()) {
+                d.selfEffects = move.getSelfEffects().stream().map(MoveData::toEffectData).toList();
+            }
+            if (!move.getOnBlockEffects().isEmpty()) {
+                d.onBlockEffects = move.getOnBlockEffects().stream().map(MoveData::toEffectData).toList();
+            }
+            if (!move.getOnParryEffects().isEmpty()) {
+                d.onParryEffects = move.getOnParryEffects().stream().map(MoveData::toEffectData).toList();
+            }
+            if (!move.getOnDodgeEffects().isEmpty()) {
+                d.onDodgeEffects = move.getOnDodgeEffects().stream().map(MoveData::toEffectData).toList();
+            }
         }
         return d;
+    }
+
+    /**
+     * Convert legacy status/coded/summon attachment fields into the canonical
+     * shared effect list. This mutates an editor draft, never repository data.
+     */
+    @JsonIgnore
+    public boolean migrateLegacyEffects() {
+        if (effects != null) {
+            AbilityData.ensureEffectIds(effects);
+            return false;
+        }
+        java.util.ArrayList<MoveEffectData> migrated = new java.util.ArrayList<>();
+        if (summonCharacterId != null && !summonCharacterId.isBlank()) {
+            MoveEffectData summon = AbilityEffectType.SUMMON_CHARACTER.createDefaultMoveEffect();
+            summon.trigger = MoveEffectTrigger.ON_FIRE.name();
+            summon.characterId = summonCharacterId;
+            migrated.add(summon);
+        }
+        migrateEffects(selfEffects, MoveEffectTrigger.ON_FIRE, null,
+            AbilityEffectTarget.SELF, migrated);
+        migrateEffects(onBlockEffects, MoveEffectTrigger.ON_BLOCK, null,
+            AbilityEffectTarget.SELF, migrated);
+        migrateEffects(onParryEffects, MoveEffectTrigger.ON_PARRY, null,
+            AbilityEffectTarget.SELF, migrated);
+        migrateEffects(onDodgeEffects, MoveEffectTrigger.ON_DODGE, null,
+            AbilityEffectTarget.SELF, migrated);
+        if (hitComponents == null || hitComponents.isEmpty()) {
+            migrateEffects(onHitEffects, MoveEffectTrigger.ON_HIT, null,
+                AbilityEffectTarget.ENEMY, migrated);
+        } else {
+            for (int index = 0; index < hitComponents.size(); index++) {
+                HitComponentData component = hitComponents.get(index);
+                if (component != null) {
+                    List<StatusEffectData> source = component.onHitEffects == null
+                        || component.onHitEffects.isEmpty()
+                            ? onHitEffects : component.onHitEffects;
+                    migrateEffects(source, MoveEffectTrigger.ON_HIT, index,
+                        AbilityEffectTarget.ENEMY, migrated);
+                    component.onHitEffects = null;
+                }
+            }
+        }
+        effects = migrated;
+        AbilityData.ensureEffectIds(effects);
+        summonCharacterId = null;
+        onHitEffects = null;
+        selfEffects = null;
+        onBlockEffects = null;
+        onParryEffects = null;
+        onDodgeEffects = null;
+        return !migrated.isEmpty();
+    }
+
+    private static void migrateEffects(
+        List<StatusEffectData> legacy,
+        MoveEffectTrigger trigger,
+        Integer hitComponentIndex,
+        AbilityEffectTarget target,
+        List<MoveEffectData> destination
+    ) {
+        if (legacy == null) return;
+        for (StatusEffectData source : legacy) {
+            if (source == null) continue;
+            MoveEffectData effect;
+            if (source.isSummon()) {
+                effect = AbilityEffectType.SUMMON_CHARACTER.createDefaultMoveEffect();
+                effect.characterId = source.summonCharacterId;
+            } else if (source.isCoded()) {
+                effect = AbilityEffectType.CODED_MOVE_ACTION.createDefaultMoveEffect();
+                effect.codedAbilityKey = source.codedAbilityKey;
+                effect.codedAction = source.codedAction;
+                effect.codedTarget = source.codedTarget;
+                effect.codedStackCount = source.codedStackCount;
+                effect.codedParameters = TechniqueMasteryProgressions.copyIntegers(
+                    source.codedParameters);
+                effect.masteryProgression = TechniqueMasteryProgressions.copy(
+                    source.masteryProgression);
+                effect.target = target.name();
+                if (com.jjktbf.model.character.coded.RatioAbility.CREATE_STACKS
+                    .equalsIgnoreCase(source.codedTarget)) {
+                    effect.target = AbilityEffectTarget.ENEMY.name();
+                }
+            } else if (source.type != null && !source.type.isBlank()) {
+                effect = AbilityEffectType.APPLY_STATUS.createDefaultMoveEffect();
+                effect.stringValue = source.type;
+                effect.target = target.name();
+                effect.durationRounds = source.durationRounds;
+                effect.durationTicks = source.durationTicks;
+                effect.magnitude = source.magnitude;
+                effect.masteryProgression = TechniqueMasteryProgressions.copy(
+                    source.masteryProgression);
+            } else {
+                continue;
+            }
+            if (com.jjktbf.model.character.coded.CodedAbilityRegistry
+                .executesBeforeHit(effect)) {
+                effect.trigger = MoveEffectTrigger.ON_HIT.name();
+                effect.hitComponentIndex = trigger == MoveEffectTrigger.ON_HIT
+                    ? hitComponentIndex : null;
+                effect.target = AbilityEffectTarget.ENEMY.name();
+            } else {
+                effect.trigger = trigger.name();
+                effect.hitComponentIndex = hitComponentIndex;
+            }
+            destination.add(effect);
+            migrateCursedSpeechOutcome(effect, destination);
+        }
+    }
+
+    /** One-time data migration from the former all-in-one command action. */
+    private static void migrateCursedSpeechOutcome(
+        MoveEffectData command,
+        List<MoveEffectData> destination
+    ) {
+        if (!AbilityEffectType.CODED_MOVE_ACTION.name().equals(command.type)
+            || !CursedSpeechAbility.KEY.equalsIgnoreCase(command.codedAbilityKey)
+            || !CursedSpeechAbility.COMMAND.equalsIgnoreCase(command.codedAction)) {
+            return;
+        }
+        MoveEffectData outcome = switch (String.valueOf(command.codedTarget).toUpperCase()) {
+            case CursedSpeechAbility.DONT_MOVE -> statusOutcome(StatusEffectType.STAGGER, 0, 6);
+            case CursedSpeechAbility.BLAST_AWAY -> statusOutcome(StatusEffectType.STAGGER, 0, 3);
+            case CursedSpeechAbility.SLEEP -> statusOutcome(StatusEffectType.SLEEP, 1, 0);
+            case CursedSpeechAbility.PLUMMET -> statusOutcome(StatusEffectType.STAGGER, 0, 4);
+            case CursedSpeechAbility.RETURN ->
+                AbilityEffectType.DESUMMON_TARGET_SHIKIGAMI.createDefaultMoveEffect();
+            case CursedSpeechAbility.DIE ->
+                AbilityEffectType.INSTANT_KILL.createDefaultMoveEffect();
+            default -> null;
+        };
+        if (outcome == null) return;
+        outcome.trigger = command.trigger;
+        outcome.hitComponentIndex = command.hitComponentIndex;
+        outcome.target = AbilityEffectTarget.ENEMY.name();
+        destination.add(outcome);
+    }
+
+    private static MoveEffectData statusOutcome(
+        StatusEffectType type,
+        int rounds,
+        int ticks
+    ) {
+        MoveEffectData effect = AbilityEffectType.APPLY_STATUS.createDefaultMoveEffect();
+        effect.stringValue = type.name();
+        effect.target = AbilityEffectTarget.ENEMY.name();
+        effect.durationRounds = rounds;
+        effect.durationTicks = ticks;
+        effect.magnitude = 0.0;
+        return effect;
     }
 
     /**

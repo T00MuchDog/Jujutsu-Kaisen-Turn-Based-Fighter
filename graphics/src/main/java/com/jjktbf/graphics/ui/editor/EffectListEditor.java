@@ -25,6 +25,9 @@ import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.CharacterType;
 import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
+import com.jjktbf.model.character.coded.CursedSpeechAbility;
+import com.jjktbf.model.character.coded.NewShadowStyleAbility;
+import com.jjktbf.model.character.coded.RatioAbility;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffectType;
@@ -60,6 +63,8 @@ public class EffectListEditor extends Table {
     private final Container<Actor> listContainer;
     private final boolean masteryEligible;
     private final boolean passiveAbility;
+    private final List<AbilityEffectType> availableTypes;
+    private final boolean moveEffectEditor;
 
     public EffectListEditor(
         List<AbilityEffectData> effects,
@@ -74,6 +79,28 @@ public class EffectListEditor extends Table {
         boolean passiveAbility,
         Skin skin
     ) {
+        this(effects, moves, abilities, techniques, characters, onDirty,
+            requestRebuild, soundPlayer, masteryEligible, passiveAbility,
+            java.util.Arrays.stream(AbilityEffectType.values())
+                .filter(type -> !type.isMoveOnly())
+                .toList(), false, skin);
+    }
+
+    public EffectListEditor(
+        List<AbilityEffectData> effects,
+        List<MoveData> moves,
+        List<AbilityData> abilities,
+        List<InnateTechniqueData> techniques,
+        List<CharacterData> characters,
+        Runnable onDirty,
+        Runnable requestRebuild,
+        Consumer<SoundCue> soundPlayer,
+        boolean masteryEligible,
+        boolean passiveAbility,
+        List<AbilityEffectType> availableTypes,
+        boolean moveEffectEditor,
+        Skin skin
+    ) {
         super(skin);
         this.skin = skin;
         this.effects = effects == null ? new ArrayList<>() : effects;
@@ -86,6 +113,9 @@ public class EffectListEditor extends Table {
         this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
         this.masteryEligible = masteryEligible;
         this.passiveAbility = passiveAbility;
+        this.availableTypes = availableTypes == null || availableTypes.isEmpty()
+            ? List.of(AbilityEffectType.APPLY_STATUS) : List.copyOf(availableTypes);
+        this.moveEffectEditor = moveEffectEditor;
 
         listContainer = new Container<>();
         listContainer.fill(true, false);
@@ -142,7 +172,7 @@ public class EffectListEditor extends Table {
     private void openEditor(int index) {
         boolean adding = index < 0;
         AbilityEffectData working = adding
-            ? AbilityEffectType.STAT_ADD.createDefault()
+            ? availableTypes.get(0).createDefault()
             : effects.get(index).copy();
         AbilityEffectType initialType = safeType(working.type);
         initialType.prepare(working);
@@ -314,6 +344,37 @@ public class EffectListEditor extends Table {
             }
         }
 
+        if (type.uses(AbilityEffectParameter.CODED_ACTION)) {
+            List<CodedAbilityRegistry.EffectAction> actions =
+                CodedAbilityRegistry.effectActions();
+            CodedAbilityRegistry.EffectAction selected = codedAction(effect);
+            SelectBox<String> actionBox = new DynamicSelectBox<>(skin);
+            actionBox.setItems(actions.stream()
+                .map(CodedAbilityRegistry.EffectAction::label)
+                .toArray(String[]::new));
+            actionBox.setSelected(selected.label());
+            effect.codedAbilityKey = selected.key();
+            effect.codedAction = selected.action();
+            CodedAbilityRegistry.prepareMoveEffect(effect);
+            actionBox.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    CodedAbilityRegistry.EffectAction action = actions.stream()
+                        .filter(candidate -> candidate.label().equals(actionBox.getSelected()))
+                        .findFirst().orElse(actions.get(0));
+                    effect.codedAbilityKey = action.key();
+                    effect.codedAction = action.action();
+                    effect.codedTarget = null;
+                    effect.codedStackCount = null;
+                    effect.codedParameters = null;
+                    effect.masteryProgression = null;
+                    CodedAbilityRegistry.prepareMoveEffect(effect);
+                    refreshFields.run();
+                }
+            });
+            addRow(fields, "Coded effect", actionBox);
+            addCodedMoveActionFields(fields, effect, refreshFields);
+        }
+
         if (type.uses(AbilityEffectParameter.STAT)) {
             SelectBox<String> statBox = new DynamicSelectBox<>(skin);
             statBox.setItems(statLabels());
@@ -468,15 +529,19 @@ public class EffectListEditor extends Table {
 
         if (type.uses(AbilityEffectParameter.TARGET)) {
             SelectBox<String> targetBox = new DynamicSelectBox<>(skin);
-            targetBox.setItems(
-                AbilityEffectTarget.SELF.name(),
-                AbilityEffectTarget.ENEMY.name(),
-                AbilityEffectTarget.BOTH.name());
-            targetBox.setSelected(effect.target);
-            effect.target = targetBox.getSelected();
+            String self = moveEffectEditor ? "Move user" : AbilityEffectTarget.SELF.name();
+            String enemy = moveEffectEditor ? "Move target" : AbilityEffectTarget.ENEMY.name();
+            String both = moveEffectEditor ? "User and target" : AbilityEffectTarget.BOTH.name();
+            targetBox.setItems(self, enemy, both);
+            targetBox.setSelected(switch (safeTarget(effect.target)) {
+                case SELF -> self;
+                case ENEMY -> enemy;
+                case BOTH -> both;
+            });
+            effect.target = targetFromLabel(targetBox.getSelected()).name();
             targetBox.addListener(new ChangeListener() {
                 @Override public void changed(ChangeEvent event, Actor actor) {
-                    effect.target = targetBox.getSelected();
+                    effect.target = targetFromLabel(targetBox.getSelected()).name();
                 }
             });
             addRow(fields, "Target", targetBox);
@@ -604,6 +669,103 @@ public class EffectListEditor extends Table {
         fields.add(editor).colspan(2).growX().row();
     }
 
+    private void addCodedMoveActionFields(
+        Table fields,
+        AbilityEffectData effect,
+        Runnable refreshFields
+    ) {
+        if (RatioAbility.KEY.equalsIgnoreCase(effect.codedAbilityKey)) {
+            SelectBox<String> target = new DynamicSelectBox<>(skin);
+            String apply = "Apply to this hit";
+            String create = "Create Ratio stacks";
+            target.setItems(apply, create);
+            target.setSelected(RatioAbility.CREATE_STACKS.equalsIgnoreCase(effect.codedTarget)
+                ? create : apply);
+            target.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    effect.codedTarget = create.equals(target.getSelected())
+                        ? RatioAbility.CREATE_STACKS : RatioAbility.APPLY_TO_MOVE;
+                    effect.codedStackCount = RatioAbility.CREATE_STACKS.equals(effect.codedTarget)
+                        ? effect.codedStackCount == null ? 1 : effect.codedStackCount
+                        : null;
+                    effect.codedParameters = null;
+                    effect.masteryProgression = null;
+                    CodedAbilityRegistry.prepareMoveEffect(effect);
+                    refreshFields.run();
+                }
+            });
+            addRow(fields, "Mode", target);
+            if (RatioAbility.CREATE_STACKS.equalsIgnoreCase(effect.codedTarget)) {
+                TextField stacks = integerField(
+                    effect.codedStackCount == null ? 1 : effect.codedStackCount);
+                stacks.addListener(new ChangeListener() {
+                    @Override public void changed(ChangeEvent event, Actor actor) {
+                        effect.codedStackCount = parseInteger(stacks.getText());
+                    }
+                });
+                addRow(fields, "Stacks to create", stacks);
+                addMasteryProgression(fields, effect,
+                    TechniqueMasteryProgressions.CODED_STACK_COUNT,
+                    () -> effect.codedStackCount == null ? 1 : effect.codedStackCount);
+            }
+        } else if (CursedSpeechAbility.KEY.equalsIgnoreCase(effect.codedAbilityKey)) {
+            SelectBox<String> mode = new DynamicSelectBox<>(skin);
+            mode.setItems(CursedSpeechAbility.commandModes().toArray(new String[0]));
+            mode.setSelected(CursedSpeechAbility.supportsTarget(effect.codedTarget, null)
+                ? effect.codedTarget : CursedSpeechAbility.DONT_MOVE);
+            effect.codedTarget = mode.getSelected();
+            mode.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    effect.codedTarget = mode.getSelected();
+                    effect.codedParameters = null;
+                    CodedAbilityRegistry.prepareMoveEffect(effect);
+                    refreshFields.run();
+                }
+            });
+            addRow(fields, "Command mode", mode);
+        } else if (NewShadowStyleAbility.KEY.equalsIgnoreCase(effect.codedAbilityKey)) {
+            List<MoveData> candidates = moves.stream()
+                .filter(EffectListEditor::isSimpleDomainReactionMove)
+                .toList();
+            SelectBox<String> reaction = new DynamicSelectBox<>(skin);
+            reaction.setItems(candidates.stream().map(EffectListEditor::moveLabel)
+                .toArray(String[]::new));
+            if (!candidates.isEmpty()) {
+                String selected = candidates.stream()
+                    .filter(move -> java.util.Objects.equals(move.id, effect.codedTarget))
+                    .map(EffectListEditor::moveLabel)
+                    .findFirst().orElse(moveLabel(candidates.get(0)));
+                reaction.setSelected(selected);
+                effect.codedTarget = moveIdFromLabel(selected);
+                reaction.addListener(new ChangeListener() {
+                    @Override public void changed(ChangeEvent event, Actor actor) {
+                        effect.codedTarget = moveIdFromLabel(reaction.getSelected());
+                    }
+                });
+            }
+            addRow(fields, "Reaction move", reaction);
+        }
+
+        effect.codedParameters = CodedAbilityRegistry.prepareEffectParameters(
+            effect.codedParameters, effect.codedAbilityKey,
+            effect.codedAction, effect.codedTarget);
+        for (CodedAbilityRegistry.CodedParameter parameter
+            : CodedAbilityRegistry.effectParameters(
+                effect.codedAbilityKey, effect.codedAction, effect.codedTarget)) {
+            TextField value = integerField(effect.codedParameters.get(parameter.key()));
+            value.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    Integer parsed = parseInteger(value.getText());
+                    if (parsed != null) effect.codedParameters.put(parameter.key(), parsed);
+                }
+            });
+            addRow(fields, parameter.label(), value);
+            addMasteryProgression(fields, effect, parameter.key(),
+                () -> effect.codedParameters.getOrDefault(
+                    parameter.key(), parameter.defaultValue()));
+        }
+    }
+
     private static int masteryDecimalLiteral(AbilityEffectType type, Double value) {
         if (value == null) return 0;
         return type == AbilityEffectType.BATTLE_STAT_ADD
@@ -654,6 +816,10 @@ public class EffectListEditor extends Table {
         StringBuilder summary = new StringBuilder(type.displayName());
         if (type.uses(AbilityEffectParameter.CODED_FEATURE)) {
             summary.append(" | ").append(codedFeature(effect).label());
+        }
+        if (type.uses(AbilityEffectParameter.CODED_ACTION)) {
+            summary.append(" | ").append(codedAction(effect).label());
+            if (effect.codedTarget != null) summary.append(" -> ").append(effect.codedTarget);
         }
         if (type.uses(AbilityEffectParameter.STAT) && effect.stat != null) {
             summary.append(" | ").append(statLabel(effect.stat));
@@ -758,18 +924,19 @@ public class EffectListEditor extends Table {
         }
     }
 
-    private static String[] effectTypeLabels() {
-        AbilityEffectType[] types = AbilityEffectType.values();
-        String[] labels = new String[types.length];
-        for (int i = 0; i < types.length; i++) labels[i] = types[i].displayName();
+    private String[] effectTypeLabels() {
+        String[] labels = new String[availableTypes.size()];
+        for (int i = 0; i < availableTypes.size(); i++) {
+            labels[i] = availableTypes.get(i).displayName();
+        }
         return labels;
     }
 
-    private static AbilityEffectType typeFromLabel(String label) {
-        for (AbilityEffectType type : AbilityEffectType.values()) {
+    private AbilityEffectType typeFromLabel(String label) {
+        for (AbilityEffectType type : availableTypes) {
             if (type.displayName().equals(label)) return type;
         }
-        return AbilityEffectType.STAT_ADD;
+        return availableTypes.get(0);
     }
 
     private static CodedAbilityRegistry.AbilityFeature codedFeature(
@@ -782,6 +949,30 @@ public class EffectListEditor extends Table {
                 && feature.feature().equalsIgnoreCase(effect.codedFeature))
             .findFirst()
             .orElse(features.get(0));
+    }
+
+    private static CodedAbilityRegistry.EffectAction codedAction(
+        AbilityEffectData effect
+    ) {
+        return CodedAbilityRegistry.effectActions().stream()
+            .filter(action -> action.key().equalsIgnoreCase(effect.codedAbilityKey)
+                && action.action().equalsIgnoreCase(effect.codedAction))
+            .findFirst().orElse(CodedAbilityRegistry.effectActions().get(0));
+    }
+
+    private static AbilityEffectTarget safeTarget(String value) {
+        try { return AbilityEffectTarget.valueOf(value); }
+        catch (Exception exception) { return AbilityEffectTarget.SELF; }
+    }
+
+    private static AbilityEffectTarget targetFromLabel(String label) {
+        if ("Move target".equals(label) || AbilityEffectTarget.ENEMY.name().equals(label)) {
+            return AbilityEffectTarget.ENEMY;
+        }
+        if ("User and target".equals(label) || AbilityEffectTarget.BOTH.name().equals(label)) {
+            return AbilityEffectTarget.BOTH;
+        }
+        return AbilityEffectTarget.SELF;
     }
 
     private static String statusLabel(String statusName) {
@@ -866,6 +1057,11 @@ public class EffectListEditor extends Table {
 
     private static String moveIdFromLabel(String label) {
         return referenceIdFromLabel(label);
+    }
+
+    private static boolean isSimpleDomainReactionMove(MoveData move) {
+        try { return NewShadowStyleAbility.isValidReactionMove(move.toMove()); }
+        catch (Exception exception) { return false; }
     }
 
     private String[] abilityReferenceLabels(String currentId) {

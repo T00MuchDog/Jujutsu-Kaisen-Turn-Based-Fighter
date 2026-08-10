@@ -6,6 +6,7 @@ import com.jjktbf.model.character.AbilityConditionRuleData;
 import com.jjktbf.model.character.AbilityConditionType;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityEffectData;
+import com.jjktbf.model.character.AbilityEffectTarget;
 import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterStats;
@@ -28,6 +29,8 @@ import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveData;
+import com.jjktbf.model.move.MoveEffectData;
+import com.jjktbf.model.move.MoveEffectTrigger;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffect;
 import com.jjktbf.model.move.StatusEffectType;
@@ -46,6 +49,23 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CursedSpeechTechniqueTest {
+
+    @Test
+    void unifiedCommandChanceGatesPreHitResistanceAndComposedOutcome() {
+        Move command = unifiedCommand(0.0);
+        BattleCombatant inumaki = cursedSpeechUser("INUMAKI", command);
+        BattleCombatant target = fighter("TARGET");
+        BattleState state = new BattleState(inumaki, target);
+        place(inumaki, command, List.of(target));
+
+        state.transitionTo(BattleState.Phase.RESOLUTION);
+        List<CombatEvent> events = new CombatResolver(new SequenceRandom(0.0)).resolveRound(state);
+
+        assertFalse(target.hasEffect(StatusEffectType.STAGGER));
+        assertFalse(events.stream().anyMatch(event -> event.getMessage().contains("takes hold")));
+        assertFalse(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.STATUS_APPLIED && event.getTarget() == target));
+    }
 
     @Test
     void resistanceUsesPostCostCeAndStillInflictsScaledRecoil() {
@@ -323,6 +343,45 @@ class CursedSpeechTechniqueTest {
             .requiredTechniqueId("Cursed Speech")
             .prerequisites(Map.of("cursedTechniqueMastery", 0))
             .onHitEffects(List.of(command))
+            .build();
+    }
+
+    private static Move unifiedCommand(double activationChance) {
+        MoveEffectData command = AbilityEffectType.CODED_MOVE_ACTION.createDefaultMoveEffect();
+        command.effectId = "effect-000000";
+        command.trigger = MoveEffectTrigger.ON_HIT.name();
+        command.target = AbilityEffectTarget.ENEMY.name();
+        command.codedAbilityKey = CursedSpeechAbility.KEY;
+        command.codedAction = CursedSpeechAbility.COMMAND;
+        command.codedTarget = CursedSpeechAbility.DONT_MOVE;
+        command.codedParameters = Map.of(
+            CursedSpeechAbility.BASE_CHANCE_PERCENT, 95,
+            CursedSpeechAbility.BASE_RECOIL, 0);
+        command.activationChanceEnabled = true;
+        command.activationChance = activationChance;
+
+        MoveEffectData outcome = AbilityEffectType.APPLY_STATUS.createDefaultMoveEffect();
+        outcome.effectId = "effect-000001";
+        outcome.trigger = MoveEffectTrigger.ON_HIT.name();
+        outcome.target = AbilityEffectTarget.ENEMY.name();
+        outcome.stringValue = StatusEffectType.STAGGER.name();
+        outcome.durationRounds = 0;
+        outcome.durationTicks = 6;
+        outcome.magnitude = 0.0;
+        return new Move.Builder("UNIFIED_COMMAND")
+            .name("Unified Command")
+            .category(MoveCategory.INNATE_TECHNIQUE)
+            .tags(Set.of(MoveTag.INNATE_TECHNIQUE, MoveTag.CURSED_ENERGY,
+                MoveTag.ATTACK, MoveTag.RANGED, MoveTag.AOE))
+            .basePower(0)
+            .neverMiss(true)
+            .apCost(1)
+            .unleashPoint(1)
+            .aoeType(AoeType.MULTIPLE)
+            .aoeTargetCount(3)
+            .requiredTechniqueId("Cursed Speech")
+            .prerequisites(Map.of("cursedTechniqueMastery", 0))
+            .effects(List.of(command, outcome))
             .build();
     }
 

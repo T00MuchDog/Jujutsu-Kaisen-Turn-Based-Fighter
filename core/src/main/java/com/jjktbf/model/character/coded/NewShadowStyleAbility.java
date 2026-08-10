@@ -7,6 +7,9 @@ import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffect;
+import com.jjktbf.model.move.MoveEffectData;
+import com.jjktbf.model.move.MoveEffectTrigger;
+import com.jjktbf.model.character.AbilityEffectType;
 
 import java.util.List;
 import java.util.Set;
@@ -31,8 +34,7 @@ public final class NewShadowStyleAbility implements CodedAbilityRuntime {
             .findFirst().orElseThrow(() -> new IllegalStateException(
                 "New Shadow Style runtime requires Simple Domain"));
         this.simpleDomainMoveId = simpleDomain.getId();
-        String reactionMoveId = simpleDomain.getSelfEffects().stream()
-            .filter(NewShadowStyleAbility::isActivation)
+        String reactionMoveId = activationEffects(simpleDomain).stream()
             .map(StatusEffect::getCodedTarget)
             .findFirst().orElse(null);
         this.reactionMove = owner.getCharacter().getKnownMoves().stream()
@@ -126,7 +128,23 @@ public final class NewShadowStyleAbility implements CodedAbilityRuntime {
     }
 
     private static boolean activatesSimpleDomain(Move move) {
-        return move.getSelfEffects().stream().anyMatch(NewShadowStyleAbility::isActivation);
+        return !activationEffects(move).isEmpty();
+    }
+
+    private static List<StatusEffect> activationEffects(Move move) {
+        if (move == null) return List.of();
+        if (!move.usesUnifiedEffects()) {
+            return move.getSelfEffects().stream()
+                .filter(NewShadowStyleAbility::isActivation)
+                .toList();
+        }
+        return move.effectsFor(MoveEffectTrigger.ON_FIRE, -1).stream()
+            .filter(effect -> AbilityEffectType.CODED_MOVE_ACTION.name()
+                .equalsIgnoreCase(effect.type))
+            .filter(effect -> KEY.equalsIgnoreCase(effect.codedAbilityKey)
+                && ACTIVATE_SIMPLE_DOMAIN.equalsIgnoreCase(effect.codedAction))
+            .map(MoveEffectData::toCodedStatusEffect)
+            .toList();
     }
 
     private static boolean isActivation(StatusEffect effect) {

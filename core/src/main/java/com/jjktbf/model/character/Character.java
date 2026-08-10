@@ -144,14 +144,9 @@ public abstract class Character extends Entity {
         Set<String> knownIds = new HashSet<>();
         for (Move move : moves) knownIds.add(move.getId());
         for (Move move : moves) {
-            List<com.jjktbf.model.move.StatusEffect> effects = new ArrayList<>(move.getOnHitEffects());
-            effects.addAll(move.getSelfEffects());
-            effects.addAll(move.getOnBlockEffects());
-            effects.addAll(move.getOnParryEffects());
-            effects.addAll(move.getOnDodgeEffects());
-            for (var effect : effects) {
+            for (var effect : codedMoveEffects(move)) {
                 String target = effect.getCodedTarget();
-                if (!effect.isCoded() || target == null || !target.matches("\\d{6}")) continue;
+                if (target == null || !target.matches("\\d{6}")) continue;
                 if (!knownIds.contains(target)) {
                     throw new IllegalArgumentException(
                         "Move '" + move.getName() + "' references unknown move " + target);
@@ -173,7 +168,7 @@ public abstract class Character extends Entity {
                 && com.jjktbf.model.character.coded.RatioAbility.REINFORCEMENT_RATIO
                     .equalsIgnoreCase(effect.codedFeature));
         if (hasRatioReinforcement) return moves;
-        return moves.stream().filter(move -> move == null || !moveEffects(move).stream()
+        return moves.stream().filter(move -> move == null || !codedMoveEffects(move).stream()
             .anyMatch(effect -> effect != null && effect.isCoded()
                 && com.jjktbf.model.character.coded.RatioAbility.KEY.equalsIgnoreCase(
                     effect.getCodedAbilityKey())
@@ -191,6 +186,20 @@ public abstract class Character extends Entity {
         effects.addAll(move.getOnParryEffects());
         effects.addAll(move.getOnDodgeEffects());
         return effects;
+    }
+
+    private static List<com.jjktbf.model.move.StatusEffect> codedMoveEffects(Move move) {
+        if (move == null) return List.of();
+        if (!move.usesUnifiedEffects()) {
+            return moveEffects(move).stream()
+                .filter(com.jjktbf.model.move.StatusEffect::isCoded)
+                .toList();
+        }
+        return move.getEffects().stream()
+            .filter(effect -> AbilityEffectType.CODED_MOVE_ACTION.name()
+                .equalsIgnoreCase(effect.type))
+            .map(com.jjktbf.model.move.MoveEffectData::toCodedStatusEffect)
+            .toList();
     }
 
     /**

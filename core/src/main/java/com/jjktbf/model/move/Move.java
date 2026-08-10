@@ -1,5 +1,7 @@
 package com.jjktbf.model.move;
 
+import com.jjktbf.model.character.AbilityData;
+
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -199,6 +201,12 @@ public class Move {
      */
     private final List<StatusEffect> selfEffects;
 
+    /** Shared ability-style effect primitives used by newly-authored moves. */
+    private final List<MoveEffectData> effects;
+
+    /** Distinguishes canonical shared effects from the legacy attachment lists. */
+    private final boolean unifiedEffects;
+
     /**
      * Stat prerequisites. Key = stat name matching CharacterStats getter convention,
      * Value = minimum required value.
@@ -285,6 +293,13 @@ public class Move {
         this.onBlockEffects      = Collections.unmodifiableList(b.onBlockEffects);
         this.onParryEffects      = Collections.unmodifiableList(b.onParryEffects);
         this.onDodgeEffects      = Collections.unmodifiableList(b.onDodgeEffects);
+        java.util.ArrayList<MoveEffectData> copiedEffects = b.moveEffects.stream()
+            .filter(java.util.Objects::nonNull)
+            .map(MoveEffectData::copy)
+            .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+        AbilityData.ensureEffectIds(copiedEffects);
+        this.effects             = Collections.unmodifiableList(copiedEffects);
+        this.unifiedEffects      = b.moveEffectsExplicit;
         this.prerequisites       = Collections.unmodifiableMap(b.prerequisites);
         this.requiredTechniqueId = b.requiredTechniqueId;
         this.isFreeMove          = b.isFreeMove;
@@ -397,15 +412,39 @@ public class Move {
     public List<StatusEffect> getOnBlockEffects() { return onBlockEffects; }
     public List<StatusEffect> getOnParryEffects() { return onParryEffects; }
     public List<StatusEffect> getOnDodgeEffects() { return onDodgeEffects; }
+    /** Deep copies preserve this descriptor's immutability despite mutable JSON DTO rows. */
+    public List<MoveEffectData> getEffects()       {
+        return effects.stream().map(MoveEffectData::copy).toList();
+    }
+    public boolean usesUnifiedEffects()            { return unifiedEffects; }
+    public List<MoveEffectData> effectsFor(MoveEffectTrigger trigger, int componentIndex) {
+        if (!unifiedEffects || trigger == null) return List.of();
+        return effects.stream()
+            .filter(effect -> effect.matches(trigger, componentIndex))
+            .map(MoveEffectData::copy)
+            .toList();
+    }
     public java.util.Map<String, Integer> getPrerequisites() { return prerequisites; }
     public String getRequiredTechniqueId()        { return requiredTechniqueId; }
     public boolean isFreeMove()                    { return isFreeMove; }
     public boolean mustBeGranted()                 { return mustBeGranted; }
     public int getMoveCap()                        { return moveCap; }
-    /** The shikigami character id this move summons at its unleash point, or null. */
-    public String getSummonCharacterId()           { return summonCharacterId; }
-    /** True when this move summons a shikigami when it reaches its unleash point. */
-    public boolean summonsCharacter()              { return summonCharacterId != null && !summonCharacterId.isBlank(); }
+    /** First shikigami summoned by this move, including canonical effect rows. */
+    public String getSummonCharacterId() {
+        if (unifiedEffects) {
+            return effects.stream()
+                .filter(effect -> "SUMMON_CHARACTER".equalsIgnoreCase(effect.type))
+                .map(effect -> effect.characterId)
+                .filter(id -> id != null && !id.isBlank())
+                .findFirst().orElse(null);
+        }
+        return summonCharacterId;
+    }
+    /** True when the move composition contains a summon effect. */
+    public boolean summonsCharacter() {
+        String id = getSummonCharacterId();
+        return id != null && !id.isBlank();
+    }
 
     /**
      * Authoritative AOE shape for this move. Null when the move is not AOE;
@@ -501,7 +540,12 @@ public class Move {
      * summon-only moves are not hostile and require no target selection.
      */
     public boolean isHostile() {
-        return hasTag("ATTACK");
+        if (hasTag("ATTACK")) return true;
+        return unifiedEffects && effects.stream()
+            .filter(effect -> MoveEffectTrigger.ON_FIRE.name()
+                .equalsIgnoreCase(effect.trigger))
+            .anyMatch(effect -> "ENEMY".equalsIgnoreCase(effect.target)
+                || "BOTH".equalsIgnoreCase(effect.target));
     }
 
     /**
@@ -746,6 +790,8 @@ public class Move {
         private List<StatusEffect> onBlockEffects = List.of();
         private List<StatusEffect> onParryEffects = List.of();
         private List<StatusEffect> onDodgeEffects = List.of();
+        private List<MoveEffectData> moveEffects = List.of();
+        private boolean moveEffectsExplicit = false;
         private java.util.Map<String, Integer> prerequisites = java.util.Map.of();
         private String requiredTechniqueId   = null;
         private boolean isFreeMove           = false;
@@ -800,6 +846,14 @@ public class Move {
         public Builder onBlockEffects(List<StatusEffect> v){ this.onBlockEffects = v; return this; }
         public Builder onParryEffects(List<StatusEffect> v){ this.onParryEffects = v; return this; }
         public Builder onDodgeEffects(List<StatusEffect> v){ this.onDodgeEffects = v; return this; }
+        public Builder effects(List<MoveEffectData> v) {
+            this.moveEffects = v == null ? List.of() : v.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(MoveEffectData::copy)
+                .toList();
+            this.moveEffectsExplicit = true;
+            return this;
+        }
         public Builder prerequisites(java.util.Map<String, Integer> v) { this.prerequisites = v; return this; }
         public Builder requiredTechniqueId(String v)       { this.requiredTechniqueId = v; return this; }
         public Builder freeMove(boolean v)                 { this.isFreeMove = v; return this; }
@@ -837,6 +891,7 @@ public class Move {
             }
 
             validateHitComponents();
+            validateMoveEffects();
 
             // Potency lives on attack and defensive moves (gates which defences
             // stop which attacks). Utility moves don't participate, so clamp to 1.
@@ -879,6 +934,52 @@ public class Move {
             }
 
             return new Move(this);
+        }
+
+        private void validateMoveEffects() {
+            if (!moveEffectsExplicit) return;
+            java.util.ArrayList<MoveEffectData> rows = moveEffects.stream()
+                .map(MoveEffectData::copy)
+                .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+            AbilityData.ensureEffectIds(rows);
+            java.util.Set<String> ids = new java.util.HashSet<>();
+            int hitCount = hitComponentsExplicit
+                ? hitComponents.size()
+                : category == MoveCategory.UTILITY || category == MoveCategory.DEFENSIVE ? 0 : 1;
+            boolean masteryEligible = effectiveTags().contains(MoveTag.INNATE_TECHNIQUE);
+            for (int index = 0; index < rows.size(); index++) {
+                MoveEffectData effect = rows.get(index);
+                if (!ids.add(effect.effectId)) {
+                    throw new IllegalStateException(
+                        "Move effects need unique stable effect IDs (name='" + name + "')");
+                }
+                String error = effect.validationError(hitCount, masteryEligible);
+                if (error != null) {
+                    throw new IllegalStateException("Invalid move effect " + (index + 1)
+                        + " (name='" + name + "'): " + error);
+                }
+                MoveEffectTrigger trigger = effect.resolvedTrigger();
+                if (trigger == MoveEffectTrigger.ON_HIT && hitCount == 0) {
+                    throw new IllegalStateException(
+                        "On-hit effects require an attacking move (name='" + name + "')");
+                }
+                if (trigger == MoveEffectTrigger.ON_BLOCK && defenseType != DefenseType.BLOCK) {
+                    throw new IllegalStateException(
+                        "On-block effects require a block move (name='" + name + "')");
+                }
+                if (trigger == MoveEffectTrigger.ON_PARRY && defenseType != DefenseType.PARRY) {
+                    throw new IllegalStateException(
+                        "On-parry effects require a parry move (name='" + name + "')");
+                }
+                if (trigger == MoveEffectTrigger.ON_DODGE && defenseType != DefenseType.DODGE) {
+                    throw new IllegalStateException(
+                        "On-dodge effects require a dodge move (name='" + name + "')");
+                }
+            }
+        }
+
+        private Set<MoveTag> effectiveTags() {
+            return tags != null ? tags : category.getTags();
         }
 
         private void validateHitComponents() {

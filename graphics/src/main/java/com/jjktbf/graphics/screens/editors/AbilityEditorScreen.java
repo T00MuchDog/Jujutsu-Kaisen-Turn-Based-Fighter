@@ -241,6 +241,10 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             if (effectError != null) {
                 return "Effect " + (i + 1) + " (" + type.displayName() + "): " + effectError;
             }
+            if (type.isMoveOnly()) {
+                return "Effect " + (i + 1) + " (" + type.displayName()
+                    + ") can only be attached to a move.";
+            }
             if (ability.isPassive() && type.requiresActivation()) {
                 return "Effect " + (i + 1) + " (" + type.displayName()
                     + ") needs an activation condition and can only be used by an active ability.";

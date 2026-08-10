@@ -76,6 +76,13 @@ public abstract class EditorScreenBase<D> implements Screen {
     /** Width fraction of the master list (left). */
     private static final float LIST_W_FRAC = 0.30f;
     private static final float PAD = 8f;
+    /** Horizontal offset applied once for each nested record-section level. */
+    private static final float RECORD_SUBSECTION_INDENT = 20f;
+    /** Top-level section headers are larger than, but distinct from, subsections. */
+    private static final float RECORD_SECTION_HEAD_TITLE_SCALE =
+        1.5f / AssetLoader.FONT_OVERSAMPLE;
+    private static final float RECORD_SECTION_HEAD_VERTICAL_PADDING = 9f;
+    private static final float RECORD_SUBSECTION_VERTICAL_PADDING = 6f;
     /** Minimum width of the label column in form rows, for cross-row alignment. */
     private static final float FORM_LABEL_WIDTH = 200f;
     /** Delay before a held record-navigation key begins repeating. */
@@ -639,7 +646,10 @@ public abstract class EditorScreenBase<D> implements Screen {
                     wireMasterRecordList(list);
                     list.setItems(sectionRecords.stream()
                         .map(this::listLabel).toArray(String[]::new));
-                    masterListContent.add(list).growX().top().row();
+                    // Records align with their Attack / Defense / Utility header
+                    // instead of acquiring an additional indentation level.
+                    masterListContent.add(list).growX().top()
+                        .padLeft(recordSectionIndent(section)).row();
                     masterRecordLists.add(list);
                     recordIdsByList.put(list, ids);
                     visibleRecordIds.addAll(ids);
@@ -793,8 +803,17 @@ public abstract class EditorScreenBase<D> implements Screen {
     }
 
     private Table createRecordSectionHeader(String section) {
+        boolean headSection = recordSectionParent(section) == null;
         Table header = new Table(skin);
-        header.setBackground(skin.getDrawable("battle-header"));
+        if (headSection) {
+            header.setBackground(skin.getDrawable("battle-header"));
+            header.pad(RECORD_SECTION_HEAD_VERTICAL_PADDING, 10f,
+                RECORD_SECTION_HEAD_VERTICAL_PADDING, 10f);
+        } else {
+            header.setBackground(skin.getDrawable("battle-header"));
+            header.pad(RECORD_SUBSECTION_VERTICAL_PADDING, recordSectionIndent(section),
+                RECORD_SUBSECTION_VERTICAL_PADDING, 8f);
+        }
         // The header itself remains touchable so clicks cannot reach rows hidden
         // beneath a pinned copy. Route wheel input to its sibling ScrollPane.
         header.setTouchable(Touchable.enabled);
@@ -807,10 +826,13 @@ public abstract class EditorScreenBase<D> implements Screen {
                 return true;
             }
         });
-        header.pad(6f, 10f, 6f, 10f);
 
-        Label title = new Label(recordSectionLabel(section), skin, "white");
+        Label title = new Label(recordSectionLabel(section), skin,
+            "white");
         title.setColor(Color.WHITE);
+        if (headSection) {
+            title.setFontScale(RECORD_SECTION_HEAD_TITLE_SCALE);
+        }
         title.setTouchable(Touchable.disabled);
         header.add(title).left().growX();
 
@@ -822,8 +844,23 @@ public abstract class EditorScreenBase<D> implements Screen {
                 toggleRecordSection(section, !collapsed);
             }
         });
-        header.add(collapseButton).right().size(24f, 22f);
+        if (headSection) {
+            collapseButton.getLabel().setFontScale(RECORD_SECTION_HEAD_TITLE_SCALE);
+            header.add(collapseButton).right().size(36f, 33f);
+        } else {
+            header.add(collapseButton).right().size(24f, 22f);
+        }
         return header;
+    }
+
+    private float recordSectionIndent(String section) {
+        int depth = 0;
+        String ancestor = recordSectionParent(section);
+        while (ancestor != null) {
+            depth++;
+            ancestor = recordSectionParent(ancestor);
+        }
+        return depth * RECORD_SUBSECTION_INDENT;
     }
 
     /** True when any ancestor of {@code section} is minimized. */

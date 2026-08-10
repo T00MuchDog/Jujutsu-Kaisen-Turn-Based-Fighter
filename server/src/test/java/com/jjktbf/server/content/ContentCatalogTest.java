@@ -68,7 +68,8 @@ class ContentCatalogTest {
         var fearsomeCombatant = new BattleCombatant(fearsomeMegumi);
         assertEquals(2, fearsomeCombatant.getAbilityFlags().maxActiveSummons);
         var summonCosts = fearsomeMegumi.getKnownMoves().stream()
-            .filter(com.jjktbf.model.move.Move::summonsCharacter)
+            .filter(move -> !com.jjktbf.model.combat.MoveAvailability
+                .summonedDefinitionIds(move).isEmpty())
             .collect(java.util.stream.Collectors.toMap(
                 com.jjktbf.model.move.Move::getName,
                 com.jjktbf.model.move.Move::getBaseCeCost));

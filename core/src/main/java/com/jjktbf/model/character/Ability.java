@@ -64,6 +64,10 @@ public class Ability {
                 throw new IllegalArgumentException(
                     "Invalid effect in ability '" + name + "': " + effectError);
             }
+            if (type.isMoveOnly()) {
+                throw new IllegalArgumentException(
+                    "Move-only effect in ability '" + name + "': " + type.displayName());
+            }
             if (!type.uses(AbilityEffectParameter.DURATION)) continue;
             int rounds = effect.durationRounds == null ? -1 : effect.durationRounds;
             int ticks = effect.durationTicks == null ? 0 : effect.durationTicks;

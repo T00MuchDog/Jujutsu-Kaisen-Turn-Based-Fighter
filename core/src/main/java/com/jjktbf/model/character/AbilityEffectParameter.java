@@ -17,5 +17,6 @@ public enum AbilityEffectParameter {
     MAGNITUDE,
     USES,
     BATTLE_STAT,
-    CODED_FEATURE
+    CODED_FEATURE,
+    CODED_ACTION
 }

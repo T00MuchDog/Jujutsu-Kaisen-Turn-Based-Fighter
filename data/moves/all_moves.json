@@ -961,11 +961,16 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
-  "selfEffects" : [ {
-    "type" : "ACCURACY_INCREASE",
+  "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "APPLY_STATUS",
+    "stringValue" : "ACCURACY_INCREASE",
+    "target" : "SELF",
     "durationRounds" : 2,
     "durationTicks" : 0,
-    "magnitude" : 10.0
+    "magnitude" : 10.0,
+    "trigger" : "ON_FIRE"
   } ],
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
@@ -1014,11 +1019,16 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
-  "selfEffects" : [ {
-    "type" : "CURSED_ENERGY_OUTPUT_INCREASE",
+  "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "APPLY_STATUS",
+    "stringValue" : "CURSED_ENERGY_OUTPUT_INCREASE",
+    "target" : "SELF",
     "durationRounds" : 1,
     "durationTicks" : 0,
-    "magnitude" : 15.0
+    "magnitude" : 15.0,
+    "trigger" : "ON_FIRE"
   } ],
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
@@ -1067,12 +1077,13 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
-  "selfEffects" : [ {
-    "durationRounds" : 1,
-    "durationTicks" : 0,
-    "magnitude" : 1.0,
+  "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "MIRACLES",
     "codedAction" : "CREATE",
+    "target" : "SELF",
     "codedParameters" : {
       "gain" : 1
     },
@@ -1087,7 +1098,8 @@
           "value" : 2
         } ]
       }
-    }
+    },
+    "trigger" : "ON_FIRE"
   } ],
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
@@ -1229,13 +1241,14 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
-  "selfEffects" : [ {
-    "durationRounds" : 1,
-    "durationTicks" : 0,
-    "magnitude" : 1.0,
+  "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "RATIO",
     "codedAction" : "RATIO_EFFECT",
     "codedTarget" : "CREATE_STACKS",
+    "target" : "ENEMY",
     "codedStackCount" : 1,
     "codedParameters" : {
       "stackDurationTicks" : 50,
@@ -1282,7 +1295,8 @@
         "mode" : "FORMULA",
         "formula" : "min(80, 68 + ctm / 25)"
       }
-    }
+    },
+    "trigger" : "ON_FIRE"
   } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 30,
@@ -1328,6 +1342,19 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED_MOVE_ACTION",
+    "codedAbilityKey" : "RATIO",
+    "codedAction" : "RATIO_EFFECT",
+    "codedTarget" : "APPLY_TO_MOVE",
+    "target" : "ENEMY",
+    "codedParameters" : {
+      "triggerChancePercent" : 100,
+      "defensePercent" : 30
+    },
+    "trigger" : "ON_HIT"
+  } ],
   "selfEffects" : [ ],
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
@@ -1424,13 +1451,15 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
-  "selfEffects" : [ {
-    "durationRounds" : 1,
-    "durationTicks" : 0,
-    "magnitude" : 1.0,
+  "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "NEW_SHADOW_STYLE",
     "codedAction" : "ACTIVATE_SIMPLE_DOMAIN",
-    "codedTarget" : "000027"
+    "codedTarget" : "000027",
+    "target" : "SELF",
+    "trigger" : "ON_FIRE"
   } ],
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
@@ -1697,7 +1726,12 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "summonCharacterId" : "000007",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000007",
+    "trigger" : "ON_FIRE"
+  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -1745,7 +1779,12 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "summonCharacterId" : "000008",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000008",
+    "trigger" : "ON_FIRE"
+  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -1950,16 +1989,25 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
-  "selfEffects" : [ {
-    "type" : "ACCURACY_INCREASE",
+  "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "APPLY_STATUS",
+    "stringValue" : "ACCURACY_INCREASE",
+    "target" : "SELF",
     "durationRounds" : 1,
     "durationTicks" : 0,
-    "magnitude" : 10.0
+    "magnitude" : 10.0,
+    "trigger" : "ON_FIRE"
   }, {
-    "type" : "EVASION_INCREASE",
+    "effectId" : "effect-000001",
+    "type" : "APPLY_STATUS",
+    "stringValue" : "EVASION_INCREASE",
+    "target" : "SELF",
     "durationRounds" : 1,
     "durationTicks" : 0,
-    "magnitude" : 10.0
+    "magnitude" : 10.0,
+    "trigger" : "ON_FIRE"
   } ],
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
@@ -2017,7 +2065,12 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "summonCharacterId" : "000009",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000009",
+    "trigger" : "ON_FIRE"
+  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -2065,7 +2118,12 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "summonCharacterId" : "000010",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000010",
+    "trigger" : "ON_FIRE"
+  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -2113,7 +2171,12 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "summonCharacterId" : "000011",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000011",
+    "trigger" : "ON_FIRE"
+  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -2161,7 +2224,12 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "summonCharacterId" : "000012",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000012",
+    "trigger" : "ON_FIRE"
+  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -2209,7 +2277,12 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "summonCharacterId" : "000014",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000014",
+    "trigger" : "ON_FIRE"
+  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -2257,7 +2330,12 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "summonCharacterId" : "000013",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000013",
+    "trigger" : "ON_FIRE"
+  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -2614,7 +2692,7 @@
   "basePower" : 0,
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
@@ -2631,11 +2709,14 @@
   "blockDuration" : 7,
   "blockDamageReduction" : 100,
   "blockFlatReduction" : 0,
-  "dodgeChance" : 95,
+  "dodgeChance" : 85,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 60,
     "speed" : 60,
@@ -2681,12 +2762,14 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
-  "selfEffects" : [ {
-    "durationRounds" : 1,
-    "durationTicks" : 0,
-    "magnitude" : 1.0,
+  "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "SHIKIGAMI",
-    "codedAction" : "DESUMMON_SELF"
+    "codedAction" : "DESUMMON_SELF",
+    "target" : "SELF",
+    "trigger" : "ON_FIRE"
   } ],
   "isFreeMove" : true,
   "moveCap" : 0,
@@ -3010,6 +3093,16 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "APPLY_STATUS",
+    "stringValue" : "STAGGER",
+    "target" : "ENEMY",
+    "durationRounds" : 0,
+    "durationTicks" : 4,
+    "magnitude" : 0.0,
+    "trigger" : "ON_HIT"
+  } ],
   "selfEffects" : [ ],
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
@@ -3057,6 +3150,16 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "APPLY_STATUS",
+    "stringValue" : "STAGGER",
+    "target" : "ENEMY",
+    "durationRounds" : 0,
+    "durationTicks" : 8,
+    "magnitude" : 0.0,
+    "trigger" : "ON_HIT"
+  } ],
   "selfEffects" : [ ],
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
@@ -3429,6 +3532,16 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "APPLY_STATUS",
+    "stringValue" : "ACCURACY_DECREASE",
+    "target" : "ENEMY",
+    "durationRounds" : 1,
+    "durationTicks" : 0,
+    "magnitude" : 10.0,
+    "trigger" : "ON_HIT"
+  } ],
   "selfEffects" : [ ],
   "prerequisites" : {
     "speed" : 75,
@@ -3473,12 +3586,13 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ {
-    "durationRounds" : 1,
-    "durationTicks" : 0,
-    "magnitude" : 1.0,
+  "onHitEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
+    "target" : "ENEMY",
     "codedTarget" : "DONT_MOVE",
     "codedParameters" : {
       "baseChancePercent" : 85,
@@ -3489,7 +3603,17 @@
         "mode" : "FORMULA",
         "formula" : "min(95,65+ctm/6)"
       }
-    }
+    },
+    "trigger" : "ON_HIT"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "APPLY_STATUS",
+    "stringValue" : "STAGGER",
+    "target" : "ENEMY",
+    "durationRounds" : 0,
+    "durationTicks" : 6,
+    "magnitude" : 0.0,
+    "trigger" : "ON_HIT"
   } ],
   "selfEffects" : [ ],
   "onBlockEffects" : [ ],
@@ -3540,12 +3664,13 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ {
-    "durationRounds" : 1,
-    "durationTicks" : 0,
-    "magnitude" : 1.0,
+  "onHitEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
+    "target" : "ENEMY",
     "codedTarget" : "BLAST_AWAY",
     "codedParameters" : {
       "baseChancePercent" : 80,
@@ -3556,7 +3681,17 @@
         "mode" : "FORMULA",
         "formula" : "min(95,56+ctm/5)"
       }
-    }
+    },
+    "trigger" : "ON_HIT"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "APPLY_STATUS",
+    "stringValue" : "STAGGER",
+    "target" : "ENEMY",
+    "durationRounds" : 0,
+    "durationTicks" : 3,
+    "magnitude" : 0.0,
+    "trigger" : "ON_HIT"
   } ],
   "selfEffects" : [ ],
   "onBlockEffects" : [ ],
@@ -3607,12 +3742,13 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ {
-    "durationRounds" : 1,
-    "durationTicks" : 0,
-    "magnitude" : 1.0,
+  "onHitEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
+    "target" : "ENEMY",
     "codedTarget" : "SLEEP",
     "codedParameters" : {
       "baseChancePercent" : 75,
@@ -3623,7 +3759,17 @@
         "mode" : "FORMULA",
         "formula" : "min(95,51+ctm/5)"
       }
-    }
+    },
+    "trigger" : "ON_HIT"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "APPLY_STATUS",
+    "stringValue" : "SLEEP",
+    "target" : "ENEMY",
+    "durationRounds" : 1,
+    "durationTicks" : 0,
+    "magnitude" : 0.0,
+    "trigger" : "ON_HIT"
   } ],
   "selfEffects" : [ ],
   "onBlockEffects" : [ ],
@@ -3674,12 +3820,13 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ {
-    "durationRounds" : 1,
-    "durationTicks" : 0,
-    "magnitude" : 1.0,
+  "onHitEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
+    "target" : "ENEMY",
     "codedTarget" : "PLUMMET",
     "codedParameters" : {
       "baseChancePercent" : 70,
@@ -3690,7 +3837,17 @@
         "mode" : "FORMULA",
         "formula" : "min(90,46+ctm/5)"
       }
-    }
+    },
+    "trigger" : "ON_HIT"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "APPLY_STATUS",
+    "stringValue" : "STAGGER",
+    "target" : "ENEMY",
+    "durationRounds" : 0,
+    "durationTicks" : 4,
+    "magnitude" : 0.0,
+    "trigger" : "ON_HIT"
   } ],
   "selfEffects" : [ ],
   "onBlockEffects" : [ ],
@@ -3741,12 +3898,13 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ {
-    "durationRounds" : 1,
-    "durationTicks" : 0,
-    "magnitude" : 1.0,
+  "onHitEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
+    "target" : "ENEMY",
     "codedTarget" : "GET_TWISTED",
     "codedParameters" : {
       "baseChancePercent" : 60,
@@ -3757,7 +3915,8 @@
         "mode" : "FORMULA",
         "formula" : "min(85,36+ctm/5)"
       }
-    }
+    },
+    "trigger" : "ON_HIT"
   } ],
   "selfEffects" : [ ],
   "onBlockEffects" : [ ],
@@ -3808,12 +3967,13 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ {
-    "durationRounds" : 1,
-    "durationTicks" : 0,
-    "magnitude" : 1.0,
+  "onHitEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
+    "target" : "ENEMY",
     "codedTarget" : "RETURN",
     "codedParameters" : {
       "baseChancePercent" : 80,
@@ -3824,7 +3984,13 @@
         "mode" : "FORMULA",
         "formula" : "min(95,56+ctm/5)"
       }
-    }
+    },
+    "trigger" : "ON_HIT"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "DESUMMON_TARGET_SHIKIGAMI",
+    "target" : "ENEMY",
+    "trigger" : "ON_HIT"
   } ],
   "selfEffects" : [ ],
   "onBlockEffects" : [ ],
@@ -3875,12 +4041,13 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ {
-    "durationRounds" : 1,
-    "durationTicks" : 0,
-    "magnitude" : 1.0,
+  "onHitEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
+    "target" : "ENEMY",
     "codedTarget" : "EXPLODE",
     "codedParameters" : {
       "baseChancePercent" : 50,
@@ -3891,7 +4058,8 @@
         "mode" : "FORMULA",
         "formula" : "min(80,26+ctm/5)"
       }
-    }
+    },
+    "trigger" : "ON_HIT"
   } ],
   "selfEffects" : [ ],
   "onBlockEffects" : [ ],
@@ -3932,8 +4100,8 @@
   "unleashPoint" : 20,
   "baseCeCost" : 85,
   "hasCeCost" : true,
-  "minCeCost" : 43,
-  "maxCeCost" : 149,
+  "minCeCost" : 40,
+  "maxCeCost" : 150,
   "defenseType" : "NONE",
   "blockStyle" : "PERCENTAGE",
   "blockDuration" : 0,
@@ -3942,12 +4110,13 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ {
-    "durationRounds" : 1,
-    "durationTicks" : 0,
-    "magnitude" : 1.0,
+  "onHitEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
+    "target" : "ENEMY",
     "codedTarget" : "DIE",
     "codedParameters" : {
       "baseChancePercent" : 25,
@@ -3958,7 +4127,13 @@
         "mode" : "FORMULA",
         "formula" : "min(60,1+ctm/5)"
       }
-    }
+    },
+    "trigger" : "ON_HIT"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "INSTANT_KILL",
+    "target" : "ENEMY",
+    "trigger" : "ON_HIT"
   } ],
   "selfEffects" : [ ],
   "onBlockEffects" : [ ],
@@ -3966,10 +4141,10 @@
   "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 120,
-    "cursedEnergyReserves" : 45,
-    "cursedEnergyEfficiency" : 85,
     "cursedEnergyOutput" : 65,
-    "jujutsuSkill" : 80
+    "jujutsuSkill" : 80,
+    "cursedEnergyEfficiency" : 0,
+    "cursedEnergyReserves" : 0
   },
   "requiredTechniqueId" : "Cursed Speech",
   "isFreeMove" : false,

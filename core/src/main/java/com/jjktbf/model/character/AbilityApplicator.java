@@ -70,7 +70,7 @@ public final class AbilityApplicator {
                 switch (type) {
 
                     // Compiled behavior is installed by CodedAbilityRegistry.
-                    case CODED -> { }
+                    case CODED, CODED_MOVE_ACTION -> { }
 
                     // ── Override (set) — applied before add/multiply ─────────
                     case STAT_SET_MIN -> {
@@ -194,7 +194,8 @@ public final class AbilityApplicator {
                           DAMAGE_SHIELD, SURVIVE_FATAL_DAMAGE, GUARANTEE_NEXT_HIT,
                            GUARANTEE_NEXT_DODGE, GUARANTEE_NEXT_BLACK_FLASH,
                            CANCEL_NEXT_MOVE, TEMP_LOCK_MOVE_TAG,
-                           DESUMMON_OWNED_SHIKIGAMI, SUMMON_CHARACTER -> { }
+                           DESUMMON_OWNED_SHIKIGAMI, DESUMMON_TARGET_SHIKIGAMI,
+                           SUMMON_CHARACTER -> { }
                 }
             }
         }

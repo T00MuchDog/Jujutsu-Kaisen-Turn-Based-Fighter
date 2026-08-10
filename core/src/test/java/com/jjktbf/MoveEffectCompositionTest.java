@@ -1,0 +1,407 @@
+package com.jjktbf;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jjktbf.model.character.AbilityConditionActor;
+import com.jjktbf.model.character.AbilityConditionData;
+import com.jjktbf.model.character.AbilityConditionType;
+import com.jjktbf.model.character.AbilityEffectTarget;
+import com.jjktbf.model.character.AbilityEffectType;
+import com.jjktbf.model.character.CharacterStats;
+import com.jjktbf.model.character.SorcererCharacter;
+import com.jjktbf.model.character.coded.RatioAbility;
+import com.jjktbf.model.combat.ActionSegment;
+import com.jjktbf.model.combat.AbilityActivationEngine;
+import com.jjktbf.model.combat.BattleCombatant;
+import com.jjktbf.model.combat.BattlePlan;
+import com.jjktbf.model.combat.BattleState;
+import com.jjktbf.model.combat.CombatEvent;
+import com.jjktbf.model.combat.CombatResolver;
+import com.jjktbf.model.combat.MoveAvailability;
+import com.jjktbf.model.combat.RandomSource;
+import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.MoveCategory;
+import com.jjktbf.model.move.MoveData;
+import com.jjktbf.model.move.MoveEffectData;
+import com.jjktbf.model.move.MoveEffectTrigger;
+import com.jjktbf.model.move.MoveTag;
+import com.jjktbf.model.move.StatusEffectType;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class MoveEffectCompositionTest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Test
+    void canonicalSpecialMovesUseOnlyTheUnifiedEffectList() throws IOException {
+        List<MoveData> moves = MAPPER.readValue(movesPath().toFile(), new TypeReference<>() { });
+        Map<String, MoveData> byId = moves.stream()
+            .collect(java.util.stream.Collectors.toMap(move -> move.id, move -> move));
+
+        for (MoveData move : moves) {
+            assertTrue(move.selfEffects == null || move.selfEffects.isEmpty(), move.name);
+            assertTrue(move.onHitEffects == null || move.onHitEffects.isEmpty(), move.name);
+            assertFalse(move.summonCharacterId != null && !move.summonCharacterId.isBlank(), move.name);
+            move.toMove();
+        }
+
+        assertStatus(byId.get("000060"), StatusEffectType.STAGGER, 0, 4);
+        assertStatus(byId.get("000061"), StatusEffectType.STAGGER, 0, 8);
+        assertStatus(byId.get("000068"), StatusEffectType.ACCURACY_DECREASE, 1, 0);
+        assertTrue(byId.get("000076").effects.stream().anyMatch(effect ->
+            AbilityEffectType.INSTANT_KILL.name().equals(effect.type)
+                && MoveEffectTrigger.ON_HIT.name().equals(effect.trigger)
+                && AbilityEffectTarget.ENEMY.name().equals(effect.target)));
+
+        Map<String, String> summons = Map.of(
+            "000033", "000007", "000034", "000008", "000039", "000009",
+            "000040", "000010", "000041", "000011", "000042", "000012",
+            "000043", "000014", "000044", "000013");
+        summons.forEach((moveId, characterId) -> assertEquals(
+            List.of(characterId),
+            MoveAvailability.summonedDefinitionIds(byId.get(moveId).toMove())));
+    }
+
+    @Test
+    void onHitEffectsHonorTargetConditionChanceAndImmutableMoveStorage() {
+        MoveEffectData stagger = AbilityEffectType.APPLY_STATUS.createDefaultMoveEffect();
+        stagger.effectId = "effect-000000";
+        stagger.trigger = MoveEffectTrigger.ON_HIT.name();
+        stagger.stringValue = StatusEffectType.STAGGER.name();
+        stagger.target = AbilityEffectTarget.ENEMY.name();
+        stagger.durationRounds = 0;
+        stagger.durationTicks = 4;
+        stagger.magnitude = 0.0;
+        stagger.activationChanceEnabled = true;
+        stagger.activationChance = 1.0;
+        AbilityConditionData condition =
+            AbilityConditionType.HP_VALUE_AT_OR_ABOVE.createDefault();
+        condition.actor = AbilityConditionActor.ENEMY.name();
+        condition.amount = 1;
+        stagger.condition = condition;
+
+        Move move = attack("COMPOSED", List.of(stagger));
+        MoveEffectData leakedCopy = move.getEffects().get(0);
+        leakedCopy.target = AbilityEffectTarget.SELF.name();
+        assertEquals(AbilityEffectTarget.ENEMY.name(), move.getEffects().get(0).target);
+
+        BattleCombatant attacker = combatant("ATTACKER", move);
+        BattleCombatant target = combatant("TARGET", null);
+        List<CombatEvent> events = resolve(attacker, target, move);
+
+        assertTrue(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.STATUS_APPLIED
+                && event.getTarget() == target));
+        assertFalse(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.STATUS_APPLIED
+                && event.getTarget() == attacker));
+    }
+
+    @Test
+    void instantDeathIsAChanceControlledOnHitPrimitive() {
+        MoveEffectData never = AbilityEffectType.INSTANT_KILL.createDefaultMoveEffect();
+        never.effectId = "effect-000000";
+        never.trigger = MoveEffectTrigger.ON_HIT.name();
+        never.target = AbilityEffectTarget.ENEMY.name();
+        never.activationChanceEnabled = true;
+        never.activationChance = 0.0;
+
+        Move failed = attack("FAILED_EXECUTION", List.of(never));
+        BattleCombatant failedUser = combatant("FAILED_USER", failed);
+        BattleCombatant survivor = combatant("SURVIVOR", null);
+        resolve(failedUser, survivor, failed);
+        assertTrue(survivor.getCurrentHp() > 0);
+
+        MoveEffectData certain = never.copy();
+        certain.activationChance = 1.0;
+        Move successful = attack("SUCCESSFUL_EXECUTION", List.of(certain));
+        BattleCombatant executioner = combatant("EXECUTIONER", successful);
+        BattleCombatant target = combatant("EXECUTED", null);
+        resolve(executioner, target, successful);
+        assertTrue(target.isDefeated());
+    }
+
+    @Test
+    void onFireEnemyEffectsReachEveryResolvedAoeTarget() {
+        MoveEffectData debuff = AbilityEffectType.APPLY_STATUS.createDefaultMoveEffect();
+        debuff.effectId = "effect-000000";
+        debuff.trigger = MoveEffectTrigger.ON_FIRE.name();
+        debuff.target = AbilityEffectTarget.ENEMY.name();
+        debuff.stringValue = StatusEffectType.STRENGTH_DECREASE.name();
+        debuff.durationRounds = 2;
+        debuff.durationTicks = 0;
+        debuff.magnitude = 10.0;
+        Move move = utility("AOE_EFFECT", List.of(debuff));
+        BattleCombatant user = combatant("USER", move);
+        BattleCombatant first = combatant("FIRST", null);
+        BattleCombatant second = combatant("SECOND", null);
+        BattleState state = teamState(user, first, second);
+
+        List<CombatEvent> events = new AbilityActivationEngine(new ZeroRandom())
+            .processMoveEffects(state, user, List.of(first, second), move,
+                MoveEffectTrigger.ON_FIRE, -1, 1);
+
+        assertTrue(first.hasEffect(StatusEffectType.STRENGTH_DECREASE));
+        assertTrue(second.hasEffect(StatusEffectType.STRENGTH_DECREASE));
+        assertEquals(2, events.stream()
+            .filter(event -> event.getType() == CombatEvent.Type.STATUS_APPLIED)
+            .filter(event -> event.getMove() == move)
+            .count());
+    }
+
+    @Test
+    void moveEnemyConditionsUseTheCurrentTargetInsteadOfAnotherEnemy() {
+        MoveEffectData effect = AbilityEffectType.APPLY_STATUS.createDefaultMoveEffect();
+        effect.effectId = "effect-000000";
+        effect.trigger = MoveEffectTrigger.ON_HIT.name();
+        effect.target = AbilityEffectTarget.ENEMY.name();
+        effect.stringValue = StatusEffectType.STRENGTH_DECREASE.name();
+        effect.durationRounds = 2;
+        effect.durationTicks = 0;
+        effect.magnitude = 10.0;
+        AbilityConditionData lowHp = AbilityConditionType.HP_VALUE_AT_OR_BELOW.createDefault();
+        lowHp.actor = AbilityConditionActor.ENEMY.name();
+        effect.condition = lowHp;
+        BattleCombatant healthy = combatant("HEALTHY", null);
+        BattleCombatant injured = combatant("INJURED", null);
+        injured.receiveDamage(injured.getCurrentHp() / 2);
+        lowHp.amount = injured.getCurrentHp();
+        Move move = attack("TARGET_LOCAL", List.of(effect));
+        BattleCombatant user = combatant("USER", move);
+        BattleState state = teamState(user, healthy, injured);
+        AbilityActivationEngine engine = new AbilityActivationEngine(new ZeroRandom());
+
+        engine.processMoveEffects(state, user, healthy, move,
+            MoveEffectTrigger.ON_HIT, 0, 1);
+        engine.processMoveEffects(state, user, injured, move,
+            MoveEffectTrigger.ON_HIT, 0, 1);
+
+        assertFalse(healthy.hasEffect(StatusEffectType.STRENGTH_DECREASE));
+        assertTrue(injured.hasEffect(StatusEffectType.STRENGTH_DECREASE));
+    }
+
+    @Test
+    void aoeOnFireConditionsAreEvaluatedForEachTarget() {
+        MoveEffectData effect = AbilityEffectType.APPLY_STATUS.createDefaultMoveEffect();
+        effect.effectId = "effect-000000";
+        effect.trigger = MoveEffectTrigger.ON_FIRE.name();
+        effect.target = AbilityEffectTarget.ENEMY.name();
+        effect.stringValue = StatusEffectType.ACCURACY_DECREASE.name();
+        effect.durationRounds = 2;
+        effect.durationTicks = 0;
+        effect.magnitude = 10.0;
+        AbilityConditionData lowHp = AbilityConditionType.HP_VALUE_AT_OR_BELOW.createDefault();
+        lowHp.actor = AbilityConditionActor.ENEMY.name();
+        effect.condition = lowHp;
+        BattleCombatant healthy = combatant("HEALTHY", null);
+        BattleCombatant injured = combatant("INJURED", null);
+        injured.receiveDamage(injured.getCurrentHp() / 2);
+        lowHp.amount = injured.getCurrentHp();
+        Move move = utility("CONDITIONAL_AOE", List.of(effect));
+        BattleCombatant user = combatant("USER", move);
+        BattleState state = teamState(user, healthy, injured);
+
+        new AbilityActivationEngine(new ZeroRandom()).processMoveEffects(
+            state, user, List.of(healthy, injured), move,
+            MoveEffectTrigger.ON_FIRE, -1, 1);
+
+        assertFalse(healthy.hasEffect(StatusEffectType.ACCURACY_DECREASE));
+        assertTrue(injured.hasEffect(StatusEffectType.ACCURACY_DECREASE));
+    }
+
+    @Test
+    void legacyMultiHitMigrationPreservesComponentFallbackSemantics() {
+        MoveData data = new MoveData();
+        MoveData.StatusEffectData fallback = new MoveData.StatusEffectData();
+        fallback.type = StatusEffectType.STRENGTH_DECREASE.name();
+        fallback.durationRounds = 1;
+        fallback.magnitude = 5.0;
+        data.onHitEffects = List.of(fallback);
+        MoveData.HitComponentData first = new MoveData.HitComponentData();
+        MoveData.HitComponentData second = new MoveData.HitComponentData();
+        MoveData.StatusEffectData specific = new MoveData.StatusEffectData();
+        specific.type = StatusEffectType.ACCURACY_DECREASE.name();
+        specific.durationRounds = 1;
+        specific.magnitude = 10.0;
+        second.onHitEffects = List.of(specific);
+        data.hitComponents = List.of(first, second);
+
+        assertTrue(data.migrateLegacyEffects());
+
+        assertEquals(2, data.effects.size());
+        assertTrue(data.effects.stream().anyMatch(effect ->
+            effect.hitComponentIndex == 0
+                && StatusEffectType.STRENGTH_DECREASE.name().equals(effect.stringValue)));
+        assertTrue(data.effects.stream().anyMatch(effect ->
+            effect.hitComponentIndex == 1
+                && StatusEffectType.ACCURACY_DECREASE.name().equals(effect.stringValue)));
+        assertFalse(data.effects.stream().anyMatch(effect -> effect.hitComponentIndex == null));
+        assertEquals(AbilityEffectTarget.ENEMY.name(),
+            AbilityEffectType.DESUMMON_TARGET_SHIKIGAMI
+                .createDefaultMoveEffect().target);
+    }
+
+    @Test
+    void onHitRowsCanRequireTheAttackHitCondition() {
+        MoveEffectData effect = AbilityEffectType.APPLY_STATUS.createDefaultMoveEffect();
+        effect.effectId = "effect-000000";
+        effect.trigger = MoveEffectTrigger.ON_HIT.name();
+        effect.target = AbilityEffectTarget.ENEMY.name();
+        effect.stringValue = StatusEffectType.STRENGTH_DECREASE.name();
+        effect.durationRounds = 2;
+        effect.durationTicks = 0;
+        effect.magnitude = 10.0;
+        AbilityConditionData attackHit = AbilityConditionType.ATTACK_HIT.createDefault();
+        attackHit.actor = AbilityConditionActor.SELF.name();
+        effect.condition = attackHit;
+        Move move = attack("ATTACK_HIT_CONDITION", List.of(effect));
+        BattleCombatant user = combatant("USER", move);
+        BattleCombatant target = combatant("TARGET", null);
+
+        resolve(user, target, move);
+
+        assertTrue(target.hasEffect(StatusEffectType.STRENGTH_DECREASE));
+    }
+
+    @Test
+    void legacyMoveWideRatioMigratesToAnAllHitPreHitRow() {
+        MoveData data = new MoveData();
+        MoveData.StatusEffectData ratio = new MoveData.StatusEffectData();
+        ratio.codedAbilityKey = RatioAbility.KEY;
+        ratio.codedAction = RatioAbility.RATIO_EFFECT;
+        ratio.codedTarget = RatioAbility.APPLY_TO_MOVE;
+        data.selfEffects = List.of(ratio);
+
+        assertTrue(data.migrateLegacyEffects());
+
+        MoveEffectData migrated = data.effects.get(0);
+        assertEquals(MoveEffectTrigger.ON_HIT.name(), migrated.trigger);
+        assertNull(migrated.hitComponentIndex);
+        assertEquals(AbilityEffectTarget.ENEMY.name(), migrated.target);
+
+        MoveData componentData = new MoveData();
+        MoveData.HitComponentData first = new MoveData.HitComponentData();
+        MoveData.HitComponentData second = new MoveData.HitComponentData();
+        second.onHitEffects = List.of(ratio);
+        componentData.hitComponents = List.of(first, second);
+        componentData.migrateLegacyEffects();
+        assertEquals(1, componentData.effects.get(0).hitComponentIndex);
+    }
+
+    private static void assertStatus(
+        MoveData move,
+        StatusEffectType type,
+        int rounds,
+        int ticks
+    ) {
+        assertNotNull(move);
+        MoveEffectData effect = move.effects.stream()
+            .filter(row -> AbilityEffectType.APPLY_STATUS.name().equals(row.type))
+            .findFirst().orElseThrow();
+        assertEquals(type.name(), effect.stringValue);
+        assertEquals(rounds, effect.durationRounds);
+        assertEquals(ticks, effect.durationTicks);
+        assertEquals(AbilityEffectTarget.ENEMY.name(), effect.target);
+        assertEquals(MoveEffectTrigger.ON_HIT.name(), effect.trigger);
+    }
+
+    private static Move attack(String id, List<MoveEffectData> effects) {
+        return new Move.Builder(id)
+            .name(id)
+            .category(MoveCategory.PHYSICAL)
+            .tags(Set.of(MoveTag.PHYSICAL, MoveTag.ATTACK, MoveTag.MELEE))
+            .basePower(10)
+            .neverMiss(true)
+            .apCost(1)
+            .unleashPoint(1)
+            .effects(effects)
+            .build();
+    }
+
+    private static Move utility(String id, List<MoveEffectData> effects) {
+        return new Move.Builder(id)
+            .name(id)
+            .category(MoveCategory.UTILITY)
+            .tags(Set.of(MoveTag.UTILITY))
+            .apCost(1)
+            .unleashPoint(1)
+            .effects(effects)
+            .build();
+    }
+
+    private static BattleCombatant combatant(String id, Move move) {
+        return new BattleCombatant(new SorcererCharacter(
+            id, id, stats(), null, move == null ? List.of() : List.of(move)));
+    }
+
+    private static BattleState teamState(
+        BattleCombatant user,
+        BattleCombatant first,
+        BattleCombatant second
+    ) {
+        return new BattleState(
+            BattleState.teamOfFighters(
+                com.jjktbf.model.combat.BattleTeamId.PLAYER, List.of(user)),
+            BattleState.teamOfFighters(
+                com.jjktbf.model.combat.BattleTeamId.ENEMY, List.of(first, second)));
+    }
+
+    private static List<CombatEvent> resolve(
+        BattleCombatant attacker,
+        BattleCombatant target,
+        Move move
+    ) {
+        BattlePlan plan = new BattlePlan(attacker.getMaxApBar(), attacker.getCurrentCe());
+        ActionSegment segment = plan.place(move, 1, 0);
+        assertNotNull(segment);
+        segment.setTarget(target.getInstanceId());
+        attacker.setTimeline(plan.toLegacyTimeline());
+        BattleState state = new BattleState(attacker, target);
+        state.transitionTo(BattleState.Phase.RESOLUTION);
+        return new CombatResolver(new ZeroRandom()).resolveRound(state);
+    }
+
+    private static CharacterStats stats() {
+        return new CharacterStats.Builder()
+            .vitality(100)
+            .strength(100)
+            .durability(100)
+            .speed(100)
+            .cursedEnergyReserves(100)
+            .cursedEnergyEfficiency(100)
+            .cursedEnergyOutput(100)
+            .jujutsuSkill(100)
+            .combatAbility(100)
+            .cursedTechniqueMastery(100)
+            .build();
+    }
+
+    private static Path movesPath() throws IOException {
+        return List.of(
+                Path.of("data", "moves", "all_moves.json"),
+                Path.of("..", "data", "moves", "all_moves.json"))
+            .stream()
+            .filter(Files::isRegularFile)
+            .findFirst()
+            .orElseThrow(() -> new IOException("Could not locate canonical moves"));
+    }
+
+    private static final class ZeroRandom implements RandomSource {
+        @Override public int nextInt(int bound) { return 0; }
+        @Override public double nextDouble() { return 0.0; }
+        @Override public boolean nextBoolean() { return false; }
+    }
+}

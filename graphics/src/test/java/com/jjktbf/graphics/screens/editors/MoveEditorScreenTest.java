@@ -2,9 +2,14 @@ package com.jjktbf.graphics.screens.editors;
 
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.CharacterType;
+import com.jjktbf.model.character.AbilityConditionData;
+import com.jjktbf.model.character.AbilityConditionType;
+import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.MoveData;
+import com.jjktbf.model.move.MoveEffectData;
+import com.jjktbf.model.move.MoveEffectTrigger;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffectType;
 import com.jjktbf.model.progression.TechniqueMasteryProgressionData;
@@ -441,6 +446,33 @@ class MoveEditorScreenTest {
     }
 
     @Test
+    void cursedTechniqueMovesAreGroupedByTechniqueUnlessTheyBelongToShikigami() {
+        MoveData move = new MoveData();
+        move.requiredTechniqueId = "Ratio";
+
+        assertEquals("CURSED TECHNIQUES/Ratio", MoveEditorScreen.moveRecordGroup(move));
+
+        move.shikigamiMove = true;
+        assertEquals("SHIKIGAMI", MoveEditorScreen.moveRecordGroup(move));
+    }
+
+    @Test
+    void cursedTechniqueSectionsAreAlphabeticalAndContainEveryPurpose() {
+        List<String> sections = MoveEditorScreen.moveRecordSections(List.of(
+            "Ten Shadows", "Ratio", "Miracles", "ratio"));
+
+        assertTrue(sections.indexOf("CURSED TECHNIQUES/Miracles")
+            < sections.indexOf("CURSED TECHNIQUES/Ratio"));
+        assertTrue(sections.indexOf("CURSED TECHNIQUES/Ratio")
+            < sections.indexOf("CURSED TECHNIQUES/Ten Shadows"));
+        assertEquals(1, sections.stream()
+            .filter("CURSED TECHNIQUES/Ratio"::equals).count());
+        assertTrue(sections.contains("CURSED TECHNIQUES/Ratio/ATTACK"));
+        assertTrue(sections.contains("CURSED TECHNIQUES/Ratio/DEFENSE"));
+        assertTrue(sections.contains("CURSED TECHNIQUES/Ratio/UTILITY"));
+    }
+
+    @Test
     void saveCopyForcesWeaponRequirementForSwordTaggedMoves() {
         MoveData swordMove = new MoveData();
         swordMove.tags = new ArrayList<>(List.of(MoveTag.ATTACK.name(), MoveTag.SWORD.name()));
@@ -464,6 +496,50 @@ class MoveEditorScreenTest {
             List.of(domain), Map.of("000027", "000026"));
 
         assertEquals("000026", reaction.codedTarget);
+    }
+
+    @Test
+    void hitComponentChangesKeepCanonicalEffectsAttachedToTheirHits() {
+        MoveData move = attackWithHitComponents();
+        MoveEffectData first = AbilityEffectType.APPLY_STATUS.createDefaultMoveEffect();
+        first.effectId = "effect-000000";
+        first.trigger = MoveEffectTrigger.ON_HIT.name();
+        first.hitComponentIndex = 0;
+        MoveEffectData second = first.copy();
+        second.effectId = "effect-000001";
+        second.hitComponentIndex = 1;
+        MoveEffectData every = first.copy();
+        every.effectId = "effect-000002";
+        every.hitComponentIndex = null;
+        move.effects = new ArrayList<>(List.of(first, second, every));
+
+        MoveEditorScreen.swapHitComponents(move, 0, 1);
+
+        assertEquals(1, first.hitComponentIndex);
+        assertEquals(0, second.hitComponentIndex);
+        assertNull(every.hitComponentIndex);
+
+        MoveEditorScreen.removeHitComponent(move, 0);
+
+        assertEquals(1, move.hitComponents.size());
+        assertEquals(List.of(first, every), move.effects);
+        assertEquals(0, first.hitComponentIndex);
+        assertNull(every.hitComponentIndex);
+    }
+
+    @Test
+    void moveResequencingRemapsNestedCanonicalEffectConditions() {
+        MoveData move = new MoveData();
+        MoveEffectData effect = AbilityEffectType.APPLY_STATUS.createDefaultMoveEffect();
+        AbilityConditionData used = AbilityConditionType.MOVE_USED.createDefault();
+        used.moveId = "000027";
+        effect.condition = AbilityConditionData.all(List.of(used));
+        move.effects = new ArrayList<>(List.of(effect));
+
+        MoveEditorScreen.remapCodedMoveTargets(
+            List.of(move), Map.of("000027", "000026"));
+
+        assertEquals("000026", effect.condition.children.get(0).moveId);
     }
 
     private static MoveData moveWithAllSectionDetails() {

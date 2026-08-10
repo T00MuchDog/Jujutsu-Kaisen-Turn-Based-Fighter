@@ -93,6 +93,18 @@ public record AbilityTrigger(
             component, null);
     }
 
+    public static AbilityTrigger attackHit(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move move,
+        HitComponent component,
+        int tick
+    ) {
+        return new AbilityTrigger(
+            Type.ATTACK_HIT, attacker, defender, move, null, 0, tick, null,
+            component, null);
+    }
+
     public static AbilityTrigger incomingMove(
         BattleCombatant attacker,
         BattleCombatant defender,

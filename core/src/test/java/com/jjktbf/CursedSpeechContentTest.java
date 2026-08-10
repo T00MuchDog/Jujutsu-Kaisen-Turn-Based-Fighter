@@ -3,6 +3,8 @@ package com.jjktbf;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jjktbf.model.character.coded.CursedSpeechAbility;
+import com.jjktbf.model.character.AbilityEffectType;
+import com.jjktbf.model.move.MoveEffectTrigger;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.progression.TechniqueMasteryProgressionData;
@@ -99,7 +101,7 @@ class CursedSpeechContentTest {
                 85, 80, 10, "min(95,56+ctm/5)"),
             new CommandSpec("000075", "Explode", "EXPLODE", 21, 14, 55, 28, 96, 135,
                 100, 50, 36, "min(80,26+ctm/5)"),
-            new CommandSpec("000076", "Die", "DIE", 24, 20, 85, 43, 149, 0,
+            new CommandSpec("000076", "Die", "DIE", 24, 20, 85, 40, 150, 0,
                 120, 25, 80, "min(60,1+ctm/5)")
         );
 
@@ -124,9 +126,10 @@ class CursedSpeechContentTest {
             assertEquals(spec.unlockCtm(),
                 move.path("prerequisites").path("cursedTechniqueMastery").asInt());
 
-            JsonNode rows = move.path("onHitEffects");
-            assertEquals(1, rows.size());
-            JsonNode command = rows.get(0);
+            JsonNode rows = move.path("effects");
+            JsonNode command = StreamSupport.stream(rows.spliterator(), false)
+                .filter(effect -> "CODED_MOVE_ACTION".equals(effect.path("type").asText()))
+                .findFirst().orElseThrow();
             assertEquals("CURSED_SPEECH", command.path("codedAbilityKey").asText());
             assertEquals("COMMAND", command.path("codedAction").asText());
             assertEquals(spec.mode(), command.path("codedTarget").asText());
@@ -138,11 +141,24 @@ class CursedSpeechContentTest {
                 .path("baseChancePercent").path("mode").asText());
             assertEquals(spec.formula(), command.path("masteryProgression")
                 .path("baseChancePercent").path("formula").asText());
+            assertEquals("ON_HIT", command.path("trigger").asText());
             TechniqueMasteryProgressionData progression = MAPPER.treeToValue(
                 command.path("masteryProgression").path("baseChancePercent"),
                 TechniqueMasteryProgressionData.class);
             assertNull(progression.validationError());
             assertEquals(spec.literalChance(), progression.resolve(120));
+            String genericOutcome = switch (spec.mode()) {
+                case "DONT_MOVE", "BLAST_AWAY", "SLEEP", "PLUMMET" -> "APPLY_STATUS";
+                case "RETURN" -> "DESUMMON_TARGET_SHIKIGAMI";
+                case "DIE" -> "INSTANT_KILL";
+                default -> null;
+            };
+            if (genericOutcome != null) {
+                assertTrue(StreamSupport.stream(rows.spliterator(), false)
+                    .anyMatch(effect -> genericOutcome.equals(effect.path("type").asText())
+                        && "ENEMY".equals(effect.path("target").asText())
+                        && "ON_HIT".equals(effect.path("trigger").asText())));
+            }
         }
     }
 
@@ -201,8 +217,11 @@ class CursedSpeechContentTest {
 
             assertNotNull(CursedSpeechAbility.commandMode(battleMove),
                 definition.name + " lost its command effect during repeated conversion");
-            assertTrue(battleMove.getHitComponents().get(0).getOnHitEffects().stream()
-                .anyMatch(CursedSpeechAbility::isCommand));
+            assertTrue(battleMove.effectsFor(MoveEffectTrigger.ON_HIT, 0).stream()
+                .anyMatch(effect -> AbilityEffectType.CODED_MOVE_ACTION.name()
+                    .equals(effect.type)
+                    && CursedSpeechAbility.KEY.equals(effect.codedAbilityKey)
+                    && CursedSpeechAbility.COMMAND.equals(effect.codedAction)));
         }
     }
 

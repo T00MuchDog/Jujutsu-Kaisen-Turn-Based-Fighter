@@ -37,6 +37,15 @@ public class AbilityEffectData {
     /** Feature enabled on {@link #codedAbilityKey}. */
     public String codedFeature;
 
+    /** Allow-listed compiled action used by a move effect. */
+    public String codedAction;
+
+    /** Action-specific mode or referenced move ID. */
+    public String codedTarget;
+
+    /** Optional stack count owned by a compiled move action. */
+    public Integer codedStackCount;
+
     /** Allow-listed integer parameters owned by the selected coded feature. */
     public Map<String, Integer> codedParameters;
 
@@ -119,6 +128,9 @@ public class AbilityEffectData {
         this.type = source.type;
         this.codedAbilityKey = source.codedAbilityKey;
         this.codedFeature = source.codedFeature;
+        this.codedAction = source.codedAction;
+        this.codedTarget = source.codedTarget;
+        this.codedStackCount = source.codedStackCount;
         this.codedParameters = TechniqueMasteryProgressions.copyIntegers(source.codedParameters);
         this.stat = source.stat;
         this.intValue = source.intValue;
@@ -216,6 +228,9 @@ public class AbilityEffectData {
         return type + "{"
             + (codedAbilityKey != null ? " coded=" + codedAbilityKey : "")
             + (codedFeature    != null ? "/" + codedFeature : "")
+            + (codedAction     != null ? "/" + codedAction : "")
+            + (codedTarget     != null ? " -> " + codedTarget : "")
+            + (codedStackCount != null ? " x" + codedStackCount : "")
             + (stat        != null ? " stat=" + stat : "")
             + (intValue    != null ? " int=" + intValue : "")
             + (doubleValue != null ? " dbl=" + doubleValue : "")

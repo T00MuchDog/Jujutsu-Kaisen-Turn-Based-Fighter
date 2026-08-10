@@ -28,6 +28,7 @@ import static com.jjktbf.model.character.AbilityEffectParameter.TIMING;
 import static com.jjktbf.model.character.AbilityEffectParameter.USES;
 import static com.jjktbf.model.character.AbilityEffectParameter.BATTLE_STAT;
 import static com.jjktbf.model.character.AbilityEffectParameter.CODED_FEATURE;
+import static com.jjktbf.model.character.AbilityEffectParameter.CODED_ACTION;
 
 /**
  * Mechanical effects that can be composed into an ability.
@@ -81,6 +82,10 @@ public enum AbilityEffectType {
         "Coded effect",
         "Enables an allow-listed compiled mechanic that cannot be composed from generic effects.",
         CODED_FEATURE),
+    CODED_MOVE_ACTION(
+        "Coded move effect",
+        "Runs an allow-listed compiled effect primitive when its move trigger fires.",
+        CODED_ACTION, TARGET),
 
     CE_COST_TO_MINIMUM(
         "Minimum CE costs",
@@ -286,7 +291,11 @@ public enum AbilityEffectType {
         CHARACTER_ID),
     DESUMMON_OWNED_SHIKIGAMI(
         "Desummon owned shikigami",
-        "Voluntarily dismisses every direct shikigami summon owned by this combatant and their descendants.");
+        "Voluntarily dismisses every direct shikigami summon owned by this combatant and their descendants."),
+    DESUMMON_TARGET_SHIKIGAMI(
+        "Desummon target shikigami",
+        "Voluntarily dismisses the targeted shikigami combatant.",
+        TARGET);
 
     /**
      * Effects that require an active ability condition to run at battle time.
@@ -304,7 +313,8 @@ public enum AbilityEffectType {
             IGNORE_DAMAGE, DAMAGE_SHIELD, SURVIVE_FATAL_DAMAGE,
             GUARANTEE_NEXT_HIT, GUARANTEE_NEXT_DODGE, GUARANTEE_NEXT_BLACK_FLASH,
             CANCEL_NEXT_MOVE, TEMP_LOCK_MOVE_TAG, SUMMON_CHARACTER,
-            DESUMMON_OWNED_SHIKIGAMI);
+            DESUMMON_OWNED_SHIKIGAMI, DESUMMON_TARGET_SHIKIGAMI,
+            CODED_MOVE_ACTION);
 
     private static final Set<StatusEffectType> SUPPORTED_AUTO_STATUSES =
         Collections.unmodifiableSet(EnumSet.allOf(StatusEffectType.class));
@@ -354,11 +364,22 @@ public enum AbilityEffectType {
         return effect;
     }
 
+    /** Create a move attachment using this same immutable effect primitive. */
+    public com.jjktbf.model.move.MoveEffectData createDefaultMoveEffect() {
+        com.jjktbf.model.move.MoveEffectData effect =
+            new com.jjktbf.model.move.MoveEffectData();
+        reset(effect);
+        return effect;
+    }
+
     /** Replace all effect parameters with this type's defaults. */
     public void reset(AbilityEffectData effect) {
         effect.type = name();
         effect.codedAbilityKey = null;
         effect.codedFeature = null;
+        effect.codedAction = null;
+        effect.codedTarget = null;
+        effect.codedStackCount = null;
         effect.codedParameters = null;
         effect.stat = null;
         effect.intValue = null;
@@ -386,6 +407,13 @@ public enum AbilityEffectType {
                     CodedAbilityRegistry.abilityFeatures().get(0);
                 effect.codedAbilityKey = feature.key();
                 effect.codedFeature = feature.feature();
+            }
+            case CODED_MOVE_ACTION -> {
+                CodedAbilityRegistry.EffectAction action =
+                    CodedAbilityRegistry.effectActions().get(0);
+                effect.codedAbilityKey = action.key();
+                effect.codedAction = action.action();
+                CodedAbilityRegistry.prepareMoveEffect(effect);
             }
             case STAT_ADD -> effect.intValue = 10;
             case STAT_MULTIPLY -> effect.doubleValue = 1.10;
@@ -426,7 +454,8 @@ public enum AbilityEffectType {
                 effect.stringValue = StatusEffectType.STRENGTH_DECREASE.name();
                 effect.target = AbilityEffectTarget.SELF.name();
             }
-            case CLEAR_STATUSES, INSTANT_KILL -> effect.target = AbilityEffectTarget.ENEMY.name();
+            case CLEAR_STATUSES, INSTANT_KILL, DESUMMON_TARGET_SHIKIGAMI ->
+                effect.target = AbilityEffectTarget.ENEMY.name();
             case TEMP_STAT_ADD -> {
                 effect.intValue = 10;
                 timedDefaults(effect);
@@ -496,6 +525,12 @@ public enum AbilityEffectType {
             effect.codedFeature = defaults.codedFeature;
         }
         if (uses(CODED_FEATURE)) CodedAbilityRegistry.prepareAbilityParameters(effect);
+        if (uses(CODED_ACTION) && (isBlank(effect.codedAbilityKey)
+            || isBlank(effect.codedAction))) {
+            effect.codedAbilityKey = defaults.codedAbilityKey;
+            effect.codedAction = defaults.codedAction;
+        }
+        if (uses(CODED_ACTION)) CodedAbilityRegistry.prepareMoveEffect(effect);
         if (uses(STAT) && isBlank(effect.stat)) effect.stat = defaults.stat;
         if (uses(INTEGER) && effect.intValue == null) effect.intValue = defaults.intValue;
         if (uses(DECIMAL) && effect.doubleValue == null) effect.doubleValue = defaults.doubleValue;
@@ -525,9 +560,14 @@ public enum AbilityEffectType {
     /** Remove stale values so persisted JSON contains only parameters this type reads. */
     public void clearUnusedFields(AbilityEffectData effect) {
         if (!uses(CODED_FEATURE)) {
-            effect.codedAbilityKey = null;
             effect.codedFeature = null;
-            effect.codedParameters = null;
+            if (!uses(CODED_ACTION)) effect.codedAbilityKey = null;
+        }
+        if (!uses(CODED_ACTION)) {
+            effect.codedAction = null;
+            effect.codedTarget = null;
+            effect.codedStackCount = null;
+            if (!uses(CODED_FEATURE)) effect.codedParameters = null;
         }
         if (!uses(STAT)) effect.stat = null;
         if (!uses(INTEGER)) effect.intValue = null;
@@ -648,6 +688,17 @@ public enum AbilityEffectType {
                 CodedAbilityRegistry.abilityParameterValidationError(effect);
             if (codedParameterError != null) return codedParameterError;
         }
+        if (uses(CODED_ACTION) && !CodedAbilityRegistry.supportsEffect(
+            effect.codedAbilityKey, effect.codedAction,
+            effect.codedTarget, effect.codedStackCount)) {
+            return "Choose a supported coded move effect.";
+        }
+        if (uses(CODED_ACTION)) {
+            String codedParameterError = CodedAbilityRegistry.effectParameterValidationError(
+                effect.codedAbilityKey, effect.codedAction,
+                effect.codedTarget, effect.codedParameters);
+            if (codedParameterError != null) return codedParameterError;
+        }
 
         String literalError = switch (this) {
             case STAT_ADD, STAT_BONUS_POINTS,
@@ -731,6 +782,12 @@ public enum AbilityEffectType {
         if (uses(CODED_FEATURE) && effect != null && effect.codedParameters != null) {
             fields.addAll(effect.codedParameters.keySet());
         }
+        if (uses(CODED_ACTION) && effect != null) {
+            if (effect.codedStackCount != null) {
+                fields.add(TechniqueMasteryProgressions.CODED_STACK_COUNT);
+            }
+            if (effect.codedParameters != null) fields.addAll(effect.codedParameters.keySet());
+        }
         return Collections.unmodifiableSet(fields);
     }
 
@@ -750,6 +807,15 @@ public enum AbilityEffectType {
                   SUMMON_CE_UPKEEP_PER_ACTIVE_TICK -> true;
             default -> false;
         };
+    }
+
+    /** Effect primitives that may be activated from a move effect row. */
+    public boolean isMoveEffect() {
+        return requiresActivation();
+    }
+
+    public boolean isMoveOnly() {
+        return this == CODED_MOVE_ACTION;
     }
 
     private static void timedDefaults(AbilityEffectData effect) {

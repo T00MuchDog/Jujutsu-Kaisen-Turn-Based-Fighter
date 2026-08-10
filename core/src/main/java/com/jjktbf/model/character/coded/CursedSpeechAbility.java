@@ -8,6 +8,9 @@ import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.StatusEffect;
+import com.jjktbf.model.move.MoveEffectData;
+import com.jjktbf.model.move.MoveEffectTrigger;
+import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.progression.TechniqueMasteryResolver;
 
 import java.util.List;
@@ -69,12 +72,23 @@ public final class CursedSpeechAbility implements CodedAbilityRuntime {
         HitComponent component,
         int tick,
         RandomSource rng,
-        Predicate<String> featureActive
+        Predicate<String> featureActive,
+        Predicate<MoveEffectData> moveEffectActive
     ) {
         if (attacker != owner || defender == null || component == null) {
             return CodedHitModifiers.none();
         }
-        StatusEffect authored = commandEffect(component);
+        StatusEffect authored;
+        if (move.usesUnifiedEffects()) {
+            MoveEffectData commandRow = commandEffectData(move, component);
+            if (commandRow == null) return CodedHitModifiers.none();
+            if (!moveEffectActive.test(commandRow)) {
+                return new CodedHitModifiers(true, true, 1.0, true, 0, List.of());
+            }
+            authored = commandRow.toCodedStatusEffect();
+        } else {
+            authored = commandEffect(move, component);
+        }
         if (authored == null) return CodedHitModifiers.none();
 
         StatusEffect command = TechniqueMasteryResolver.resolve(
@@ -130,6 +144,12 @@ public final class CursedSpeechAbility implements CodedAbilityRuntime {
             && stackCount == null;
     }
 
+    public static List<String> commandModes() {
+        return List.of(
+            DONT_MOVE, BLAST_AWAY, SLEEP, PLUMMET,
+            GET_TWISTED, RETURN, EXPLODE, DIE);
+    }
+
     public static boolean isCommand(StatusEffect effect) {
         return effect != null && effect.isCoded()
             && KEY.equalsIgnoreCase(effect.getCodedAbilityKey())
@@ -139,7 +159,10 @@ public final class CursedSpeechAbility implements CodedAbilityRuntime {
     public static String commandMode(Move move) {
         if (move == null) return null;
         for (HitComponent component : move.getHitComponents()) {
-            StatusEffect effect = commandEffect(component);
+            StatusEffect effect = move.usesUnifiedEffects()
+                ? java.util.Optional.ofNullable(commandEffectData(move, component))
+                    .map(MoveEffectData::toCodedStatusEffect).orElse(null)
+                : commandEffect(move, component);
             if (effect != null) return effect.getCodedTarget();
         }
         return null;
@@ -150,10 +173,27 @@ public final class CursedSpeechAbility implements CodedAbilityRuntime {
         return target != null && (!RETURN.equalsIgnoreCase(commandMode(move)) || target.isSummon());
     }
 
-    private static StatusEffect commandEffect(HitComponent component) {
+    private static StatusEffect commandEffect(Move move, HitComponent component) {
+        if (move == null || move.usesUnifiedEffects()) return null;
         return component.getOnHitEffects().stream()
             .filter(CursedSpeechAbility::isCommand)
             .findFirst().orElse(null);
+    }
+
+    private static MoveEffectData commandEffectData(Move move, HitComponent component) {
+        if (move == null || !move.usesUnifiedEffects()) return null;
+        int index = move.getHitComponents().indexOf(component);
+        return move.effectsFor(MoveEffectTrigger.ON_HIT, index).stream()
+            .filter(effect -> AbilityEffectType.CODED_MOVE_ACTION.name()
+                .equalsIgnoreCase(effect.type))
+            .filter(CursedSpeechAbility::isCommand)
+            .findFirst().orElse(null);
+    }
+
+    private static boolean isCommand(MoveEffectData effect) {
+        return effect != null
+            && KEY.equalsIgnoreCase(effect.codedAbilityKey)
+            && COMMAND.equalsIgnoreCase(effect.codedAction);
     }
 
     private int featureParameter(String feature, String parameter, int fallback) {

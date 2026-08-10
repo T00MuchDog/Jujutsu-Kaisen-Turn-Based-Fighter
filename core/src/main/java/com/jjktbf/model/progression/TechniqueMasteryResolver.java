@@ -61,6 +61,11 @@ public final class TechniqueMasteryResolver {
             resolved.uses = TechniqueMasteryProgressions.resolve(
                 values, TechniqueMasteryProgressions.USES, source.uses, mastery);
         }
+        if (source.codedStackCount != null) {
+            resolved.codedStackCount = TechniqueMasteryProgressions.resolve(
+                values, TechniqueMasteryProgressions.CODED_STACK_COUNT,
+                source.codedStackCount, mastery);
+        }
         resolved.codedParameters = resolveCodedParameters(
             source.codedParameters, values, mastery);
         return resolved;

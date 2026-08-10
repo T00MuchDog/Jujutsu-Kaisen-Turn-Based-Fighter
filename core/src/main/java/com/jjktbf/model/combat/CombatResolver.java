@@ -922,7 +922,13 @@ public class CombatResolver {
         // defensive, and utility alike). A move that buffs its user when cast
         // (e.g. a CE strike that raises Power) fires the buff here, regardless
         // of whether the attack later hits, misses, or is blocked. Charged once.
-        applySelfEffects(state, attacker, targets.primary(), move, tick, events);
+        if (move.usesUnifiedEffects()) {
+            events.addAll(abilityActivations.processMoveEffects(
+                state, attacker, targets.all(), move,
+                MoveEffectTrigger.ON_FIRE, -1, tick));
+        } else {
+            applySelfEffects(state, attacker, targets.primary(), move, tick, events);
+        }
         if (finishBattleIfNeeded(state, events, tick)) return;
         if (!attacker.isActive()) return;
 
@@ -930,7 +936,7 @@ public class CombatResolver {
         // at its unleash point (works on utility and attack moves alike). The
         // summon is materialized after the current tick batch via the shared
         // runtime summon path, so it joins the firing list only next round.
-        if (move.summonsCharacter()) {
+        if (!move.usesUnifiedEffects() && move.summonsCharacter()) {
             state.enqueueSummon(attacker, move.getSummonCharacterId());
         }
 
@@ -1081,6 +1087,7 @@ public class CombatResolver {
                 .message(defender.getCharacter().getName() + " dodged " + move.getName() + "!")
                 .build());
             applyDefenseEffects(state, defender, attacker, defenseMove,
+                MoveEffectTrigger.ON_DODGE,
                 defenseMove == null ? List.of() : defenseMove.getOnDodgeEffects(),
                 componentIndex, tick, events);
             return false;
@@ -1108,6 +1115,7 @@ public class CombatResolver {
                 stunActiveSegments(attacker, tick, false);
             }
             applyDefenseEffects(state, defender, attacker, defenseMove,
+                MoveEffectTrigger.ON_PARRY,
                 defenseMove == null ? List.of() : defenseMove.getOnParryEffects(),
                 componentIndex, tick, events);
             events.addAll(abilityActivations.process(state, AbilityTrigger.move(
@@ -1123,6 +1131,7 @@ public class CombatResolver {
                 .message(defender.getCharacter().getName() + " blocked " + move.getName() + "!")
                 .build());
             applyDefenseEffects(state, defender, attacker, defenseMove,
+                MoveEffectTrigger.ON_BLOCK,
                 defenseMove == null ? List.of() : defenseMove.getOnBlockEffects(),
                 componentIndex, tick, events);
             events.addAll(abilityActivations.process(state, AbilityTrigger.move(
@@ -1149,6 +1158,7 @@ public class CombatResolver {
                 .build());
             Move defenseMove = defenseMove(result);
             applyDefenseEffects(state, defender, attacker, defenseMove,
+                MoveEffectTrigger.ON_BLOCK,
                 defenseMove == null ? List.of() : defenseMove.getOnBlockEffects(),
                 componentIndex, tick, events);
         }
@@ -1208,7 +1218,14 @@ public class CombatResolver {
         // battle mid-batch — a friendly-fire AOE must be able to wipe both teams
         // simultaneously for a draw. Team victory is checked after the batch.
         reconcileLifecycle(state, tick, events);
-        applyOnHitEffects(state, attacker, defender, move, component, componentIndex, tick, events);
+        if (move.usesUnifiedEffects()) {
+            events.addAll(abilityActivations.processMoveEffects(
+                state, attacker, defender, move,
+                MoveEffectTrigger.ON_HIT, componentIndex, tick));
+        } else {
+            applyOnHitEffects(
+                state, attacker, defender, move, component, componentIndex, tick, events);
+        }
         applyAbilityOnHitEffects(
             state, attacker, defender, move, componentIndex, tick, events);
         if (move.isStun()) resolveStunTag(
@@ -1771,11 +1788,17 @@ public class CombatResolver {
         BattleCombatant defender,
         BattleCombatant attacker,
         Move move,
+        MoveEffectTrigger trigger,
         List<StatusEffect> effects,
         int componentIndex,
         int tick,
         List<CombatEvent> events
     ) {
+        if (move != null && move.usesUnifiedEffects()) {
+            events.addAll(abilityActivations.processMoveEffects(
+                state, defender, attacker, move, trigger, -1, tick));
+            return;
+        }
         if (effects == null || effects.isEmpty()) return;
         for (StatusEffect authored : effects) {
             StatusEffect effect = TechniqueMasteryResolver.resolve(

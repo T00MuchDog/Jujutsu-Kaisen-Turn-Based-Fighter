@@ -7,6 +7,7 @@ import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.HitComponent;
+import com.jjktbf.model.move.MoveEffectData;
 import com.jjktbf.model.move.StatusEffect;
 
 import java.util.ArrayList;
@@ -101,7 +102,8 @@ public final class CodedAbilities {
         RandomSource rng
     ) {
         return onAttackConnected(
-            attacker, defender, move, component, tick, rng, CodedAbilities::passiveBinding);
+            attacker, defender, move, component, tick, rng,
+            CodedAbilities::passiveBinding, effect -> true);
     }
 
     public CodedHitModifiers onAttackConnected(
@@ -113,11 +115,26 @@ public final class CodedAbilities {
         RandomSource rng,
         Predicate<CodedAbilityBinding> activationGate
     ) {
+        return onAttackConnected(
+            attacker, defender, move, component, tick, rng,
+            activationGate, effect -> true);
+    }
+
+    public CodedHitModifiers onAttackConnected(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move move,
+        HitComponent component,
+        int tick,
+        RandomSource rng,
+        Predicate<CodedAbilityBinding> activationGate,
+        Predicate<MoveEffectData> moveEffectActive
+    ) {
         CodedHitModifiers modifiers = CodedHitModifiers.none();
         for (RuntimeEntry entry : runtimes) {
             modifiers = modifiers.combine(entry.runtime().onAttackConnected(
                 attacker, defender, move, component, tick, rng,
-                featureGate(entry, activationGate)));
+                featureGate(entry, activationGate), moveEffectActive));
         }
         return modifiers;
     }

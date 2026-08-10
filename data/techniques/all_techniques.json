@@ -886,20 +886,20 @@
       "minimum" : 120
     }, {
       "type" : "STAT",
-      "stat" : "cursedEnergyReserves",
-      "minimum" : 45
-    }, {
-      "type" : "STAT",
-      "stat" : "cursedEnergyEfficiency",
-      "minimum" : 85
-    }, {
-      "type" : "STAT",
       "stat" : "cursedEnergyOutput",
       "minimum" : 65
     }, {
       "type" : "STAT",
       "stat" : "jujutsuSkill",
       "minimum" : 80
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyEfficiency",
+      "minimum" : 0
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyReserves",
+      "minimum" : 0
     } ]
   } ]
 } ]

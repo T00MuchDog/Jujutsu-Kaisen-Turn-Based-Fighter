@@ -2,9 +2,12 @@ package com.jjktbf.model.character.coded;
 
 import com.jjktbf.model.character.Ability;
 import com.jjktbf.model.character.AbilityEffectData;
+import com.jjktbf.model.character.AbilityEffectTarget;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.StatusEffect;
+import com.jjktbf.model.move.MoveEffectData;
+import com.jjktbf.model.character.AbilityEffectType;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -63,6 +66,20 @@ public final class CodedAbilityRegistry {
         if (owner != null && owner.getCharacter() != null) {
             for (Move move : owner.getCharacter().getKnownMoves()) {
                 if (move == null) continue;
+                if (move.usesUnifiedEffects()) {
+                    for (MoveEffectData effect : move.getEffects()) {
+                        if (!AbilityEffectType.CODED_MOVE_ACTION.name()
+                            .equalsIgnoreCase(effect.type)
+                            || !supportsEffect(
+                                effect.codedAbilityKey, effect.codedAction,
+                                effect.codedTarget, effect.codedStackCount)) {
+                            continue;
+                        }
+                        featuresByKey.computeIfAbsent(
+                            normalize(effect.codedAbilityKey), ignored -> new LinkedHashSet<>());
+                    }
+                    continue;
+                }
                 List<StatusEffect> effects = new ArrayList<>(move.getOnHitEffects());
                 effects.addAll(move.getSelfEffects());
                 effects.addAll(move.getOnBlockEffects());
@@ -236,6 +253,36 @@ public final class CodedAbilityRegistry {
             effect.codedParameters, abilityParameters(effect.codedAbilityKey, effect.codedFeature));
     }
 
+    /** Normalize the action-specific fields of a shared move effect row. */
+    public static void prepareMoveEffect(AbilityEffectData effect) {
+        if (effect == null) return;
+        String key = normalize(effect.codedAbilityKey);
+        if (RatioAbility.KEY.equals(key)) {
+            if (!RatioAbility.APPLY_TO_MOVE.equalsIgnoreCase(effect.codedTarget)
+                && !RatioAbility.CREATE_STACKS.equalsIgnoreCase(effect.codedTarget)) {
+                effect.codedTarget = RatioAbility.APPLY_TO_MOVE;
+            }
+            effect.codedStackCount = RatioAbility.CREATE_STACKS.equalsIgnoreCase(
+                effect.codedTarget)
+                ? effect.codedStackCount == null ? 1 : effect.codedStackCount
+                : null;
+        } else if (CursedSpeechAbility.KEY.equals(key)) {
+            if (!CursedSpeechAbility.supportsTarget(effect.codedTarget, null)) {
+                effect.codedTarget = CursedSpeechAbility.DONT_MOVE;
+            }
+            effect.codedStackCount = null;
+        } else if (!NewShadowStyleAbility.KEY.equals(key)) {
+            effect.codedTarget = null;
+            effect.codedStackCount = null;
+        }
+        effect.codedParameters = prepareEffectParameters(
+            effect.codedParameters, effect.codedAbilityKey,
+            effect.codedAction, effect.codedTarget);
+        if (effect instanceof MoveEffectData moveEffect && executesBeforeHit(moveEffect)) {
+            effect.target = AbilityEffectTarget.ENEMY.name();
+        }
+    }
+
     public static Map<String, Integer> prepareEffectParameters(
         Map<String, Integer> values,
         String key,
@@ -310,6 +357,20 @@ public final class CodedAbilityRegistry {
             return NewShadowStyleAbility.supportsTarget(normalizedTarget, stackCount);
         }
         return normalizedTarget.isEmpty() && stackCount == null;
+    }
+
+    /** True when a coded move primitive executes before damage/defense resolution. */
+    public static boolean executesBeforeHit(MoveEffectData effect) {
+        if (effect == null || !AbilityEffectType.CODED_MOVE_ACTION.name()
+            .equalsIgnoreCase(effect.type)) return false;
+        String key = normalize(effect.codedAbilityKey);
+        String action = normalize(effect.codedAction);
+        String target = normalize(effect.codedTarget);
+        return (CursedSpeechAbility.KEY.equals(key)
+                && CursedSpeechAbility.COMMAND.equals(action))
+            || (RatioAbility.KEY.equals(key)
+                && RatioAbility.RATIO_EFFECT.equals(action)
+                && RatioAbility.APPLY_TO_MOVE.equals(target));
     }
 
     public static List<EffectAction> effectActions() {

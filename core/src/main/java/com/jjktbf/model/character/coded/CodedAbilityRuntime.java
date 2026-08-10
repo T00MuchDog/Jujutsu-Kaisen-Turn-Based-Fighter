@@ -8,6 +8,7 @@ import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.HitComponent;
+import com.jjktbf.model.move.MoveEffectData;
 import com.jjktbf.model.move.StatusEffect;
 
 import java.util.List;
@@ -79,6 +80,21 @@ public interface CodedAbilityRuntime {
         Predicate<String> featureActive
     ) {
         return onAttackConnected(attacker, defender, move, tick, rng, featureActive);
+    }
+
+    /** Component-aware hook with the shared move-row activation gate. */
+    default CodedHitModifiers onAttackConnected(
+        BattleCombatant attacker,
+        BattleCombatant defender,
+        Move move,
+        HitComponent component,
+        int tick,
+        RandomSource rng,
+        Predicate<String> featureActive,
+        Predicate<MoveEffectData> moveEffectActive
+    ) {
+        return onAttackConnected(
+            attacker, defender, move, component, tick, rng, featureActive);
     }
 
     /** React immediately before an incoming planned move is marked as fired. */

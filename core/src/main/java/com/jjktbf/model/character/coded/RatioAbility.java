@@ -8,6 +8,9 @@ import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.StatusEffect;
+import com.jjktbf.model.move.MoveEffectData;
+import com.jjktbf.model.move.MoveEffectTrigger;
+import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.progression.TechniqueMasteryResolver;
 
 import java.util.ArrayList;
@@ -106,15 +109,24 @@ public final class RatioAbility implements CodedAbilityRuntime {
         HitComponent component,
         int tick,
         RandomSource rng,
-        Predicate<String> featureActive
+        Predicate<String> featureActive,
+        Predicate<MoveEffectData> moveEffectActive
     ) {
         if (attacker != owner) return CodedHitModifiers.none();
 
         // Ratio's APPLY_TO_MOVE effect now lives on a specific HitComponent;
         // directRatio fires only for the component that carries it. The
         // move-level self effects (cast-time Ratio) still apply move-wide.
-        StatusEffect directEffect = ratioMoveEffect(component.getOnHitEffects());
-        if (directEffect == null) directEffect = ratioMoveEffect(move.getSelfEffects());
+        StatusEffect directEffect;
+        if (move.usesUnifiedEffects()) {
+            int componentIndex = move.getHitComponents().indexOf(component);
+            MoveEffectData directRow = ratioMoveEffect(
+                move.effectsFor(MoveEffectTrigger.ON_HIT, componentIndex), moveEffectActive);
+            directEffect = directRow == null ? null : directRow.toCodedStatusEffect();
+        } else {
+            directEffect = ratioMoveEffect(component.getOnHitEffects());
+            if (directEffect == null) directEffect = ratioMoveEffect(move.getSelfEffects());
+        }
         directEffect = TechniqueMasteryResolver.resolve(
             directEffect, TechniqueMasteryResolver.masteryOf(owner));
         int directChance = directEffect == null ? 0 : TechniqueMasteryResolver.codedParameter(
@@ -223,6 +235,20 @@ public final class RatioAbility implements CodedAbilityRuntime {
     private static StatusEffect ratioMoveEffect(List<StatusEffect> effects) {
         return effects.stream().filter(effect -> isRatioEffect(effect)
             && APPLY_TO_MOVE.equalsIgnoreCase(effect.getCodedTarget()))
+            .findFirst().orElse(null);
+    }
+
+    private static MoveEffectData ratioMoveEffect(
+        java.util.Collection<MoveEffectData> effects,
+        Predicate<MoveEffectData> active
+    ) {
+        return effects.stream()
+            .filter(effect -> AbilityEffectType.CODED_MOVE_ACTION.name()
+                .equalsIgnoreCase(effect.type))
+            .filter(effect -> KEY.equalsIgnoreCase(effect.codedAbilityKey)
+                && RATIO_EFFECT.equalsIgnoreCase(effect.codedAction)
+                && APPLY_TO_MOVE.equalsIgnoreCase(effect.codedTarget))
+            .filter(active)
             .findFirst().orElse(null);
     }
 

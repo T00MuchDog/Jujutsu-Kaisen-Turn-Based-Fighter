@@ -2,6 +2,7 @@ package com.jjktbf.model.combat;
 
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.StatusEffect;
+import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.move.StatusEffectType;
 
 import java.util.ArrayList;
@@ -87,6 +88,14 @@ public final class MoveAvailability {
     public static List<String> summonedDefinitionIds(Move move) {
         List<String> ids = new ArrayList<>();
         if (move == null) return List.of();
+        if (move.usesUnifiedEffects()) {
+            return move.getEffects().stream()
+                .filter(effect -> AbilityEffectType.SUMMON_CHARACTER.name()
+                    .equalsIgnoreCase(effect.type))
+                .map(effect -> effect.characterId)
+                .filter(id -> id != null && !id.isBlank())
+                .toList();
+        }
         if (move.summonsCharacter()) ids.add(move.getSummonCharacterId());
         List<StatusEffect> effects = new ArrayList<>(move.getSelfEffects());
         effects.addAll(move.getOnHitEffects());
