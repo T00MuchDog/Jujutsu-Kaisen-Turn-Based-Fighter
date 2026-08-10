@@ -73,6 +73,7 @@ public class PlanningPanel {
     private final List<TargetOption> targetOptions;
     private final List<Move> knownMoves = new ArrayList<>();
     private final int ceEfficiency;
+    private final int ceOutput;
     private final com.jjktbf.model.character.AbilityApplicator.AbilityFlags abilityFlags;
     private final Map<String, Integer> authoritativeCeCosts;
     private final BattleCombatant localCombatant;
@@ -180,6 +181,7 @@ public class PlanningPanel {
             ? null : combatant.getInstanceId().value();
         this.targetOptions = targetOptions(targets);
         this.ceEfficiency = combatant.getEffectiveStats().getCursedEnergyEfficiency();
+        this.ceOutput = combatant.getEffectiveStats().getCursedEnergyOutput();
         this.abilityFlags = combatant.getAbilityFlags();
         this.authoritativeCeCosts = Map.of();
         this.localCombatant = combatant;
@@ -264,6 +266,7 @@ public class PlanningPanel {
         this.actorId = actorId;
         this.targetOptions = targetOptions == null ? List.of() : List.copyOf(targetOptions);
         this.ceEfficiency = 0;
+        this.ceOutput = 0;
         this.abilityFlags = null;
         this.authoritativeCeCosts = ceCosts == null ? Map.of() : Map.copyOf(ceCosts);
         this.localCombatant = null;
@@ -1011,7 +1014,7 @@ public class PlanningPanel {
         if (authoritativeCost != null) return authoritativeCost;
         return localCombatant != null
             ? localCombatant.computeMoveCeCost(move)
-            : CeEfficiencyCalculator.computeActualCost(move, ceEfficiency, abilityFlags);
+            : CeEfficiencyCalculator.computeActualCost(move, ceEfficiency, ceOutput, abilityFlags);
     }
 
     private static CodedAbilityState findMiraclesState(List<CodedAbilityState> states) {

@@ -56,7 +56,9 @@ class HeadlessBattleSessionTest {
     void validPlansResolveServerSideAndHoldRoundEndPlaybackState() {
         Move attack = ceAttack("CE_ATTACK", 1, 40);
         HeadlessBattleSession session = session(10L, attack, attack);
-        int canonicalCost = CeEfficiencyCalculator.computeActualCost(attack, 160);
+        // Session characters use efficiency 160 + default output 80 (see waitingSession);
+        // canonicalCost must match that exact stat pair so ceUsed() agrees.
+        int canonicalCost = CeEfficiencyCalculator.computeActualCost(attack, 160, 80);
         long initialVersion = session.getStateVersion();
         List<RoundStartCharacterState> roundStartResources =
             session.snapshot().roundStartCharacterStates();

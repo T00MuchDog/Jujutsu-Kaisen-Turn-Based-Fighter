@@ -66,7 +66,8 @@ public class StatVerificationTest {
 
     @Test
     void ceEfficiencyBaselineShouldNotChangeCost() {
-        // Baseline efficiency = 80, so factor = 80/80 = 1.0, no change
+        // 2-arg overload holds Output at the baseline (raw 80 → 1.0×),
+        // so at efficiency 80 (→ scaled 80 → 1.0×) cost is unchanged: 20 × 1.0 × 1.0 = 20.
         var move = ceCostFixture(); // baseCeCost = 20
         int cost = com.jjktbf.model.combat.CeEfficiencyCalculator.computeActualCost(move, 80);
         System.out.println("CE cost at baseline efficiency: " + cost);
@@ -75,18 +76,74 @@ public class StatVerificationTest {
 
     @Test
     void highCeEfficiencyShouldReduceCost() {
+        // Efficiency 200 raw → scaled 238 → effMult 1 - 0.0025·(238-80) = 0.605.
+        // 20 × 0.605 = 12.1 → 12 (within [8, 40]).
         var move = ceCostFixture(); // baseCeCost=20, min=8, max=40
         int cost = com.jjktbf.model.combat.CeEfficiencyCalculator.computeActualCost(move, 200);
         System.out.println("CE cost at efficiency 200: " + cost);
-        assertTrue(cost < 20 && cost >= 8, "Cost should be reduced but above min=8, got: " + cost);
+        assertEquals(12, cost);
     }
 
     @Test
     void lowCeEfficiencyShouldIncreaseCost() {
+        // Efficiency 30 raw → scaled 30 → effMult (115-30)/35 = 2.429.
+        // 20 × 2.429 = 48.6 → 49, clamped down to max=40.
         var move = ceCostFixture(); // baseCeCost=20, min=8, max=40
         int cost = com.jjktbf.model.combat.CeEfficiencyCalculator.computeActualCost(move, 30);
         System.out.println("CE cost at efficiency 30: " + cost);
-        assertTrue(cost > 20 && cost <= 40, "Cost should be increased but below max=40, got: " + cost);
+        assertEquals(40, cost);
+    }
+
+    /** CE-cost fixture with a wide clamp so cost multipliers show unclamped. */
+    private static Move wideCeFixture() {
+        return new Move.Builder("CE_WIDE")
+            .name("CE Wide Fixture")
+            .category(MoveCategory.PHYSICAL_CURSED_ENERGY)
+            .baseCeCost(20).hasCeCost(true).minCeCost(0).maxCeCost(9999)
+            .build();
+    }
+
+    @Test
+    void baselineCeOutputDoesNotChangeCost() {
+        // Output 80 raw → scaled 80 (top of the flat band) → outMult 1.0. With
+        // efficiency 80 (1.0×) cost is unchanged: 20 × 1.0 × 1.0 = 20.
+        var move = wideCeFixture(); // baseCeCost=20, clamp [0, 9999]
+        int cost = CeEfficiencyCalculator.computeActualCost(move, 80, 80);
+        assertEquals(20, cost);
+    }
+
+    @Test
+    void lowCeOutputIsFlatBelowBaseline() {
+        // Output 10 raw → scaled 10 (≤80) → still outMult 1.0: output is not yet
+        // high enough to affect CE cost.
+        var move = wideCeFixture(); // baseCeCost=20, clamp [0, 9999]
+        int cost = CeEfficiencyCalculator.computeActualCost(move, 80, 10);
+        assertEquals(20, cost);
+    }
+
+    @Test
+    void highCeOutputShouldIncreaseCost() {
+        // Output 300 raw → scaled 472 → outMult 1 + 392/196 = 3.0. 20 × 1.0 × 3.0 = 60.
+        var move = wideCeFixture(); // baseCeCost=20, clamp [0, 9999]
+        int cost = CeEfficiencyCalculator.computeActualCost(move, 80, 300);
+        assertEquals(60, cost);
+    }
+
+    @Test
+    void ceOutputRampsLinearlyAboveBaseline() {
+        // Output 150 raw → scaled 150 (>80) → outMult 1 + 70/196 = 1.357. 20 × 1.357 = 27.1 → 27.
+        var move = wideCeFixture(); // baseCeCost=20, clamp [0, 9999]
+        int cost = CeEfficiencyCalculator.computeActualCost(move, 80, 150);
+        assertEquals(27, cost);
+    }
+
+    @Test
+    void efficiencyAndOutputCombineMultiplicatively() {
+        // Eff 300 raw → scaled 472 → 0.020×; Output 300 raw → scaled 472 → 3.0×.
+        // 20 × 0.020 × 3.0 = 1.2 → 1 (strictly multiplicative, not additive).
+        var move = wideCeFixture(); // baseCeCost=20, clamp [0, 9999]
+        int cost = CeEfficiencyCalculator.computeActualCost(move, 300, 300);
+        assertEquals(1, cost);
     }
 
     @Test

@@ -78,12 +78,13 @@ lookup aliases.
       CE Power component and supplies the CE term of Defense.
 
     CURSED_ENERGY_EFFICIENCY       cursedEnergyEfficiency / ceeff
-      Modifies the CE cost of all CE-tagged moves. 80 = neutral cost.
-      actualCost = baseCeCost × (80 / efficiency), clamped to [minCeCost, maxCeCost].
+      Reduces the CE cost of CE-tagged moves (scaled stat). 80 = 1.0× cost.
+      See "CE COST SCALING" for the full Efficiency × Output formula.
 
     CURSED_ENERGY_OUTPUT           cursedEnergyOutput / ceo
       Raw cursed energy output. Primary driver (3:2:1) of the CE Power component,
-      and caps CE reinforcement in the Defense formula (× DEFENSE_CE_CAP_FACTOR).
+      caps CE reinforcement in the Defense formula (× DEFENSE_CE_CAP_FACTOR), and
+      raises the CE cost of CE-tagged moves above the baseline (scaled: ≤80 = 1.0×, 472 = 3.0×).
 
     JUJUTSU_SKILL                  jujutsuSkill / js
       Governs NON_INNATE_TECHNIQUE moves and barriers / RCT / cursed-tool styles.
@@ -220,11 +221,11 @@ are the Move/MoveData field names.
                           == apCost = full charge (fires last).
 
   Cursed Energy cost
-    baseCeCost            CE cost before efficiency scaling.
+    baseCeCost            CE cost before Efficiency/Output scaling.
     hasCeCost             Whether the move has a CE cost. False = no CE cost and
                           CE is omitted from the card. True = any cost from 0 up.
-    minCeCost             Floor: efficiency scaling cannot reduce cost below this.
-    maxCeCost             Ceiling: efficiency scaling cannot raise cost above this.
+    minCeCost             Floor: cost scaling cannot reduce cost below this.
+    maxCeCost             Ceiling: cost scaling cannot raise cost above this.
 
   Defensive data (used only when defenseType != NONE; see §8)
     defenseType           NONE / BLOCK / PARRY / DODGE / SHIELD.
@@ -707,13 +708,28 @@ CE POOL (Max Cursed Energy)
   Total CE at fight start. CE Pool = round(S(CursedEnergyReserves) × CE_POOL_SCALE) (= ×8, scaled).
 
 CE COST (of a move)
-  The CE drained when a CE-tagged segment reaches its startTick. Scaled by CE
-  Efficiency from baseCeCost, clamped to [minCeCost, maxCeCost]. Abilities can
-  force minimum (CE_COST_TO_MINIMUM) or multiply (CE_COST_MULTIPLY).
+  The CE drained when a CE-tagged segment reaches its startTick. Scaled from
+  baseCeCost by CE Efficiency and CE Output (see CE COST SCALING), clamped to
+  [minCeCost, maxCeCost]. Abilities can force minimum (CE_COST_TO_MINIMUM) or
+  multiply (CE_COST_MULTIPLY).
 
-CE EFFICIENCY SCALING
-  actualCost = baseCeCost × (80 / cursedEnergyEfficiency).
-  Efficiency 80 = neutral. Above 80 = cheaper. Below 80 = costlier.
+CE COST SCALING
+  Efficiency and Output use the SCALED stat values (StatScale.scale, 10→~472);
+  raw 10–300 values are scaled once inside CeEfficiencyCalculator.
+
+  Efficiency (scaled), baseline 80 = 1.0×, REDUCES cost (piecewise linear):
+    eff ≤ 80:  effMult = (115 - eff) / 35          // 10 = 3.0×, 80 = 1.0×
+    eff > 80:  effMult = 1 - 0.0025·(eff - 80)      // 472 = 0.020×
+
+  Output (scaled), ≤80 = 1.0× (flat), RAISES cost above the baseline (linear):
+    out ≤ 80:  outMult = 1.0                          // 10 = 1.0×, 80 = 1.0×
+    out > 80:  outMult = 1 + (out - 80) / 196          // 472 = 3.0×
+
+  actualCost = baseCeCost × effMult × outMult, clamped to [minCeCost, maxCeCost].
+  Cost-neutral reference: Efficiency 80 + Output ≤80 = 1.0× (pays baseCeCost).
+  Output only raises cost above the baseline (raw > 80). Efficiency's swing is
+  far larger than Output's. The two are MULTIPLICATIVE (not additive):
+  eff 472 + out 472 = 0.020 × 3.000 = 0.060×.
 
 ================================================================================
   14. ABILITIES  (AbilityEffectType.java, AbilityApplicator.java)

@@ -652,6 +652,7 @@ public class BattleCombatant {
         int cost = CeEfficiencyCalculator.computeActualCost(
             move,
             getEffectiveStats().getCursedEnergyEfficiency(),
+            getEffectiveStats().getCursedEnergyOutput(),
             getAbilityFlags());
         return Math.max(0, (int) Math.round(modifyBattleStat(BattleStatKey.CE_COST, cost)));
     }
