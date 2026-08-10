@@ -962,6 +962,9 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "APPLY_STATUS",
@@ -972,9 +975,6 @@
     "magnitude" : 10.0,
     "trigger" : "ON_FIRE"
   } ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "jujutsuSkill" : 45,
     "cursedEnergyOutput" : 25,
@@ -1020,6 +1020,9 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "APPLY_STATUS",
@@ -1030,9 +1033,6 @@
     "magnitude" : 15.0,
     "trigger" : "ON_FIRE"
   } ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedEnergyOutput" : 45,
     "cursedEnergyReserves" : 35,
@@ -1078,15 +1078,18 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "MIRACLES",
     "codedAction" : "CREATE",
-    "target" : "SELF",
     "codedParameters" : {
       "gain" : 1
     },
+    "target" : "SELF",
     "masteryProgression" : {
       "gain" : {
         "mode" : "BENCHMARKS",
@@ -1101,9 +1104,6 @@
     },
     "trigger" : "ON_FIRE"
   } ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 0,
     "cursedEnergyOutput" : 60,
@@ -1248,13 +1248,13 @@
     "codedAbilityKey" : "RATIO",
     "codedAction" : "RATIO_EFFECT",
     "codedTarget" : "CREATE_STACKS",
-    "target" : "ENEMY",
     "codedStackCount" : 1,
     "codedParameters" : {
       "stackDurationTicks" : 50,
       "triggerChancePercent" : 70,
       "defensePercent" : 30
     },
+    "target" : "ENEMY",
     "masteryProgression" : {
       "codedStackCount" : {
         "mode" : "BENCHMARKS",
@@ -1342,23 +1342,23 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "RATIO",
     "codedAction" : "RATIO_EFFECT",
     "codedTarget" : "APPLY_TO_MOVE",
-    "target" : "ENEMY",
     "codedParameters" : {
       "triggerChancePercent" : 100,
       "defensePercent" : 30
     },
+    "target" : "ENEMY",
     "trigger" : "ON_HIT"
   } ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 40,
     "combatAbility" : 50
@@ -1452,6 +1452,9 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "CODED_MOVE_ACTION",
@@ -1461,9 +1464,6 @@
     "target" : "SELF",
     "trigger" : "ON_FIRE"
   } ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "jujutsuSkill" : 70,
     "cursedEnergyOutput" : 40,
@@ -1716,6 +1716,12 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000007",
+    "trigger" : "ON_FIRE"
+  } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 0,
     "cursedEnergyReserves" : 35,
@@ -1726,12 +1732,6 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "effects" : [ {
-    "effectId" : "effect-000000",
-    "type" : "SUMMON_CHARACTER",
-    "characterId" : "000007",
-    "trigger" : "ON_FIRE"
-  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -1769,6 +1769,12 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000008",
+    "trigger" : "ON_FIRE"
+  } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 0,
     "cursedEnergyReserves" : 35,
@@ -1779,12 +1785,6 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "effects" : [ {
-    "effectId" : "effect-000000",
-    "type" : "SUMMON_CHARACTER",
-    "characterId" : "000008",
-    "trigger" : "ON_FIRE"
-  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -1868,7 +1868,7 @@
   "name" : "Cursed Sword Slash",
   "description" : "Commit to a crushing HEAVY PHYSICAL MELEE ATTACK with a cursed tool.",
   "tags" : [ "PHYSICAL", "ATTACK", "MELEE", "CURSED_ENERGY", "SWORD" ],
-  "basePower" : 62,
+  "basePower" : 60,
   "baseAccuracy" : 0.88,
   "neverMiss" : false,
   "stun" : false,
@@ -1895,6 +1895,7 @@
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
   "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "combatAbility" : 80,
     "durability" : 0,
@@ -1990,6 +1991,9 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "APPLY_STATUS",
@@ -2009,9 +2013,6 @@
     "magnitude" : 10.0,
     "trigger" : "ON_FIRE"
   } ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "speed" : 80,
     "combatAbility" : 100
@@ -2055,6 +2056,12 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000009",
+    "trigger" : "ON_FIRE"
+  } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 10,
     "cursedEnergyReserves" : 45,
@@ -2065,12 +2072,6 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "effects" : [ {
-    "effectId" : "effect-000000",
-    "type" : "SUMMON_CHARACTER",
-    "characterId" : "000009",
-    "trigger" : "ON_FIRE"
-  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -2108,6 +2109,12 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000010",
+    "trigger" : "ON_FIRE"
+  } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 20,
     "cursedEnergyReserves" : 40,
@@ -2118,12 +2125,6 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "effects" : [ {
-    "effectId" : "effect-000000",
-    "type" : "SUMMON_CHARACTER",
-    "characterId" : "000010",
-    "trigger" : "ON_FIRE"
-  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -2161,6 +2162,12 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000011",
+    "trigger" : "ON_FIRE"
+  } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 35,
     "cursedEnergyReserves" : 55,
@@ -2171,12 +2178,6 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "effects" : [ {
-    "effectId" : "effect-000000",
-    "type" : "SUMMON_CHARACTER",
-    "characterId" : "000011",
-    "trigger" : "ON_FIRE"
-  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -2214,6 +2215,12 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000012",
+    "trigger" : "ON_FIRE"
+  } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 50,
     "cursedEnergyReserves" : 60,
@@ -2224,12 +2231,6 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "effects" : [ {
-    "effectId" : "effect-000000",
-    "type" : "SUMMON_CHARACTER",
-    "characterId" : "000012",
-    "trigger" : "ON_FIRE"
-  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -2267,6 +2268,12 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000014",
+    "trigger" : "ON_FIRE"
+  } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 65,
     "cursedEnergyReserves" : 65,
@@ -2277,12 +2284,6 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "effects" : [ {
-    "effectId" : "effect-000000",
-    "type" : "SUMMON_CHARACTER",
-    "characterId" : "000014",
-    "trigger" : "ON_FIRE"
-  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -2320,6 +2321,12 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SUMMON_CHARACTER",
+    "characterId" : "000013",
+    "trigger" : "ON_FIRE"
+  } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 70,
     "cursedEnergyReserves" : 80,
@@ -2330,12 +2337,6 @@
   "requiredTechniqueId" : "Ten Shadows",
   "isFreeMove" : true,
   "moveCap" : 1,
-  "effects" : [ {
-    "effectId" : "effect-000000",
-    "type" : "SUMMON_CHARACTER",
-    "characterId" : "000013",
-    "trigger" : "ON_FIRE"
-  } ],
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
   "anyBlock" : false,
@@ -2348,7 +2349,7 @@
   "name" : "Dog Ambush",
   "description" : "Direct a Divine Dog through the target's shadow for a sudden ranged attack.",
   "tags" : [ "PHYSICAL", "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED" ],
-  "basePower" : 48,
+  "basePower" : 50,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
   "stun" : false,
@@ -2372,6 +2373,10 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 15,
     "combatAbility" : 30,
@@ -2393,7 +2398,7 @@
   "name" : "Nue Lightning Strike",
   "description" : "Call Nue's lightning down on a distant target and STUN its active action.",
   "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "STUN" ],
-  "basePower" : 42,
+  "basePower" : 50,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
   "stun" : true,
@@ -2417,6 +2422,10 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 25,
     "cursedEnergyReserves" : 45,
@@ -2484,7 +2493,7 @@
   "name" : "Serpent Snare",
   "description" : "Send Great Serpent through the target's shadow to strike and STUN from range.",
   "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "STUN" ],
-  "basePower" : 34,
+  "basePower" : 35,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
   "stun" : true,
@@ -2508,6 +2517,10 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 40,
     "cursedEnergyReserves" : 55,
@@ -3093,6 +3106,10 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "APPLY_STATUS",
@@ -3103,10 +3120,6 @@
     "magnitude" : 0.0,
     "trigger" : "ON_HIT"
   } ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "strength" : 0,
     "combatAbility" : 0,
@@ -3150,6 +3163,10 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "APPLY_STATUS",
@@ -3160,10 +3177,6 @@
     "magnitude" : 0.0,
     "trigger" : "ON_HIT"
   } ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "strength" : 0,
     "durability" : 0,
@@ -3532,6 +3545,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
+  "selfEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "APPLY_STATUS",
@@ -3542,7 +3556,6 @@
     "magnitude" : 10.0,
     "trigger" : "ON_HIT"
   } ],
-  "selfEffects" : [ ],
   "prerequisites" : {
     "speed" : 75,
     "cursedEnergyOutput" : 50,
@@ -3574,7 +3587,7 @@
   "weaponRequired" : false,
   "apCost" : 7,
   "unleashPoint" : 1,
-  "baseCeCost" : 8,
+  "baseCeCost" : 10,
   "hasCeCost" : true,
   "minCeCost" : 4,
   "maxCeCost" : 14,
@@ -3587,24 +3600,31 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
-    "target" : "ENEMY",
     "codedTarget" : "DONT_MOVE",
     "codedParameters" : {
       "baseChancePercent" : 85,
-      "baseRecoil" : 4
+      "baseRecoil" : 6
     },
+    "target" : "ENEMY",
     "masteryProgression" : {
       "baseChancePercent" : {
         "mode" : "FORMULA",
-        "formula" : "min(95,65+ctm/6)"
+        "formula" : "min(100, 65+ctm/6)"
       }
     },
-    "trigger" : "ON_HIT"
+    "trigger" : "ON_HIT",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   }, {
     "effectId" : "effect-000001",
     "type" : "APPLY_STATUS",
@@ -3613,12 +3633,11 @@
     "durationRounds" : 0,
     "durationTicks" : 6,
     "magnitude" : 0.0,
-    "trigger" : "ON_HIT"
+    "trigger" : "ON_HIT",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   } ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 0,
     "cursedEnergyReserves" : 20,
@@ -3665,38 +3684,38 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
-    "target" : "ENEMY",
     "codedTarget" : "BLAST_AWAY",
     "codedParameters" : {
-      "baseChancePercent" : 80,
-      "baseRecoil" : 8
+      "baseChancePercent" : 100,
+      "baseRecoil" : 16
     },
-    "masteryProgression" : {
-      "baseChancePercent" : {
-        "mode" : "FORMULA",
-        "formula" : "min(95,56+ctm/5)"
-      }
-    },
-    "trigger" : "ON_HIT"
+    "target" : "ENEMY",
+    "trigger" : "ON_HIT",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   }, {
     "effectId" : "effect-000001",
     "type" : "APPLY_STATUS",
     "stringValue" : "STAGGER",
     "target" : "ENEMY",
     "durationRounds" : 0,
-    "durationTicks" : 3,
+    "durationTicks" : 4,
     "magnitude" : 0.0,
-    "trigger" : "ON_HIT"
+    "trigger" : "ON_HIT",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   } ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 20,
     "cursedEnergyReserves" : 25,
@@ -3743,17 +3762,21 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
-    "target" : "ENEMY",
     "codedTarget" : "SLEEP",
     "codedParameters" : {
       "baseChancePercent" : 75,
       "baseRecoil" : 6
     },
+    "target" : "ENEMY",
     "masteryProgression" : {
       "baseChancePercent" : {
         "mode" : "FORMULA",
@@ -3771,10 +3794,6 @@
     "magnitude" : 0.0,
     "trigger" : "ON_HIT"
   } ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 35,
     "cursedEnergyReserves" : 30,
@@ -3797,21 +3816,21 @@
   "id" : "000072",
   "name" : "Plummet",
   "description" : "Drive up to three enemies downward with 65 BASE POWER and 4-tick STAGGER on success; every target contributes 12 BASE RECOIL.",
-  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "STUN" ],
   "basePower" : 65,
   "baseAccuracy" : 1.0,
   "neverMiss" : true,
-  "stun" : false,
+  "stun" : true,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
   "weaponRequired" : false,
   "apCost" : 15,
   "unleashPoint" : 7,
-  "baseCeCost" : 26,
+  "baseCeCost" : 25,
   "hasCeCost" : true,
-  "minCeCost" : 13,
-  "maxCeCost" : 46,
+  "minCeCost" : 10,
+  "maxCeCost" : 45,
   "defenseType" : "NONE",
   "blockStyle" : "PERCENTAGE",
   "blockDuration" : 0,
@@ -3821,38 +3840,32 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
-    "target" : "ENEMY",
     "codedTarget" : "PLUMMET",
     "codedParameters" : {
       "baseChancePercent" : 70,
       "baseRecoil" : 12
     },
+    "target" : "ENEMY",
     "masteryProgression" : {
       "baseChancePercent" : {
         "mode" : "FORMULA",
         "formula" : "min(90,46+ctm/5)"
       }
     },
-    "trigger" : "ON_HIT"
-  }, {
-    "effectId" : "effect-000001",
-    "type" : "APPLY_STATUS",
-    "stringValue" : "STAGGER",
-    "target" : "ENEMY",
-    "durationRounds" : 0,
-    "durationTicks" : 4,
-    "magnitude" : 0.0,
-    "trigger" : "ON_HIT"
+    "trigger" : "ON_HIT",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   } ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 50,
     "cursedEnergyReserves" : 35,
@@ -3899,17 +3912,21 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
-    "target" : "ENEMY",
     "codedTarget" : "GET_TWISTED",
     "codedParameters" : {
       "baseChancePercent" : 60,
       "baseRecoil" : 20
     },
+    "target" : "ENEMY",
     "masteryProgression" : {
       "baseChancePercent" : {
         "mode" : "FORMULA",
@@ -3918,10 +3935,6 @@
     },
     "trigger" : "ON_HIT"
   } ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 70,
     "cursedEnergyReserves" : 40,
@@ -3968,34 +3981,40 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
-    "target" : "ENEMY",
     "codedTarget" : "RETURN",
     "codedParameters" : {
       "baseChancePercent" : 80,
-      "baseRecoil" : 10
+      "baseRecoil" : 0
     },
+    "target" : "ENEMY",
     "masteryProgression" : {
       "baseChancePercent" : {
         "mode" : "FORMULA",
         "formula" : "min(95,56+ctm/5)"
       }
     },
-    "trigger" : "ON_HIT"
+    "trigger" : "ON_HIT",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   }, {
     "effectId" : "effect-000001",
     "type" : "DESUMMON_TARGET_SHIKIGAMI",
     "target" : "ENEMY",
-    "trigger" : "ON_HIT"
+    "trigger" : "ON_HIT",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   } ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 85,
     "cursedEnergyReserves" : 40,
@@ -4031,8 +4050,8 @@
   "unleashPoint" : 14,
   "baseCeCost" : 55,
   "hasCeCost" : true,
-  "minCeCost" : 28,
-  "maxCeCost" : 96,
+  "minCeCost" : 25,
+  "maxCeCost" : 100,
   "defenseType" : "NONE",
   "blockStyle" : "PERCENTAGE",
   "blockDuration" : 0,
@@ -4042,29 +4061,32 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
-    "target" : "ENEMY",
     "codedTarget" : "EXPLODE",
     "codedParameters" : {
       "baseChancePercent" : 50,
       "baseRecoil" : 36
     },
+    "target" : "ENEMY",
     "masteryProgression" : {
       "baseChancePercent" : {
         "mode" : "FORMULA",
         "formula" : "min(80,26+ctm/5)"
       }
     },
-    "trigger" : "ON_HIT"
+    "trigger" : "ON_HIT",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   } ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 100,
     "cursedEnergyReserves" : 45,
@@ -4098,7 +4120,7 @@
   "weaponRequired" : false,
   "apCost" : 24,
   "unleashPoint" : 20,
-  "baseCeCost" : 85,
+  "baseCeCost" : 90,
   "hasCeCost" : true,
   "minCeCost" : 40,
   "maxCeCost" : 150,
@@ -4111,34 +4133,40 @@
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "CODED_MOVE_ACTION",
     "codedAbilityKey" : "CURSED_SPEECH",
     "codedAction" : "COMMAND",
-    "target" : "ENEMY",
     "codedTarget" : "DIE",
     "codedParameters" : {
       "baseChancePercent" : 25,
-      "baseRecoil" : 80
+      "baseRecoil" : 100
     },
+    "target" : "ENEMY",
     "masteryProgression" : {
       "baseChancePercent" : {
         "mode" : "FORMULA",
         "formula" : "min(60,1+ctm/5)"
       }
     },
-    "trigger" : "ON_HIT"
+    "trigger" : "ON_HIT",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   }, {
     "effectId" : "effect-000001",
     "type" : "INSTANT_KILL",
     "target" : "ENEMY",
-    "trigger" : "ON_HIT"
+    "trigger" : "ON_HIT",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   } ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 120,
     "cursedEnergyOutput" : 65,

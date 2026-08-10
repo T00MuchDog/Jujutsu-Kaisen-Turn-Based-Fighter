@@ -100,13 +100,16 @@ public final class CursedSpeechAbility implements CodedAbilityRuntime {
         int bonus = featureActive.test(REFINED_COMMANDS)
             ? featureParameter(REFINED_COMMANDS, SUCCESS_BONUS_PERCENT, 0) : 0;
 
-        double ceRatio = defender.getCurrentCe() / (double) Math.max(1, owner.getCurrentCe());
-        int ceAdjustment = clamp(-60, 20, (int) Math.round(30.0 * (1.0 - ceRatio)));
-        int chance = clamp(5, 95, baseChance + bonus + ceAdjustment);
-        int recoil = (int) Math.round(baseRecoil * clamp(0.25, 3.0, ceRatio));
+        double ceAdjustment = owner.getCurrentCe()
+            / (double) Math.max(1, defender.getCurrentCe());
+        int chance = clamp(1, 99,
+            (int) Math.round((baseChance + bonus) * ceAdjustment));
+        double recoilMultiplier = defender.getCurrentCe()
+            / (double) Math.max(1, owner.getCurrentCe());
+        int recoil = (int) Math.round(baseRecoil * recoilMultiplier);
         boolean eligible = !RETURN.equalsIgnoreCase(command.getCodedTarget())
             || defender.isSummon();
-        boolean succeeds = eligible && (chance >= 100 || rng.nextDouble() < chance / 100.0);
+        boolean succeeds = eligible && rng.nextDouble() < chance / 100.0;
 
         String message = succeeds
             ? owner.getCharacter().getName() + "'s " + move.getName() + " takes hold on "
@@ -121,7 +124,7 @@ public final class CursedSpeechAbility implements CodedAbilityRuntime {
             true,
             1.0,
             !succeeds,
-            Math.max(0, recoil),
+            recoil,
             List.of(event));
     }
 
@@ -206,10 +209,6 @@ public final class CursedSpeechAbility implements CodedAbilityRuntime {
     }
 
     private static int clamp(int minimum, int maximum, int value) {
-        return Math.max(minimum, Math.min(maximum, value));
-    }
-
-    private static double clamp(double minimum, double maximum, double value) {
         return Math.max(minimum, Math.min(maximum, value));
     }
 }

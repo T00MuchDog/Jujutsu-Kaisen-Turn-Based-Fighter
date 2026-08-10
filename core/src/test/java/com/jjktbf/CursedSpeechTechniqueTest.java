@@ -68,8 +68,8 @@ class CursedSpeechTechniqueTest {
     }
 
     @Test
-    void resistanceUsesPostCostCeAndStillInflictsScaledRecoil() {
-        Move command = command("POST_COST", CursedSpeechAbility.DONT_MOVE, 50, 10, 0, 320);
+    void resistanceUsesPostCostCeAndInflictsUncappedScaledRecoil() {
+        Move command = command("POST_COST", CursedSpeechAbility.DONT_MOVE, 50, 10, 0, 576);
         BattleCombatant inumaki = cursedSpeechUser("INUMAKI", command);
         BattleCombatant target = fighter("TARGET");
         BattleState state = new BattleState(inumaki, target);
@@ -77,10 +77,11 @@ class CursedSpeechTechniqueTest {
 
         int hpBefore = inumaki.getCurrentHp();
         state.transitionTo(BattleState.Phase.RESOLUTION);
-        List<CombatEvent> events = new CombatResolver(new SequenceRandom(0.20)).resolveRound(state);
+        List<CombatEvent> events = new CombatResolver(new SequenceRandom(0.05)).resolveRound(state);
 
-        assertEquals(320, inumaki.getCurrentCe(), "the command cost is paid before its CE check");
-        assertEquals(hpBefore - 20, inumaki.getCurrentHp(), "2:1 target CE doubles recoil");
+        assertEquals(64, inumaki.getCurrentCe(), "the command cost is paid before its CE check");
+        assertEquals(hpBefore - 100, inumaki.getCurrentHp(),
+            "10:1 target CE scales recoil beyond the former 3x cap");
         assertFalse(target.hasEffect(StatusEffectType.STAGGER));
         assertTrue(events.stream().anyMatch(event -> event.getMessage().contains("resists")));
         assertTrue(segment.hasFired());
@@ -219,7 +220,7 @@ class CursedSpeechTechniqueTest {
     }
 
     @Test
-    void refinedCommandsAddsItsConfiguredChanceBonus() {
+    void ceAdjustmentMultipliesBaseChanceAndConfiguredBonus() {
         Move command = command("REFINED", CursedSpeechAbility.SLEEP, 40, 0, 0, 0);
         BattleCombatant inumaki = cursedSpeechUser(
             "INUMAKI", command, List.of(refinedCommandsAbility(10)));
@@ -228,10 +229,54 @@ class CursedSpeechTechniqueTest {
         place(inumaki, command, List.of(target));
 
         state.transitionTo(BattleState.Phase.RESOLUTION);
-        new CombatResolver(new SequenceRandom(0.45, 0.5)).resolveRound(state);
+        inumaki.drainCe(320);
+        List<CombatEvent> events = new CombatResolver(
+            new SequenceRandom(0.24, 0.5)).resolveRound(state);
 
         assertTrue(target.hasEffect(StatusEffectType.SLEEP),
-            "40% base chance plus the 10-point passive succeeds at a 45% roll");
+            "a 0.5 CE adjustment gives the 50% combined chance a final 25% chance");
+        assertTrue(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.ABILITY_ACTIVATED
+                && event.getMove() == command
+                && event.getIntValue() == 25));
+    }
+
+    @Test
+    void finalCommandChanceIsClampedFromOneToNinetyNinePercent() {
+        Move lowChanceCommand = command(
+            "LOW_CHANCE", CursedSpeechAbility.SLEEP, 5, 0, 0, 576);
+        BattleCombatant lowChanceUser = cursedSpeechUser("LOW_USER", lowChanceCommand);
+        BattleCombatant strongTarget = fighter("STRONG_TARGET");
+        BattleState lowState = new BattleState(lowChanceUser, strongTarget);
+        place(lowChanceUser, lowChanceCommand, List.of(strongTarget));
+        lowState.transitionTo(BattleState.Phase.RESOLUTION);
+
+        List<CombatEvent> lowEvents = new CombatResolver(
+            new SequenceRandom(0.005, 0.5)).resolveRound(lowState);
+
+        assertTrue(strongTarget.hasEffect(StatusEffectType.SLEEP));
+        assertTrue(lowEvents.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.ABILITY_ACTIVATED
+                && event.getMove() == lowChanceCommand
+                && event.getIntValue() == 1));
+
+        Move highChanceCommand = command(
+            "HIGH_CHANCE", CursedSpeechAbility.SLEEP, 20, 0, 0, 0);
+        BattleCombatant highChanceUser = cursedSpeechUser("HIGH_USER", highChanceCommand);
+        BattleCombatant weakTarget = fighter("WEAK_TARGET");
+        weakTarget.drainCe(weakTarget.getCurrentCe());
+        BattleState highState = new BattleState(highChanceUser, weakTarget);
+        place(highChanceUser, highChanceCommand, List.of(weakTarget));
+        highState.transitionTo(BattleState.Phase.RESOLUTION);
+
+        List<CombatEvent> highEvents = new CombatResolver(
+            new SequenceRandom(0.99, 0.5)).resolveRound(highState);
+
+        assertFalse(weakTarget.hasEffect(StatusEffectType.SLEEP));
+        assertTrue(highEvents.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.ABILITY_ACTIVATED
+                && event.getMove() == highChanceCommand
+                && event.getIntValue() == 99));
     }
 
     @Test
