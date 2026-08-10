@@ -31,11 +31,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000001",
   "name" : "Basic Block",
@@ -74,11 +74,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000002",
   "name" : "Jab",
@@ -120,11 +120,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000003",
   "name" : "Elbow Strike",
@@ -163,11 +163,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000004",
   "name" : "Body Blow",
@@ -209,11 +209,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000005",
   "name" : "Sweeping Kick",
@@ -252,11 +252,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000006",
   "name" : "Knee Strike",
@@ -299,11 +299,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000007",
   "name" : "Overhand Punch",
@@ -345,11 +345,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000008",
   "name" : "Reinforced Jab",
@@ -395,11 +395,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000009",
   "name" : "Reinforced Elbow",
@@ -444,11 +444,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000010",
   "name" : "Reinforced Knee",
@@ -494,11 +494,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000011",
   "name" : "Cursed Energy Burst",
@@ -538,11 +538,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000012",
   "name" : "Cursed Energy Blast",
@@ -585,11 +585,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000013",
   "name" : "Deflection",
@@ -634,11 +634,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000014",
   "name" : "Reinforced Deflection",
@@ -687,11 +687,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000015",
   "name" : "Cross Guard",
@@ -732,11 +732,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000016",
   "name" : "Reinforced Cross Guard",
@@ -780,11 +780,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000017",
   "name" : "Braced Guard",
@@ -829,11 +829,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : true,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : true
+  "dodge" : false
 }, {
   "id" : "000018",
   "name" : "Reinforced Braced Guard",
@@ -880,11 +880,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : true,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : true
+  "dodge" : false
 }, {
   "id" : "000019",
   "name" : "Reinforced Basic Block",
@@ -927,11 +927,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000020",
   "name" : "Cursed Energy Focus",
@@ -985,11 +985,11 @@
   "moveCap" : 2,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000021",
   "name" : "Cursed Energy Surge",
@@ -1043,11 +1043,11 @@
   "moveCap" : 2,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000022",
   "name" : "Miracle Creation",
@@ -1116,11 +1116,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000023",
   "name" : "Sword Slash",
@@ -1162,11 +1162,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000024",
   "name" : "Sword Throw",
@@ -1208,11 +1208,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000025",
   "name" : "Ratio Mark",
@@ -1310,11 +1310,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000026",
   "name" : "Ratio Strike",
@@ -1368,11 +1368,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000027",
   "name" : "Batto Sword Drawing",
@@ -1417,11 +1417,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000028",
   "name" : "Simple Domain",
@@ -1474,11 +1474,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000029",
   "name" : "Sidestep",
@@ -1520,11 +1520,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : true
 }, {
   "id" : "000030",
   "name" : "Weapon Parry",
@@ -1568,11 +1568,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : true,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000031",
   "name" : "Evasive Dash",
@@ -1614,11 +1614,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : true
 }, {
   "id" : "000032",
   "name" : "Divergent Fist",
@@ -1681,11 +1681,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000033",
   "name" : "Summon White Dog",
@@ -1734,11 +1734,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000034",
   "name" : "Summon Black Dog",
@@ -1787,11 +1787,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000035",
   "name" : "Katana Combination",
@@ -1858,11 +1858,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000036",
   "name" : "Cursed Sword Slash",
@@ -1909,11 +1909,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000037",
   "name" : "Cursed Tool Deflection",
@@ -1956,11 +1956,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : true,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000038",
   "name" : "Keen Observation",
@@ -2021,11 +2021,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000039",
   "name" : "Summon Nue",
@@ -2074,11 +2074,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000040",
   "name" : "Summon Toad",
@@ -2127,11 +2127,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000041",
   "name" : "Summon Great Serpent",
@@ -2180,11 +2180,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000042",
   "name" : "Summon Divine Dog Totality",
@@ -2233,11 +2233,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000043",
   "name" : "Summon Toad/Nue Totality",
@@ -2286,11 +2286,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000044",
   "name" : "Summon Max Elephant",
@@ -2339,11 +2339,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000045",
   "name" : "Dog Ambush",
@@ -2388,11 +2388,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000046",
   "name" : "Nue Lightning Strike",
@@ -2437,11 +2437,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000047",
   "name" : "Toad Pull",
@@ -2483,11 +2483,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : true
 }, {
   "id" : "000048",
   "name" : "Serpent Snare",
@@ -2532,11 +2532,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000049",
   "name" : "Totality Rush",
@@ -2577,11 +2577,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000050",
   "name" : "Winged Toad Snare",
@@ -2646,11 +2646,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000051",
   "name" : "Elephant Drop",
@@ -2692,11 +2692,11 @@
   "aoeType" : "ALL_ENEMIES",
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000052",
   "name" : "Shadow Movement",
@@ -2741,11 +2741,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : true
 }, {
   "id" : "000053",
   "name" : "Desummon",
@@ -2789,11 +2789,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000054",
   "name" : "Divine Dog Bite",
@@ -2836,11 +2836,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000055",
   "name" : "Tracking Pounce",
@@ -2883,11 +2883,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000056",
   "name" : "Rending Pounce",
@@ -2930,20 +2930,20 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000057",
   "name" : "Electrified Talons",
   "description" : "Rake the target with electrified talons and STUN its active action.",
-  "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE", "STUN" ],
+  "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 40,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : true,
+  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2967,6 +2967,7 @@
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
   "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "strength" : 0,
     "speed" : 0,
@@ -2978,20 +2979,20 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000058",
   "name" : "Lightning Discharge",
   "description" : "Release a concentrated bolt of cursed lightning from range.",
-  "tags" : [ "CURSED_ENERGY", "ATTACK", "RANGED" ],
+  "tags" : [ "CURSED_ENERGY", "ATTACK", "RANGED", "STUN" ],
   "basePower" : 60,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : false,
+  "stun" : true,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -3015,6 +3016,7 @@
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
   "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "combatAbility" : 0,
     "cursedEnergyEfficiency" : 0,
@@ -3026,11 +3028,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000059",
   "name" : "Tongue Lash",
@@ -3073,11 +3075,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000060",
   "name" : "Binding Tongue",
@@ -3130,11 +3132,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000061",
   "name" : "Serpent Constrict",
@@ -3187,11 +3189,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000062",
   "name" : "Devouring Lunge",
@@ -3234,11 +3236,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000063",
   "name" : "Totality Claw",
@@ -3281,11 +3283,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000064",
   "name" : "Predator Rush",
@@ -3345,11 +3347,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000065",
   "name" : "Crushing Stomp",
@@ -3394,11 +3396,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000066",
   "name" : "Water Deluge",
@@ -3441,11 +3443,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000067",
   "name" : "Winged Tongue Snare",
@@ -3513,11 +3515,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000068",
   "name" : "Aerial Swarm",
@@ -3567,11 +3569,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000069",
   "name" : "Don't Move",
@@ -3651,11 +3653,11 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000070",
   "name" : "Blast Away",
@@ -3729,11 +3731,11 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000071",
   "name" : "Sleep",
@@ -3807,11 +3809,11 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000072",
   "name" : "Plummet",
@@ -3879,11 +3881,11 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000073",
   "name" : "Get Twisted",
@@ -3948,11 +3950,11 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000074",
   "name" : "Return",
@@ -4028,11 +4030,11 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000075",
   "name" : "Explode",
@@ -4100,11 +4102,11 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000076",
   "name" : "Die",
@@ -4180,9 +4182,9 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 } ]

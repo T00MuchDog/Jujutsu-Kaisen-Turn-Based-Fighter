@@ -11,6 +11,7 @@ import com.jjktbf.model.move.StatusEffect;
 import com.jjktbf.model.move.MoveEffectData;
 import com.jjktbf.model.move.MoveEffectTrigger;
 import com.jjktbf.model.character.AbilityEffectType;
+import com.jjktbf.model.character.CombatStats;
 import com.jjktbf.model.progression.TechniqueMasteryResolver;
 
 import java.util.List;
@@ -100,12 +101,12 @@ public final class CursedSpeechAbility implements CodedAbilityRuntime {
         int bonus = featureActive.test(REFINED_COMMANDS)
             ? featureParameter(REFINED_COMMANDS, SUCCESS_BONUS_PERCENT, 0) : 0;
 
-        double ceAdjustment = owner.getCurrentCe()
-            / (double) Math.max(1, defender.getCurrentCe());
+        double userReinforcedCe = reinforcedCe(owner);
+        double targetReinforcedCe = reinforcedCe(defender);
+        double ceAdjustment = userReinforcedCe / Math.max(1.0, targetReinforcedCe);
         int chance = clamp(1, 99,
             (int) Math.round((baseChance + bonus) * ceAdjustment));
-        double recoilMultiplier = defender.getCurrentCe()
-            / (double) Math.max(1, owner.getCurrentCe());
+        double recoilMultiplier = targetReinforcedCe / Math.max(1.0, userReinforcedCe);
         int recoil = (int) Math.round(baseRecoil * recoilMultiplier);
         boolean eligible = !RETURN.equalsIgnoreCase(command.getCodedTarget())
             || defender.isSummon();
@@ -206,6 +207,12 @@ public final class CursedSpeechAbility implements CodedAbilityRuntime {
             bindings.get(0).effect(), TechniqueMasteryResolver.masteryOf(owner));
         return TechniqueMasteryResolver.codedParameter(
             resolved.codedParameters, parameter, fallback);
+    }
+
+    private static double reinforcedCe(BattleCombatant combatant) {
+        double reinforcementCap = CombatStats.computeCeReinforcementCap(
+            combatant.getEffectiveStats());
+        return Math.min(combatant.getCurrentCe(), reinforcementCap);
     }
 
     private static int clamp(int minimum, int maximum, int value) {

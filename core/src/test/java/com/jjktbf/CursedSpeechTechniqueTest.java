@@ -69,7 +69,7 @@ class CursedSpeechTechniqueTest {
 
     @Test
     void resistanceUsesPostCostCeAndInflictsUncappedScaledRecoil() {
-        Move command = command("POST_COST", CursedSpeechAbility.DONT_MOVE, 50, 10, 0, 576);
+        Move command = command("POST_COST", CursedSpeechAbility.DONT_MOVE, 50, 10, 0, 636);
         BattleCombatant inumaki = cursedSpeechUser("INUMAKI", command);
         BattleCombatant target = fighter("TARGET");
         BattleState state = new BattleState(inumaki, target);
@@ -79,12 +79,36 @@ class CursedSpeechTechniqueTest {
         state.transitionTo(BattleState.Phase.RESOLUTION);
         List<CombatEvent> events = new CombatResolver(new SequenceRandom(0.05)).resolveRound(state);
 
-        assertEquals(64, inumaki.getCurrentCe(), "the command cost is paid before its CE check");
+        assertEquals(4, inumaki.getCurrentCe(), "the command cost is paid before its CE check");
         assertEquals(hpBefore - 100, inumaki.getCurrentHp(),
-            "10:1 target CE scales recoil beyond the former 3x cap");
+            "the target's 40 reinforcement cap against 4 user CE produces 10x recoil");
         assertFalse(target.hasEffect(StatusEffectType.STAGGER));
         assertTrue(events.stream().anyMatch(event -> event.getMessage().contains("resists")));
         assertTrue(segment.hasFired());
+    }
+
+    @Test
+    void cursedEnergyOutputCapsChanceAndRecoilCe() {
+        Move command = command("OUTPUT_CAP", CursedSpeechAbility.DONT_MOVE, 50, 10, 0, 0);
+        Character userDefinition = new SorcererCharacter(
+            "LOW_OUTPUT", "LOW_OUTPUT", stats(40), "Cursed Speech", List.of(command));
+        BattleCombatant user = new BattleCombatant(userDefinition);
+        BattleCombatant target = fighter("TARGET");
+        BattleState state = new BattleState(user, target);
+        place(user, command, List.of(target));
+
+        int hpBefore = user.getCurrentHp();
+        state.transitionTo(BattleState.Phase.RESOLUTION);
+        List<CombatEvent> events = new CombatResolver(
+            new SequenceRandom(0.25)).resolveRound(state);
+
+        assertEquals(hpBefore - 20, user.getCurrentHp(),
+            "target's 40 reinforcement cap against the user's 20 cap doubles recoil");
+        assertFalse(target.hasEffect(StatusEffectType.STAGGER));
+        assertTrue(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.ABILITY_ACTIVATED
+                && event.getMove() == command
+                && event.getIntValue() == 25));
     }
 
     @Test
@@ -229,12 +253,12 @@ class CursedSpeechTechniqueTest {
         place(inumaki, command, List.of(target));
 
         state.transitionTo(BattleState.Phase.RESOLUTION);
-        inumaki.drainCe(320);
+        inumaki.drainCe(620);
         List<CombatEvent> events = new CombatResolver(
             new SequenceRandom(0.24, 0.5)).resolveRound(state);
 
         assertTrue(target.hasEffect(StatusEffectType.SLEEP),
-            "a 0.5 CE adjustment gives the 50% combined chance a final 25% chance");
+            "20 user CE against the target's 40 reinforcement cap gives a 0.5 adjustment");
         assertTrue(events.stream().anyMatch(event ->
             event.getType() == CombatEvent.Type.ABILITY_ACTIVATED
                 && event.getMove() == command
@@ -244,7 +268,7 @@ class CursedSpeechTechniqueTest {
     @Test
     void finalCommandChanceIsClampedFromOneToNinetyNinePercent() {
         Move lowChanceCommand = command(
-            "LOW_CHANCE", CursedSpeechAbility.SLEEP, 5, 0, 0, 576);
+            "LOW_CHANCE", CursedSpeechAbility.SLEEP, 5, 0, 0, 636);
         BattleCombatant lowChanceUser = cursedSpeechUser("LOW_USER", lowChanceCommand);
         BattleCombatant strongTarget = fighter("STRONG_TARGET");
         BattleState lowState = new BattleState(lowChanceUser, strongTarget);
@@ -506,10 +530,15 @@ class CursedSpeechTechniqueTest {
     }
 
     private static CharacterStats stats() {
+        return stats(80);
+    }
+
+    private static CharacterStats stats(int cursedEnergyOutput) {
         return new CharacterStats.Builder()
             .vitality(80).speed(80).combatAbility(80)
             .cursedEnergyReserves(80).cursedEnergyEfficiency(80)
-            .cursedEnergyOutput(80).jujutsuSkill(80).cursedTechniqueMastery(120)
+            .cursedEnergyOutput(cursedEnergyOutput)
+            .jujutsuSkill(80).cursedTechniqueMastery(120)
             .build();
     }
 

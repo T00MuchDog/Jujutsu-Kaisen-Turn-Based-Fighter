@@ -318,14 +318,18 @@ public class CombatStats {
         // 6:2 CE reinforcement : Durability; CE reinforcement capped by CE Output.
         // All stat inputs are SCALED via StatScale.
         int scaledCeReserves = StatScale.scale(cs.getCursedEnergyReserves());
-        int scaledCeOutput   = StatScale.scale(cs.getCursedEnergyOutput());
         int scaledDurability = StatScale.scale(cs.getDurability());
         double ceFromPool       = (maxCe > 0)
             ? scaledCeReserves * ((double) currentCe / maxCe)
             : 0.0;
-        double reinforcementCap = scaledCeOutput * DEFENSE_CE_CAP_FACTOR;
+        double reinforcementCap = computeCeReinforcementCap(cs);
         double ceReinforcement  = Math.min(ceFromPool, reinforcementCap);
         return (int) Math.round((ceReinforcement * 6 + scaledDurability * 2) / 6.0);
+    }
+
+    /** Maximum CE that CE Output allows a combatant to reinforce with at once. */
+    public static double computeCeReinforcementCap(CharacterStats cs) {
+        return StatScale.scale(cs.getCursedEnergyOutput()) * DEFENSE_CE_CAP_FACTOR;
     }
 
     /**
