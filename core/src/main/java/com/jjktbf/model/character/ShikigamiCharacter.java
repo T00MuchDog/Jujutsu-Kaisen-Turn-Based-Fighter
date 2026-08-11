@@ -20,6 +20,8 @@ import java.util.List;
  */
 public class ShikigamiCharacter extends Character {
 
+    private final double baseCeDrainPerTick;
+
     public ShikigamiCharacter(
         String         id,
         String         name,
@@ -28,6 +30,7 @@ public class ShikigamiCharacter extends Character {
         List<Move>     knownMoves
     ) {
         super(id, name, CharacterType.SHIKIGAMI, baseStats, innateTechniqueName, knownMoves);
+        this.baseCeDrainPerTick = 0.0;
     }
 
     public ShikigamiCharacter(
@@ -39,6 +42,7 @@ public class ShikigamiCharacter extends Character {
         List<Ability>  abilities
     ) {
         super(id, name, CharacterType.SHIKIGAMI, baseStats, innateTechniqueName, knownMoves, abilities);
+        this.baseCeDrainPerTick = 0.0;
     }
 
     /**
@@ -56,8 +60,27 @@ public class ShikigamiCharacter extends Character {
         java.util.Set<String> accessibleTechniques,
         boolean        hasWeapon
     ) {
+        this(id, name, baseStats, innateTechniqueName, knownMoves, abilities,
+            accessibleTechniques, hasWeapon, 0.0);
+    }
+
+    public ShikigamiCharacter(
+        String         id,
+        String         name,
+        CharacterStats baseStats,
+        String         innateTechniqueName,
+        List<Move>     knownMoves,
+        List<Ability>  abilities,
+        java.util.Set<String> accessibleTechniques,
+        boolean        hasWeapon,
+        double         baseCeDrainPerTick
+    ) {
         super(id, name, CharacterType.SHIKIGAMI, baseStats, innateTechniqueName,
               knownMoves, abilities, accessibleTechniques, hasWeapon);
+        if (!Double.isFinite(baseCeDrainPerTick) || baseCeDrainPerTick < 0.0) {
+            throw new IllegalArgumentException("Base CE drain per tick cannot be negative or non-finite");
+        }
+        this.baseCeDrainPerTick = baseCeDrainPerTick;
     }
 
     /**
@@ -75,6 +98,26 @@ public class ShikigamiCharacter extends Character {
         boolean        hasWeapon
     ) {
         this(id, name, baseStats, innateTechniqueName, knownMoves, abilities,
-             accessibleTechniquesOf(innateTechniqueName, abilities), hasWeapon);
+            hasWeapon, 0.0);
+    }
+
+    public ShikigamiCharacter(
+        String         id,
+        String         name,
+        CharacterStats baseStats,
+        String         innateTechniqueName,
+        List<Move>     knownMoves,
+        List<Ability>  abilities,
+        boolean        hasWeapon,
+        double         baseCeDrainPerTick
+    ) {
+        this(id, name, baseStats, innateTechniqueName, knownMoves, abilities,
+             accessibleTechniquesOf(innateTechniqueName, abilities), hasWeapon,
+             baseCeDrainPerTick);
+    }
+
+    @Override
+    public double getBaseCeDrainPerTick() {
+        return baseCeDrainPerTick;
     }
 }

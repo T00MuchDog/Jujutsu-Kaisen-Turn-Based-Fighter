@@ -5,9 +5,18 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.NinePatch;
+import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.MoveCategory;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 
 /**
  * Hand-drawn, nearest-neighbour pixel textures used by the battle planner.
@@ -17,6 +26,13 @@ import java.util.List;
  * keep their proportions at every game resolution.</p>
  */
 public final class BattleUiAssets {
+
+    private static final String TECHNIQUE_EFFECT_ICON_ROOT =
+        "assets/moves/cursedTechniques/";
+    private static final String TECHNIQUE_EFFECT_ICON_MANIFEST =
+        TECHNIQUE_EFFECT_ICON_ROOT + "effect_icons.properties";
+    private static final Map<String, String> TECHNIQUE_EFFECT_ICON_FILES =
+        loadTechniqueEffectIconFiles();
 
     public static final Color INK = new Color(0.055f, 0.075f, 0.125f, 1f);
     public static final Color PAPER = new Color(0.965f, 0.949f, 0.890f, 1f);
@@ -28,6 +44,8 @@ public final class BattleUiAssets {
     public static final Color DEFENSE = new Color(0.220f, 0.470f, 0.920f, 1f);
 
     private final List<Texture> ownedTextures = new ArrayList<>();
+    private final Map<String, Texture> techniqueEffectIcons = new HashMap<>();
+    private final Set<String> missingTechniqueEffectIcons = new HashSet<>();
 
     public final NinePatch header;
     public final NinePatch palette;
@@ -95,11 +113,11 @@ public final class BattleUiAssets {
         pixel = solidPixel();
         offenseIcon = offenseIconTexture();
         defenseIcon = defenseIconTexture();
-        // Battle "unleash" overlay icons are loaded from the Moves asset folder
+        // Battle "unleash" overlay icons are loaded from the moves asset folder
         // rather than drawn procedurally — they're tracked for disposal below.
-        attackEffectIcon = effectIcon("assets/Moves/Attack_Icon.png");
-        defenseEffectIcon = effectIcon("assets/Moves/Defense_Icon.png");
-        utilityEffectIcon = effectIcon("assets/Moves/Utility_Icon.png");
+        attackEffectIcon = effectIcon("assets/moves/Attack_Icon.png");
+        defenseEffectIcon = effectIcon("assets/moves/Defense_Icon.png");
+        utilityEffectIcon = effectIcon("assets/moves/Utility_Icon.png");
         ratioStack = loadTexture("assets/ui/techniques/ratio/ratioStack.png");
         for (int count = 0; count < miracleCounters.length; count++) {
             miracleCounters[count] = loadTexture(
@@ -121,9 +139,36 @@ public final class BattleUiAssets {
         return miracleCounters[Math.max(0, Math.min(miracleCounters.length - 1, count))];
     }
 
+    /**
+     * Returns the technique-specific unleash icon when its category asset exists,
+     * otherwise the standard attack, defense, or utility icon.
+     */
+    public Texture moveEffectIcon(Move move) {
+        Texture techniqueIcon = optionalTechniqueEffectIcon(techniqueEffectIconPathFor(move));
+        return techniqueIcon != null ? techniqueIcon : effectIcon(effectIconCategoryFor(move));
+    }
+
+    /**
+     * Resolves innate-technique effect icons from the asset manifest, falling
+     * back to {@code assets/moves/cursedTechniques/<technique>/<category>_Icon.png}.
+     */
+    static String techniqueEffectIconPathFor(Move move) {
+        if (move == null || !move.hasTag("INNATE_TECHNIQUE")) return null;
+
+        String techniqueDirectory = techniqueAssetDirectory(move.getRequiredTechniqueId());
+        if (techniqueDirectory == null) return null;
+        EffectIconCategory category = effectIconCategoryFor(move);
+        String fileName = TECHNIQUE_EFFECT_ICON_FILES.getOrDefault(
+            techniqueDirectory + "." + category.manifestKey, category.fileName);
+        return TECHNIQUE_EFFECT_ICON_ROOT + techniqueDirectory + "/"
+            + fileName;
+    }
+
     public void dispose() {
         for (Texture texture : ownedTextures) texture.dispose();
         ownedTextures.clear();
+        techniqueEffectIcons.clear();
+        missingTechniqueEffectIcons.clear();
     }
 
     private NinePatch frame(Color fill, Color outer, Color light, Color shadow) {
@@ -208,12 +253,89 @@ public final class BattleUiAssets {
     }
 
     /**
-     * Loads a battle-unleash overlay icon from {@code assets/Moves/}. Kept on
+     * Loads a battle-unleash overlay icon from {@code assets/moves/}. Kept on
      * {@link Texture.TextureFilter#Nearest} so the pixel-art look matches the
      * rest of the kit; tracked in {@link #ownedTextures} for disposal.
      */
     private Texture effectIcon(String internalPath) {
         return loadTexture(internalPath);
+    }
+
+    private Texture effectIcon(EffectIconCategory category) {
+        return switch (category) {
+            case ATTACK -> attackEffectIcon;
+            case DEFENSE -> defenseEffectIcon;
+            case UTILITY -> utilityEffectIcon;
+        };
+    }
+
+    private Texture optionalTechniqueEffectIcon(String internalPath) {
+        if (internalPath == null || missingTechniqueEffectIcons.contains(internalPath)) return null;
+
+        Texture cached = techniqueEffectIcons.get(internalPath);
+        if (cached != null) return cached;
+        if (!Gdx.files.internal(internalPath).exists()) {
+            missingTechniqueEffectIcons.add(internalPath);
+            return null;
+        }
+
+        Texture texture = loadTexture(internalPath);
+        techniqueEffectIcons.put(internalPath, texture);
+        return texture;
+    }
+
+    private static EffectIconCategory effectIconCategoryFor(Move move) {
+        if (move.isDefensive() || move.hasTag("DEFENSIVE")) {
+            return EffectIconCategory.DEFENSE;
+        }
+        if (move.getCategory() == MoveCategory.UTILITY) {
+            return EffectIconCategory.UTILITY;
+        }
+        return EffectIconCategory.ATTACK;
+    }
+
+    private static String techniqueAssetDirectory(String techniqueId) {
+        if (techniqueId == null || techniqueId.isBlank()) return null;
+
+        StringBuilder directory = new StringBuilder();
+        boolean capitalizeNext = false;
+        for (int index = 0; index < techniqueId.length(); index++) {
+            char character = techniqueId.charAt(index);
+            if (!Character.isLetterOrDigit(character)) {
+                capitalizeNext = directory.length() > 0;
+                continue;
+            }
+            if (directory.length() == 0) {
+                directory.append(Character.toLowerCase(character));
+            } else if (capitalizeNext) {
+                directory.append(Character.toUpperCase(character));
+            } else {
+                directory.append(Character.toLowerCase(character));
+            }
+            capitalizeNext = false;
+        }
+        return directory.isEmpty() ? null : directory.toString();
+    }
+
+    private static Map<String, String> loadTechniqueEffectIconFiles() {
+        Properties properties = new Properties();
+        try (InputStream input = BattleUiAssets.class.getClassLoader()
+            .getResourceAsStream(TECHNIQUE_EFFECT_ICON_MANIFEST)) {
+            if (input == null) return Map.of();
+            properties.load(input);
+        } catch (IOException exception) {
+            throw new IllegalStateException(
+                "Could not load technique effect icon manifest", exception);
+        }
+
+        Map<String, String> files = new HashMap<>();
+        for (String key : properties.stringPropertyNames()) {
+            String fileName = properties.getProperty(key);
+            if (fileName != null && !fileName.isBlank()) {
+                files.put(key, fileName.trim());
+            }
+        }
+        return Map.copyOf(files);
     }
 
     private Texture loadTexture(String internalPath) {
@@ -229,5 +351,19 @@ public final class BattleUiAssets {
         pm.dispose();
         ownedTextures.add(texture);
         return texture;
+    }
+
+    private enum EffectIconCategory {
+        ATTACK("attack", "Attack_Icon.png"),
+        DEFENSE("defense", "Defense_Icon.png"),
+        UTILITY("utility", "Utility_Icon.png");
+
+        private final String manifestKey;
+        private final String fileName;
+
+        EffectIconCategory(String manifestKey, String fileName) {
+            this.manifestKey = manifestKey;
+            this.fileName = fileName;
+        }
     }
 }

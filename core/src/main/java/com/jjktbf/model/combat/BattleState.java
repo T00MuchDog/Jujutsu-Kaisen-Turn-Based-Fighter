@@ -4,6 +4,7 @@ import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectTarget;
 import com.jjktbf.model.character.AbilityEffectTiming;
 import com.jjktbf.model.character.Character;
+import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.CharacterType;
 import com.jjktbf.model.move.StatusEffectType;
 
@@ -86,7 +87,8 @@ public class BattleState {
     public record PendingSummon(
         BattleTeamId teamId,
         BattleCombatant summoner,
-        String summonCharacterId
+        String summonCharacterId,
+        boolean innateTechniqueBased
     ) { }
 
     // -------------------------------------------------------------------------
@@ -422,8 +424,14 @@ public class BattleState {
      * combatant is materialized via {@link #drainPendingSummons(BattleCharacterLookup)}
      * so summons created mid-resolution batch do not retroactively join the
      * current firing list / AOE snapshot.
+     *
+     * @param innateTechniqueBased  {@code true} if the summoning move is innate-technique
+     *      based (the shikigami scales with the summoner's CTM); {@code false} for a
+     *      non-innate summon (scales with the summoner's Jujutsu Skill). See {@link SummonStatScaler}.
      */
-    public boolean enqueueSummon(BattleCombatant summoner, String summonCharacterId) {
+    public boolean enqueueSummon(
+        BattleCombatant summoner, String summonCharacterId, boolean innateTechniqueBased
+    ) {
         BattleTeam team = teamOf(summoner);
         if (team == null || !summoner.isActive() || summoner.isDefeated()
             || summonCharacterId == null || summonCharacterId.isBlank()) {
@@ -431,8 +439,17 @@ public class BattleState {
         }
         String definitionId = summonCharacterId.trim();
         if (summonRestrictionReason(summoner, definitionId) != null) return false;
-        pendingSummons.add(new PendingSummon(team.id(), summoner, definitionId));
+        pendingSummons.add(new PendingSummon(team.id(), summoner, definitionId, innateTechniqueBased));
         return true;
+    }
+
+    /**
+     * Enqueue an innate-technique-based summon (the common case — e.g. all Ten Shadows
+     * shikigami). Equivalent to {@code enqueueSummon(summoner, id, true)}. Kept for
+     * callers without a move context (tests, direct enqueue).
+     */
+    public boolean enqueueSummon(BattleCombatant summoner, String summonCharacterId) {
+        return enqueueSummon(summoner, summonCharacterId, true);
     }
 
     /** Human-readable reason this definition cannot currently be summoned, or null. */
@@ -552,7 +569,16 @@ public class BattleState {
                 continue;
             }
             BattleTeam team = summonerTeam;
-            BattleCombatant summon = new BattleCombatant(definition.get(), definition.get().getAbilities());
+            // Scale the shikigami's raw base stats to its summoner's governing
+            // stats (CTM:CEO for innate summons, JS:CEO otherwise). The scaled
+            // stats feed the ability pipeline; the shikigami's own abilities
+            // still apply on top of them.
+            CharacterStats scaledBase = SummonStatScaler.scale(
+                pending.summoner().getEffectiveStats(),
+                definition.get().getBaseStats(),
+                pending.innateTechniqueBased());
+            BattleCombatant summon = new BattleCombatant(
+                definition.get(), definition.get().getAbilities(), scaledBase);
             CombatantId instanceId = nextInstanceId(team.id());
             summon.assignIdentity(instanceId, team.id(), team.size(),
                 CombatantRole.SUMMON, pending.summoner().getInstanceId());

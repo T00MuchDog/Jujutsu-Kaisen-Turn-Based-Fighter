@@ -12,6 +12,7 @@ import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveEffectData;
 import com.jjktbf.model.move.MoveEffectTrigger;
+import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.progression.TechniqueMasteryProgressions;
 import com.jjktbf.model.progression.TechniqueMasteryResolver;
 
@@ -828,7 +829,8 @@ public final class AbilityActivationEngine {
                 // batch via BattleState.drainPendingSummons(lookup). A summon
                 // created during resolution gets no plan this round.
                 if (effect.characterId != null && !effect.characterId.isBlank()
-                    && state.enqueueSummon(owner, effect.characterId)
+                    && state.enqueueSummon(owner, effect.characterId,
+                        move != null && move.getTags().contains(MoveTag.INNATE_TECHNIQUE))
                     && moveContext) {
                     events.add(CombatEvent.of(CombatEvent.Type.MOVE_SUMMON)
                         .source(owner).move(move).componentIndex(effectComponentIndex).tick(tick)

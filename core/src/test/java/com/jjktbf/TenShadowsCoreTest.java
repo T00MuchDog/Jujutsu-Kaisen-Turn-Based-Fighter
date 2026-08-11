@@ -217,10 +217,10 @@ class TenShadowsCoreTest {
     }
 
     @Test
-    void fractionalUpkeepChargesOnlyTicksWithResolvedActivity() {
+    void baseAndModifiedFractionalUpkeepChargeOnlyTicksWithResolvedActivity() {
         BattleCombatant summoner = fighter("SUMMONER", List.of(capAbility(1)));
         BattleState state = state(summoner, fighter("ENEMY", List.of()));
-        summon(state, summoner, "DOG", List.of(upkeepAbility(0.4)), List.of());
+        summon(state, summoner, "DOG", 0.3, List.of(upkeepAbility(0.1)), List.of());
         int startingCe = summoner.getCurrentCe();
 
         Move occupyTwoTicks = utility("WAIT", 2).build();
@@ -297,6 +297,28 @@ class TenShadowsCoreTest {
             .count());
     }
 
+    @Test
+    void summonedShikigamiScalesWithSummonerGoverningStats() {
+        // A peak CTM/Output summoner doubles an innate (default) summon's stats.
+        CharacterStats peak = new CharacterStats.Builder()
+            .cursedTechniqueMastery(300).cursedEnergyOutput(300)
+            .vitality(100).cursedEnergyReserves(100).speed(100)
+            .build();
+        BattleCombatant peakSummoner = new BattleCombatant(new SorcererCharacter(
+            "PEAK", "PEAK", peak, "Ten Shadows", List.of(), List.of(), false), List.of());
+        BattleState peakState = state(peakSummoner, fighter("ENEMY", List.of()));
+        BattleCombatant peakDog = summon(peakState, peakSummoner, "DOG");
+        assertEquals(200, peakDog.getEffectiveStats().getVitality(),
+            "VIT 100 x2.0 (peak innate summoner) = 200");
+
+        // A baseline (CTM=CEO=80) summoner is the neutral point: no scaling.
+        BattleCombatant baselineSummoner = fighter("BASELINE", List.of());
+        BattleState baselineState = state(baselineSummoner, fighter("ENEMY", List.of()));
+        BattleCombatant baselineDog = summon(baselineState, baselineSummoner, "DOG");
+        assertEquals(100, baselineDog.getEffectiveStats().getVitality(),
+            "baseline summoner leaves authored VIT at 100");
+    }
+
     private static BattleState state(BattleCombatant player, BattleCombatant enemy) {
         return new BattleState(
             BattleState.teamOfFighters(BattleTeamId.PLAYER, List.of(player)),
@@ -318,9 +340,20 @@ class TenShadowsCoreTest {
         List<Ability> abilities,
         List<Move> moves
     ) {
+        return summon(state, summoner, definitionId, 0.0, abilities, moves);
+    }
+
+    private static BattleCombatant summon(
+        BattleState state,
+        BattleCombatant summoner,
+        String definitionId,
+        double baseCeDrainPerTick,
+        List<Ability> abilities,
+        List<Move> moves
+    ) {
         assertTrue(state.enqueueSummon(summoner, definitionId));
         List<BattleCombatant> created = state.drainPendingSummons(id -> Optional.of(
-            shikigami(id, abilities, moves)));
+            shikigami(id, abilities, moves, baseCeDrainPerTick)));
         assertEquals(1, created.size());
         return created.get(0);
     }
@@ -341,9 +374,19 @@ class TenShadowsCoreTest {
         List<Ability> abilities,
         List<Move> moves
     ) {
+        return shikigami(id, abilities, moves, 0.0);
+    }
+
+    private static ShikigamiCharacter shikigami(
+        String id,
+        List<Ability> abilities,
+        List<Move> moves,
+        double baseCeDrainPerTick
+    ) {
         CharacterStats stats = new CharacterStats.Builder()
             .vitality(100).cursedEnergyReserves(100).speed(100).build();
-        return new ShikigamiCharacter(id, id, stats, null, moves, abilities, false);
+        return new ShikigamiCharacter(
+            id, id, stats, null, moves, abilities, false, baseCeDrainPerTick);
     }
 
     private static Ability capAbility(int cap) {

@@ -399,6 +399,9 @@ public abstract class Character extends Entity {
     public boolean         hasInnateTechnique()      { return innateTechniqueName != null; }
     public boolean         hasWeapon()                { return hasWeapon; }
 
+    /** Base CE charged to a summoner per active tick; non-shikigami default to zero. */
+    public double          getBaseCeDrainPerTick()     { return 0.0; }
+
     /** Optional display-only title/epithet, or null when unset. */
     public String          getTitle()                 { return title; }
     /** Set the display-only title. Used by {@link CharacterData#toCharacter}. */

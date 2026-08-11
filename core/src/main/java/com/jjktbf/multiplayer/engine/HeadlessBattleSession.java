@@ -1211,7 +1211,8 @@ public final class HeadlessBattleSession {
             MoveAvailability.summonedDefinitionIds(move),
             move.getAoeType() == null ? null : move.getAoeType().name(),
             move.getAoeTargetCount(),
-            CursedSpeechAbility.commandMode(move)
+            CursedSpeechAbility.commandMode(move),
+            move.getRequiredTechniqueId()
         );
     }
 

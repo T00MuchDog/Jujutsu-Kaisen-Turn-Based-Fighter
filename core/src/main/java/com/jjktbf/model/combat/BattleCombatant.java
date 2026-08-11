@@ -135,16 +135,29 @@ public class BattleCombatant {
     /**
      * Full constructor — applies the given list of abilities before computing
      * effective stats. Use this when the character's AbilityRepository has
-     * been loaded.
+     * been loaded. Base stats come from {@link Character#getBaseStats()}.
      */
     public BattleCombatant(Character character, List<Ability> abilities) {
+        this(character, abilities, character.getBaseStats());
+    }
+
+    /**
+     * Full constructor with an explicit base-stats override. Used to summon a
+     * shikigami whose raw stats have been scaled to its summoner (see
+     * {@link SummonStatScaler}); the shikigami's own abilities then apply on
+     * top of the scaled base stats exactly as they would on the authored ones.
+     *
+     * @param baseStats  the base stats to feed into the ability pipeline
+     *                   (normally {@code character.getBaseStats()})
+     */
+    public BattleCombatant(Character character, List<Ability> abilities, CharacterStats baseStats) {
         this.character = character;
         this.abilities = abilities == null ? List.of() : List.copyOf(abilities);
         this.codedAbilities = CodedAbilityRegistry.create(this, this.abilities);
 
         // Apply passive ability effects to produce modified stats + flags
         AbilityApplicator.ApplicationResult result =
-            AbilityApplicator.apply(character.getBaseStats(), abilities);
+            AbilityApplicator.apply(baseStats, abilities);
 
         this.effectiveStats      = result.modifiedStats;
         this.effectiveCombatStats= new CombatStats(

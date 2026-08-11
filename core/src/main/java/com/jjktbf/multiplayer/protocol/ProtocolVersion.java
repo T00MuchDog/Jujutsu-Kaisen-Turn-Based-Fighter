@@ -9,12 +9,11 @@ public final class ProtocolVersion {
 
     public static final String GAME_VERSION = loadGameVersion();
     /**
-     * Protocol v12 carries explicit target lists for single- and multiple-target
-     * moves and exposes each move's authoritative AOE shape/count and command
-     * targeting metadata. v11 clients are rejected because their singular target
-     * field cannot represent this.
+     * Protocol v13 carries a move's required innate-technique id so clients can
+     * render technique-specific effects. v12 clients are rejected because they
+     * cannot identify the technique behind an innate move.
      */
-    public static final int PROTOCOL_VERSION = 12;
+    public static final int PROTOCOL_VERSION = 13;
     public static final String STANDARD_RULESET = "STANDARD";
 
     private ProtocolVersion() {

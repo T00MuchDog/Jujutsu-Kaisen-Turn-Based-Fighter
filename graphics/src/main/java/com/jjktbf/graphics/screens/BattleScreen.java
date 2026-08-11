@@ -852,13 +852,7 @@ public class BattleScreen implements Screen, BattleView {
 
     private void playMoveUnleashAnimation(Move move) {
         if (move == null) return;
-        if (move.isDefensive() || move.hasTag("DEFENSIVE")) {
-            unleashedMoveIcon = assets.battleUi.defenseEffectIcon;
-        } else if (move.getCategory() == MoveCategory.UTILITY) {
-            unleashedMoveIcon = assets.battleUi.utilityEffectIcon;
-        } else {
-            unleashedMoveIcon = assets.battleUi.attackEffectIcon;
-        }
+        unleashedMoveIcon = assets.battleUi.moveEffectIcon(move);
         unleashedMoveElapsed = 0f;
         unleashedMoveDurationSeconds = MOVE_EFFECT_DURATION_SECONDS;
         unleashedMoveTargetPanel = null;
@@ -1749,7 +1743,9 @@ public class BattleScreen implements Screen, BattleView {
                 .toList());
         }
         if (innateTechnique) {
-            builder.requiredTechniqueId("ONLINE_DISPLAY");
+            String requiredTechniqueId = state.requiredTechniqueId();
+            builder.requiredTechniqueId(requiredTechniqueId == null || requiredTechniqueId.isBlank()
+                ? "ONLINE_DISPLAY" : requiredTechniqueId);
         }
         return builder.build();
     }

@@ -59,6 +59,13 @@ public class CharacterData {
     public Boolean directlySelectable;
 
     /**
+     * Base CE paid by this shikigami's summoner on each active resolution tick.
+     * Required for {@link CharacterType#SHIKIGAMI} definitions and unset for
+     * other character types.
+     */
+    public Double baseCeDrainPerTick;
+
+    /**
      * Human-readable innate technique name (e.g. "Shrine", "Blood Manipulation").
      * Null means no innate technique.
      * Matched case-insensitively against Move.requiredTechniqueId when loading moves.
@@ -228,7 +235,13 @@ public class CharacterData {
     public Character constructTypedCharacter(CharacterStats stats, List<Move> moves, List<Ability> abilities) {
         CharacterType resolved = effectiveType();
         if (resolved == CharacterType.SHIKIGAMI) {
-            return new ShikigamiCharacter(id, name, stats, innateTechniqueName, moves, abilities, hasWeapon);
+            if (baseCeDrainPerTick == null || !Double.isFinite(baseCeDrainPerTick)
+                || baseCeDrainPerTick <= 0.0) {
+                throw new IllegalArgumentException(
+                    "Shikigami base CE drain per tick must be greater than 0");
+            }
+            return new ShikigamiCharacter(id, name, stats, innateTechniqueName,
+                moves, abilities, hasWeapon, baseCeDrainPerTick);
         }
         return new SorcererCharacter(id, name, stats, innateTechniqueName, moves, abilities, hasWeapon);
     }
@@ -327,6 +340,9 @@ public class CharacterData {
         // explicit value when an author overrides the default.
         d.type                  = character.getType() == null
             ? null : character.getType().name();
+        if (character.getType() == CharacterType.SHIKIGAMI) {
+            d.baseCeDrainPerTick = character.getBaseCeDrainPerTick();
+        }
         d.innateTechniqueName   = character.getInnateTechniqueName();
         d.hasWeapon             = character.hasWeapon();
 

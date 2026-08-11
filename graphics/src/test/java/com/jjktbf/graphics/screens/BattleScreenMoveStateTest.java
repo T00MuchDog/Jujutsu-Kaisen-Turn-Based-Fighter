@@ -149,11 +149,13 @@ class BattleScreenMoveStateTest {
             "RETURN", "Return", "Dismiss a summon.", MoveCategory.INNATE_TECHNIQUE.name(),
             List.of("ATTACK", "AOE", "CURSED_ENERGY", "INNATE_TECHNIQUE"),
             PlanBoard.OFFENSIVE, 0, List.of(), 1.0, true, 5, 1, true,
-            10, 10, 5, 20, 0, true, null, null, List.of(), "MULTIPLE", 3, "RETURN");
+            10, 10, 5, 20, 0, true, null, null, List.of(), "MULTIPLE", 3, "RETURN",
+            "Cursed Speech");
 
         Move move = BattleScreen.toDisplayMove(state);
 
         assertEquals(CursedSpeechAbility.RETURN, CursedSpeechAbility.commandMode(move));
+        assertEquals("Cursed Speech", move.getRequiredTechniqueId());
     }
 
     @Test

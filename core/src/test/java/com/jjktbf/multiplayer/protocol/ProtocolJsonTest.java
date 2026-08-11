@@ -82,7 +82,7 @@ class ProtocolJsonTest {
             "MULTI", "Multiple", "Choose several enemies.", "PHYSICAL",
             List.of("ATTACK", "AOE", "PHYSICAL"), PlanBoard.OFFENSIVE,
             20, List.of(), 1.0, true, 5, 1, false, 0, 0, 0, 0,
-            0, true, null, null, List.of(), "MULTIPLE", 3, "RETURN");
+            0, true, null, null, List.of(), "MULTIPLE", 3, "RETURN", "Cursed Speech");
 
         String json = mapper.writeValueAsString(multiple);
         MoveState restored = mapper.readValue(json, MoveState.class);
@@ -92,6 +92,7 @@ class ProtocolJsonTest {
         assertEquals("MULTIPLE", tree.get("aoeType").textValue());
         assertEquals(3, tree.get("aoeTargetCount").intValue());
         assertEquals("RETURN", tree.get("commandMode").textValue());
+        assertEquals("Cursed Speech", tree.get("requiredTechniqueId").textValue());
     }
 
     @Test
@@ -210,7 +211,7 @@ class ProtocolJsonTest {
         SocketMessage joined = messages.get(1);
         assertEquals(ProtocolVersion.GAME_VERSION, joined.gameVersion());
         assertEquals(ProtocolVersion.PROTOCOL_VERSION, joined.protocolVersion());
-        assertEquals(12, joined.protocolVersion());
+        assertEquals(13, joined.protocolVersion());
         assertEquals(42L, joined.stateVersion());
         assertEquals(1_700_000_060_000L, messages.get(6).disconnectDeadline());
         assertTrue(ProtocolVersion.isCompatible(

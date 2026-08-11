@@ -269,6 +269,21 @@ are the Move/MoveData field names.
                 on-defense). Materialized after the current tick batch, so the summon
                 joins planning next round. Only SHIKIGAMI definitions may be summoned.
 
+    Summon stat scaling (SummonStatScaler.java) — at materialization each of the
+    shikigami's RAW base stats is multiplied by a factor derived from the SUMMONER,
+    then clamped to [10, 300] (CTM allows 0). The shikigami's own abilities then
+    apply on top of the scaled raw stats as usual.
+      governing = round((2·primary + Output) / 3)          2:1 weighting, primary below
+      primary   = CTM  if the summoning move is INNATE_TECHNIQUE-tagged (e.g. Ten Shadows)
+                = JujutsuSkill otherwise (non-innate summon)
+      sg        = S(governing)                             the StatScale curve above
+      factor    = 0.5 + (sg − 10)·0.5/70          for sg ≤ 80      (10→0.5x, 80→1.0x)
+                = 1.0 + (sg − 80)·1.0/392         for sg >  80      (80→1.0x, 472→2.0x)
+                clamped to [0.5, 2.0]             (472 = S(300), the max governing stat)
+      → each raw stat becomes clamp(round(raw·factor), 10, 300).
+      Neutral point: a baseline summoner (primary = Output = 80) gives factor 1.0 and
+      reproduces the authored stats exactly. A peak summoner (300/300) doubles them.
+
   Area of effect (MoveTag.AOE + AoeType)
     aoeType               Authoritative AOE targeting shape for an AOE-tagged move
                           (AoeType.java): MULTIPLE / ALL_ENEMIES / ALL_OTHERS. Defaults

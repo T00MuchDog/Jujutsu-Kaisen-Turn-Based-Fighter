@@ -439,7 +439,7 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "DEFENSE_FROM_DURABILITY",
-    "doubleValue" : 1.3333333333333333
+    "doubleValue" : 1.2
   } ],
   "masteryThreshold" : 0
 }, {
@@ -535,10 +535,6 @@
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
     "moveId" : "000055"
-  }, {
-    "effectId" : "effect-000002",
-    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
-    "doubleValue" : 0.2
   } ],
   "masteryThreshold" : 0
 }, {
@@ -556,10 +552,6 @@
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
     "moveId" : "000056"
-  }, {
-    "effectId" : "effect-000002",
-    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
-    "doubleValue" : 0.2
   } ],
   "masteryThreshold" : 0
 }, {
@@ -577,10 +569,6 @@
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
     "moveId" : "000058"
-  }, {
-    "effectId" : "effect-000002",
-    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
-    "doubleValue" : 0.35
   } ],
   "masteryThreshold" : 0
 }, {
@@ -598,10 +586,6 @@
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
     "moveId" : "000060"
-  }, {
-    "effectId" : "effect-000002",
-    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
-    "doubleValue" : 0.2
   } ],
   "masteryThreshold" : 0
 }, {
@@ -619,10 +603,6 @@
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
     "moveId" : "000062"
-  }, {
-    "effectId" : "effect-000002",
-    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
-    "doubleValue" : 0.45
   } ],
   "masteryThreshold" : 0
 }, {
@@ -640,10 +620,6 @@
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
     "moveId" : "000064"
-  }, {
-    "effectId" : "effect-000002",
-    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
-    "doubleValue" : 0.4
   } ],
   "masteryThreshold" : 0
 }, {
@@ -661,10 +637,6 @@
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
     "moveId" : "000066"
-  }, {
-    "effectId" : "effect-000002",
-    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
-    "doubleValue" : 0.8
   } ],
   "masteryThreshold" : 0
 }, {
@@ -682,10 +654,6 @@
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
     "moveId" : "000068"
-  }, {
-    "effectId" : "effect-000002",
-    "type" : "SUMMON_CE_UPKEEP_PER_ACTIVE_TICK",
-    "doubleValue" : 0.45
   } ],
   "masteryThreshold" : 0
 }, {
@@ -753,8 +721,8 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "CE_COST_ALTER",
-    "doubleValue" : 0.0,
-    "intValue" : 0
+    "intValue" : 0,
+    "doubleValue" : 0.0
   } ],
   "masteryThreshold" : 0
 } ]

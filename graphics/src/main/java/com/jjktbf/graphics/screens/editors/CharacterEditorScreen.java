@@ -13,6 +13,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.AssetLoader;
@@ -22,6 +23,7 @@ import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.graphics.ui.editor.AxisLockedScrollPane;
 import com.jjktbf.graphics.ui.editor.AssignmentPanel;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
+import com.jjktbf.graphics.ui.editor.HoverTextField;
 import com.jjktbf.graphics.ui.editor.MoveAssignmentPanel;
 import com.jjktbf.graphics.ui.editor.StatField;
 import com.jjktbf.graphics.ui.editor.SkillTreeCanvas;
@@ -182,6 +184,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         d.spriteAsset         = stored.spriteAsset;
         d.type                = stored.type;
         d.directlySelectable  = stored.directlySelectable;
+        d.baseCeDrainPerTick  = stored.baseCeDrainPerTick;
         d.innateTechniqueName = stored.innateTechniqueName;
         d.hasWeapon           = stored.hasWeapon;
         for (StatKey sk : STAT_ORDER) sk.set(d, sk.get(stored));
@@ -560,8 +563,10 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 cd.type = (chosen == CharacterType.SORCERER) ? null : chosen.name();
                 // Reset an explicit override so the new type's default applies.
                 cd.directlySelectable = null;
+                if (chosen != CharacterType.SHIKIGAMI) cd.baseCeDrainPerTick = null;
                 refreshSelectableControl(cd);
                 markDirty();
+                rebuildDetail();
             }
         });
         identity.add(labelledRow("Type", typeSelect)).growX().row();
@@ -578,6 +583,27 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         identity.add(selectableCheckbox).growX().colspan(2).padTop(4f).row();
         selectableControl = selectableCheckbox;
         refreshSelectableControl(cd);
+
+        if (cd.effectiveType() == CharacterType.SHIKIGAMI) {
+            Table shikigami = formSection(form, "SHIKIGAMI");
+            TextField baseDrain = new HoverTextField(
+                cd.baseCeDrainPerTick == null ? "" : cd.baseCeDrainPerTick.toString(), skin);
+            baseDrain.setTextFieldFilter((field, character) ->
+                Character.isDigit(character) || character == '.');
+            baseDrain.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    try {
+                        cd.baseCeDrainPerTick = Double.valueOf(baseDrain.getText());
+                    } catch (NumberFormatException ex) {
+                        cd.baseCeDrainPerTick = null;
+                    }
+                    markDirty();
+                }
+            });
+            shikigami.add(labelledRow("Base CE drain per tick", baseDrain)).growX().row();
+            shikigami.add(formHint(
+                "CE paid by the summoner for each active resolution tick.")).growX().row();
+        }
 
         // ── Stats (mode toggle + sliders) ───────────────────────────────────────
         Table stats = formSection(form, "STATS");

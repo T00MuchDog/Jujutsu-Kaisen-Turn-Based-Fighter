@@ -55,12 +55,14 @@ class CharacterTypeTest {
         data.id = "000010";
         data.name = "Divine Dog";
         data.type = CharacterType.SHIKIGAMI.name();
+        data.baseCeDrainPerTick = 0.2;
         data.moveIds = java.util.List.of();
 
         String json = mapper.writeValueAsString(data);
         CharacterData roundTrip = mapper.readValue(json, CharacterData.class);
 
         assertEquals(CharacterType.SHIKIGAMI, roundTrip.effectiveType());
+        assertEquals(0.2, roundTrip.baseCeDrainPerTick);
         assertFalse(roundTrip.effectiveSelectable(),
             "shikigami must default to NOT directly selectable");
     }
@@ -107,11 +109,13 @@ class CharacterTypeTest {
         shikigami.id = "000002";
         shikigami.name = "D";
         shikigami.type = CharacterType.SHIKIGAMI.name();
+        shikigami.baseCeDrainPerTick = 0.25;
         shikigami.moveIds = java.util.List.of();
         Character shikigamiChar = shikigami.constructTypedCharacter(
             shikigami.toCharacterStats(), java.util.List.of(), java.util.List.of());
         assertInstanceOf(ShikigamiCharacter.class, shikigamiChar);
         assertEquals(CharacterType.SHIKIGAMI, shikigamiChar.getType());
+        assertEquals(0.25, shikigamiChar.getBaseCeDrainPerTick());
     }
 
     @Test
@@ -129,11 +133,29 @@ class CharacterTypeTest {
         shikigamiData.id = "000004";
         shikigamiData.name = "D";
         shikigamiData.type = CharacterType.SHIKIGAMI.name();
+        shikigamiData.baseCeDrainPerTick = 0.35;
         shikigamiData.moveIds = java.util.List.of();
         Character shikigamiChar = shikigamiData.constructTypedCharacter(
             shikigamiData.toCharacterStats(), java.util.List.of(), java.util.List.of());
         CharacterData back2 = CharacterData.fromCharacter(shikigamiChar);
         assertEquals(CharacterType.SHIKIGAMI, back2.effectiveType());
+        assertEquals(0.35, back2.baseCeDrainPerTick);
+    }
+
+    @Test
+    void shikigamiRequiresPositiveBaseCeDrain() {
+        CharacterData shikigami = new CharacterData();
+        shikigami.id = "000006";
+        shikigami.name = "D";
+        shikigami.type = CharacterType.SHIKIGAMI.name();
+        shikigami.moveIds = java.util.List.of();
+
+        assertThrows(IllegalArgumentException.class, () -> shikigami.constructTypedCharacter(
+            shikigami.toCharacterStats(), java.util.List.of(), java.util.List.of()));
+
+        shikigami.baseCeDrainPerTick = 0.0;
+        assertThrows(IllegalArgumentException.class, () -> shikigami.constructTypedCharacter(
+            shikigami.toCharacterStats(), java.util.List.of(), java.util.List.of()));
     }
 
     @Test

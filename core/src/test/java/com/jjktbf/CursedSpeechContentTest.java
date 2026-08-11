@@ -51,6 +51,8 @@ class CursedSpeechContentTest {
                     && Integer.valueOf(1).equals(effect.intValue)));
             assertNotNull(CursedSpeechAbility.commandMode(battleMove),
                 definition.name + " lost its command effect during repeated conversion");
+            assertEquals("Cursed Speech", battleMove.getRequiredTechniqueId());
+            assertTrue(battleMove.hasTag("INNATE_TECHNIQUE"));
             assertTrue(battleMove.effectsFor(MoveEffectTrigger.ON_HIT, 0).stream()
                 .anyMatch(effect -> AbilityEffectType.CODED_MOVE_ACTION.name()
                     .equals(effect.type)

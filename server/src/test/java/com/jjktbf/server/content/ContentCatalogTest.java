@@ -92,7 +92,8 @@ class ContentCatalogTest {
             .anyMatch(move -> "Summon White Dog".equals(move.getName())));
         var whiteDog = catalog.findCharacter("000007").orElseThrow();
         assertEquals(com.jjktbf.model.character.CharacterType.SHIKIGAMI, whiteDog.getType());
-        assertEquals(0.2, new BattleCombatant(whiteDog)
+        assertEquals(0.2, whiteDog.getBaseCeDrainPerTick(), 0.000001);
+        assertEquals(0.0, new BattleCombatant(whiteDog)
             .getAbilityFlags().summonCeUpkeepPerActiveTick, 0.000001);
         assertTrue(whiteDog.getKnownMoves().stream()
             .anyMatch(move -> "Desummon".equals(move.getName())));

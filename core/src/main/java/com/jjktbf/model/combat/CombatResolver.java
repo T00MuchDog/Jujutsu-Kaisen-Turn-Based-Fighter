@@ -391,7 +391,8 @@ public class CombatResolver {
             for (BattleCombatant summon : active) {
                 if (summon.isActive()
                     && summoner.getInstanceId().equals(summon.getSummonerId())) {
-                    rate += summon.getAbilityFlags().summonCeUpkeepPerActiveTick;
+                    rate += summon.getCharacter().getBaseCeDrainPerTick()
+                        + summon.getAbilityFlags().summonCeUpkeepPerActiveTick;
                 }
             }
             int due = summoner.accrueSummonCeUpkeep(rate);
@@ -937,7 +938,8 @@ public class CombatResolver {
         // summon is materialized after the current tick batch via the shared
         // runtime summon path, so it joins the firing list only next round.
         if (!move.usesUnifiedEffects() && move.summonsCharacter()) {
-            state.enqueueSummon(attacker, move.getSummonCharacterId());
+            state.enqueueSummon(attacker, move.getSummonCharacterId(),
+                move.getTags().contains(MoveTag.INNATE_TECHNIQUE));
         }
 
         // --- Defensive moves: apply buff or register full block ---
@@ -1514,7 +1516,8 @@ public class CombatResolver {
         List<CombatEvent> events
     ) {
         if (summonCharacterId == null || summonCharacterId.isBlank()) return;
-        if (!state.enqueueSummon(summoner, summonCharacterId)) return;
+        if (!state.enqueueSummon(summoner, summonCharacterId,
+                move != null && move.getTags().contains(MoveTag.INNATE_TECHNIQUE))) return;
         events.add(CombatEvent.of(CombatEvent.Type.MOVE_SUMMON)
             .source(summoner).move(move)
             .componentIndex(componentIndex)
