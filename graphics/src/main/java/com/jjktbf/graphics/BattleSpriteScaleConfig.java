@@ -26,15 +26,21 @@ public final class BattleSpriteScaleConfig {
     private static final Scale DEFAULT_SCALE = Scale.X_1_0;
 
     /**
-     * Add or change a front-sprite path here to set that sprite family's battle
-     * size. Its matching _backsprite variant inherits the same setting.
+     * Front-sprite settings apply to their matching _backsprite by default.
+     * Add a _backsprite entry to override that inherited scale.
      */
     private static final Map<String, Scale> SCALE_BY_SPRITE_ASSET = Map.ofEntries(
         Map.entry(
             "assets/sprites/shikigami/DivineDogTotality_frontsprite.png",
             Scale.X_1_5),
         Map.entry(
+            "assets/sprites/shikigami/DivineDogTotality_backsprite.png",
+            Scale.X_1_2),
+        Map.entry(
             "assets/sprites/shikigami/MaxElephant_frontsprite.png",
+            Scale.X_1_5),
+        Map.entry(
+            "assets/sprites/shikigami/GreatSerpentOrochi_frontsprite.png",
             Scale.X_1_5),
         Map.entry(
             "assets/sprites/shikigami/Toad_frontsprite.png",
