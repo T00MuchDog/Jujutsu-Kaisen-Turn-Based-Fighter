@@ -1043,7 +1043,6 @@ public class CombatResolver {
     ) {
         Move move = execution.entry.segment.getMove();
         BattleCombatant attacker = execution.entry.attacker;
-        boolean aoeBypassesDodge = MoveTargeting.forMove(move).isAreaOfEffect();
         DamageCalculator.DamageResult result = DamageCalculator.resolve(
             attacker, defender, move, component, tick, rng,
             state.getRoundNumber(), Boolean.TRUE.equals(
@@ -1057,9 +1056,6 @@ public class CombatResolver {
             // revert this to `launchTick < tick` — that re-enables the old rule
             // where a not-yet-fired same-tick defense contested regardless of speed.
             true,
-            // AOE bypasses dodge (documented intended rule); other defenses still
-            // resolve independently per target.
-            aoeBypassesDodge,
             trigger -> abilityActivations.onAttackConnected(state, trigger));
         events.addAll(result.getCodedEvents());
         execution.addRecoil(result.getRecoilDamage(), component, defender);

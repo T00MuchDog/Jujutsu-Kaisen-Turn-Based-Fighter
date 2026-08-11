@@ -165,6 +165,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         // (e.g. an Attack + Innate Technique move would lose its tags).
         MoveData draft = deepCopy(stored);
         draft.migrateLegacyEffects();
+        draft.migrateLegacyNeverMissTier();
         return draft;
     }
 
@@ -834,7 +835,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         identity.add(idBadge(d.id)).left().row();
         identity.add(labelledField("Name", d.name,
                 s -> { d.name = s; })).growX().row();
-        identity.add(labelledField("Description", d.description,
+        identity.add(labelledKeywordField("Description", d.description,
                 s -> { d.description = s; })).growX().row();
 
         // ── Tags ───────────────────────────────────────────────────────────────
@@ -1044,16 +1045,11 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             powerFieldsContainer.setActor(buildPowerFields(d));
             attack.add(powerFieldsContainer).growX().row();
 
-            CheckBox neverMissCb = new CheckBox(" Never-miss (ignore accuracy roll)", skin);
-            neverMissCb.setChecked(d.neverMiss);
-            neverMissCb.addListener(new ChangeListener() {
-                @Override public void changed(ChangeEvent event, Actor actor) {
-                    game.audio().play(SoundCue.UI_TOGGLE);
-                    d.neverMiss = neverMissCb.isChecked();
-                    refreshConditionalFields(d);
-                }
-            });
-            attack.add(neverMissCb).left().row();
+            attack.add(buildAccuracyPrioritySelector(
+                d, AbilityEffectType.NEVER_MISS, "Never Miss Tier")).growX().row();
+            attack.add(formHint(
+                "None uses normal accuracy. Never Miss wins against an equal or lower Never Hit tier."))
+                .left().row();
             // On-hit effects are authored per hit component below — no move-level section.
 
             // AOE type sub-section: shown only when the move is both an ATTACK
@@ -1141,8 +1137,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         // Potency gates which defensive moves can stop this attack (1–5).
         t.add(labelledIntField("Potency (1–5)", d.potency, 1, 5,
                 v -> { d.potency = v; })).growX().row();
-        if (d.neverMiss) {
-            t.add(formHint("Accuracy is N/A for a never-miss move.")).row();
+        if (d.getNeverMissTier() > 0) {
+            t.add(formHint(
+                "Accuracy is N/A unless a higher Never Hit tier stops the attack.")).row();
             return t;
         }
         // With hit components, accuracy is authored per hit (each component may
@@ -1232,8 +1229,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
             // Per-hit accuracy. A component with no authored accuracy (the legacy
             // -1 "inherit" marker) shows the move's base accuracy as its starting
-            // value so authors see what they're overriding. never-miss hides it.
-            if (!d.neverMiss) {
+            // value so authors see what they're overriding. Never Miss hides it
+            // without discarding the authored value.
+            if (d.getNeverMissTier() == 0) {
                 int accDisplay = component.baseAccuracy >= 0.0
                     ? (int) Math.round(component.baseAccuracy * 100.0)
                     : (int) Math.round(Math.max(0.0, Math.min(1.0, d.baseAccuracy)) * 100.0);
@@ -1243,8 +1241,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                         markDirty();
                     })).growX().row();
             } else {
-                card.add(formHint("Accuracy is N/A for a never-miss move.")).row();
-                component.baseAccuracy = HitComponent.INHERIT_MOVE_ACCURACY;
+                card.add(formHint(
+                    "Accuracy is N/A unless a higher Never Hit tier stops the attack.")).row();
             }
 
             int minimumDelay = component.requiresPreviousConnection && index > 0
@@ -1683,6 +1681,12 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         t.add(labelledIntField("Dodge Chance %", d.dodgeChance, 0, 100,
                 v -> { d.dodgeChance = v; })).growX().row();
 
+        t.add(buildAccuracyPrioritySelector(
+            d, AbilityEffectType.NEVER_HIT, "Never Hit Tier")).growX().row();
+        t.add(formHint(
+            "On a successful dodge roll, Never Hit stops only lower-tier Never Miss attacks."))
+            .left().row();
+
         // Scope: which attack ranges this dodge reacts to.
         t.add(labelledRow("Scope", new EnumSelectBox<>(
             DodgeScope.class, d.dodgeScope, false,
@@ -1692,7 +1696,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         t.add(labelledIntField("Duration (−1 = EOR, 0 = use AP)",
                 d.blockDuration, -1, 99999,
                 v -> { d.blockDuration = v; })).growX().row();
-        t.add(formHint("Dodge is chance-based and ignores potency. (AOE will bypass it.)")).row();
+        t.add(formHint("Dodge is chance-based and ignores potency.")).row();
 
         t.add(new Label("ON-DODGE EFFECTS", skin, "small")).padTop(8f).left().row();
         t.add(buildMoveEffectsEditor(
@@ -1956,6 +1960,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         List<AbilityEffectType> types = new ArrayList<>(preferred);
         java.util.Arrays.stream(AbilityEffectType.values())
             .filter(AbilityEffectType::isMoveEffect)
+            .filter(type -> !type.isAccuracyPriority())
             .filter(type -> !types.contains(type))
             .forEach(types::add);
         return List.copyOf(types);
@@ -2778,6 +2783,30 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         return d.tags != null && d.tags.contains(tag.name());
     }
 
+    private Actor buildAccuracyPrioritySelector(
+        MoveData move,
+        AbilityEffectType type,
+        String label
+    ) {
+        SelectBox<String> tiers = new DynamicSelectBox<>(skin);
+        tiers.setItems("None", "Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5");
+        int current = type == AbilityEffectType.NEVER_MISS
+            ? move.getNeverMissTier() : move.getNeverHitTier();
+        tiers.setSelected(current <= 0 ? "None" : "Tier " + current);
+        tiers.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                String selected = tiers.getSelected();
+                int tier = "None".equals(selected)
+                    ? 0 : Integer.parseInt(selected.substring("Tier ".length()));
+                move.setAccuracyPriorityTier(type, tier);
+                game.audio().play(SoundCue.UI_NAVIGATE);
+                markDirty();
+                rebuildDetail();
+            }
+        });
+        return labelledRow(label, tiers);
+    }
+
     static MoveData normalizedCopyForSave(MoveData draft) {
         MoveData copy = deepCopy(draft);
         if (copy.hitComponents != null && hasTag(copy, MoveTag.ATTACK)) {
@@ -2795,6 +2824,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             d.hitComponents = new ArrayList<>();
             d.baseAccuracy = 1.0;
             d.neverMiss = false;
+            removeAccuracyPriority(d, AbilityEffectType.NEVER_MISS);
             d.onHitEffects = new ArrayList<>();
             if (d.effects != null) {
                 d.effects.removeIf(effect -> effect != null
@@ -2802,6 +2832,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             }
         }
         if (!hasTag(d, MoveTag.DEFENSIVE)) {
+            removeAccuracyPriority(d, AbilityEffectType.NEVER_HIT);
             d.defenseType = DefenseType.NONE.name();
             d.blockStyle = BlockStyle.PERCENTAGE.name();
             d.blockDuration = 0;
@@ -2821,6 +2852,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                         || MoveEffectTrigger.ON_DODGE.name().equalsIgnoreCase(effect.trigger)));
             }
         } else if (d.effects != null) {
+            if (!DefenseType.DODGE.name().equals(d.defenseType)) {
+                removeAccuracyPriority(d, AbilityEffectType.NEVER_HIT);
+            }
             MoveEffectTrigger active = switch (String.valueOf(d.defenseType)) {
                 case "BLOCK" -> MoveEffectTrigger.ON_BLOCK;
                 case "PARRY" -> MoveEffectTrigger.ON_PARRY;
@@ -2837,6 +2871,14 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         return MoveEffectTrigger.ON_BLOCK.name().equalsIgnoreCase(trigger)
             || MoveEffectTrigger.ON_PARRY.name().equalsIgnoreCase(trigger)
             || MoveEffectTrigger.ON_DODGE.name().equalsIgnoreCase(trigger);
+    }
+
+    private static void removeAccuracyPriority(MoveData move, AbilityEffectType type) {
+        if (move.effects != null) {
+            move.effects.removeIf(effect -> effect != null
+                && type.name().equalsIgnoreCase(effect.type));
+        }
+        if (type == AbilityEffectType.NEVER_MISS) move.neverMiss = false;
     }
 
     // =========================================================================

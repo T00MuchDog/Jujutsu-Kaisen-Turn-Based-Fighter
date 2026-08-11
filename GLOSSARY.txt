@@ -274,8 +274,8 @@ are the Move/MoveData field names.
                           (AoeType.java): MULTIPLE / ALL_ENEMIES / ALL_OTHERS. Defaults
                           to ALL_ENEMIES when blank; FRIENDLY_FIRE tag migrates to
                           ALL_OTHERS. Drives MoveTargeting (NONE / SINGLE_ENEMY /
-                          MULTIPLE_ENEMIES / ALL_ENEMIES / ALL_OTHERS). AOE bypasses
-                          dodge (snapshot taken at fire time; later summons excluded).
+                          MULTIPLE_ENEMIES / ALL_ENEMIES / ALL_OTHERS). Targets are
+                          snapshotted at fire time; later summons are excluded.
     aoeTargetCount        MULTIPLE only — maximum selected enemies hit (min 2).
                           Planning requires 1..N distinct active enemies. Invalid
                           targets are refilled in stable roster order at fire time,
@@ -306,6 +306,7 @@ are the Move/MoveData field names.
   Other accessors worth knowing:
     isBlackFlashEligible()  true when any individual hit component is eligible.
     isMelee() / isRanged()  derived from the presence of the MELEE/RANGED tags.
+    isIntangible()          derived from the presence of the INTANGIBLE tag.
     isDefensive()           derived from category == DEFENSIVE.
     isBlock() / isParry() / isDodge()  derived from defenseType.
     isActiveDefense()       true for BLOCK/PARRY/DODGE (has a tracked window).
@@ -358,6 +359,12 @@ tag names below.
   WEAPON TAG:
     SWORD                 Sword / sword-like weapon modifier used by move-scoped
                            abilities (e.g. Earnest Swordswoman). Modifier tag.
+
+  COMBAT MODIFIER TAG:
+    INTANGIBLE            An attack carrying this tag cannot be parried and ignores
+                          all BLOCK reduction, including full blocks. Dodge,
+                          accuracy, ordinary Defense, coded resistance, and damage
+                          immunity are unaffected. Lives only in the tag set.
 
   MODIFIER FLAGS (also backed by a dedicated boolean on Move):
     STUN                  On a successful offensive hit, the defender's action
@@ -466,6 +473,11 @@ GUARD_BREAK interaction
   attack is still parried (negated) and still rolled against by a dodge. A parry
   of a guard-break attack deals no damage but does NOT stagger the attacker.
 
+INTANGIBLE interaction
+  INTANGIBLE bypasses both BLOCK and PARRY regardless of potency. Blocking applies
+  no reduction and cannot negate the hit; parry outcomes and on-parry effects do
+  not fire. DODGE remains unaffected.
+
 NONE
   Not a defensive move. No defence applied.
 
@@ -494,8 +506,8 @@ PARRY
 DODGE
   While active, each incoming attack matching the dodgeScope has a dodgeChance%
   probability to be avoided entirely (outcome DODGED, no damage). Type-agnostic
-  (works vs physical and cursed energy) and NOT potency-gated. AOE attacks
-  (MoveTag.AOE) bypass dodge. dodgeScope (DodgeScope): MELEE / RANGED / BOTH.
+  (works vs physical and cursed energy) and NOT potency-gated. dodgeScope
+  (DodgeScope): MELEE / RANGED / BOTH.
   On a dodge, onDodgeEffects fire on the defender.
 
 SHIELD
@@ -594,17 +606,20 @@ ROUND
 ================================================================================
 
 Pipeline:
-  1. HIT ROLL        — does the move connect? (neverMiss / guaranteed hit /
+  1. DODGE           — a matching active dodge may avoid the attack.
+  2. HIT ROLL        — does the move connect? (neverMiss / guaranteed hit /
                        guaranteed dodge / hitChance roll)
-  2. CODED CONNECT   — onAttackConnected runs on a confirmed connection only.
-  3. GUARD_BREAK     — if forceFullBlock and !move.isGuardBreak() → BLOCKED;
-                       bypassBlock = move.isGuardBreak() || codedModifiers.bypassBlock().
-  4. BLOCK REDUCTION — active DEFENSIVE move reduces attackValue (skipped if bypassBlock).
-  5. POWER           — PowerCalculator.compute(category, attackerStats), then run
+  3. CODED CONNECT   — onAttackConnected runs on a confirmed connection only.
+  4. PARRY           — a matching, sufficiently potent parry negates the hit;
+                       skipped for INTANGIBLE attacks.
+  5. BLOCK BYPASS    — INTANGIBLE bypasses forced and active blocks; GUARD_BREAK
+                       bypasses blocks but not parries.
+  6. POWER           — PowerCalculator.compute(category, attackerStats), then run
                        through attacker.modifyBattleStat(POWER).
-  6. DEFENSE         — max(1, defender.computeCurrentDefense(tick) × codedModifiers.defenseMultiplier()).
-  7. DAMAGE FORMULA  — scale, roll, and damage multipliers applied (see below).
-  8. BLACK FLASH     — BF roll on eligible moves; ×2.5 if proc'd.
+  7. BLOCK REDUCTION — active BLOCK reduces attackValue unless bypassed.
+  8. DEFENSE         — max(1, defender.computeCurrentDefense(tick) × codedModifiers.defenseMultiplier()).
+  9. DAMAGE FORMULA  — scale, roll, and damage multipliers applied (see below).
+ 10. BLACK FLASH     — BF roll on eligible moves; ×2.5 if proc'd.
 
   DAMAGE FORMULA (verbatim, DamageCalculator):
     power       = PowerCalculator.compute(category, acs)
@@ -652,7 +667,7 @@ OUTCOMES (DamageResult.Outcome):
 RESOLUTION ORDER (DamageCalculator.resolve):
   dodge roll (DODGE, chance-based) → hit roll → coded onAttackConnected →
   parry check (PARRY, potency-gated) → forceFullBlock → block query (BLOCK,
-  potency-gated; bypassed by GUARD_BREAK) → power → block reduction →
+  potency-gated; bypassed by GUARD_BREAK or INTANGIBLE) → power → block reduction →
   defense → damage → Black Flash.
 
 RAW DAMAGE     Damage before the Black Flash multiplier.
@@ -1103,7 +1118,8 @@ characters, abilities, coded targets, and technique trees.
 MOVE EDITOR  (MoveEditorScreen)
   Creates/edits moves; saves data/moves/all_moves.json. Form sections: identity,
   tags (TagPicker — STUN/GUARD_BREAK/HEAVY tags mirror to the dedicated boolean
-  flags), cost (AP/CE), tag-conditioned Attack/Defense/Utility cards, technique
+  flags; INTANGIBLE is tag-only), cost (AP/CE), tag-conditioned
+  Attack/Defense/Utility cards, technique
   requirement (with a live "technique found" hint), stat prerequisites, and
   free-move / must-be-granted checkboxes. The Attack card has an AOE sub-section
   (shown when AOE-tagged): an AOE Type dropdown (Multiple Targets / All Enemies /

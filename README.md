@@ -36,8 +36,8 @@ mvn clean verify
 command. Edits save directly to the tracked source `data/` files (the ones
 bundled into releases), so your changes become the next release's defaults.
 ```bash
-mvn -Drevision=1.3.2 -pl core,graphics -am clean verify
-java -XstartOnFirstThread -Djjktbf.authoring=true -jar graphics/target/graphics-1.3.2.jar
+mvn -Drevision=1.4.1 -pl core,graphics -am clean verify
+java -XstartOnFirstThread -Djjktbf.authoring=true -jar graphics/target/graphics-1.4.1.jar
 ```
 
 

@@ -100,6 +100,10 @@
     "description": "A move tag tied to a specific inherited cursed technique."
   },
   {
+    "term": "INTANGIBLE",
+    "description": "A move tag whose attacks cannot be Parried and whose damage ignores Blocks; Dodge and Defense still apply."
+  },
+  {
     "term": "MELEE",
     "description": "A move tag marking a close-range attack."
   },

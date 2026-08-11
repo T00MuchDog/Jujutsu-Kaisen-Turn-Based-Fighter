@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Phase 4 coverage for the generalized resolver: multi-combatant firing, AOE
  * targeting, single-target retargeting, launched-projectile survival, AOE
- * bypasses dodge, AOE batch-completion draws, and deterministic same-seed
+ * dodge resolution, AOE batch-completion draws, and deterministic same-seed
  * multi-combatant resolution.
  */
 class MultiCombatantResolverTest {
@@ -112,7 +112,7 @@ class MultiCombatantResolverTest {
     }
 
     @Test
-    void aoeBypassesDodge() {
+    void aoeCanBeDodged() {
         BattleCombatant attacker = fighter("Attacker");
         BattleCombatant enemy = fighterWithDodge("Dodger");
         BattleState state = new BattleState(
@@ -129,10 +129,11 @@ class MultiCombatantResolverTest {
         enemy.setTimeline(enemyPlan.toLegacyTimeline());
 
         int enemyBefore = enemy.getCurrentHp();
-        resolveRound(state);
+        List<CombatEvent> events = resolveRoundEvents(state);
 
-        assertTrue(enemy.getCurrentHp() < enemyBefore,
-            "AOE bypasses dodge — the dodging enemy was still hit");
+        assertEquals(enemyBefore, enemy.getCurrentHp(), "AOE was dodged");
+        assertTrue(events.stream().anyMatch(
+            event -> event.getType() == CombatEvent.Type.MOVE_DODGED));
     }
 
     @Test
@@ -403,7 +404,7 @@ class MultiCombatantResolverTest {
     }
 
     private static BattleCombatant fighterWithDodge(String name) {
-        CharacterStats stats = new CharacterStats.Builder().vitality(300).speed(100).build();
+        CharacterStats stats = new CharacterStats.Builder().vitality(300).speed(101).build();
         SorcererCharacter ch = new SorcererCharacter(
             name.toLowerCase(), name, stats, null, List.of(), List.of(), false);
         return new BattleCombatant(ch, List.of());

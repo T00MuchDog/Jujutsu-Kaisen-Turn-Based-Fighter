@@ -786,9 +786,9 @@ public final class AbilityActivationEngine {
             }
             case STAT_ADD, STAT_MULTIPLY, STAT_DIVIDE, STAT_SET_VALUE, STAT_SET_MIN,
                  CE_COST_TO_MINIMUM, CE_COST_MULTIPLY, MOVE_ACCURACY_ADD,
-                  MOVE_ACCURACY_MULTIPLY, OPPONENT_ACCURACY_ADD,
-                  OPPONENT_ACCURACY_MULTIPLY, DAMAGE_MULTIPLY,
-                  MOVE_BASE_POWER_MULTIPLY, BF_CHANCE_ADD,
+                 MOVE_ACCURACY_MULTIPLY, OPPONENT_ACCURACY_ADD,
+                 OPPONENT_ACCURACY_MULTIPLY, NEVER_MISS, NEVER_HIT, DAMAGE_MULTIPLY,
+                 MOVE_BASE_POWER_MULTIPLY, BF_CHANCE_ADD,
                  MODIFY_DEFENSE, MODIFY_AP_BAR, LOCK_MOVE_TAG, COST_CE_PER_ROUND ->
                 addRuntimeEffect(state, owner, owner, effect, tick, events);
             case AUTO_STATUS_APPLY -> {

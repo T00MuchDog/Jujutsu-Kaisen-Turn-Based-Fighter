@@ -829,7 +829,8 @@ public class EffectListEditor extends Table {
         }
         if (type.uses(AbilityEffectParameter.INTEGER) && effect.intValue != null) {
             summary.append(" | ");
-            if (type != AbilityEffectType.MAX_ACTIVE_SUMMONS && effect.intValue >= 0) {
+            if (type != AbilityEffectType.MAX_ACTIVE_SUMMONS
+                && !type.isAccuracyPriority() && effect.intValue >= 0) {
                 summary.append('+');
             }
             summary.append(effect.intValue);
@@ -1174,6 +1175,7 @@ public class EffectListEditor extends Table {
 
     private static String integerLabel(AbilityEffectType type) {
         return switch (type) {
+            case NEVER_MISS, NEVER_HIT -> "Tier (1-5)";
             case STAT_ADD -> "Amount (+/-)";
             case STAT_SET_VALUE -> "Exact value";
             case STAT_ALLOCATION_MINIMUM -> "Minimum allocation";

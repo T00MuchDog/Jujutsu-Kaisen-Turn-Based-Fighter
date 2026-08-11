@@ -541,7 +541,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         identity.add(labelledField("Name", ability.name, value -> ability.name = value)).growX().row();
         identity.add(labelledField("Flavour Text", ability.flavourText,
             value -> ability.flavourText = value)).growX().row();
-        identity.add(labelledField("Mechanic Text", ability.mechanicText,
+        identity.add(labelledKeywordField("Mechanic Text", ability.mechanicText,
             value -> ability.mechanicText = value)).growX().row();
 
         Table category = formSection(form, "CATEGORY");

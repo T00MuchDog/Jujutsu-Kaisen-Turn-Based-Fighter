@@ -1,6 +1,8 @@
 package com.jjktbf.model.move;
 
 import com.jjktbf.model.character.AbilityData;
+import com.jjktbf.model.character.AbilityEffectType;
+import com.jjktbf.model.progression.TechniqueMasteryResolver;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -68,11 +70,11 @@ public class Move {
      * Base accuracy as a fraction [0.0, 1.0].
      * 1.0 = 100% (still subject to Accuracy vs Evasion roll).
      * Moves that cannot miss use a sentinel value of Double.MAX_VALUE
-     * or are flagged via neverMiss = true.
+     * or use a Never Miss effect (the legacy boolean remains readable).
      */
     private final double baseAccuracy;
 
-    /** If true, this move always hits regardless of Evasion. */
+    /** Legacy compatibility flag. Canonical Never Miss tiers live in {@link #effects}. */
     private final boolean neverMiss;
 
     /**
@@ -374,7 +376,16 @@ public class Move {
         return hitComponents.stream().mapToInt(HitComponent::getDelayTicks).max().orElse(0);
     }
     public double getBaseAccuracy()               { return baseAccuracy; }
-    public boolean isNeverMiss()                  { return neverMiss; }
+    public boolean isNeverMiss()                  { return neverMiss || getNeverMissTier() > 0; }
+    public boolean hasLegacyNeverMiss()           { return neverMiss; }
+    public int getNeverMissTier()                 { return getNeverMissTier(0); }
+    public int getNeverMissTier(int mastery) {
+        return accuracyPriorityTier(AbilityEffectType.NEVER_MISS, mastery);
+    }
+    public int getNeverHitTier()                  { return getNeverHitTier(0); }
+    public int getNeverHitTier(int mastery) {
+        return accuracyPriorityTier(AbilityEffectType.NEVER_HIT, mastery);
+    }
     public boolean isStun()                       { return stun; }
     public boolean isGuardBreak()                 { return guardBreak; }
     public boolean isHeavy()                      { return heavy; }
@@ -423,6 +434,23 @@ public class Move {
             .filter(effect -> effect.matches(trigger, componentIndex))
             .map(MoveEffectData::copy)
             .toList();
+    }
+
+    private int accuracyPriorityTier(
+        AbilityEffectType expected,
+        int mastery
+    ) {
+        int tier = 0;
+        for (MoveEffectData effect : effects) {
+            if (!expected.name().equalsIgnoreCase(effect.type)
+                || !MoveEffectTrigger.ACCURACY_CHECK.name().equalsIgnoreCase(effect.trigger)) {
+                continue;
+            }
+            com.jjktbf.model.character.AbilityEffectData resolved =
+                TechniqueMasteryResolver.resolve(effect, mastery);
+            tier = Math.max(tier, resolved.intValue == null ? 0 : resolved.intValue);
+        }
+        return tier;
     }
     public java.util.Map<String, Integer> getPrerequisites() { return prerequisites; }
     public String getRequiredTechniqueId()        { return requiredTechniqueId; }
@@ -531,6 +559,14 @@ public class Move {
      */
     public boolean isFriendlyFire() {
         return tags.contains(MoveTag.FRIENDLY_FIRE);
+    }
+
+    /**
+     * Whether this move's attacks bypass parries and all block reduction.
+     * Intangible is represented only by its move tag.
+     */
+    public boolean isIntangible() {
+        return tags.contains(MoveTag.INTANGIBLE);
     }
 
     /**
@@ -959,6 +995,18 @@ public class Move {
                         + " (name='" + name + "'): " + error);
                 }
                 MoveEffectTrigger trigger = effect.resolvedTrigger();
+                AbilityEffectType effectType = AbilityEffectType.fromName(effect.type);
+                if (trigger == MoveEffectTrigger.ACCURACY_CHECK
+                    && effectType == AbilityEffectType.NEVER_MISS && hitCount == 0) {
+                    throw new IllegalStateException(
+                        "Never Miss requires an attacking move (name='" + name + "')");
+                }
+                if (trigger == MoveEffectTrigger.ACCURACY_CHECK
+                    && effectType == AbilityEffectType.NEVER_HIT
+                    && defenseType != DefenseType.DODGE) {
+                    throw new IllegalStateException(
+                        "Never Hit requires a dodge move (name='" + name + "')");
+                }
                 if (trigger == MoveEffectTrigger.ON_HIT && hitCount == 0) {
                     throw new IllegalStateException(
                         "On-hit effects require an attacking move (name='" + name + "')");

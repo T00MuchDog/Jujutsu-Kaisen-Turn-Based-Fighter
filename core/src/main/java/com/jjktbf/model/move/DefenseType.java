@@ -61,7 +61,7 @@ public enum DefenseType {
      * the {@code dodgeScope} (MELEE / RANGED / BOTH) has a {@code dodgeChance}%
      * probability to be avoided entirely — no damage, outcome DODGED. Dodge is
      * type-agnostic (works vs physical and cursed energy) and is <b>not</b>
-     * potency-gated. (Future AOE attacks will bypass dodge.)
+     * potency-gated.
      *
      * <p>Uses the same {@code blockDuration} window rules as BLOCK.</p>
      */

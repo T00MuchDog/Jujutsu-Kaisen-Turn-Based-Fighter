@@ -45,6 +45,7 @@ public class MoveData {
     /** Null in legacy data; when present, this ordered list is authoritative. */
     public List<HitComponentData> hitComponents;
     public double  baseAccuracy   = 1.0;
+    /** Legacy compatibility field; new move content uses a NEVER_MISS effect row. */
     public boolean neverMiss      = false;
 
     /**
@@ -400,6 +401,76 @@ public class MoveData {
         return isAnyBlock() || isParry() || isDodge();
     }
 
+    /** Highest explicitly authored Never Miss tier. */
+    @JsonIgnore
+    public int getNeverMissTier() {
+        return accuracyPriorityTier(AbilityEffectType.NEVER_MISS);
+    }
+
+    /** Highest authored Never Hit tier. Absence is returned as 0, not an authored tier. */
+    @JsonIgnore
+    public int getNeverHitTier() {
+        return accuracyPriorityTier(AbilityEffectType.NEVER_HIT);
+    }
+
+    /** Replace one move-level accuracy priority while keeping it in canonical effect data. */
+    @JsonIgnore
+    public void setAccuracyPriorityTier(AbilityEffectType type, int tier) {
+        if (type == null || !type.isAccuracyPriority()) {
+            throw new IllegalArgumentException("An accuracy-priority effect type is required.");
+        }
+        if (tier < 0 || tier > 5) {
+            throw new IllegalArgumentException(
+                "Accuracy priority tier must be none or between 1 and 5.");
+        }
+        java.util.ArrayList<MoveEffectData> updated = effects == null
+            ? new java.util.ArrayList<>()
+            : effects.stream().filter(java.util.Objects::nonNull).map(MoveEffectData::copy)
+                .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+        MoveEffectData retained = null;
+        java.util.Iterator<MoveEffectData> iterator = updated.iterator();
+        while (iterator.hasNext()) {
+            MoveEffectData effect = iterator.next();
+            if (!type.name().equalsIgnoreCase(effect.type)) continue;
+            if (retained == null) retained = effect;
+            else iterator.remove();
+        }
+        if (tier == 0) {
+            if (retained != null) updated.remove(retained);
+        } else if (retained == null) {
+            retained = type.createDefaultMoveEffect();
+            retained.trigger = MoveEffectTrigger.ACCURACY_CHECK.name();
+            retained.condition = com.jjktbf.model.character.AbilityConditionData.always();
+            retained.intValue = tier;
+            updated.add(retained);
+        } else {
+            retained.type = type.name();
+            retained.trigger = MoveEffectTrigger.ACCURACY_CHECK.name();
+            retained.hitComponentIndex = null;
+            retained.condition = com.jjktbf.model.character.AbilityConditionData.always();
+            retained.moveTag = null;
+            retained.activationChanceEnabled = null;
+            retained.activationChance = null;
+            retained.activationMasteryProgression = null;
+            retained.intValue = tier;
+        }
+        effects = updated;
+        AbilityData.ensureEffectIds(effects);
+        if (type == AbilityEffectType.NEVER_MISS) neverMiss = false;
+    }
+
+    private int accuracyPriorityTier(AbilityEffectType expected) {
+        int tier = 0;
+        if (effects == null) return tier;
+        for (MoveEffectData effect : effects) {
+            if (effect != null && expected.name().equalsIgnoreCase(effect.type)
+                && MoveEffectTrigger.ACCURACY_CHECK.name().equalsIgnoreCase(effect.trigger)) {
+                tier = Math.max(tier, effect.intValue == null ? 0 : effect.intValue);
+            }
+        }
+        return tier;
+    }
+
     // -------------------------------------------------------------------------
     // Conversion: MoveData → Move (domain object)
     // -------------------------------------------------------------------------
@@ -730,7 +801,7 @@ public class MoveData {
                 .toList();
         }
         d.baseAccuracy        = move.getBaseAccuracy();
-        d.neverMiss           = move.isNeverMiss();
+        d.neverMiss           = move.hasLegacyNeverMiss();
         d.stun                = move.isStun();
         d.guardBreak          = move.isGuardBreak();
         d.heavy               = move.isHeavy();
@@ -845,6 +916,17 @@ public class MoveData {
         onParryEffects = null;
         onDodgeEffects = null;
         return !migrated.isEmpty();
+    }
+
+    /** Upgrade the legacy attack boolean when an author opens the move editor. */
+    @JsonIgnore
+    public boolean migrateLegacyNeverMissTier() {
+        boolean attackingMove = tags != null && tags.stream()
+            .filter(java.util.Objects::nonNull)
+            .anyMatch(MoveTag.ATTACK.name()::equalsIgnoreCase);
+        if (!neverMiss || !attackingMove) return false;
+        setAccuracyPriorityTier(AbilityEffectType.NEVER_MISS, Math.max(1, getNeverMissTier()));
+        return true;
     }
 
     private static void migrateEffects(

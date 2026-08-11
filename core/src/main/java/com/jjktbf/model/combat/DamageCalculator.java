@@ -3,10 +3,10 @@ package com.jjktbf.model.combat;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.CombatStats;
 import com.jjktbf.model.character.coded.CodedHitModifiers;
-import com.jjktbf.model.character.coded.CursedSpeechAbility;
 import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
+import com.jjktbf.model.progression.TechniqueMasteryResolver;
 
 import java.util.List;
 import java.util.Random;
@@ -149,61 +149,48 @@ public final class DamageCalculator {
         boolean         requireFiredDefense,
         ConnectedHitHook connectedHitHook
     ) {
-        return resolve(attacker, defender, move, component, currentTick, rng,
-            currentRound, forceFullBlock, requireFiredDefense, false, connectedHitHook);
-    }
-
-    /**
-     * Full pipeline with an explicit AOE-bypasses-dodge flag. When
-     * {@code aoeBypassesDodge} is true (the move is an area-of-effect attack),
-     * the dodge roll is skipped — dodge does not avoid an AOE. Other defenses
-     * (block/parry) continue to resolve independently per target.
-     */
-    public static DamageResult resolve(
-        BattleCombatant attacker,
-        BattleCombatant defender,
-        Move            move,
-        HitComponent    component,
-        int             currentTick,
-        RandomSource    rng,
-        int             currentRound,
-        boolean         forceFullBlock,
-        boolean         requireFiredDefense,
-        boolean         aoeBypassesDodge,
-        ConnectedHitHook connectedHitHook
-    ) {
         if (component == null) throw new IllegalArgumentException("hit component is required");
         // Use ability-modified stats for all calculations
         CharacterStats acs = attacker.getEffectiveStats();
 
         Timeline defTimeline = defender.getTimeline();
-        boolean cursedSpeechCommand = CursedSpeechAbility.commandMode(move) != null;
+        boolean intangible = move.isIntangible();
 
-        // --- 0. Dodge roll (chance-based, no potency gate) ---
-        // A live DODGE defense reacts to a scope-matching incoming attack with a
-        // dodgeChance% probability of avoiding it entirely. AOE bypasses dodge:
-        // the documented intended rule is that an area-of-effect attack cannot be
-        // dodged (other defenses still resolve independently per target).
-        if (!aoeBypassesDodge && component.isAvoidable() && defTimeline != null) {
-            ActionSegment dodgeSeg = defTimeline.activeDefenseAt(
-                currentTick, move, component, com.jjktbf.model.move.DefenseType.DODGE,
-                requireFiredDefense);
-            if (dodgeSeg != null) {
-                int chance = Math.max(0, Math.min(100, dodgeSeg.getMove().getDodgeChance()));
-                if (chance >= 100 || rng.nextDouble() < chance / 100.0) {
-                    return DamageResult.dodged(move, component, dodgeSeg, List.of());
+        // --- 0. Accuracy priority and dodge ---
+        // Never Miss wins ties. Never Hit therefore needs a strictly higher tier
+        // to stop an attack. With no authored tiers, legacy dodge/accuracy rules
+        // continue unchanged.
+        int neverMissTier = Math.max(
+            move.getNeverMissTier(TechniqueMasteryResolver.masteryOf(attacker)),
+            attacker.getAbilityFlags().neverMissTierFor(move));
+        int neverHitTier = defender.getAbilityFlags().neverHitTierFor(move);
+
+        if (neverHitTier > neverMissTier) {
+            return DamageResult.miss(move, component);
+        }
+        if (component.isAvoidable()) {
+            if (defTimeline != null) {
+                ActionSegment dodgeSeg = defTimeline.activeDefenseAt(
+                    currentTick, move, component, com.jjktbf.model.move.DefenseType.DODGE,
+                    requireFiredDefense);
+                if (dodgeSeg != null) {
+                    int dodgeTier = dodgeSeg.getMove().getNeverHitTier(
+                        TechniqueMasteryResolver.masteryOf(defender));
+                    boolean canAvoid = neverMissTier == 0 || dodgeTier > neverMissTier;
+                    int chance = Math.max(0, Math.min(100, dodgeSeg.getMove().getDodgeChance()));
+                    if (canAvoid && (chance >= 100 || rng.nextDouble() < chance / 100.0)) {
+                        return DamageResult.dodged(move, component, dodgeSeg, List.of());
+                    }
                 }
             }
-        }
 
-        // --- 1. Hit roll ---
-        if (component.isAvoidable()) {
+            // --- 1. Hit roll ---
             boolean hit;
-            if (cursedSpeechCommand) {
+            if (neverMissTier > 0 || move.hasLegacyNeverMiss()) {
                 hit = true;
             } else if (defender.consumeGuaranteedDodge()) {
                 hit = false;
-            } else if (move.isNeverMiss() || attacker.consumeGuaranteedHit()) {
+            } else if (attacker.consumeGuaranteedHit()) {
                 hit = true;
             } else {
                 // Each component may define its own base accuracy; otherwise the
@@ -243,10 +230,10 @@ public final class DamageCalculator {
                 move, component, codedModifiers.events(), codedModifiers.recoilDamage());
         }
 
-        // --- 1b. Parry check (potency-gated; GUARD_BREAK does NOT bypass parry) ---
+        // --- 1b. Parry check (potency-gated; INTANGIBLE bypasses parry) ---
         // A parry negates the hit entirely. If the parry would stagger the attacker
         // (non-GUARD_BREAK, parryStaggerTicks > 0), the resolver applies the stagger.
-        if (!codedModifiers.bypassConventionalDefenses()
+        if (!intangible && !codedModifiers.bypassConventionalDefenses()
             && component.isAvoidable() && defTimeline != null) {
             ActionSegment parrySeg = defTimeline.activeDefenseAt(
                 currentTick, move, component, com.jjktbf.model.move.DefenseType.PARRY,
@@ -260,17 +247,17 @@ public final class DamageCalculator {
             }
         }
 
-        if (forceFullBlock && !move.isGuardBreak()) {
+        if (forceFullBlock && !move.isGuardBreak() && !intangible) {
             return DamageResult.blocked(move, component, null, codedModifiers.events())
                 .withRecoil(codedModifiers.recoilDamage());
         }
-        boolean bypassBlock = move.isGuardBreak() || codedModifiers.bypassBlock()
+        boolean bypassBlock = intangible || move.isGuardBreak() || codedModifiers.bypassBlock()
             || codedModifiers.bypassConventionalDefenses();
 
         // --- 2. Check block ---
-        // A GUARD_BREAK move ignores blocking defensive moves (BLOCK). Dodges and
-        // parries are unaffected; only blocks are bypassed. Blocks are potency-gated:
-        // a block only applies when block.potency >= attack.potency.
+        // INTANGIBLE and GUARD_BREAK moves ignore blocking defensive moves (BLOCK).
+        // Blocks are potency-gated: a block only applies when block.potency >=
+        // attack.potency.
         ActionSegment activeBlockSegment = null;
         if (!bypassBlock && defTimeline != null) {
             ActionSegment blk = defTimeline.activeDefenseAt(
@@ -468,7 +455,8 @@ public final class DamageCalculator {
                 codedEvents, parrySegment, staggerTicks, 0);
         }
         public static DamageResult hit(Move move, int finalDmg, int rawDmg, boolean bf) {
-            return hit(move, finalDmg, rawDmg, bf, move.isGuardBreak(), List.of());
+            return hit(move, finalDmg, rawDmg, bf,
+                move.isGuardBreak() || move.isIntangible(), List.of());
         }
         public static DamageResult hit(
             Move move,

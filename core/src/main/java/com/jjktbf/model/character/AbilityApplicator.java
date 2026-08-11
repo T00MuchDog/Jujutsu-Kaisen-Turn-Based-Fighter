@@ -131,6 +131,8 @@ public final class AbilityApplicator {
                         flags.opponentAccuracyMultiplier *= nvl(eff.doubleValue, 1.0);
                         flags.opponentAccuracyMultiplierEffects.add(eff);
                     }
+                    case NEVER_MISS -> flags.neverMissEffects.add(eff);
+                    case NEVER_HIT -> flags.neverHitEffects.add(eff);
 
                     case DAMAGE_MULTIPLY         -> {
                         flags.damageMultiplier *= nvl(eff.doubleValue, 1.0);
@@ -416,6 +418,8 @@ public final class AbilityApplicator {
         public double  opponentAccuracyMultiplier = 1.0;
         public final java.util.List<AbilityEffectData> opponentAccuracyAddEffects = new java.util.ArrayList<>();
         public final java.util.List<AbilityEffectData> opponentAccuracyMultiplierEffects = new java.util.ArrayList<>();
+        public final java.util.List<AbilityEffectData> neverMissEffects = new java.util.ArrayList<>();
+        public final java.util.List<AbilityEffectData> neverHitEffects = new java.util.ArrayList<>();
 
         // Damage / defense
         public double  damageMultiplier   = 1.0;
@@ -488,6 +492,8 @@ public final class AbilityApplicator {
                     opponentAccuracyMultiplier *= nvl(effect.doubleValue, 1.0);
                     opponentAccuracyMultiplierEffects.add(effect);
                 }
+                case NEVER_MISS -> neverMissEffects.add(effect);
+                case NEVER_HIT -> neverHitEffects.add(effect);
                 case DAMAGE_MULTIPLY -> {
                     damageMultiplier *= nvl(effect.doubleValue, 1.0);
                     damageMultiplierEffects.add(effect);
@@ -558,6 +564,8 @@ public final class AbilityApplicator {
             copy.accuracyMultiplierEffects.addAll(accuracyMultiplierEffects);
             copy.opponentAccuracyAddEffects.addAll(opponentAccuracyAddEffects);
             copy.opponentAccuracyMultiplierEffects.addAll(opponentAccuracyMultiplierEffects);
+            copy.neverMissEffects.addAll(neverMissEffects);
+            copy.neverHitEffects.addAll(neverHitEffects);
             copy.damageMultiplierEffects.addAll(damageMultiplierEffects);
             copy.basePowerMultiplierEffects.addAll(basePowerMultiplierEffects);
             copy.incomingDamageMultiplier = incomingDamageMultiplier;
@@ -647,6 +655,25 @@ public final class AbilityApplicator {
             return multiplier;
         }
 
+        public int neverMissTierFor(com.jjktbf.model.move.Move move) {
+            return priorityTierFor(neverMissEffects, move);
+        }
+
+        public int neverHitTierFor(com.jjktbf.model.move.Move move) {
+            return priorityTierFor(neverHitEffects, move);
+        }
+
+        private int priorityTierFor(
+            java.util.List<AbilityEffectData> effects,
+            com.jjktbf.model.move.Move move
+        ) {
+            int tier = 0;
+            for (AbilityEffectData effect : effects) {
+                if (appliesTo(effect, move)) tier = Math.max(tier, nvl(effect.intValue, 0));
+            }
+            return tier;
+        }
+
         public double damageMultiplierFor(com.jjktbf.model.move.Move move) {
             double multiplier = 1.0;
             for (AbilityEffectData effect : damageMultiplierEffects) {
@@ -675,6 +702,7 @@ public final class AbilityApplicator {
             return ceCostToMinimum || ceCostMultiplier != 1.0 || !ceCostAlterations.isEmpty()
                 || accuracyBonus != 0 || accuracyMultiplier != 1.0
                 || opponentAccuracyBonus != 0 || opponentAccuracyMultiplier != 1.0
+                || !neverMissEffects.isEmpty() || !neverHitEffects.isEmpty()
                 || damageMultiplier != 1.0 || basePowerMultiplier != 1.0 || defenseMultiplier != 1.0
                 || defenseFromDurabilityMultiplier != null
                 || incomingDamageMultiplier != 1.0

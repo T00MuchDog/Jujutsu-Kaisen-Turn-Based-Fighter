@@ -127,6 +127,26 @@ public class MoveEffectData extends AbilityEffectData {
         } catch (Exception exception) {
             return "Choose when the move effect fires.";
         }
+        if (effectType.isAccuracyPriority()
+            && moveTrigger != MoveEffectTrigger.ACCURACY_CHECK) {
+            return effectType.displayName() + " must use Accuracy check.";
+        }
+        if (!effectType.isAccuracyPriority()
+            && moveTrigger == MoveEffectTrigger.ACCURACY_CHECK) {
+            return "Only Never Miss and Never Hit may use Accuracy check.";
+        }
+        if (effectType.isAccuracyPriority()
+            && !AbilityConditionType.ALWAYS.name().equalsIgnoreCase(resolvedCondition().type)) {
+            return "Accuracy priority must always apply while its move is active.";
+        }
+        if (effectType.isAccuracyPriority() && moveTag != null && !moveTag.isBlank()) {
+            return "Move accuracy priority cannot use an affected-moves filter.";
+        }
+        if (effectType.isAccuracyPriority()
+            && (Boolean.TRUE.equals(activationChanceEnabled)
+                || activationMasteryProgression != null)) {
+            return "Accuracy priority cannot roll an activation chance.";
+        }
         if (moveTrigger == MoveEffectTrigger.ON_HIT
             && hitComponentIndex != null
             && (hitComponentIndex < 0 || hitComponentIndex >= hitComponentCount)) {

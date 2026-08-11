@@ -407,13 +407,19 @@ public abstract class EditorScreenBase<D> implements Screen {
                     // editor-level navigation or save shortcuts behind it.
                     return false;
                 }
+                Actor keyboardFocus = stage.getKeyboardFocus();
+                if (keycode == Input.Keys.ESCAPE
+                    && keyboardFocus instanceof KeywordAutocompleteField keywordField
+                    && keywordField.dismissSuggestions()) {
+                    event.cancel();
+                    return true;
+                }
                 if (keycode == Input.Keys.ESCAPE) {
                     game.audio().play(SoundCue.UI_BACK);
                     leaveEditor();
                     event.cancel();
                     return true;
                 }
-                Actor keyboardFocus = stage.getKeyboardFocus();
                 if (keyboardFocus != null && !masterRecordLists.contains(keyboardFocus)) return false;
                 if (keycode == Input.Keys.UP || keycode == Input.Keys.DOWN) {
                     // Desktop backends may emit keyDown repeatedly while a key is held.
@@ -469,7 +475,12 @@ public abstract class EditorScreenBase<D> implements Screen {
                 // FocusListener then runs and commits its value.
                 if (topmostDialog() != null) return false;
                 Actor target = stage.hit(x, y, true);
-                if (target instanceof TextField) return false;
+                Actor keyboardFocus = stage.getKeyboardFocus();
+                if (target instanceof TextField
+                    || (keyboardFocus instanceof KeywordAutocompleteField keywordField
+                        && keywordField.ownsSuggestionActor(target))) {
+                    return false;
+                }
                 if (stage.getKeyboardFocus() != null) stage.setKeyboardFocus(null);
                 return false;
             }
@@ -1311,6 +1322,23 @@ public abstract class EditorScreenBase<D> implements Screen {
         Table row = new Table(skin);
         row.add(new Label(label, skin)).left().minWidth(FORM_LABEL_WIDTH).padRight(PAD);
         TextField tf = new HoverTextField(initial == null ? "" : initial, skin);
+        tf.setTextFieldFilter((TextField textField, char c) -> true);
+        tf.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                onChange.accept(tf.getText());
+                markDirty();
+            }
+        });
+        row.add(tf).growX();
+        return row;
+    }
+
+    /** A labelled text field that offers documented keywords for uppercase input. */
+    protected Table labelledKeywordField(String label, String initial,
+                                         java.util.function.Consumer<String> onChange) {
+        Table row = new Table(skin);
+        row.add(new Label(label, skin)).left().minWidth(FORM_LABEL_WIDTH).padRight(PAD);
+        TextField tf = new KeywordAutocompleteField(initial == null ? "" : initial, skin);
         tf.setTextFieldFilter((TextField textField, char c) -> true);
         tf.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {

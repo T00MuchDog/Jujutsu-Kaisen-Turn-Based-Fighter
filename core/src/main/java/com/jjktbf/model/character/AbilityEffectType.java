@@ -116,6 +116,14 @@ public enum AbilityEffectType {
         "Multiply enemy accuracy",
         "Multiplies an enemy's accuracy when they attack this character.",
         MOVE_SCOPE, DECIMAL),
+    NEVER_MISS(
+        "Never Miss",
+        "Gives matching attacks an accuracy-priority tier. Never Miss wins when its tier is equal to or higher than Never Hit.",
+        MOVE_SCOPE, INTEGER),
+    NEVER_HIT(
+        "Never Hit",
+        "Gives this character an accuracy-defense tier against matching attacks. It stops only lower-tier Never Miss attacks.",
+        MOVE_SCOPE, INTEGER),
 
     DAMAGE_MULTIPLY(
         "Multiply damage",
@@ -435,6 +443,7 @@ public enum AbilityEffectType {
                  INCOMING_DAMAGE_MULTIPLY, MODIFY_DEFENSE -> effect.doubleValue = 1.10;
             case DEFENSE_FROM_DURABILITY -> effect.doubleValue = 4.0 / 3.0;
             case MOVE_ACCURACY_ADD, OPPONENT_ACCURACY_ADD -> effect.intValue = 10;
+            case NEVER_MISS, NEVER_HIT -> effect.intValue = 1;
             case BF_CHANCE_ADD -> effect.doubleValue = 0.05;
             case MODIFY_AP_BAR -> effect.intValue = 10;
             case AUTO_STATUS_APPLY -> {
@@ -745,6 +754,8 @@ public enum AbilityEffectType {
                 || effect.intValue > CombatStats.MAX_ART_SLOTS
                 ? "Jujutsu Art slots must be between 0 and "
                     + CombatStats.MAX_ART_SLOTS + "." : null;
+            case NEVER_MISS, NEVER_HIT -> effect.intValue < 1 || effect.intValue > 5
+                ? "Accuracy priority tier must be between 1 and 5." : null;
             case HEAL_HP, RESTORE_CE, DRAIN_CE, DEAL_DIRECT_DAMAGE, DAMAGE_SHIELD ->
                 effect.intValue <= 0 ? "Amount must be greater than 0." : null;
             case HEAL_HP_PERCENT, RESTORE_CE_PERCENT, DRAIN_CE_PERCENT,
@@ -816,14 +827,19 @@ public enum AbilityEffectType {
                   GRANT_MOVE, GRANT_ABILITY, UNLOCK_MOVE,
                   UNLOCK_TECHNIQUE, AUTO_STATUS_APPLY, DEFENSE_FROM_DURABILITY,
                   SET_JUJUTSU_ART_SLOTS, MAX_ACTIVE_SUMMONS,
-                  SUMMON_CE_UPKEEP_PER_ACTIVE_TICK -> true;
+                  SUMMON_CE_UPKEEP_PER_ACTIVE_TICK, NEVER_MISS, NEVER_HIT -> true;
             default -> false;
         };
     }
 
     /** Effect primitives that may be activated from a move effect row. */
     public boolean isMoveEffect() {
-        return requiresActivation();
+        return requiresActivation() || isAccuracyPriority();
+    }
+
+    /** Accuracy-priority primitives are queried during hit resolution rather than fired. */
+    public boolean isAccuracyPriority() {
+        return this == NEVER_MISS || this == NEVER_HIT;
     }
 
     public boolean isMoveOnly() {

@@ -542,6 +542,27 @@ class MoveEditorScreenTest {
         assertEquals("000026", effect.condition.children.get(0).moveId);
     }
 
+    @Test
+    void saveCopyPreservesAccuracyPrioritiesOnlyInTheirApplicableSections() {
+        MoveData attack = attackWithHitComponents();
+        attack.setAccuracyPriorityTier(AbilityEffectType.NEVER_MISS, 4);
+
+        MoveData savedAttack = MoveEditorScreen.normalizedCopyForSave(attack);
+        assertEquals(4, savedAttack.getNeverMissTier());
+
+        MoveData dodge = new MoveData();
+        dodge.tags = new ArrayList<>(List.of(MoveTag.DEFENSIVE.name()));
+        dodge.defenseType = DefenseType.DODGE.name();
+        dodge.setAccuracyPriorityTier(AbilityEffectType.NEVER_HIT, 3);
+
+        MoveData savedDodge = MoveEditorScreen.normalizedCopyForSave(dodge);
+        assertEquals(3, savedDodge.getNeverHitTier());
+
+        dodge.defenseType = DefenseType.BLOCK.name();
+        MoveData savedBlock = MoveEditorScreen.normalizedCopyForSave(dodge);
+        assertEquals(0, savedBlock.getNeverHitTier());
+    }
+
     private static MoveData moveWithAllSectionDetails() {
         MoveData data = new MoveData();
         data.tags = new ArrayList<>(List.of(

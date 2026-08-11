@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.StreamSupport;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -40,6 +41,14 @@ class CursedSpeechContentTest {
             definition.toMove(); // CharacterSelectScreen preview
             Move battleMove = definition.toMove(); // JJKGame battle construction
 
+            assertFalse(definition.neverMiss,
+                definition.name + " still uses the legacy Never Miss boolean");
+            assertEquals(1, definition.getNeverMissTier(),
+                definition.name + " must author Never Miss tier 1");
+            assertEquals(1, battleMove.getNeverMissTier());
+            assertTrue(battleMove.effectsFor(MoveEffectTrigger.ACCURACY_CHECK, -1).stream()
+                .anyMatch(effect -> AbilityEffectType.NEVER_MISS.name().equals(effect.type)
+                    && Integer.valueOf(1).equals(effect.intValue)));
             assertNotNull(CursedSpeechAbility.commandMode(battleMove),
                 definition.name + " lost its command effect during repeated conversion");
             assertTrue(battleMove.effectsFor(MoveEffectTrigger.ON_HIT, 0).stream()

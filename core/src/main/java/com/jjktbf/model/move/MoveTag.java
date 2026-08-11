@@ -166,7 +166,18 @@ public enum MoveTag {
      * {@link com.jjktbf.model.move.Move} (see {@link Move#isHeavy()}), not derived
      * from the category.
      */
-    HEAVY;
+    HEAVY,
+
+    /**
+     * Intangible modifier — an attack carrying this tag cannot be parried and
+     * ignores all block reduction. Dodge, accuracy, ordinary Defense, and other
+     * hit-negation mechanics are unaffected.
+     *
+     * <p>This is a pure tag-set modifier with no dedicated flag on {@link Move}.
+     * It does not affect the Power formula, move category, or Black Flash
+     * eligibility.
+     */
+    INTANGIBLE;
 
     // -------------------------------------------------------------------------
     // Canonical groupings

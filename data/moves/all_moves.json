@@ -3706,10 +3706,10 @@
   "id" : "000069",
   "name" : "Don't Move",
   "description" : "Command up to three enemies to stop. Success applies STAGGER for 6 AP ticks; every target contributes 4 BASE RECOIL scaled by current CE.",
-  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "INTANGIBLE" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
@@ -3767,6 +3767,14 @@
     "condition" : {
       "type" : "ALWAYS"
     }
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "NEVER_MISS",
+    "intValue" : 1,
+    "trigger" : "ACCURACY_CHECK",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 0,
@@ -3790,10 +3798,10 @@
   "id" : "000070",
   "name" : "Blast Away",
   "description" : "Blast up to three enemies away with 40 BASE POWER and 3-tick STAGGER on success; every target contributes 8 BASE RECOIL.",
-  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "INTANGIBLE" ],
   "basePower" : 40,
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
@@ -3845,6 +3853,14 @@
     "condition" : {
       "type" : "ALWAYS"
     }
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "NEVER_MISS",
+    "intValue" : 1,
+    "trigger" : "ACCURACY_CHECK",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 20,
@@ -3868,10 +3884,10 @@
   "id" : "000071",
   "name" : "Sleep",
   "description" : "Command up to three enemies to SLEEP until damaged or the end of the current round; every target contributes 6 BASE RECOIL.",
-  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "INTANGIBLE" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
@@ -3929,6 +3945,14 @@
     "condition" : {
       "type" : "ALWAYS"
     }
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "NEVER_MISS",
+    "intValue" : 1,
+    "trigger" : "ACCURACY_CHECK",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 35,
@@ -3952,10 +3976,10 @@
   "id" : "000072",
   "name" : "Plummet",
   "description" : "Drive up to three enemies downward with 65 BASE POWER and 4-tick STAGGER on success; every target contributes 12 BASE RECOIL.",
-  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "STUN" ],
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "STUN", "INTANGIBLE" ],
   "basePower" : 65,
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : true,
   "guardBreak" : false,
   "heavy" : false,
@@ -4001,6 +4025,14 @@
     "condition" : {
       "type" : "ALWAYS"
     }
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "NEVER_MISS",
+    "intValue" : 1,
+    "trigger" : "ACCURACY_CHECK",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 50,
@@ -4024,10 +4056,10 @@
   "id" : "000073",
   "name" : "Get Twisted",
   "description" : "Twist up to three enemies with 90 BASE POWER on success; every target contributes 20 BASE RECOIL.",
-  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "INTANGIBLE" ],
   "basePower" : 90,
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
@@ -4073,6 +4105,14 @@
     "condition" : {
       "type" : "ALWAYS"
     }
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "NEVER_MISS",
+    "intValue" : 1,
+    "trigger" : "ACCURACY_CHECK",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 70,
@@ -4096,10 +4136,10 @@
   "id" : "000074",
   "name" : "Return",
   "description" : "Command up to three enemy summons to return on success; every target contributes 10 BASE RECOIL.",
-  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "INTANGIBLE" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
@@ -4153,6 +4193,14 @@
     "condition" : {
       "type" : "ALWAYS"
     }
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "NEVER_MISS",
+    "intValue" : 1,
+    "trigger" : "ACCURACY_CHECK",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 85,
@@ -4176,10 +4224,10 @@
   "id" : "000075",
   "name" : "Explode",
   "description" : "Detonate up to three enemies with 135 BASE POWER on success; every target contributes 36 BASE RECOIL.",
-  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "INTANGIBLE" ],
   "basePower" : 150,
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
@@ -4225,6 +4273,14 @@
     "condition" : {
       "type" : "ALWAYS"
     }
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "NEVER_MISS",
+    "intValue" : 1,
+    "trigger" : "ACCURACY_CHECK",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
   } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 100,
@@ -4248,10 +4304,10 @@
   "id" : "000076",
   "name" : "Die",
   "description" : "Command up to three enemies to die, respecting fatal protection; every target contributes 80 BASE RECOIL.",
-  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "INTANGIBLE" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
-  "neverMiss" : true,
+  "neverMiss" : false,
   "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
@@ -4302,6 +4358,14 @@
     "type" : "INSTANT_KILL",
     "target" : "ENEMY",
     "trigger" : "ON_HIT",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "NEVER_MISS",
+    "intValue" : 1,
+    "trigger" : "ACCURACY_CHECK",
     "condition" : {
       "type" : "ALWAYS"
     }

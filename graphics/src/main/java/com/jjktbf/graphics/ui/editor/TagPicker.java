@@ -32,7 +32,7 @@ import java.util.function.Consumer;
  *   <li><b>TYPE</b> — Physical, Cursed Energy, Innate Technique,
  *       Non-Innate Technique</li>
  *   <li><b>RANGE</b> — Melee, Ranged, AOE, Friendly Fire</li>
- *   <li><b>TAGS</b> — Stun, Guard Break, Heavy</li>
+ *   <li><b>TAGS</b> — Sword, Stun, Guard Break, Heavy, Intangible</li>
  * </ol>
  *
  * <p>Two coupling rules are enforced in the UI:
@@ -273,7 +273,8 @@ public class TagPicker extends Table {
         sections.put("RANGE", List.of(
             MoveTag.MELEE, MoveTag.RANGED, MoveTag.AOE, MoveTag.FRIENDLY_FIRE));
         sections.put("TAGS", List.of(
-            MoveTag.SWORD, MoveTag.STUN, MoveTag.GUARD_BREAK, MoveTag.HEAVY));
+            MoveTag.SWORD, MoveTag.STUN, MoveTag.GUARD_BREAK, MoveTag.HEAVY,
+            MoveTag.INTANGIBLE));
         return sections;
     }
 
