@@ -1538,17 +1538,9 @@ public final class HeadlessBattleSession {
         return participantsBySide.get(opponentSide);
     }
 
-    /**
-     * Battle-wide timeline grid length for the current round, derived from the
-     * stronger fighter's AP tier. Recomputed each round because AP can shift
-     * via MAX_AP status effects; both timelines always share this length.
-     */
+    /** Battle-wide timeline grid length fixed at the start of the current round. */
     private int battleGridLength() {
-        int strongestAp = 0;
-        for (BattleCombatant combatant : battleState.activeCombatants()) {
-            strongestAp = Math.max(strongestAp, combatant.getMaxApBar());
-        }
-        return Timeline.gridLengthForStrongestAp(strongestAp);
+        return battleState.getTimelineGridLength();
     }
 
     private CommandResult reject(String commandId, String code, String message) {

@@ -149,6 +149,7 @@ public class CombatResolver {
             if (finishBattleIfNeeded(state, events, 0)) return events;
         }
         finishBattleIfNeeded(state, events, 0);
+        if (!state.isBattleOver()) state.finalizeTimelineGridLengthForRound();
         return events;
     }
 
@@ -394,6 +395,13 @@ public class CombatResolver {
                     rate += summon.getCharacter().getBaseCeDrainPerTick()
                         + summon.getAbilityFlags().summonCeUpkeepPerActiveTick;
                 }
+            }
+            if (rate > 0.0) {
+                // Efficient summoners maintain shikigami more cheaply: scale the
+                // summed upkeep rate by the summoner's (scaled) CE Efficiency
+                // before fractional accumulation.
+                rate *= SummonUpkeepScaler.upkeepMultiplier(
+                    summoner.getEffectiveStats().getCursedEnergyEfficiency());
             }
             int due = summoner.accrueSummonCeUpkeep(rate);
             if (due <= 0) continue;

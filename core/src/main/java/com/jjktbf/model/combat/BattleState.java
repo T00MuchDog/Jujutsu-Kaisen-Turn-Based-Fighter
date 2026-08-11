@@ -57,6 +57,8 @@ public class BattleState {
 
     private Phase currentPhase;
     private int   roundNumber;
+    private int   timelineGridLength;
+    private int   finalizedTimelineGridRound;
 
     /** The AP tick the action counter is currently on during RESOLUTION phase. */
     private int   currentTick;
@@ -115,6 +117,7 @@ public class BattleState {
         this.roundEndMaintenanceComplete = false;
         applyAutomaticStatuses(AbilityEffectTiming.FIGHT_START);
         applyAutomaticStatuses(AbilityEffectTiming.ROUND_START);
+        recomputeTimelineGridLength();
     }
 
     /**
@@ -144,6 +147,7 @@ public class BattleState {
         this.roundEndMaintenanceComplete = false;
         applyAutomaticStatuses(AbilityEffectTiming.FIGHT_START);
         applyAutomaticStatuses(AbilityEffectTiming.ROUND_START);
+        recomputeTimelineGridLength();
     }
 
     /** Register a fighter as the first combatant of its team and assign identity. */
@@ -239,6 +243,7 @@ public class BattleState {
         CombatantId instanceId = nextInstanceId(teamId);
         fighter.assignIdentity(instanceId, teamId, team.size(), CombatantRole.FIGHTER, null);
         team.add(fighter);
+        refreshUnfinalizedTimelineGridLength();
         return fighter;
     }
 
@@ -262,6 +267,26 @@ public class BattleState {
         roundNumber++;
         currentTick = 0;
         applyAutomaticStatuses(AbilityEffectTiming.ROUND_START);
+        recomputeTimelineGridLength();
+    }
+
+    /** Fix this round's shared timeline size after all round-start effects run. */
+    void finalizeTimelineGridLengthForRound() {
+        if (finalizedTimelineGridRound == roundNumber) return;
+        recomputeTimelineGridLength();
+        finalizedTimelineGridRound = roundNumber;
+    }
+
+    private void refreshUnfinalizedTimelineGridLength() {
+        if (finalizedTimelineGridRound != roundNumber) recomputeTimelineGridLength();
+    }
+
+    private void recomputeTimelineGridLength() {
+        int strongestAp = 0;
+        for (BattleCombatant combatant : activeCombatants()) {
+            strongestAp = Math.max(strongestAp, combatant.getMaxApBar());
+        }
+        timelineGridLength = Timeline.gridLengthForStrongestAp(strongestAp);
     }
 
     // -------------------------------------------------------------------------
@@ -585,6 +610,7 @@ public class BattleState {
             team.add(summon);
             created.add(summon);
         }
+        refreshUnfinalizedTimelineGridLength();
         return created;
     }
 
@@ -800,6 +826,7 @@ public class BattleState {
     public Phase           getCurrentPhase()    { return currentPhase; }
     public int             getRoundNumber()     { return roundNumber; }
     public int             getCurrentTick()     { return currentTick; }
+    public int             getTimelineGridLength() { return timelineGridLength; }
 
     /** The winning team, or null on a draw / while ongoing. */
     public BattleTeamId    getWinnerTeam()      { return winnerTeam; }

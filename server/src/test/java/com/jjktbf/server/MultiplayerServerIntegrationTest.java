@@ -1,6 +1,7 @@
 package com.jjktbf.server;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jjktbf.multiplayer.protocol.ActionCommand;
 import com.jjktbf.multiplayer.protocol.BattlePhase;
@@ -20,8 +21,13 @@ import com.jjktbf.multiplayer.protocol.MessageType;
 import com.jjktbf.multiplayer.protocol.PlayerSide;
 import com.jjktbf.multiplayer.protocol.SessionIdentity;
 import com.jjktbf.multiplayer.protocol.SocketMessage;
+import com.jjktbf.server.auth.GuestAuthService;
+import com.jjktbf.server.challenge.ChallengeService;
 import com.jjktbf.server.config.ServerConfig;
 import com.jjktbf.server.content.ContentCatalog;
+import com.jjktbf.server.db.Database;
+import com.jjktbf.server.match.MatchManager;
+import com.jjktbf.server.support.TestContentCatalog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,6 +63,7 @@ class MultiplayerServerIntegrationTest {
     private final List<TestSocket> sockets = new ArrayList<>();
     private MultiplayerServer server;
     private ServerConfig config;
+    private ContentCatalog catalog;
     private ExecutorService clientExecutor;
     private HttpClient client;
     private URI baseUri;
@@ -76,7 +83,8 @@ class MultiplayerServerIntegrationTest {
             3,
             3
         );
-        server = new MultiplayerServer(config).start();
+        catalog = TestContentCatalog.create();
+        server = createServer().start();
         clientExecutor = Executors.newFixedThreadPool(4);
         client = HttpClient.newBuilder()
             .connectTimeout(TIMEOUT)
@@ -111,7 +119,7 @@ class MultiplayerServerIntegrationTest {
         SessionIdentity session = read(sessionResponse, SessionIdentity.class);
         assertEquals(host.identity(), session);
 
-        List<String> characterIds = ContentCatalog.load().characterSummaries().stream()
+        List<String> characterIds = catalog.characterSummaries().stream()
             .map(summary -> summary.characterId())
             .limit(2)
             .toList();
@@ -303,7 +311,7 @@ class MultiplayerServerIntegrationTest {
     void acceptedRetryRestoresWaitingMatchAfterServerRestart() throws Exception {
         GuestCreateResponse host = createGuest("Restart Host");
         GuestCreateResponse guest = createGuest("Restart Guest");
-        List<String> characterIds = ContentCatalog.load().characterSummaries().stream()
+        List<String> characterIds = catalog.characterSummaries().stream()
             .map(summary -> summary.characterId())
             .limit(2)
             .toList();
@@ -325,7 +333,7 @@ class MultiplayerServerIntegrationTest {
         ), MatchSetup.class);
 
         server.close();
-        server = new MultiplayerServer(config).start();
+        server = createServer().start();
         baseUri = URI.create("http://127.0.0.1:" + server.port());
 
         ChallengeSummary recovered = read(
@@ -340,7 +348,7 @@ class MultiplayerServerIntegrationTest {
         assertEquals(original.matchId(), restored.matchId());
 
         server.close();
-        server = new MultiplayerServer(config).start();
+        server = createServer().start();
         baseUri = URI.create("http://127.0.0.1:" + server.port());
 
         TestSocket restoredSocket = openSocket(guest.token());
@@ -410,6 +418,25 @@ class MultiplayerServerIntegrationTest {
             "/api/guests", null, new GuestCreateRequest(displayName));
         assertEquals(201, response.status());
         return read(response, GuestCreateResponse.class);
+    }
+
+    private MultiplayerServer createServer() {
+        Database database = new Database(config);
+        GuestAuthService authService = new GuestAuthService(database, config);
+        ChallengeService challengeService = new ChallengeService(database, config, catalog);
+        MatchManager matchManager = new MatchManager(database, config);
+        ObjectMapper serverMapper = new ObjectMapper()
+            .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+        return new MultiplayerServer(
+            config,
+            database,
+            catalog,
+            authService,
+            challengeService,
+            matchManager,
+            serverMapper
+        );
     }
 
     private TestSocket openSocket(String token) throws Exception {

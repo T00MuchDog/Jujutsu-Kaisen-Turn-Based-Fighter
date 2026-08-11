@@ -157,17 +157,8 @@ public final class TeamBattlePlan {
         return null;
     }
 
-    /**
-     * Recompute the common planning-grid length for a round: the grid tier of the
-     * maximum AP among all active combatants on both teams. Per the spec, the
-     * grid length is recomputed each round from the max AP of all active
-     * combatants on both teams (so a summon or KO can shrink or grow the grid).
-     */
+    /** The round's shared grid, fixed from all active combatants at round start. */
     public static int gridLengthForRound(BattleState state) {
-        int maxAp = 0;
-        for (BattleCombatant c : state.activeCombatants()) {
-            maxAp = Math.max(maxAp, c.getMaxApBar());
-        }
-        return Timeline.gridLengthForStrongestAp(maxAp);
+        return state.getTimelineGridLength();
     }
 }

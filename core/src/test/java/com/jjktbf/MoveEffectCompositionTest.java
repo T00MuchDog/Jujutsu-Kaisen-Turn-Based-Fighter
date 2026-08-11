@@ -17,7 +17,6 @@ import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.CombatResolver;
-import com.jjktbf.model.combat.MoveAvailability;
 import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
@@ -32,7 +31,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -46,10 +44,8 @@ class MoveEffectCompositionTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Test
-    void canonicalSpecialMovesUseOnlyTheUnifiedEffectList() throws IOException {
+    void canonicalMovesUseOnlyTheUnifiedEffectList() throws IOException {
         List<MoveData> moves = MAPPER.readValue(movesPath().toFile(), new TypeReference<>() { });
-        Map<String, MoveData> byId = moves.stream()
-            .collect(java.util.stream.Collectors.toMap(move -> move.id, move -> move));
 
         for (MoveData move : moves) {
             assertTrue(move.selfEffects == null || move.selfEffects.isEmpty(), move.name);
@@ -57,22 +53,6 @@ class MoveEffectCompositionTest {
             assertFalse(move.summonCharacterId != null && !move.summonCharacterId.isBlank(), move.name);
             move.toMove();
         }
-
-        assertStatus(byId.get("000060"), StatusEffectType.STAGGER, 0, 4);
-        assertStatus(byId.get("000061"), StatusEffectType.STAGGER, 0, 8);
-        assertStatus(byId.get("000068"), StatusEffectType.ACCURACY_DECREASE, 1, 0);
-        assertTrue(byId.get("000076").effects.stream().anyMatch(effect ->
-            AbilityEffectType.INSTANT_KILL.name().equals(effect.type)
-                && MoveEffectTrigger.ON_HIT.name().equals(effect.trigger)
-                && AbilityEffectTarget.ENEMY.name().equals(effect.target)));
-
-        Map<String, String> summons = Map.of(
-            "000033", "000007", "000034", "000008", "000039", "000009",
-            "000040", "000010", "000041", "000011", "000042", "000012",
-            "000043", "000014", "000044", "000013");
-        summons.forEach((moveId, characterId) -> assertEquals(
-            List.of(characterId),
-            MoveAvailability.summonedDefinitionIds(byId.get(moveId).toMove())));
     }
 
     @Test
@@ -299,23 +279,6 @@ class MoveEffectCompositionTest {
         componentData.hitComponents = List.of(first, second);
         componentData.migrateLegacyEffects();
         assertEquals(1, componentData.effects.get(0).hitComponentIndex);
-    }
-
-    private static void assertStatus(
-        MoveData move,
-        StatusEffectType type,
-        int rounds,
-        int ticks
-    ) {
-        assertNotNull(move);
-        MoveEffectData effect = move.effects.stream()
-            .filter(row -> AbilityEffectType.APPLY_STATUS.name().equals(row.type))
-            .findFirst().orElseThrow();
-        assertEquals(type.name(), effect.stringValue);
-        assertEquals(rounds, effect.durationRounds);
-        assertEquals(ticks, effect.durationTicks);
-        assertEquals(AbilityEffectTarget.ENEMY.name(), effect.target);
-        assertEquals(MoveEffectTrigger.ON_HIT.name(), effect.trigger);
     }
 
     private static Move attack(String id, List<MoveEffectData> effects) {

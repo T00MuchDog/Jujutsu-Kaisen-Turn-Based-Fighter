@@ -245,7 +245,7 @@
   "spriteAsset" : "assets/sprites/shikigami/GreatSerpentOrochi_frontsprite.png",
   "type" : "SHIKIGAMI",
   "directlySelectable" : false,
-  "baseCeDrainPerTick" : 0.45,
+  "baseCeDrainPerTick" : 0.5,
   "hasWeapon" : false,
   "vitality" : 80,
   "strength" : 80,

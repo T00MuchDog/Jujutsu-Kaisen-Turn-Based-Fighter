@@ -36,7 +36,7 @@ public final class ServerTestFixture implements AutoCloseable {
             3
         );
         this.database = new Database(config);
-        this.catalog = ContentCatalog.load();
+        this.catalog = TestContentCatalog.create();
         this.clock = new MutableClock(Instant.parse("2026-07-16T00:00:00Z"));
         this.authService = new GuestAuthService(
             database, config, clock, new SecureRandom());

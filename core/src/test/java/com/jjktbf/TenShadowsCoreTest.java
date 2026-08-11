@@ -25,6 +25,7 @@ import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.CombatResolver;
 import com.jjktbf.model.combat.MoveAvailability;
 import com.jjktbf.model.combat.SeededRandomSource;
+import com.jjktbf.model.combat.SummonUpkeepScaler;
 import com.jjktbf.model.combat.TeamBattlePlan;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
@@ -242,6 +243,48 @@ class TenShadowsCoreTest {
     }
 
     @Test
+    void summonUpkeepScalerMapsEfficiencyToMultiplierAtTheDesignAnchors() {
+        // RAW efficiency is scaled internally; baseline 80 is the neutral 1.0× point.
+        assertEquals(2.0, SummonUpkeepScaler.upkeepMultiplier(10), 0.000001,
+            "raw 10 → scaled 10 → 2.0× upkeep");
+        assertEquals(1.0, SummonUpkeepScaler.upkeepMultiplier(80), 0.000001,
+            "raw 80 → scaled 80 → 1.0× upkeep (neutral baseline)");
+        assertEquals(0.2, SummonUpkeepScaler.upkeepMultiplier(300), 0.000001,
+            "raw 300 → scaled 472 → 0.2× upkeep");
+        // Low-branch midpoint: scaled 45 → 2.0 - (45 - 10) / 70 = 1.5×.
+        assertEquals(1.5, SummonUpkeepScaler.upkeepMultiplier(45), 0.000001,
+            "raw 45 → scaled 45 → 1.5× upkeep (low-branch midpoint)");
+    }
+
+    @Test
+    void inefficientSummonerPaysScaledUpkeepAcrossActiveTicks() {
+        // CE Efficiency 10 → scaled 10 → 2.0× upkeep multiplier.
+        BattleCombatant summoner = fighter("SUMMONER", 10, List.of(capAbility(1)));
+        BattleState state = state(summoner, fighter("ENEMY", List.of()));
+        summon(state, summoner, "DOG", 0.3, List.of(upkeepAbility(0.1)), List.of());
+        int startingCe = summoner.getCurrentCe();
+
+        Move occupyTwoTicks = utility("WAIT", 2).build();
+        Timeline timeline = new Timeline(10);
+        timeline.placeAt(occupyTwoTicks, 1, 0);
+        timeline.placeAt(occupyTwoTicks, 5, 0);
+        summoner.setTimeline(timeline);
+
+        state.transitionTo(BattleState.Phase.RESOLUTION);
+        List<CombatEvent> events = new CombatResolver(new SeededRandomSource(1L))
+            .resolveRound(state);
+
+        // base 0.3 + ability 0.1 = 0.4/tick × 2.0× (efficiency 10) × 4 active ticks
+        // = 3.2 → 3 CE drained, 0.2 fractional debt carried forward.
+        assertEquals(startingCe - 3, summoner.getCurrentCe(),
+            "inefficient summoner accrues upkeep at 2.0× across four active ticks");
+        assertEquals(0.2, summoner.getSummonCeUpkeepDebt(), 0.000001);
+        assertEquals(3, events.stream()
+            .filter(event -> event.getType() == CombatEvent.Type.CE_DRAINED)
+            .mapToInt(CombatEvent::getIntValue).sum());
+    }
+
+    @Test
     void codedDesummonSelfRemovesSummonExactlyOnce() {
         Move desummonMove = utility("DESUMMON", 1)
             .selfEffects(List.of(StatusEffect.coded(
@@ -365,6 +408,14 @@ class TenShadowsCoreTest {
     private static BattleCombatant fighter(String id, List<Ability> abilities) {
         CharacterStats stats = new CharacterStats.Builder()
             .vitality(100).cursedEnergyReserves(100).speed(100).build();
+        return new BattleCombatant(new SorcererCharacter(
+            id, id, stats, "Ten Shadows", List.of(), abilities, false), abilities);
+    }
+
+    private static BattleCombatant fighter(String id, int ceEfficiency, List<Ability> abilities) {
+        CharacterStats stats = new CharacterStats.Builder()
+            .vitality(100).cursedEnergyReserves(100).speed(100)
+            .cursedEnergyEfficiency(ceEfficiency).build();
         return new BattleCombatant(new SorcererCharacter(
             id, id, stats, "Ten Shadows", List.of(), abilities, false), abilities);
     }

@@ -55,31 +55,30 @@ class SummonStatScalerTest {
     // --- scale(): the full stat transform ---------------------------------
 
     @Test
-    void maxElephantAtPeakSummonerDoublesRawStats() {
+    void peakSummonerDoublesRawStats() {
         CharacterStats summoner = allStats(300);          // maxed CTM + Output
-        CharacterStats scaled = SummonStatScaler.scale(summoner, maxElephant(), true);
+        CharacterStats scaled = SummonStatScaler.scale(summoner, summonStats(), true);
 
-        assertEquals(190, scaled.getVitality(), "VIT 95 x2 = 190");
-        assertEquals(1202, baseStatTotal(scaled), "BST 601 x2 = 1202");
+        assertEquals(200, scaled.getVitality(), "VIT 100 x2 = 200");
+        assertEquals(1800, baseStatTotal(scaled), "BST 900 x2 = 1800");
         assertEquals(0, scaled.getCursedTechniqueMastery(), "CTM stays 0");
     }
 
     @Test
     void baselineSummonerLeavesAuthoredStatsUnchanged() {
         CharacterStats summoner = allStats(80);           // baseline across the board
-        CharacterStats scaled = SummonStatScaler.scale(summoner, maxElephant(), true);
+        CharacterStats scaled = SummonStatScaler.scale(summoner, summonStats(), true);
 
-        assertEquals(95, scaled.getVitality());
-        assertEquals(601, baseStatTotal(scaled));
+        assertEquals(100, scaled.getVitality());
+        assertEquals(900, baseStatTotal(scaled));
     }
 
     @Test
     void weakestSummonerHalvesStatsDownToTheTenFloor() {
         CharacterStats summoner = allStats(10);
-        CharacterStats scaled = SummonStatScaler.scale(summoner, maxElephant(), true);
+        CharacterStats scaled = SummonStatScaler.scale(summoner, summonStats(), true);
 
-        // VIT 95 x0.5 = 47.5 -> 48 (round half up)
-        assertEquals(48, scaled.getVitality());
+        assertEquals(50, scaled.getVitality());
     }
 
     @Test
@@ -112,9 +111,9 @@ class SummonStatScalerTest {
             .jujutsuSkill(300).cursedEnergyOutput(300)
             .cursedTechniqueMastery(10)                    // deliberately low/irrelevant
             .build();
-        CharacterStats scaled = SummonStatScaler.scale(summoner, maxElephant(), false);
+        CharacterStats scaled = SummonStatScaler.scale(summoner, summonStats(), false);
 
-        assertEquals(190, scaled.getVitality(), "JS path at peak also doubles VIT");
+        assertEquals(200, scaled.getVitality(), "JS path at peak also doubles VIT");
     }
 
     @Test
@@ -123,19 +122,18 @@ class SummonStatScalerTest {
         CharacterStats summoner = new CharacterStats.Builder()
             .cursedTechniqueMastery(300).jujutsuSkill(10).cursedEnergyOutput(10)
             .build();
-        CharacterStats scaled = SummonStatScaler.scale(summoner, maxElephant(), false);
+        CharacterStats scaled = SummonStatScaler.scale(summoner, summonStats(), false);
 
-        assertEquals(48, scaled.getVitality(), "JS=Output=10 -> 0.5x -> VIT 48");
+        assertEquals(50, scaled.getVitality(), "JS=Output=10 -> 0.5x -> VIT 50");
     }
 
     // --- fixtures ---------------------------------------------------------
 
-    /** Max Elephant's authored raw base stats (BST 601, VIT 95, CTM 0). */
-    private static CharacterStats maxElephant() {
+    private static CharacterStats summonStats() {
         return new CharacterStats.Builder()
-            .vitality(95).strength(75).durability(98).speed(35)
-            .cursedEnergyReserves(90).cursedEnergyEfficiency(48).cursedEnergyOutput(88)
-            .jujutsuSkill(10).combatAbility(62).cursedTechniqueMastery(0)
+            .vitality(100).strength(100).durability(100).speed(100)
+            .cursedEnergyReserves(100).cursedEnergyEfficiency(100).cursedEnergyOutput(100)
+            .jujutsuSkill(100).combatAbility(100).cursedTechniqueMastery(0)
             .build();
     }
 

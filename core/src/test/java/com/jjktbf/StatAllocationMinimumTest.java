@@ -103,7 +103,8 @@ class StatAllocationMinimumTest {
         AbilityData restriction = ability("RESTRICTION", List.of(slots, defense));
         CharacterStats stats = new CharacterStats.Builder().durability(84).build();
         SorcererCharacter character = new SorcererCharacter(
-            "MAKI", "Maki", stats, null, List.of(), List.of(new Ability(restriction)));
+            "RESTRICTED", "Restricted", stats, null,
+            List.of(), List.of(new Ability(restriction)));
         BattleCombatant combatant = new BattleCombatant(character);
 
         assertEquals(0, character.getCombatStats().getJujutsuArtsSlots());
