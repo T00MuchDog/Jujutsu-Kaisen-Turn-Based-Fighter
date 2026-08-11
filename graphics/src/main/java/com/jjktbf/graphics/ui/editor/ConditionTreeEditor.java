@@ -17,7 +17,9 @@ import com.jjktbf.model.progression.TechniqueMasteryProgressions;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /** Recursive AND/OR predicate editor used by the ability editor. */
@@ -268,6 +270,28 @@ public class ConditionTreeEditor extends Table {
                 value -> condition.moveTag = enumName(value));
             addRow(fields, "Move tag", box);
         }
+        if (type.uses(AbilityConditionParameter.MOVE_TAGS)) {
+            Set<String> selected = new LinkedHashSet<>(condition.moveTags == null
+                ? List.of() : condition.moveTags);
+            Table tags = new Table(skin);
+            tags.defaults().padRight(8).left();
+            for (MoveTag tag : MoveTag.values()) {
+                if (!MoveTag.TYPE_TAGS.contains(tag)) continue;
+                CheckBox checkbox = new CheckBox(pretty(tag.name()), skin);
+                checkbox.setChecked(selected.contains(tag.name()));
+                checkbox.addListener(change(() -> {
+                    if (checkbox.isChecked()) selected.add(tag.name());
+                    else selected.remove(tag.name());
+                    condition.moveTags = Arrays.stream(MoveTag.values())
+                        .filter(MoveTag.TYPE_TAGS::contains)
+                        .filter(candidate -> selected.contains(candidate.name()))
+                        .map(MoveTag::name)
+                        .toList();
+                }));
+                tags.add(checkbox);
+            }
+            addRow(fields, "Exact damage tags", tags);
+        }
         if (type.uses(AbilityConditionParameter.STAT)) {
             SelectBox<String> box = new DynamicSelectBox<>(skin);
             box.setItems(Arrays.stream(StatKey.values()).map(stat -> stat.label).toArray(String[]::new));
@@ -415,6 +439,11 @@ public class ConditionTreeEditor extends Table {
         if (type.uses(AbilityConditionParameter.AMOUNT)) result.append(" | ").append(condition.amount);
         if (type.uses(AbilityConditionParameter.MOVE_ID)) result.append(" | ").append(moveLabel(condition.moveId));
         if (type.uses(AbilityConditionParameter.MOVE_TAG)) result.append(" | ").append(pretty(condition.moveTag));
+        if (type.uses(AbilityConditionParameter.MOVE_TAGS) && condition.moveTags != null) {
+            result.append(" | ").append(condition.moveTags.stream()
+                .map(ConditionTreeEditor::pretty)
+                .collect(java.util.stream.Collectors.joining(" + ")));
+        }
         if (type.uses(AbilityConditionParameter.STAT)) result.append(" | ").append(statLabel(condition.stat));
         if (type.uses(AbilityConditionParameter.STATUS_TYPE)) result.append(" | ").append(pretty(condition.statusType));
         if (type.uses(AbilityConditionParameter.CODED_ABILITY)) {

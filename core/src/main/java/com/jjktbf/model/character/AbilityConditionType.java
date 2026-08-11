@@ -2,6 +2,7 @@ package com.jjktbf.model.character;
 
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
+import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffectType;
 import com.jjktbf.model.progression.TechniqueMasteryProgressions;
@@ -36,6 +37,8 @@ public enum AbilityConditionType {
     BLACK_FLASH_STREAK_AT_LEAST("Black Flash streak at least", "The selected combatant has this many consecutive Black Flashes in BFS.", ACTOR, AMOUNT),
     MOVE_USED("Specific move used", "The selected combatant uses the chosen move.", ACTOR, MOVE_ID),
     MOVE_TAG_USED("Move tag used", "The selected combatant uses a move with the chosen tag.", ACTOR, MOVE_TAG),
+    MOVE_WEAPON_REQUIRED("Move requires weapon", "The selected combatant uses a move with Requires a weapon enabled.", ACTOR),
+    MOVE_TYPE_TAGS_EXACTLY("Move damage tags match exactly", "The selected combatant uses a move with exactly these damage-type tags. Modifier tags are ignored.", ACTOR, MOVE_TAGS),
     ATTACK_HIT("Attack hit", "The selected combatant lands an attack.", ACTOR),
     ATTACK_MISSED("Attack missed", "The selected combatant misses an attack.", ACTOR),
     MOVE_BLOCKED("Attack blocked", "The selected combatant's attack is fully blocked.", ACTOR),
@@ -105,6 +108,8 @@ public enum AbilityConditionType {
             ? (this == CONNECTED_HIT_HAS_TAG
                 ? MoveTag.PHYSICAL.name() : MoveTag.ATTACK.name())
             : null;
+        condition.moveTags = uses(MOVE_TAGS)
+            ? new java.util.ArrayList<>(java.util.List.of(MoveTag.PHYSICAL.name())) : null;
         condition.stat = uses(STAT) ? StatKey.VITALITY.fieldName : null;
         condition.statusType = uses(STATUS_TYPE)
             ? StatusEffectType.STRENGTH_INCREASE.name() : null;
@@ -123,6 +128,7 @@ public enum AbilityConditionType {
         if (!uses(AMOUNT)) condition.amount = null;
         if (!uses(MOVE_ID)) condition.moveId = null;
         if (!uses(MOVE_TAG)) condition.moveTag = null;
+        if (!uses(MOVE_TAGS)) condition.moveTags = null;
         if (!uses(STAT)) condition.stat = null;
         if (!uses(STATUS_TYPE)) condition.statusType = null;
         if (!uses(CODED_ABILITY)) condition.codedAbilityKey = null;
@@ -185,6 +191,21 @@ public enum AbilityConditionType {
             try { MoveTag.valueOf(condition.moveTag); }
             catch (Exception ex) { return path + " needs a valid move tag."; }
         }
+        if (type.uses(MOVE_TAGS)) {
+            if (condition.moveTags == null || condition.moveTags.isEmpty()) {
+                return path + " needs at least one damage-type tag.";
+            }
+            Set<MoveTag> selected = EnumSet.noneOf(MoveTag.class);
+            for (String storedTag : condition.moveTags) {
+                MoveTag tag;
+                try { tag = MoveTag.valueOf(storedTag); }
+                catch (Exception ex) { return path + " needs valid damage-type tags."; }
+                if (!MoveTag.TYPE_TAGS.contains(tag)) {
+                    return path + " can only use damage-type tags.";
+                }
+                if (!selected.add(tag)) return path + " cannot repeat a damage-type tag.";
+            }
+        }
         if (type.uses(STAT)) {
             try { StatKey.fromString(condition.stat); }
             catch (Exception ex) { return path + " needs a valid character stat."; }
@@ -238,6 +259,75 @@ public enum AbilityConditionType {
         if (uses(TICK)) fields.add(TechniqueMasteryProgressions.TICK);
         if (uses(ROUND)) fields.add(TechniqueMasteryProgressions.ROUND);
         return Collections.unmodifiableSet(fields);
+    }
+
+    /** Validate a condition tree used to calculate the owner's current move cost. */
+    static String moveCostConditionError(AbilityConditionData condition) {
+        if (condition == null) return "CE-cost conditions need a move predicate.";
+        AbilityConditionType type;
+        try { type = fromName(condition.type); }
+        catch (Exception ex) { return "CE-cost condition has an invalid type."; }
+        if (type.isGroup()) {
+            if (condition.children == null || condition.children.isEmpty()) {
+                return "CE-cost condition groups need at least one child.";
+            }
+            for (AbilityConditionData child : condition.children) {
+                String error = moveCostConditionError(child);
+                if (error != null) return error;
+            }
+            return null;
+        }
+        if (type != MOVE_USED && type != MOVE_TAG_USED
+            && type != MOVE_WEAPON_REQUIRED && type != MOVE_TYPE_TAGS_EXACTLY) {
+            return "CE-cost conditions can only inspect the move being used.";
+        }
+        if (!AbilityConditionActor.SELF.name().equals(condition.actor)) {
+            return "CE-cost conditions must inspect SELF's move.";
+        }
+        return null;
+    }
+
+    /** Evaluate a validated move-only condition tree for the owner's current move. */
+    static boolean matchesMoveCostCondition(AbilityConditionData condition, Move move) {
+        if (condition == null || move == null) return false;
+        AbilityConditionType type;
+        try { type = fromName(condition.type); }
+        catch (Exception ex) { return false; }
+        if (type == ALL) {
+            return condition.children != null && !condition.children.isEmpty()
+                && condition.children.stream().allMatch(child -> matchesMoveCostCondition(child, move));
+        }
+        if (type == ANY) {
+            return condition.children != null && condition.children.stream()
+                .anyMatch(child -> matchesMoveCostCondition(child, move));
+        }
+        if (!AbilityConditionActor.SELF.name().equals(condition.actor)) return false;
+        return switch (type) {
+            case MOVE_USED -> move.getId().equals(condition.moveId);
+            case MOVE_TAG_USED -> move.hasTag(condition.moveTag);
+            case MOVE_WEAPON_REQUIRED -> move.isWeaponRequired();
+            case MOVE_TYPE_TAGS_EXACTLY -> moveHasExactTypeTags(move, condition.moveTags);
+            default -> false;
+        };
+    }
+
+    /** True when a move has precisely these damage-nature tags, ignoring modifiers. */
+    public static boolean moveHasExactTypeTags(Move move, java.util.List<String> storedTags) {
+        if (move == null || storedTags == null || storedTags.isEmpty()) return false;
+        Set<MoveTag> expected = EnumSet.noneOf(MoveTag.class);
+        for (String storedTag : storedTags) {
+            try {
+                MoveTag tag = MoveTag.valueOf(storedTag);
+                if (!MoveTag.TYPE_TAGS.contains(tag) || !expected.add(tag)) return false;
+            } catch (Exception ex) {
+                return false;
+            }
+        }
+        Set<MoveTag> actual = EnumSet.noneOf(MoveTag.class);
+        for (MoveTag tag : move.getTags()) {
+            if (MoveTag.TYPE_TAGS.contains(tag)) actual.add(tag);
+        }
+        return actual.equals(expected);
     }
 
     private int defaultAmount() {

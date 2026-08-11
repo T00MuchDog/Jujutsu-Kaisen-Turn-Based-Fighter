@@ -40,8 +40,11 @@ class ContentCatalogTest {
         assertEquals(75, maki.getBaseStats().getVitality());
         assertEquals(80, maki.getBaseStats().getStrength());
         assertEquals(0, maki.getCombatStats().getJujutsuArtsSlots());
-        assertTrue(maki.getKnownMoves().stream()
-            .anyMatch(move -> "Cursed Sword Slash".equals(move.getName())));
+        assertTrue(maki.getAbilities().stream().anyMatch(ability ->
+            "Cursed Tool Reinforcement".equals(ability.getName()) && ability.isActive()));
+        var cursedSwordSlash = maki.getKnownMoves().stream()
+            .filter(move -> "Cursed Sword Slash".equals(move.getName()))
+            .findFirst().orElseThrow();
         var deflection = maki.getKnownMoves().stream()
             .filter(move -> "Cursed Tool Deflection".equals(move.getName()))
             .findFirst().orElseThrow();
@@ -57,6 +60,7 @@ class ContentCatalogTest {
         var makiCombatant = new BattleCombatant(maki);
         assertEquals(135, makiCombatant.getEffectiveStats().getCombatAbility());
         assertEquals(108, makiCombatant.computeCurrentDefense(1));
+        assertEquals(0, makiCombatant.computeMoveCeCost(cursedSwordSlash));
         var fearsomeMegumi = catalog.findCharacter("000004").orElseThrow();
         assertEquals("Ten Shadows", fearsomeMegumi.getInnateTechniqueName());
         assertEquals(45, fearsomeMegumi.getBaseStats().getVitality());

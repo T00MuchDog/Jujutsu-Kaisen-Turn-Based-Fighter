@@ -26,6 +26,8 @@ public class AbilityConditionData {
     public Integer amount;
     public String moveId;
     public String moveTag;
+    /** Ordered names of the exact damage-type tags required by a move condition. */
+    public List<String> moveTags;
     public String stat;
     public String statusType;
     public String codedAbilityKey;
@@ -69,6 +71,7 @@ public class AbilityConditionData {
         amount = source.amount;
         moveId = source.moveId;
         moveTag = source.moveTag;
+        moveTags = source.moveTags == null ? null : new ArrayList<>(source.moveTags);
         stat = source.stat;
         statusType = source.statusType;
         codedAbilityKey = source.codedAbilityKey;

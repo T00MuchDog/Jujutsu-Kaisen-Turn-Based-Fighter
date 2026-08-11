@@ -552,8 +552,8 @@ public final class AbilityActivationEngine {
             case BLACK_FLASH_STREAK_AT_LEAST -> anyActor(
                 condition, owner, enemy, state, targetLocal,
                 combatant -> combatant.getConsecutiveBfsHits() >= conditionAmount(condition, owner));
-            case MOVE_USED, MOVE_TAG_USED, ATTACK_HIT, ATTACK_MISSED, MOVE_BLOCKED,
-                  TIMELINE_POINT_REACHED -> history.stream().anyMatch(candidate ->
+            case MOVE_USED, MOVE_TAG_USED, MOVE_WEAPON_REQUIRED, MOVE_TYPE_TAGS_EXACTLY,
+                  ATTACK_HIT, ATTACK_MISSED, MOVE_BLOCKED, TIMELINE_POINT_REACHED -> history.stream().anyMatch(candidate ->
                 eventLeafMatches(type, condition, owner, enemy, state, candidate, targetLocal));
             case ATTACK_CONNECTED, CONNECTED_HIT_HAS_TAG, FATAL_DAMAGE ->
                 eventLeafMatches(type, condition, owner, enemy, state, trigger, targetLocal);
@@ -818,7 +818,10 @@ public final class AbilityActivationEngine {
             case STAT_ALLOCATION_MINIMUM, STAT_BONUS_POINTS,
                   POISON_IMMUNITY, SOUL_AWARE_ATTACKS,
                   GRANT_MOVE, GRANT_ABILITY, UNLOCK_MOVE,
-                  UNLOCK_TECHNIQUE, CODED -> { }
+                  UNLOCK_TECHNIQUE, CE_COST_ALTER,
+                  CODED -> {
+                // CE_COST_ALTER is evaluated while the current move's cost is quoted.
+            }
             case SUMMON_CHARACTER -> {
                 // Shared runtime summon path: enqueue a shikigami onto the
                 // owner's team. Materialized by the resolver after the current
@@ -876,8 +879,9 @@ public final class AbilityActivationEngine {
                 .anyMatch(child -> hasMatchingEventLeaf(child, owner, enemy, state, trigger));
         }
         boolean eventCondition = switch (type) {
-            case BLACK_FLASH_HIT, MOVE_USED, MOVE_TAG_USED, ATTACK_HIT, ATTACK_MISSED,
-                  MOVE_BLOCKED, TIMELINE_POINT_REACHED, TIMELINE_POINT_ON_ROUND,
+            case BLACK_FLASH_HIT, MOVE_USED, MOVE_TAG_USED, MOVE_WEAPON_REQUIRED,
+                  MOVE_TYPE_TAGS_EXACTLY, ATTACK_HIT, ATTACK_MISSED, MOVE_BLOCKED,
+                  TIMELINE_POINT_REACHED, TIMELINE_POINT_ON_ROUND,
                   EVERY_N_ROUNDS, PHASE_REACHED, HEALED, DAMAGE_DEALT_AT_LEAST,
                   DAMAGE_TAKEN_AT_LEAST, CE_SPENT_AT_LEAST, CE_LOST_AT_LEAST,
                   CE_RESTORED_AT_LEAST,
@@ -920,6 +924,12 @@ public final class AbilityActivationEngine {
             case MOVE_TAG_USED -> trigger.type() == AbilityTrigger.Type.MOVE_USED
                 && eventActorMatches(condition, owner, state, trigger.actor())
                 && trigger.move() != null && trigger.move().hasTag(condition.moveTag);
+            case MOVE_WEAPON_REQUIRED -> trigger.type() == AbilityTrigger.Type.MOVE_USED
+                && eventActorMatches(condition, owner, state, trigger.actor())
+                && trigger.move() != null && trigger.move().isWeaponRequired();
+            case MOVE_TYPE_TAGS_EXACTLY -> trigger.type() == AbilityTrigger.Type.MOVE_USED
+                && eventActorMatches(condition, owner, state, trigger.actor())
+                && AbilityConditionType.moveHasExactTypeTags(trigger.move(), condition.moveTags);
             case ATTACK_HIT -> trigger.type() == AbilityTrigger.Type.ATTACK_HIT
                 && eventActorMatches(condition, owner, state, trigger.actor());
             case ATTACK_MISSED -> trigger.type() == AbilityTrigger.Type.ATTACK_MISSED

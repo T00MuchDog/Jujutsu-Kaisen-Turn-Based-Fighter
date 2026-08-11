@@ -141,9 +141,30 @@ public class AbilityConditionRuleData {
                 .map(effectIndexes::get)
                 .map(rows::get)
                 .anyMatch(AbilityEffectData::isCoded);
+            boolean targetsCeCostAlteration = targets.stream()
+                .map(effectIndexes::get)
+                .map(rows::get)
+                .anyMatch(effect -> AbilityEffectType.CE_COST_ALTER.name()
+                    .equalsIgnoreCase(effect.type));
             if (targetsGeneric && targetsCoded) {
                 return prefix
                     + " cannot mix coded and generic effects. Use a separate condition for each.";
+            }
+            if (targetsCeCostAlteration) {
+                boolean onlyCeCostAlterations = targets.stream()
+                    .map(effectIndexes::get)
+                    .map(rows::get)
+                    .allMatch(effect -> AbilityEffectType.CE_COST_ALTER.name()
+                        .equalsIgnoreCase(effect.type));
+                if (!onlyCeCostAlterations) {
+                    return prefix + " must only target CE cost alteration effects.";
+                }
+                String costConditionError = AbilityConditionType.moveCostConditionError(
+                    rule.condition);
+                if (costConditionError != null) return prefix + ": " + costConditionError;
+                if (Boolean.TRUE.equals(rule.activationChanceEnabled)) {
+                    return prefix + " cannot use an activation chance for CE cost alterations.";
+                }
             }
             if (targetsGeneric && containsPreResolutionHook(rule.condition)) {
                 return prefix

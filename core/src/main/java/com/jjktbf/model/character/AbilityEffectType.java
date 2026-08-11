@@ -95,6 +95,10 @@ public enum AbilityEffectType {
         "Multiply CE costs",
         "Multiplies the CE cost of matching moves. 0.50 halves the cost.",
         MOVE_SCOPE, DECIMAL),
+    CE_COST_ALTER(
+        "Alter CE costs",
+        "Scales matching move costs, then adds or subtracts a flat CE amount. Applied after the move's configured CE bounds and never below zero.",
+        MOVE_SCOPE, DECIMAL, INTEGER),
 
     MOVE_ACCURACY_ADD(
         "Change own accuracy",
@@ -422,6 +426,10 @@ public enum AbilityEffectType {
             case STAT_ALLOCATION_MINIMUM, STAT_ALLOCATION_MAXIMUM ->
                 effect.intValue = CharacterStats.BASELINE;
             case STAT_BONUS_POINTS -> effect.intValue = 10;
+            case CE_COST_ALTER -> {
+                effect.doubleValue = 0.50;
+                effect.intValue = 0;
+            }
             case CE_COST_MULTIPLY, MOVE_ACCURACY_MULTIPLY,
                  OPPONENT_ACCURACY_MULTIPLY, DAMAGE_MULTIPLY, MOVE_BASE_POWER_MULTIPLY,
                  INCOMING_DAMAGE_MULTIPLY, MODIFY_DEFENSE -> effect.doubleValue = 1.10;
@@ -716,6 +724,10 @@ public enum AbilityEffectType {
                   TEMP_STAT_MULTIPLY, BATTLE_STAT_MULTIPLY ->
                 effect.doubleValue <= 0 || effect.doubleValue == 1.0
                     ? "Enter a positive multiplier other than 1.0." : null;
+            case CE_COST_ALTER -> effect.doubleValue < 0
+                || (effect.doubleValue == 1.0 && effect.intValue == 0)
+                    ? "Use a non-negative multiplier or a non-zero CE change."
+                    : null;
             case STAT_DIVIDE -> effect.doubleValue <= 0 || effect.doubleValue == 1.0
                 ? "Enter a positive divisor other than 1.0." : null;
             case BF_CHANCE_ADD -> effect.doubleValue == 0.0

@@ -1179,6 +1179,7 @@ public class EffectListEditor extends Table {
             case STAT_ALLOCATION_MINIMUM -> "Minimum allocation";
             case STAT_BONUS_POINTS -> "Point-budget change";
             case MOVE_ACCURACY_ADD, OPPONENT_ACCURACY_ADD -> "Accuracy points (+/-)";
+            case CE_COST_ALTER -> "CE change (+/-)";
             case MODIFY_AP_BAR -> "AP change (+/-)";
             case COST_CE_PER_ROUND -> "CE cost per round";
             case MAX_ACTIVE_SUMMONS -> "Maximum active summons";
@@ -1193,6 +1194,7 @@ public class EffectListEditor extends Table {
         return switch (type) {
             case STAT_DIVIDE -> "Divisor";
             case BF_CHANCE_ADD -> "Chance change % (+/-)";
+            case CE_COST_ALTER -> "CE cost multiplier";
             case HEAL_HP_PERCENT, RESTORE_CE_PERCENT, DRAIN_CE_PERCENT,
                  DEAL_MAX_HP_DAMAGE -> "Percentage";
             case BATTLE_STAT_ADD -> "Amount (+/-)";

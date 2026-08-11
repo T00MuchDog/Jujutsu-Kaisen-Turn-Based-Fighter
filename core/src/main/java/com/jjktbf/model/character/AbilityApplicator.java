@@ -47,7 +47,11 @@ public final class AbilityApplicator {
         int progressionMastery = passiveMastery(baseStats, abilities);
 
         for (Ability ability : abilities == null ? List.<Ability>of() : abilities) {
-            if (ability == null || !ability.isPassive()) continue;
+            if (ability == null) continue;
+            if (!ability.isPassive()) {
+                addActiveCeCostAlterations(flags, ability, progressionMastery);
+                continue;
+            }
             for (AbilityEffectData authored : ability.getEffects()) {
                 if (authored == null || authored.type == null) {
                     System.err.println("[WARN] AbilityApplicator: missing ability effect type");
@@ -108,6 +112,7 @@ public final class AbilityApplicator {
                         flags.ceCostMultiplier *= nvl(eff.doubleValue, 1.0);
                         flags.ceCostMultiplierEffects.add(eff);
                     }
+                    case CE_COST_ALTER -> flags.addCeCostAlteration(eff, null);
 
                     case MOVE_ACCURACY_ADD       -> {
                         flags.accuracyBonus += nvl(eff.intValue, 0);
@@ -215,6 +220,30 @@ public final class AbilityApplicator {
         );
 
         return new ApplicationResult(modified, flags);
+    }
+
+    /** Register active CE-cost effects that can be evaluated from the current move alone. */
+    private static void addActiveCeCostAlterations(
+        AbilityFlags flags,
+        Ability ability,
+        int progressionMastery
+    ) {
+        for (AbilityEffectData authored : ability.getEffects()) {
+            if (authored == null || authored.type == null) continue;
+            AbilityEffectType type;
+            try { type = AbilityEffectType.fromName(authored.type); }
+            catch (IllegalArgumentException ignored) { continue; }
+            if (type != AbilityEffectType.CE_COST_ALTER) continue;
+            AbilityEffectData effect = "TECHNIQUE".equalsIgnoreCase(ability.getSourceType())
+                ? TechniqueMasteryResolver.resolve(authored, progressionMastery) : authored;
+            for (AbilityConditionRuleData rule : ability.getActivationConditions()) {
+                if (rule == null || !rule.targetsEffect(authored.effectId)) continue;
+                AbilityConditionData condition = "TECHNIQUE".equalsIgnoreCase(ability.getSourceType())
+                    ? TechniqueMasteryResolver.resolve(rule.condition, progressionMastery)
+                    : rule.condition;
+                flags.addCeCostAlteration(effect, condition);
+            }
+        }
     }
 
     /** Resolve literal passive CTM modifiers before deriving other passive values from CTM. */
@@ -356,6 +385,16 @@ public final class AbilityApplicator {
     /** All non-stat ability effects tracked at runtime by BattleCombatant. */
     public static class AbilityFlags {
 
+        private static final class CeCostAlteration {
+            private final AbilityEffectData effect;
+            private final AbilityConditionData condition;
+
+            private CeCostAlteration(AbilityEffectData effect, AbilityConditionData condition) {
+                this.effect = effect.copy();
+                this.condition = condition == null ? null : condition.copy();
+            }
+        }
+
         // CE
         public boolean ceCostToMinimum   = false;
         public double  ceCostMultiplier   = 1.0;
@@ -364,6 +403,7 @@ public final class AbilityApplicator {
         public double  summonCeUpkeepPerActiveTick = 0.0;
         public final java.util.List<AbilityEffectData> ceCostToMinimumEffects = new java.util.ArrayList<>();
         public final java.util.List<AbilityEffectData> ceCostMultiplierEffects = new java.util.ArrayList<>();
+        private final java.util.List<CeCostAlteration> ceCostAlterations = new java.util.ArrayList<>();
 
         // Own accuracy
         public int     accuracyBonus      = 0;
@@ -431,6 +471,7 @@ public final class AbilityApplicator {
                     ceCostMultiplier *= nvl(effect.doubleValue, 1.0);
                     ceCostMultiplierEffects.add(effect);
                 }
+                case CE_COST_ALTER -> addCeCostAlteration(effect, null);
                 case MOVE_ACCURACY_ADD -> {
                     accuracyBonus += nvl(effect.intValue, 0);
                     accuracyAddEffects.add(effect);
@@ -510,6 +551,9 @@ public final class AbilityApplicator {
             copy.soulAwareAttacks = soulAwareAttacks;
             copy.ceCostToMinimumEffects.addAll(ceCostToMinimumEffects);
             copy.ceCostMultiplierEffects.addAll(ceCostMultiplierEffects);
+            for (CeCostAlteration alteration : ceCostAlterations) {
+                copy.addCeCostAlteration(alteration.effect, alteration.condition);
+            }
             copy.accuracyAddEffects.addAll(accuracyAddEffects);
             copy.accuracyMultiplierEffects.addAll(accuracyMultiplierEffects);
             copy.opponentAccuracyAddEffects.addAll(opponentAccuracyAddEffects);
@@ -529,6 +573,13 @@ public final class AbilityApplicator {
             return effect.moveTag == null || effect.moveTag.isBlank() || move.hasTag(effect.moveTag);
         }
 
+        private void addCeCostAlteration(
+            AbilityEffectData effect,
+            AbilityConditionData condition
+        ) {
+            if (effect != null) ceCostAlterations.add(new CeCostAlteration(effect, condition));
+        }
+
         public boolean forcesMinimumCeCost(com.jjktbf.model.move.Move move) {
             return ceCostToMinimumEffects.stream().anyMatch(effect -> appliesTo(effect, move));
         }
@@ -539,6 +590,29 @@ public final class AbilityApplicator {
                 if (appliesTo(effect, move)) multiplier *= nvl(effect.doubleValue, 1.0);
             }
             return multiplier;
+        }
+
+        /** Apply ordered post-bound cost adjustments that match this current move. */
+        public int alterCeCost(com.jjktbf.model.move.Move move, int cost) {
+            int altered = Math.max(0, cost);
+            for (CeCostAlteration alteration : ceCostAlterations) {
+                if (!appliesTo(alteration.effect, move)) continue;
+                if (alteration.condition != null
+                    && !AbilityConditionType.matchesMoveCostCondition(
+                        alteration.condition, move)) {
+                    continue;
+                }
+                altered = applyCeCostAlteration(altered, alteration.effect);
+            }
+            return altered;
+        }
+
+        private static int applyCeCostAlteration(int cost, AbilityEffectData effect) {
+            double multiplier = nvl(effect.doubleValue, 1.0);
+            double scaled = Math.max(0.0, cost * multiplier);
+            long rounded = scaled >= Integer.MAX_VALUE ? Integer.MAX_VALUE : Math.round(scaled);
+            long altered = rounded + (long) nvl(effect.intValue, 0);
+            return (int) Math.max(0L, Math.min(Integer.MAX_VALUE, altered));
         }
 
         public int accuracyBonusFor(com.jjktbf.model.move.Move move) {
@@ -598,7 +672,7 @@ public final class AbilityApplicator {
         }
 
         public boolean hasAnyEffect() {
-            return ceCostToMinimum || ceCostMultiplier != 1.0
+            return ceCostToMinimum || ceCostMultiplier != 1.0 || !ceCostAlterations.isEmpty()
                 || accuracyBonus != 0 || accuracyMultiplier != 1.0
                 || opponentAccuracyBonus != 0 || opponentAccuracyMultiplier != 1.0
                 || damageMultiplier != 1.0 || basePowerMultiplier != 1.0 || defenseMultiplier != 1.0

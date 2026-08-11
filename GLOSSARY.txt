@@ -711,7 +711,9 @@ CE COST (of a move)
   The CE drained when a CE-tagged segment reaches its startTick. Scaled from
   baseCeCost by CE Efficiency and CE Output (see CE COST SCALING), clamped to
   [minCeCost, maxCeCost]. Abilities can force minimum (CE_COST_TO_MINIMUM) or
-  multiply (CE_COST_MULTIPLY).
+  multiply (CE_COST_MULTIPLY). Ordered CE_COST_ALTER rows then scale the bounded
+  cost and add or subtract a flat amount; each row's result is floored at 0 and
+  may intentionally pass the move's configured bounds.
 
 CE COST SCALING
   Efficiency and Output use the SCALED stat values (StatScale.scale, 10→~472);
@@ -771,7 +773,7 @@ CHARACTER-SOURCE ABILITY
   An ability whose sourceType is CHARACTER. It is available to every character;
   CHARACTER does not mean character-exclusive. Only assigned abilities are active.
 
-ABILITY EFFECT TYPES  (53 enum constants; grouped as in source).
+ABILITY EFFECT TYPES  (54 enum constants; grouped as in source).
   Each type owns its editor display name, description, required parameters, and
   defaults. Effects with ordinal ≥ HEAL_HP are TRIGGERED RUNTIME EFFECTS: applied
   by the passive dispatcher on activation, not at construction.
@@ -795,6 +797,7 @@ ABILITY EFFECT TYPES  (53 enum constants; grouped as in source).
   CE cost modifiers (move-scoped):
     CE_COST_TO_MINIMUM  Force matching moves to min CE cost      (MOVE_SCOPE)
     CE_COST_MULTIPLY    Multiply CE cost of matching moves        (MOVE_SCOPE, DECIMAL)
+    CE_COST_ALTER       Scale then add/subtract CE cost           (MOVE_SCOPE, DECIMAL, INTEGER)
 
   Accuracy modifiers (move-scoped):
     MOVE_ACCURACY_ADD         ± accuracy on own moves           (MOVE_SCOPE, INTEGER)

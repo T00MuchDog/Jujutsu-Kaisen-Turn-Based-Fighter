@@ -29,7 +29,8 @@ import com.jjktbf.model.move.Move;
  * <h3>Final cost</h3>
  * <pre>
  *   rawCost    = baseCeCost × effMult × outMult   (× optional ability multiplier)
- *   actualCost = clamp(rawCost, minCeCost, maxCeCost)
+ *   boundedCost = clamp(rawCost, minCeCost, maxCeCost)
+ *   actualCost = ordered CE cost alterations(boundedCost)
  * </pre>
  *
  * The cost-neutral reference is Efficiency 80 + Output ≤80 (1.0× × 1.0× = 1.0×):
@@ -37,7 +38,8 @@ import com.jjktbf.model.move.Move;
  * pushes more CE through the move (costlier); raising Efficiency spends it more
  * frugally (cheaper). Efficiency's swing is intentionally far larger than
  * Output's. Ability flags may further multiply the cost or force it to the
- * move's minimum; the move's minCeCost / maxCeCost are hard floors / ceilings.
+ * move's minimum before ordered alterations apply; those alterations can
+ * intentionally move the final cost outside the move's configured bounds.
  */
 public final class CeEfficiencyCalculator {
 
@@ -88,7 +90,7 @@ public final class CeEfficiencyCalculator {
      * @param move          the move being used
      * @param ceEfficiency  RAW CE Efficiency stat (10–300); scaled internally
      * @param ceOutput      RAW CE Output stat (10–300); scaled internally
-     * @param flags         active ability flags (optional CE cost multiplier / force-min); may be null
+     * @param flags         active ability flags (optional CE cost modifiers); may be null
      * @return              the CE units to drain when this action segment begins
      */
     public static int computeActualCost(
@@ -115,9 +117,9 @@ public final class CeEfficiencyCalculator {
         // Clamp to the move's hard min/max
         int clamped = Math.max(move.getMinCeCost(), Math.min(move.getMaxCeCost(), (int) Math.round(rawCost)));
         if (flags != null && flags.forcesMinimumCeCost(move)) {
-            return move.getMinCeCost();
+            clamped = move.getMinCeCost();
         }
-        return clamped;
+        return flags == null ? clamped : flags.alterCeCost(move, clamped);
     }
 
     /**

@@ -649,11 +649,12 @@ public class BattleCombatant {
     }
 
     public int computeMoveCeCost(com.jjktbf.model.move.Move move) {
+        AbilityApplicator.AbilityFlags flags = getAbilityFlags();
         int cost = CeEfficiencyCalculator.computeActualCost(
             move,
             getEffectiveStats().getCursedEnergyEfficiency(),
             getEffectiveStats().getCursedEnergyOutput(),
-            getAbilityFlags());
+            flags);
         return Math.max(0, (int) Math.round(modifyBattleStat(BattleStatKey.CE_COST, cost)));
     }
 

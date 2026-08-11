@@ -461,7 +461,7 @@
   "id" : "000019",
   "name" : "Cursed Tool Access",
   "flavourText" : "Granted access to a variety of Cursed Tools, they do not need to reinforce weapons with their own Cursed Energy",
-  "mechanicText" : "Allows the user to use Cursed Tool Moves without the requirements",
+  "mechanicText" : "Allows the user to use CURSED TOOL moves without their requirements.",
   "category" : "PASSIVE",
   "sourceType" : "CHARACTER",
   "effects" : [ {
@@ -727,4 +727,34 @@
     }
   } ],
   "masteryThreshold" : 60
+}, {
+  "id" : "000033",
+  "name" : "Cursed Tool Reinforcement",
+  "flavourText" : "A cursed tool bears the burden of reinforcement itself, letting its wielder strike with cursed energy that is not their own.",
+  "mechanicText" : "When using a weapon-required move with exactly PHYSICAL and CURSED ENERGY damage tags, set its CE cost to 0.",
+  "category" : "ACTIVE",
+  "sourceType" : "ABILITY",
+  "sourceValue" : "000019",
+  "activationConditions" : [ {
+    "condition" : {
+      "type" : "ALL",
+      "children" : [ {
+        "type" : "MOVE_WEAPON_REQUIRED",
+        "actor" : "SELF"
+      }, {
+        "type" : "MOVE_TYPE_TAGS_EXACTLY",
+        "actor" : "SELF",
+        "moveTags" : [ "PHYSICAL", "CURSED_ENERGY" ]
+      } ]
+    },
+    "targetEffectIds" : [ "effect-000000" ],
+    "matchSameTrigger" : true
+  } ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CE_COST_ALTER",
+    "doubleValue" : 0.0,
+    "intValue" : 0
+  } ],
+  "masteryThreshold" : 0
 } ]

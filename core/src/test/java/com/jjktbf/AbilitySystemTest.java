@@ -31,6 +31,7 @@ import com.jjktbf.model.combat.SeededRandomSource;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
+import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffectType;
 import org.junit.jupiter.api.Test;
 
@@ -82,6 +83,84 @@ class AbilitySystemTest {
             if (type == AbilityEffectType.SUMMON_CHARACTER) effect.characterId = "000010";
             assertNull(type.validationError(effect), type.name());
         }
+    }
+
+    @Test
+    void activeCeCostAlterationOnlyMatchesExactWeaponReinforcementMoves() {
+        AbilityEffectData alteration = AbilityEffectType.CE_COST_ALTER
+            .createDefault();
+        alteration.effectId = "effect-000000";
+        alteration.doubleValue = 0.0;
+        alteration.intValue = 0;
+        AbilityConditionData weaponRequired = AbilityConditionType.MOVE_WEAPON_REQUIRED
+            .createDefault();
+        AbilityConditionData exactReinforcement = AbilityConditionType.MOVE_TYPE_TAGS_EXACTLY
+            .createDefault();
+        exactReinforcement.moveTags = List.of(
+            MoveTag.PHYSICAL.name(), MoveTag.CURSED_ENERGY.name());
+        AbilityConditionRuleData rule = AbilityConditionRuleData.allEffects(
+            AbilityConditionData.all(List.of(weaponRequired, exactReinforcement)));
+        rule.matchSameTrigger = true;
+        AbilityData active = ability("ACTIVE", "Cursed Tool Reinforcement", "TOOL");
+        active.effects = List.of(alteration);
+        active.activationConditions = List.of(rule);
+        assertNull(AbilityConditionRuleData.validationError(
+            active.activationConditions, active.effects));
+        AbilityApplicator.AbilityFlags flags = AbilityApplicator.apply(
+            new CharacterStats.Builder().build(), List.of(new Ability(active))).flags;
+
+        Move weaponReinforcement = new Move.Builder("WEAPON_REINFORCEMENT")
+            .name("Weapon Reinforcement")
+            .category(MoveCategory.PHYSICAL_CURSED_ENERGY)
+            .tags(Set.of(MoveTag.PHYSICAL, MoveTag.CURSED_ENERGY, MoveTag.ATTACK, MoveTag.SWORD))
+            .weaponRequired(true)
+            .apCost(1).unleashPoint(1)
+            .baseCeCost(20).hasCeCost(true).minCeCost(4).maxCeCost(85)
+            .build();
+        Move unarmedReinforcement = new Move.Builder("UNARMED_REINFORCEMENT")
+            .name("Unarmed Reinforcement")
+            .category(MoveCategory.PHYSICAL_CURSED_ENERGY)
+            .apCost(1).unleashPoint(1)
+            .baseCeCost(20).hasCeCost(true).minCeCost(4).maxCeCost(85)
+            .build();
+        Move weaponCursedEnergy = new Move.Builder("WEAPON_CE")
+            .name("Weapon Cursed Energy")
+            .category(MoveCategory.CURSED_ENERGY)
+            .weaponRequired(true)
+            .apCost(1).unleashPoint(1)
+            .baseCeCost(20).hasCeCost(true).minCeCost(4).maxCeCost(85)
+            .build();
+
+        assertEquals(0, com.jjktbf.model.combat.CeEfficiencyCalculator.computeActualCost(
+            weaponReinforcement, 80, 80, flags));
+        assertEquals(20, com.jjktbf.model.combat.CeEfficiencyCalculator.computeActualCost(
+            unarmedReinforcement, 80, 80, flags));
+        assertEquals(20, com.jjktbf.model.combat.CeEfficiencyCalculator.computeActualCost(
+            weaponCursedEnergy, 80, 80, flags));
+    }
+
+    @Test
+    void ceCostAlterationScalesAndChangesCostAfterMoveBounds() {
+        AbilityEffectData scaleDownAndReduce = AbilityEffectType.CE_COST_ALTER.createDefault();
+        scaleDownAndReduce.doubleValue = 0.5;
+        scaleDownAndReduce.intValue = -3;
+        AbilityEffectData scaleUpAndAdd = AbilityEffectType.CE_COST_ALTER.createDefault();
+        scaleUpAndAdd.doubleValue = 2.0;
+        scaleUpAndAdd.intValue = 5;
+        AbilityData passive = ability("PASSIVE", "CE Adjustment", "CE_ADJUSTMENT");
+        passive.effects = List.of(scaleDownAndReduce, scaleUpAndAdd);
+        AbilityApplicator.AbilityFlags flags = AbilityApplicator.apply(
+            new CharacterStats.Builder().build(), List.of(new Ability(passive))).flags;
+        Move move = new Move.Builder("CE_FIXTURE")
+            .name("CE Fixture")
+            .category(MoveCategory.PHYSICAL_CURSED_ENERGY)
+            .apCost(1).unleashPoint(1)
+            .baseCeCost(20).hasCeCost(true).minCeCost(8).maxCeCost(40)
+            .build();
+
+        // ((20 x 0.5) - 3) x 2 + 5 = 19; the first alteration may pass the min bound.
+        assertEquals(19, com.jjktbf.model.combat.CeEfficiencyCalculator.computeActualCost(
+            move, 80, 80, flags));
     }
 
     @Test
