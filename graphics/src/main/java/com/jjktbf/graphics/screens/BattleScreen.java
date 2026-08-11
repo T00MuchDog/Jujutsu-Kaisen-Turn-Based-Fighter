@@ -135,7 +135,11 @@ public class BattleScreen implements Screen, BattleView {
      */
     private static final float LOG_SCROLL_STEP_ROWS    = 1f;
     private static final float COMBATANT_HUD_SCALE     = 1.25f;
-    private static final int   MAX_VISIBLE_COMBATANTS_PER_SIDE = 2;
+    private static final float COMBATANT_HUD_WIDTH_SCALE = 0.50f;
+    private static final float BASE_PLATE_VISIBLE_LEFT_RATIO = 0.06f;
+    private static final float BASE_PLATE_VISIBLE_BOTTOM_RATIO = 0.38f;
+    private static final float HUD_PLATE_CLEARANCE = 12f;
+    private static final int   MAX_VISIBLE_COMBATANTS_PER_SIDE = 4;
     /** Set to true when debugging timeline playback. */
     private static final boolean SHOW_TICK_COUNTER      = false;
 
@@ -149,13 +153,9 @@ public class BattleScreen implements Screen, BattleView {
     // ── Panels ────────────────────────────────────────────────────────────────
     private CombatantPanel playerPanel;
     private CombatantPanel enemyPanel;
-    /**
-     * Secondary panels for the 2nd visible combatant on each side. Null/unused
-     * when only one combatant is active. Each secondary panel shares its primary
-     * panel's plate and uses the same sprite/HUD scale.
-     */
-    private CombatantPanel playerPanel2;
-    private CombatantPanel enemyPanel2;
+    /** All visible panels in roster order; index zero owns the side's shared plate. */
+    private List<CombatantPanel> playerPanels = List.of();
+    private List<CombatantPanel> enemyPanels = List.of();
     private final MiraclesMeter miraclesMeter = new MiraclesMeter();
     private final RatioMeter ratioMeter = new RatioMeter();
     private Texture playerSprite;
@@ -163,14 +163,14 @@ public class BattleScreen implements Screen, BattleView {
     /**
      * Per-side sprite lists for local battles. Index 0 is the primary
      * fighter (whose sprite is also kept in {@link #playerSprite}/{@link #enemySprite});
-     * index 1 is the secondary fighter. Initially populated by the battle setup,
+     * later indexes are the remaining visible fighters. Initially populated by the battle setup,
      * then rebuilt from each side's active combatants at round start.
      */
     private java.util.List<Texture> playerTeamSprites = java.util.List.of();
     private java.util.List<Texture> enemyTeamSprites = java.util.List.of();
-    /** Render-state snapshots of the 2nd visible combatant on each side. */
-    private volatile BattleCombatant renderPlayer2;
-    private volatile BattleCombatant renderEnemy2;
+    /** Local render-state snapshots in the same roster order as the panel lists. */
+    private volatile List<BattleCombatant> renderPlayerTeam = List.of();
+    private volatile List<BattleCombatant> renderEnemyTeam = List.of();
     private final Rectangle logBounds = new Rectangle();
     private final Rectangle nextRoundBounds = new Rectangle();
 
@@ -228,8 +228,7 @@ public class BattleScreen implements Screen, BattleView {
     private Texture unleashedMoveIcon;
     private float unleashedMoveElapsed;
     private float unleashedMoveDurationSeconds = MOVE_EFFECT_DURATION_SECONDS;
-    private boolean unleashedMoveTargetsCombatant;
-    private boolean unleashedMoveTargetsPlayer;
+    private CombatantPanel unleashedMoveTargetPanel;
 
     /**
      * Per-hit impact flashes for multi-hit moves. Each connecting hit spawns a
@@ -345,11 +344,11 @@ public class BattleScreen implements Screen, BattleView {
         multiplayerSession = null;
         multiplayerMatchService = null;
         multiplayerState = null;
-        // Reset team-battle render state so a prior 2v2 doesn't leak into a 1v1.
-        renderPlayer2 = null;
-        renderEnemy2 = null;
-        playerPanel2 = null;
-        enemyPanel2 = null;
+        // Reset team-battle render state so a prior team battle doesn't leak into a 1v1.
+        renderPlayerTeam = List.of();
+        renderEnemyTeam = List.of();
+        playerPanels = List.of();
+        enemyPanels = List.of();
         playerTeamSprites = java.util.List.of();
         enemyTeamSprites = java.util.List.of();
     }
@@ -383,9 +382,7 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     /**
-     * Set per-side sprite lists for a team battle (2v2). The first sprite per
-     * side feeds the primary panel; a second sprite (when present) feeds the
-     * secondary panel in the shared-plate layout. Index 0 also seeds the legacy
+     * Set per-side sprite lists for a team battle. Index 0 also seeds the legacy
      * single-sprite fields so 1-fighter rendering is unchanged.
      */
     public void setTeamSprites(java.util.List<Texture> playerSprites,
@@ -622,10 +619,15 @@ public class BattleScreen implements Screen, BattleView {
 
         batch.begin();
         drawExecutionBackground(sw, sh);
-        if (enemyPanel != null && hasEnemyRenderState())
-            drawCombatantSide(enemyPanel, enemyCharacterName(), enemyPanel2, renderEnemy2);
-        if (playerPanel != null && hasPlayerRenderState()) {
-            drawCombatantSide(playerPanel, playerCharacterName(), playerPanel2, renderPlayer2);
+        List<String> enemyNames = enemyPanel != null && hasEnemyRenderState()
+            ? combatantNames(false) : List.of();
+        List<String> playerNames = playerPanel != null && hasPlayerRenderState()
+            ? combatantNames(true) : List.of();
+        drawCombatantField(enemyPanels, enemyNames.size());
+        drawCombatantField(playerPanels, playerNames.size());
+        drawCombatantHuds(enemyPanels, enemyNames);
+        if (!playerNames.isEmpty()) {
+            drawCombatantHuds(playerPanels, playerNames);
             miraclesMeter.draw(batch, assets.battleUi, assets.fontLarge);
             ratioMeter.draw(batch, assets.battleUi, assets.fontLarge);
         }
@@ -638,30 +640,25 @@ public class BattleScreen implements Screen, BattleView {
 
     }
 
-    /** Draw one side's shared plate, left-to-right fighters, then its stacked HUDs. */
-    private void drawCombatantSide(
-        CombatantPanel primaryPanel,
-        String primaryName,
-        CombatantPanel secondaryPanel,
-        BattleCombatant secondaryCombatant
-    ) {
-        if (secondaryPanel == null || secondaryCombatant == null) {
-            primaryPanel.draw(batch, assets.fontMedium, assets.fontSmall, primaryName, frameDelta);
-            return;
-        }
-
-        primaryPanel.drawPlate(batch);
+    /** Draw one side's shared plate and fighters from left to right. */
+    private void drawCombatantField(List<CombatantPanel> panels, int visibleCount) {
+        int count = Math.min(panels.size(), visibleCount);
+        if (count == 0) return;
+        panels.get(0).drawPlate(batch);
         // SpriteBatch composites later draws on top, so the rightmost fighter stays in front.
-        if (primarySpriteDrawsFirst(primaryPanel.spriteCenterX(), secondaryPanel.spriteCenterX())) {
-            primaryPanel.drawSprite(batch, frameDelta);
-            secondaryPanel.drawSprite(batch, frameDelta);
-        } else {
-            secondaryPanel.drawSprite(batch, frameDelta);
-            primaryPanel.drawSprite(batch, frameDelta);
+        List<CombatantPanel> drawOrder = new ArrayList<>(panels.subList(0, count));
+        drawOrder.sort((left, right) -> Float.compare(left.spriteCenterX(), right.spriteCenterX()));
+        for (CombatantPanel panel : drawOrder) {
+            panel.drawSprite(batch, frameDelta);
         }
-        primaryPanel.drawHud(batch, assets.fontMedium, assets.fontSmall, primaryName, frameDelta);
-        secondaryPanel.drawHud(batch, assets.fontMedium, assets.fontSmall,
-            secondaryCombatant.getCharacter().getName(), frameDelta);
+    }
+
+    /** Draw one side's HUD grid after both teams' battlefield sprites. */
+    private void drawCombatantHuds(List<CombatantPanel> panels, List<String> names) {
+        int count = Math.min(panels.size(), names.size());
+        for (int i = 0; i < count; i++) {
+            panels.get(i).drawHud(batch, assets.fontMedium, assets.fontSmall, names.get(i), frameDelta);
+        }
     }
 
     static boolean primarySpriteDrawsFirst(float primaryCenterX, float secondaryCenterX) {
@@ -839,12 +836,9 @@ public class BattleScreen implements Screen, BattleView {
         float width = size * unleashedMoveIcon.getWidth() / (float) unleashedMoveIcon.getHeight();
         float centerX = screenWidth / 2f;
         float centerY = screenHeight / 2f;
-        if (unleashedMoveTargetsCombatant) {
-            CombatantPanel targetPanel = unleashedMoveTargetsPlayer ? playerPanel : enemyPanel;
-            if (targetPanel != null) {
-                centerX = targetPanel.spriteCenterX();
-                centerY = targetPanel.spriteCenterY();
-            }
+        if (unleashedMoveTargetPanel != null) {
+            centerX = unleashedMoveTargetPanel.spriteCenterX();
+            centerY = unleashedMoveTargetPanel.spriteCenterY();
         }
 
         batch.setColor(1f, 1f, 1f, 1f - progress);
@@ -867,7 +861,7 @@ public class BattleScreen implements Screen, BattleView {
         }
         unleashedMoveElapsed = 0f;
         unleashedMoveDurationSeconds = MOVE_EFFECT_DURATION_SECONDS;
-        unleashedMoveTargetsCombatant = false;
+        unleashedMoveTargetPanel = null;
     }
 
     /** Plays the successful Ratio-stack proc with the same center-screen treatment as a move effect. */
@@ -875,23 +869,23 @@ public class BattleScreen implements Screen, BattleView {
         unleashedMoveIcon = assets.battleUi.ratioStack;
         unleashedMoveElapsed = 0f;
         unleashedMoveDurationSeconds = MOVE_EFFECT_DURATION_SECONDS;
-        unleashedMoveTargetsCombatant = false;
+        unleashedMoveTargetPanel = null;
     }
 
     private void playSuccessfulBlockAnimation(boolean playerTarget) {
         unleashedMoveIcon = assets.battleUi.defenseEffectIcon;
         unleashedMoveElapsed = 0f;
         unleashedMoveDurationSeconds = BLOCK_EFFECT_DURATION_SECONDS;
-        unleashedMoveTargetsCombatant = true;
-        unleashedMoveTargetsPlayer = playerTarget;
+        unleashedMoveTargetPanel = playerTarget ? playerPanel : enemyPanel;
     }
 
     private void playSuccessfulBlockAnimation(CombatEvent event) {
-        if (event.getTarget() == renderPlayer) {
-            playSuccessfulBlockAnimation(true);
-        } else if (event.getTarget() == renderEnemy) {
-            playSuccessfulBlockAnimation(false);
-        }
+        CombatantPanel panel = panelForCombatant(event.getTarget());
+        if (panel == null) return;
+        unleashedMoveIcon = assets.battleUi.defenseEffectIcon;
+        unleashedMoveElapsed = 0f;
+        unleashedMoveDurationSeconds = BLOCK_EFFECT_DURATION_SECONDS;
+        unleashedMoveTargetPanel = panel;
     }
 
     /**
@@ -902,14 +896,18 @@ public class BattleScreen implements Screen, BattleView {
      */
     private void spawnHitFlash(CombatEvent event) {
         if (event == null || event.getMove() == null) return;
+        spawnHitFlash(event.getMove(), event.getType(), panelForCombatant(event.getTarget()));
+    }
+
+    private void spawnHitFlash(
+        Move move,
+        CombatEvent.Type type,
+        CombatantPanel targetPanel
+    ) {
         // Only multi-hit moves need per-hit flashes; single-hit moves already
         // get the center-screen unleash + this would double up the visual.
-        if (event.getMove().getHitComponents().size() <= 1) return;
-        boolean playerTarget = event.getTarget() == renderPlayer;
-        boolean enemyTarget = event.getTarget() == renderEnemy;
-        if (!playerTarget && !enemyTarget) return;
+        if (move.getHitComponents().size() <= 1 || targetPanel == null) return;
 
-        CombatEvent.Type type = event.getType();
         Texture icon;
         if (type == CombatEvent.Type.MOVE_BLOCKED
             || type == CombatEvent.Type.MOVE_BLOCK_REDUCED
@@ -919,7 +917,7 @@ public class BattleScreen implements Screen, BattleView {
         } else {
             icon = assets.battleUi.attackEffectIcon;
         }
-        hitFlashes.add(new HitFlash(icon, playerTarget, HIT_FLASH_DURATION_SECONDS));
+        hitFlashes.add(new HitFlash(icon, targetPanel, HIT_FLASH_DURATION_SECONDS));
         // Bound the list so a runaway chain cannot grow without limit.
         while (hitFlashes.size() > 8) hitFlashes.remove(0);
     }
@@ -944,12 +942,11 @@ public class BattleScreen implements Screen, BattleView {
             float size = startSize + (endSize - startSize) * eased;
             float width = size * flash.icon.getWidth() / (float) flash.icon.getHeight();
 
-            CombatantPanel targetPanel = flash.targetsPlayer ? playerPanel : enemyPanel;
             float centerX = screenWidth / 2f;
             float centerY = screenHeight / 2f;
-            if (targetPanel != null) {
-                centerX = targetPanel.spriteCenterX();
-                centerY = targetPanel.spriteCenterY();
+            if (flash.targetPanel != null) {
+                centerX = flash.targetPanel.spriteCenterX();
+                centerY = flash.targetPanel.spriteCenterY();
             }
             batch.setColor(1f, 1f, 1f, 1f - progress);
             batch.draw(flash.icon, centerX - width / 2f, centerY - size / 2f, width, size);
@@ -960,12 +957,12 @@ public class BattleScreen implements Screen, BattleView {
     /** One transient per-hit impact flash on a combatant's sprite. */
     private static final class HitFlash {
         final Texture icon;
-        final boolean targetsPlayer;
+        final CombatantPanel targetPanel;
         final float duration;
         float elapsed;
-        HitFlash(Texture icon, boolean targetsPlayer, float duration) {
+        HitFlash(Texture icon, CombatantPanel targetPanel, float duration) {
             this.icon = icon;
-            this.targetsPlayer = targetsPlayer;
+            this.targetPanel = targetPanel;
             this.duration = duration;
             this.elapsed = 0f;
         }
@@ -1117,25 +1114,27 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayRoundStart(BattleState state) {
         if (!isCurrentLocalBattleThread()) return;
-        postLocal(() -> {
-            game.audio().play(SoundCue.BATTLE_ROUND_START);
-            syncLocalBattlefield(state);
-            syncLocalHpFromModel();
-            initPanels();
-            updatePanels();
-        });
+        // Publish the battlefield with its planner below so no render boundary
+        // can observe the next round's execution scene by itself.
+        postLocal(() -> game.audio().play(SoundCue.BATTLE_ROUND_START));
         sleepMs(200);
     }
 
-    /** Rebind the two visual slots per side to the active round-start roster. */
+    /** Rebind the four visual slots per side to the active round-start roster. */
     private void syncLocalBattlefield(BattleState state) {
-        List<BattleCombatant> players = visibleCombatants(state.playerTeam());
-        List<BattleCombatant> enemies = visibleCombatants(state.enemyTeam());
+        syncLocalBattlefield(
+            visibleCombatants(state.playerTeam()),
+            visibleCombatants(state.enemyTeam()));
+    }
 
+    private void syncLocalBattlefield(
+        List<BattleCombatant> players,
+        List<BattleCombatant> enemies
+    ) {
+        renderPlayerTeam = players;
+        renderEnemyTeam = enemies;
         renderPlayer = players.isEmpty() ? null : players.get(0);
-        renderPlayer2 = players.size() > 1 ? players.get(1) : null;
         renderEnemy = enemies.isEmpty() ? null : enemies.get(0);
-        renderEnemy2 = enemies.size() > 1 ? enemies.get(1) : null;
 
         playerTeamSprites = battleSprites(players, false);
         enemyTeamSprites = battleSprites(enemies, true);
@@ -1182,9 +1181,11 @@ public class BattleScreen implements Screen, BattleView {
         // value can skip planning entirely.
         inputConfirmed = false;
         postLocal(() -> {
-            renderPlayer = combatant;
-            renderEnemy  = opponent;
+            syncLocalBattlefield(
+                List.of(combatant),
+                opponent == null ? List.of() : List.of(opponent));
             syncLocalHpFromModel();
+            initPanels();
             awaitingNextRound = false;
             nextRoundHovered = false;
             executionUiActive = true;
@@ -1258,7 +1259,9 @@ public class BattleScreen implements Screen, BattleView {
 
         inputConfirmed = false;
         postLocal(() -> {
+            syncLocalBattlefield(state);
             syncLocalHpFromModel();
+            initPanels();
             awaitingNextRound = false;
             nextRoundHovered = false;
             executionUiActive = true;
@@ -1489,9 +1492,9 @@ public class BattleScreen implements Screen, BattleView {
         multiplayerConnectionState = MultiplayerSession.ConnectionState.DISCONNECTED;
         long run = ++multiplayerRun;
 
-        // Load one sprite per fighter id per side so 2v2 fields both fighters.
+        // Load one sprite per fighter id per side so team fields show the full roster.
         // Each side's sprite list is in MatchSetup roster order; the layout
-        // builder turns a two-entry list into the stacked secondary panel.
+        // builder maps up to four entries onto the shared plate and HUD grid.
         java.util.List<Texture> playerSprites = new java.util.ArrayList<>();
         for (String id : multiplayerSetup.playerCharacterIds()) {
             playerSprites.add(assets.characterBattleSprite(
@@ -1979,11 +1982,8 @@ public class BattleScreen implements Screen, BattleView {
             if (targetsPlayer || targetsEnemy) {
                 CombatEvent.Type flashType = event.type() == BattleEventType.DAMAGE_DEALT
                     ? CombatEvent.Type.DAMAGE_DEALT : CombatEvent.Type.MOVE_BLOCKED;
-                CombatEvent flashProxy = CombatEvent.of(flashType)
-                    .move(unleashedMove)
-                    .target(targetsPlayer ? renderPlayer : renderEnemy)
-                    .build();
-                spawnHitFlash(flashProxy);
+                spawnHitFlash(unleashedMove, flashType,
+                    targetsPlayer ? playerPanel : enemyPanel);
             }
         }
         if (event.type() == BattleEventType.MOVE_BLOCKED
@@ -2386,33 +2386,52 @@ public class BattleScreen implements Screen, BattleView {
     /** Recreates all execution widgets from the live viewport after a resize. */
     private void layoutExecutionUi(float width, float height) {
         float margin = Math.min(32f, Math.max(16f, Math.min(width, height) * 0.035f));
-        boolean enemyDoubles = hasSecondaryTeamSprite(enemyTeamSprites);
-        boolean playerDoubles = hasSecondaryTeamSprite(playerTeamSprites);
+        List<Texture> visibleEnemySprites = visibleTeamSprites(enemyTeamSprites, enemySprite);
+        List<Texture> visiblePlayerSprites = visibleTeamSprites(playerTeamSprites, playerSprite);
+        int enemyCount = visibleEnemySprites.size();
+        int playerCount = visiblePlayerSprites.size();
 
         float logHeight = Math.min(145f, Math.max(100f, height * 0.22f));
         float logTop = margin + logHeight;
-        logBounds.set(margin, 3f, width - margin * 2f, logTop - 3f);
+        logBounds.set(0f, 3f, width, logTop - 3f);
 
         float fieldBottom = logBounds.y + logBounds.height + 12f;
         float fieldTop = height - margin;
         float fieldHeight = Math.max(1f, fieldTop - fieldBottom);
 
-        float hudWidth = Math.min(430f, Math.max(150f, width * 0.40f));
-        hudWidth = Math.min(hudWidth, Math.max(1f, (width - margin * 2f - 12f) / 2f));
-        hudWidth *= COMBATANT_HUD_SCALE;
-        float hudHeight = Math.min(108f, Math.max(82f, fieldHeight * 0.29f)) * COMBATANT_HUD_SCALE;
+        float fullHudWidth = Math.min(430f, Math.max(150f, width * 0.40f));
+        fullHudWidth = Math.min(fullHudWidth,
+            Math.max(1f, (width - margin * 2f - 12f) / 2f));
+        fullHudWidth *= COMBATANT_HUD_SCALE;
+        float hudHeight = Math.min(108f,
+            Math.max(82f, fieldHeight * 0.29f)) * COMBATANT_HUD_SCALE;
         float playerHudY = fieldBottom + fieldHeight * 0.08f;
-        float availableCenterGap = width - margin * 2f - hudWidth * 2f;
+        float playerBottomHudY = logBounds.y + logBounds.height + 12f;
+        float hudVerticalNudge = Math.max(0f, playerHudY - playerBottomHudY);
+        float availableCenterGap = width - margin * 2f - fullHudWidth * 2f;
         float hudShift = Math.min(Math.min(70f, width * 0.035f),
             Math.max(0f, (availableCenterGap - 12f) / 2f));
         float hudHorizontalNudge = Math.min(30f, width * 0.018f);
-        float playerBottomHudY = logBounds.y + logBounds.height + 12f;
-        float hudVerticalNudge = Math.max(0f, playerHudY - playerBottomHudY);
+        float enemyHudWidth = fullHudWidth * hudWidthScale(enemyCount);
+        float playerHudWidth = fullHudWidth * hudWidthScale(playerCount);
+        float enemyHudColumnGap = Math.max(10f, enemyHudWidth * 0.05f);
+        float playerHudColumnGap = Math.max(10f, playerHudWidth * 0.05f);
+        float hudRowGap = Math.max(8f, hudHeight * 0.07f);
+        float playerHudGroupWidth = hudGroupWidth(
+            playerCount, playerHudWidth, playerHudColumnGap);
 
-        float enemyPlateSize = Math.min(fieldHeight * 0.84f, width * 0.38f);
-        float playerPlateSize = Math.min(fieldHeight * 1.08f, width * 0.46f);
+        float enemyPlateBaseSize = Math.min(fieldHeight * 0.84f, width * 0.38f);
+        float playerPlateBaseSize = Math.min(fieldHeight * 1.08f, width * 0.46f);
+        float enemyPlateSize = enemyPlateBaseSize * plateScale(enemyCount);
+        float playerPlateSize = playerPlateBaseSize * plateScale(playerCount);
         float enemyCenterX = width - margin - width * 0.22f;
         float playerCenterX = margin + width * 0.22f;
+        float expandedPlayerCenterX = Math.max(
+            playerCenterX + Math.min(28f, width * 0.018f),
+            playerPlateBaseSize);
+        float enemyFourFighterLeftShift = enemyFourFighterLeftShift(
+            margin, playerPlateBaseSize * 2f, expandedPlayerCenterX);
+        if (enemyCount == 4) enemyCenterX -= enemyFourFighterLeftShift;
 
         float enemySpriteSize = Math.min(fieldHeight * 0.50f, width * 0.20f);
         float playerSpriteSize = Math.min(fieldHeight * 0.58f, width * 0.23f);
@@ -2425,63 +2444,70 @@ public class BattleScreen implements Screen, BattleView {
         // The visible stone ellipse occupies about 28% of its square texture.
         // Seven percent of the texture is therefore roughly one quarter of the visible height.
         float enemyPlateCenterY = enemySpriteY + enemySpriteSize * 0.13f
-            - plateDrop + enemyPlateSize * 0.07f;
+            - plateDrop + enemyPlateBaseSize * 0.07f;
         float playerPlateCenterY = playerSpriteY + playerSpriteSize * 0.13f - plateDrop;
 
         float enemyHudY = enemySpriteY + enemySpriteSize - hudHeight;
-        float stackedHudGap = Math.max(8f, hudHeight * 0.07f);
-        float playerPrimaryHudY = playerDoubles
-            ? playerHudY + hudHeight + stackedHudGap
-            : playerHudY;
-
-        // Doubles occupy the left and right halves of one shared plate. Both
-        // retain one baseline while each sprite applies its configured scale.
-        float enemyFighterOffset = enemyDoubles ? enemyPlateSize * 0.17f : 0f;
-        float playerFighterOffset = playerDoubles ? playerPlateSize * 0.17f : 0f;
-        float enemyPrimaryCenterX = enemyCenterX + enemyFighterOffset;
-        float playerPrimaryCenterX = playerCenterX - playerFighterOffset;
+        float playerTopHudY = playerHudY + hudHeight + hudRowGap;
+        float playerPrimaryHudY = playerCount == 1
+            ? centeredHudY(playerTopHudY, hudHeight, hudRowGap)
+            : playerTopHudY;
 
         Rectangle enemyPlate = new Rectangle(
             enemyCenterX - enemyPlateSize / 2f,
-            enemyPlateCenterY - enemyPlateSize * 0.516f,
+            enemyPlateCenterY - enemyPlateBaseSize * 0.016f - enemyPlateSize / 2f,
             enemyPlateSize,
             enemyPlateSize
         );
-        Rectangle enemySpriteBounds = spriteBounds(
-            enemySprite, enemyPrimaryCenterX, enemySpriteY, enemySpriteSize);
+        float enemyTopHudY = enemyHudY + hudVerticalNudge;
+        float enemyPrimaryHudY = enemyCount == 1
+            ? centeredHudY(enemyTopHudY, hudHeight, hudRowGap)
+            : enemyTopHudY - hudHeight - hudRowGap;
         Rectangle enemyHud = new Rectangle(
-            margin + hudShift + hudHorizontalNudge,
-            enemyHudY + hudVerticalNudge,
-            hudWidth,
+            enemyCount <= 2 ? margin + hudShift + hudHorizontalNudge : margin,
+            enemyPrimaryHudY,
+            enemyHudWidth,
             hudHeight);
-        enemyPanel = new CombatantPanel(enemySprite, assets.stoneBasePlate, assets.battleUi,
-            enemyPlate, enemySpriteBounds, enemyHud, COMBATANT_HUD_SCALE);
+
+        Rectangle playerHud = new Rectangle(
+            playerCount <= 2
+                ? width - margin - fullHudWidth - hudShift - hudHorizontalNudge
+                : width - margin - playerHudGroupWidth,
+            playerPrimaryHudY - hudVerticalNudge,
+            playerHudWidth,
+            hudHeight);
+
+        if (playerCount >= 3) {
+            float playerRightShift = halfRightEdgeGap(
+                width, playerHud.x, playerHudGroupWidth);
+            playerHud.x += playerRightShift;
+            playerCenterX += playerRightShift;
+        }
+        if (playerCount == 3 && enemyCount == 3) playerCenterX += 48f;
+
+        if (enemyCount == 4) {
+            float playerHudTop = playerHud.y + playerHud.height;
+            float enemyClearanceShift = enemyPlateClearanceShift(
+                enemyPlate.y, enemyPlate.height, playerHudTop);
+            enemyPlate.y += enemyClearanceShift;
+            enemySpriteY += enemyClearanceShift;
+        }
 
         Rectangle playerPlate = new Rectangle(
             playerCenterX - playerPlateSize / 2f,
-            playerPlateCenterY - playerPlateSize * 0.516f,
+            playerPlateCenterY - playerPlateBaseSize * 0.016f - playerPlateSize / 2f,
             playerPlateSize,
             playerPlateSize
         );
-        Rectangle playerSpriteBounds = spriteBounds(
-            playerSprite, playerPrimaryCenterX, playerSpriteY, playerSpriteSize);
-        Rectangle playerHud = new Rectangle(
-            width - margin - hudWidth - hudShift - hudHorizontalNudge,
-            playerPrimaryHudY - hudVerticalNudge,
-            hudWidth,
-            hudHeight);
-        playerPanel = new CombatantPanel(playerSprite, assets.stoneBasePlate, assets.battleUi,
-            playerPlate, playerSpriteBounds, playerHud, COMBATANT_HUD_SCALE);
 
-        buildSecondaryPanels(
-            enemyDoubles, playerDoubles,
-            enemyCenterX, playerCenterX,
-            enemyFighterOffset, playerFighterOffset,
-            enemySpriteSize, playerSpriteSize,
-            enemySpriteY, playerSpriteY,
-            enemyPlate, playerPlate,
-            enemyHud, playerHud,
-            stackedHudGap);
+        enemyPanels = buildCombatantPanels(
+            visibleEnemySprites, enemyPlate, enemySpriteY, enemySpriteSize,
+            enemyHud, enemyHudColumnGap, hudRowGap, true);
+        playerPanels = buildCombatantPanels(
+            visiblePlayerSprites, playerPlate, playerSpriteY, playerSpriteSize,
+            playerHud, playerHudColumnGap, hudRowGap, false);
+        enemyPanel = enemyPanels.get(0);
+        playerPanel = playerPanels.get(0);
 
         float miracleSize = Math.min(MiraclesMeter.sizeForViewport(height),
             Math.min(hudHeight, width * 0.11f));
@@ -2510,53 +2536,127 @@ public class BattleScreen implements Screen, BattleView {
         updatePanels();
     }
 
-    /**
-     * Build the second visible combatant on each side. Teammates use the same
-     * baseline, while the secondary resource card is stacked directly below the
-     * primary card. Each sprite applies its own configured scale, and the
-     * primary panel owns the shared plate.
-     */
-    private void buildSecondaryPanels(
-        boolean enemyDoubles, boolean playerDoubles,
-        float enemyCenterX, float playerCenterX,
-        float enemyFighterOffset, float playerFighterOffset,
-        float enemySpriteSize, float playerSpriteSize,
-        float enemySpriteY, float playerSpriteY,
-        Rectangle enemyPlate, Rectangle playerPlate,
-        Rectangle enemyHud, Rectangle playerHud,
-        float stackedHudGap
+    private List<CombatantPanel> buildCombatantPanels(
+        List<Texture> teamSprites,
+        Rectangle plate,
+        float spriteY,
+        float spriteSize,
+        Rectangle primaryHud,
+        float hudColumnGap,
+        float hudRowGap,
+        boolean opponent
     ) {
-        playerPanel2 = null;
-        enemyPanel2 = null;
-
-        if (enemyDoubles) {
-            float secondaryCenterX = enemyCenterX - enemyFighterOffset;
+        List<CombatantPanel> panels = new ArrayList<>(teamSprites.size());
+        float plateCenterX = plate.x + plate.width / 2f;
+        for (int i = 0; i < teamSprites.size(); i++) {
+            Texture spriteTexture = teamSprites.get(i);
+            float fighterCenterX = plateCenterX
+                + fighterOffset(i, teamSprites.size(), plate.width, opponent);
             Rectangle sprite = spriteBounds(
-                enemyTeamSprites.get(1), secondaryCenterX, enemySpriteY, enemySpriteSize);
+                spriteTexture, fighterCenterX, spriteY, spriteSize);
+            int column = i / 2;
+            int row = i % 2;
             Rectangle hud = new Rectangle(
-                enemyHud.x,
-                enemyHud.y - enemyHud.height - stackedHudGap,
-                enemyHud.width,
-                enemyHud.height);
-            enemyPanel2 = new CombatantPanel(enemyTeamSprites.get(1), null,
-                assets.battleUi, enemyPlate, sprite, hud, COMBATANT_HUD_SCALE);
+                primaryHud.x + column * (primaryHud.width + hudColumnGap),
+                hudRowY(primaryHud.y, row, primaryHud.height, hudRowGap, opponent),
+                primaryHud.width,
+                primaryHud.height);
+            panels.add(new CombatantPanel(spriteTexture,
+                i == 0 ? assets.stoneBasePlate : null,
+                assets.battleUi, plate, sprite, hud, COMBATANT_HUD_SCALE));
         }
-        if (playerDoubles) {
-            float secondaryCenterX = playerCenterX + playerFighterOffset;
-            Rectangle sprite = spriteBounds(
-                playerTeamSprites.get(1), secondaryCenterX, playerSpriteY, playerSpriteSize);
-            Rectangle hud = new Rectangle(
-                playerHud.x,
-                playerHud.y - playerHud.height - stackedHudGap,
-                playerHud.width,
-                playerHud.height);
-            playerPanel2 = new CombatantPanel(playerTeamSprites.get(1), null,
-                assets.battleUi, playerPlate, sprite, hud, COMBATANT_HUD_SCALE);
-        }
+        return List.copyOf(panels);
     }
 
-    private boolean hasSecondaryTeamSprite(List<Texture> teamSprites) {
-        return teamSprites.size() > 1;
+    private static List<Texture> visibleTeamSprites(List<Texture> teamSprites, Texture fallback) {
+        if (teamSprites == null || teamSprites.isEmpty()) return List.of(fallback);
+        return teamSprites.stream().limit(MAX_VISIBLE_COMBATANTS_PER_SIDE).toList();
+    }
+
+    private static float hudGroupWidth(int combatantCount, float hudWidth, float columnGap) {
+        return combatantCount > 2 ? hudWidth * 2f + columnGap : hudWidth;
+    }
+
+    static float halfRightEdgeGap(float screenWidth, float groupX, float groupWidth) {
+        return Math.max(0f, screenWidth - groupX - groupWidth) / 2f;
+    }
+
+    static float hudRowY(
+        float primaryY,
+        int row,
+        float hudHeight,
+        float rowGap,
+        boolean opponent
+    ) {
+        float rowOffset = row * (hudHeight + rowGap);
+        return opponent ? primaryY + rowOffset : primaryY - rowOffset;
+    }
+
+    static float centeredHudY(float topHudY, float hudHeight, float rowGap) {
+        return topHudY - (hudHeight + rowGap) / 2f;
+    }
+
+    static float plateScale(int combatantCount) {
+        if (combatantCount <= 2) return 1f;
+        return combatantCount == 3 ? 1.5f : 2f;
+    }
+
+    static float hudWidthScale(int combatantCount) {
+        return combatantCount <= 2 ? 1f : COMBATANT_HUD_WIDTH_SCALE;
+    }
+
+    static float fighterOffset(
+        int fighterIndex,
+        int fighterCount,
+        float plateWidth,
+        boolean opponent
+    ) {
+        float spacing = plateWidth * (fighterCount <= 2 ? 0.34f : 0.17f);
+        float offset = formationOffset(fighterIndex, fighterCount, spacing);
+        return opponent && fighterCount == 2 ? -offset : offset;
+    }
+
+    static float enemyFourFighterLeftShift(
+        float margin,
+        float playerPlateSize,
+        float currentPlayerCenterX
+    ) {
+        float visiblePlateLeft = currentPlayerCenterX - playerPlateSize / 2f
+            + playerPlateSize * BASE_PLATE_VISIBLE_LEFT_RATIO;
+        return Math.max(0f, visiblePlateLeft - margin);
+    }
+
+    static float enemyPlateClearanceShift(
+        float enemyPlateY,
+        float enemyPlateHeight,
+        float playerHudTop
+    ) {
+        float visiblePlateBottom = enemyPlateY
+            + enemyPlateHeight * BASE_PLATE_VISIBLE_BOTTOM_RATIO;
+        return Math.max(0f, playerHudTop + HUD_PLATE_CLEARANCE - visiblePlateBottom);
+    }
+
+    /**
+     * Roster order is visually arranged as [third, first, second, fourth]. This
+     * keeps the first fighter centered for a trio and all three/four slots evenly spaced.
+     */
+    static float formationOffset(int fighterIndex, int fighterCount, float spacing) {
+        int slot = switch (fighterCount) {
+            case 1 -> 0;
+            case 2 -> fighterIndex;
+            case 3 -> switch (fighterIndex) {
+                case 0 -> 1;
+                case 1 -> 2;
+                default -> 0;
+            };
+            default -> switch (fighterIndex) {
+                case 0 -> 1;
+                case 1 -> 2;
+                case 2 -> 0;
+                default -> 3;
+            };
+        };
+        return (slot - (fighterCount - 1) / 2f) * spacing;
     }
 
     private Rectangle spriteBounds(Texture sprite, float centerX, float bottomY, float baseSize) {
@@ -2623,21 +2723,26 @@ public class BattleScreen implements Screen, BattleView {
     /** Called on the render thread alongside the matching local HP-bar update. */
     private void flashLocalDamageSprite(CombatEvent event) {
         if (event.getType() != CombatEvent.Type.DAMAGE_DEALT || event.getIntValue() <= 0) return;
-        BattleCombatant target = event.getTarget();
-        if (target == renderPlayer) {
-            flashDamageSprite(true);
-        } else if (target == renderEnemy) {
-            flashDamageSprite(false);
-        } else if (target == renderPlayer2 && playerPanel2 != null) {
-            playerPanel2.flashDamage();
-        } else if (target == renderEnemy2 && enemyPanel2 != null) {
-            enemyPanel2.flashDamage();
-        }
+        CombatantPanel panel = panelForCombatant(event.getTarget());
+        if (panel != null) panel.flashDamage();
     }
 
     private void flashDamageSprite(boolean playerTarget) {
         CombatantPanel panel = playerTarget ? playerPanel : enemyPanel;
         if (panel != null) panel.flashDamage();
+    }
+
+    private CombatantPanel panelForCombatant(BattleCombatant combatant) {
+        if (combatant == null) return null;
+        for (int i = 0; i < Math.min(renderPlayerTeam.size(), playerPanels.size()); i++) {
+            if (renderPlayerTeam.get(i) == combatant) return playerPanels.get(i);
+        }
+        for (int i = 0; i < Math.min(renderEnemyTeam.size(), enemyPanels.size()); i++) {
+            if (renderEnemyTeam.get(i) == combatant) return enemyPanels.get(i);
+        }
+        if (combatant == renderPlayer) return playerPanel;
+        if (combatant == renderEnemy) return enemyPanel;
+        return null;
     }
 
     private void updatePanels() {
@@ -2652,25 +2757,8 @@ public class BattleScreen implements Screen, BattleView {
                 enemyPanel.update(
                     onlineEnemyHp, onlineEnemyMaxHp, onlineEnemyCe, onlineEnemyMaxCe);
             }
-            // Secondary panels: HP/CE come straight from the second combatant in
-            // each side's roster (2v2 only). Summons are filtered out so a
-            // summoned shikigami never displaces the second human fighter's card.
-            CharacterState playerFighter2 = onlinePlayer == null ? null
-                : onlinePlayer.combatants().stream()
-                    .filter(c -> "FIGHTER".equals(c.role()) && "ACTIVE".equals(c.lifecycle()))
-                    .skip(1).findFirst().orElse(null);
-            CharacterState enemyFighter2 = onlineEnemy == null ? null
-                : onlineEnemy.combatants().stream()
-                    .filter(c -> "FIGHTER".equals(c.role()) && "ACTIVE".equals(c.lifecycle()))
-                    .skip(1).findFirst().orElse(null);
-            if (playerPanel2 != null && playerFighter2 != null) {
-                playerPanel2.update(playerFighter2.currentHp(), playerFighter2.maxHp(),
-                    playerFighter2.currentCe(), playerFighter2.maxCe());
-            }
-            if (enemyPanel2 != null && enemyFighter2 != null) {
-                enemyPanel2.update(enemyFighter2.currentHp(), enemyFighter2.maxHp(),
-                    enemyFighter2.currentCe(), enemyFighter2.maxCe());
-            }
+            updateOnlineTeamPanels(playerPanels, activeOnlineFighters(onlinePlayer));
+            updateOnlineTeamPanels(enemyPanels, activeOnlineFighters(onlineEnemy));
             return;
         }
         // LOCAL: HP comes from the deferred ints (so the bar follows the damage
@@ -2688,15 +2776,31 @@ public class BattleScreen implements Screen, BattleView {
             enemyPanel.update(localEnemyHp, localEnemyMaxHp,
                 renderEnemy.getCurrentCe(), renderEnemy.getMaxCursedEnergy());
         }
-        // Secondary panels: CE/max-CE live from the model; HP is read live too
-        // (the deferred-HP log sync drives the primary combatant only).
-        if (playerPanel2 != null && renderPlayer2 != null) {
-            playerPanel2.update(renderPlayer2.getCurrentHp(), renderPlayer2.getMaxHp(),
-                renderPlayer2.getCurrentCe(), renderPlayer2.getMaxCursedEnergy());
+        // Remaining panels read live HP/CE; deferred log-synced HP applies to each
+        // side's primary combatant only, matching the existing execution timing.
+        updateLocalTeamPanels(playerPanels, renderPlayerTeam);
+        updateLocalTeamPanels(enemyPanels, renderEnemyTeam);
+    }
+
+    private static void updateOnlineTeamPanels(
+        List<CombatantPanel> panels,
+        List<CharacterState> fighters
+    ) {
+        int count = Math.min(panels.size(), fighters.size());
+        for (int i = 1; i < count; i++) {
+            CharacterState fighter = fighters.get(i);
+            panels.get(i).update(fighter.currentHp(), fighter.maxHp(),
+                fighter.currentCe(), fighter.maxCe());
         }
-        if (enemyPanel2 != null && renderEnemy2 != null) {
-            enemyPanel2.update(renderEnemy2.getCurrentHp(), renderEnemy2.getMaxHp(),
-                renderEnemy2.getCurrentCe(), renderEnemy2.getMaxCursedEnergy());
+    }
+
+    private static void updateLocalTeamPanels(
+        List<CombatantPanel> panels,
+        List<BattleCombatant> combatants
+    ) {
+        int count = Math.min(panels.size(), combatants.size());
+        for (int i = 1; i < count; i++) {
+            panels.get(i).update(combatants.get(i));
         }
     }
 
@@ -2752,16 +2856,25 @@ public class BattleScreen implements Screen, BattleView {
         return mode == BattleMode.MULTIPLAYER ? onlineEnemy != null : renderEnemy != null;
     }
 
-    private String playerCharacterName() {
-        return mode == BattleMode.MULTIPLAYER
-            ? onlinePlayer.character().name()
-            : renderPlayer.getCharacter().getName();
+    private List<String> combatantNames(boolean playerSide) {
+        if (mode == BattleMode.MULTIPLAYER) {
+            PlayerState side = playerSide ? onlinePlayer : onlineEnemy;
+            return activeOnlineFighters(side).stream().map(CharacterState::name).toList();
+        }
+        List<BattleCombatant> team = playerSide ? renderPlayerTeam : renderEnemyTeam;
+        if (!team.isEmpty()) {
+            return team.stream().map(c -> c.getCharacter().getName()).toList();
+        }
+        BattleCombatant primary = playerSide ? renderPlayer : renderEnemy;
+        return primary == null ? List.of() : List.of(primary.getCharacter().getName());
     }
 
-    private String enemyCharacterName() {
-        return mode == BattleMode.MULTIPLAYER
-            ? onlineEnemy.character().name()
-            : renderEnemy.getCharacter().getName();
+    private static List<CharacterState> activeOnlineFighters(PlayerState player) {
+        if (player == null) return List.of();
+        return player.combatants().stream()
+            .filter(c -> "FIGHTER".equals(c.role()) && "ACTIVE".equals(c.lifecycle()))
+            .limit(MAX_VISIBLE_COMBATANTS_PER_SIDE)
+            .toList();
     }
 
     private static void sleepMs(long ms) {

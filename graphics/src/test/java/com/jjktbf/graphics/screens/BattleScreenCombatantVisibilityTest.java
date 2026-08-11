@@ -61,14 +61,17 @@ class BattleScreenCombatantVisibilityTest {
     }
 
     @Test
-    void visualRosterUsesFirstTwoActiveCombatantsInStableOrder() {
-        BattleCombatant fighter = fighter("Megumi");
-        BattleState state = new BattleState(fighter, fighter("Enemy"));
-        BattleCombatant firstSummon = summon(state, fighter, "Divine Dog");
-        summon(state, fighter, "Nue");
+    void visualRosterUsesFirstFourActiveCombatantsInStableOrder() {
+        BattleCombatant first = fighter("Megumi");
+        BattleCombatant second = fighter("Yuji");
+        BattleCombatant third = fighter("Nobara");
+        BattleCombatant fourth = fighter("Gojo");
+        BattleCombatant fifth = fighter("Nanami");
+        BattleTeam players = BattleState.teamOfFighters(
+            BattleTeamId.PLAYER, List.of(first, second, third, fourth, fifth));
 
-        assertEquals(List.of(fighter, firstSummon),
-            BattleScreen.visibleCombatants(state.playerTeam()));
+        assertEquals(List.of(first, second, third, fourth),
+            BattleScreen.visibleCombatants(players));
     }
 
     private static BattleCombatant summon(
