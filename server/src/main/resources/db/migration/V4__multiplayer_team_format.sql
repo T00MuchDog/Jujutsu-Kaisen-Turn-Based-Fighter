@@ -13,11 +13,14 @@ ALTER TABLE challenge ADD COLUMN accepted_character_ids VARCHAR(80);
 ALTER TABLE challenge ADD CONSTRAINT ck_challenge_format
     CHECK (format IN ('ONE_V_ONE', 'TWO_V_TWO'));
 
--- Keep the legacy single columns (no longer authoritative) but stop requiring
--- them in the acceptance CHECK: the roster lives in *_character_ids. Existing
--- rows back-fill host_character_ids from host_character_id for continuity.
+-- Keep the legacy single columns (no longer authoritative), and back-fill every
+-- canonical roster before replacing the constraints that validate those rows.
 UPDATE challenge SET host_character_ids = host_character_id
     WHERE host_character_ids = '' AND host_character_id IS NOT NULL;
+UPDATE challenge SET requested_character_ids = requested_character_id
+    WHERE requested_character_ids IS NULL AND requested_character_id IS NOT NULL;
+UPDATE challenge SET accepted_character_ids = accepted_character_id
+    WHERE accepted_character_ids IS NULL AND accepted_character_id IS NOT NULL;
 
 ALTER TABLE challenge DROP CONSTRAINT ck_challenge_acceptance;
 ALTER TABLE challenge ADD CONSTRAINT ck_challenge_acceptance
