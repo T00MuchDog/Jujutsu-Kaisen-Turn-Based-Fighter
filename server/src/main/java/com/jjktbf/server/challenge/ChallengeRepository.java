@@ -225,7 +225,6 @@ final class ChallengeRepository {
     List<ChallengeRecord> listCompatibleOpen(
         Connection connection,
         String excludedPlayerId,
-        BattleFormat format,
         String gameVersion,
         int protocolVersion,
         String ruleset,
@@ -234,15 +233,14 @@ final class ChallengeRepository {
         try (PreparedStatement statement = connection.prepareStatement(
             "SELECT " + SELECT_COLUMNS + "FROM challenge "
                 + "WHERE status = 'OPEN' AND requested_player_id IS NULL AND expires_at > ? "
-                + "AND creator_player_id <> ? AND format = ? "
-                + "AND game_version = ? AND protocol_version = ? AND ruleset = ? "
+                + "AND creator_player_id <> ? AND game_version = ? "
+                + "AND protocol_version = ? AND ruleset = ? "
                 + "ORDER BY created_at ASC, id ASC")) {
             statement.setLong(1, now);
             statement.setString(2, excludedPlayerId);
-            statement.setString(3, format == null ? null : format.name());
-            statement.setString(4, gameVersion);
-            statement.setInt(5, protocolVersion);
-            statement.setString(6, ruleset);
+            statement.setString(3, gameVersion);
+            statement.setInt(4, protocolVersion);
+            statement.setString(5, ruleset);
             statement.setMaxRows(MAX_LISTED_CHALLENGES);
             try (ResultSet result = statement.executeQuery()) {
                 List<ChallengeRecord> challenges = new ArrayList<>();

@@ -5,7 +5,7 @@
 -- 2v2). Roster-size and duplicate validation is enforced primarily in
 -- ChallengeService (Java); the SQL CHECK below is best-effort.
 
-ALTER TABLE challenge ADD COLUMN format VARCHAR(8) NOT NULL DEFAULT 'ONE_V_ONE';
+ALTER TABLE challenge ADD COLUMN format VARCHAR(16) NOT NULL DEFAULT 'ONE_V_ONE';
 ALTER TABLE challenge ADD COLUMN host_character_ids VARCHAR(80) NOT NULL DEFAULT '';
 ALTER TABLE challenge ADD COLUMN requested_character_ids VARCHAR(80);
 ALTER TABLE challenge ADD COLUMN accepted_character_ids VARCHAR(80);

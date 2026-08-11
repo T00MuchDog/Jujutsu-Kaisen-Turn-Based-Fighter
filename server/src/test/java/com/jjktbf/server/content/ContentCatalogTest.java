@@ -73,11 +73,11 @@ class ContentCatalogTest {
             .collect(java.util.stream.Collectors.toMap(
                 com.jjktbf.model.move.Move::getName,
                 com.jjktbf.model.move.Move::getBaseCeCost));
-        assertEquals(24, summonCosts.get("Summon White Dog"));
-        assertEquals(24, summonCosts.get("Summon Black Dog"));
-        assertEquals(40, summonCosts.get("Summon Nue"));
-        assertEquals(32, summonCosts.get("Summon Toad"));
-        assertEquals(56, summonCosts.get("Summon Great Serpent"));
+        assertEquals(35, summonCosts.get("Summon White Dog"));
+        assertEquals(35, summonCosts.get("Summon Black Dog"));
+        assertEquals(50, summonCosts.get("Summon Nue"));
+        assertEquals(40, summonCosts.get("Summon Toad"));
+        assertEquals(70, summonCosts.get("Summon Great Serpent"));
         var kyotoMegumi = catalog.findCharacter("000006").orElseThrow();
         assertEquals(72, kyotoMegumi.getBaseStats().getCursedTechniqueMastery());
         assertEquals(65, kyotoMegumi.getBaseStats().getCombatAbility());

@@ -234,18 +234,18 @@ class ChallengeServiceTest {
                 }
             }
             try (PreparedStatement participants = connection.prepareStatement(
-                "SELECT player_id, side, character_id FROM match_participant "
+                "SELECT player_id, side, character_ids FROM match_participant "
                     + "WHERE match_id = ? ORDER BY side")) {
                 participants.setString(1, setup.matchId());
                 try (var result = participants.executeQuery()) {
                     assertTrue(result.next());
                     assertEquals(host.playerId(), result.getString("player_id"));
                     assertEquals("PLAYER_ONE", result.getString("side"));
-                    assertEquals(firstCharacter, result.getString("character_id"));
+                    assertEquals(firstCharacter, result.getString("character_ids"));
                     assertTrue(result.next());
                     assertEquals(accepter.playerId(), result.getString("player_id"));
                     assertEquals("PLAYER_TWO", result.getString("side"));
-                    assertEquals(secondCharacter, result.getString("character_id"));
+                    assertEquals(secondCharacter, result.getString("character_ids"));
                 }
             }
             return null;
@@ -545,7 +545,7 @@ class ChallengeServiceTest {
     private void updateHostCharacter(String challengeId, String characterId) {
         fixture.database().withConnection(connection -> {
             try (PreparedStatement statement = connection.prepareStatement(
-                "UPDATE challenge SET host_character_id = ? WHERE id = ?")) {
+                "UPDATE challenge SET host_character_ids = ? WHERE id = ?")) {
                 statement.setString(1, characterId);
                 statement.setString(2, challengeId);
                 statement.executeUpdate();

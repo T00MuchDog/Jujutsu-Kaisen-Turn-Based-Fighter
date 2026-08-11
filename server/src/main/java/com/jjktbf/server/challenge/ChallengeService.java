@@ -163,7 +163,6 @@ public final class ChallengeService {
             return challengeRepository.listCompatibleOpen(
                     connection,
                     caller.playerId(),
-                    null,
                     ProtocolVersion.GAME_VERSION,
                     ProtocolVersion.PROTOCOL_VERSION,
                     ProtocolVersion.STANDARD_RULESET,
