@@ -9,8 +9,10 @@ import com.jjktbf.model.combat.BattleTeam;
 import com.jjktbf.model.combat.BattleTeamId;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -72,6 +74,44 @@ class BattleScreenCombatantVisibilityTest {
 
         assertEquals(List.of(first, second, third, fourth),
             BattleScreen.visibleCombatants(players));
+    }
+
+    @Test
+    void lifecycleRosterRetainsACombatantDefeatedBeforeTheFieldWasBound() {
+        BattleCombatant defeated = fighter("Yuji");
+        BattleCombatant survivor = fighter("Nanami");
+        BattleTeam players = BattleState.teamOfFighters(
+            BattleTeamId.PLAYER, List.of(defeated, survivor));
+        BattleState state = new BattleState(
+            players,
+            BattleState.teamOfFighters(BattleTeamId.ENEMY, List.of(fighter("Enemy"))));
+        defeated.receiveDamage(defeated.getCurrentHp());
+        state.reconcileDefeats();
+
+        assertEquals(List.of(defeated, survivor),
+            BattleScreen.lifecycleVisualRoster(players, List.of(), Set.of(defeated)));
+    }
+
+    @Test
+    void visibleRosterBackfillsItsFourthSlotAfterADefeat() {
+        BattleCombatant first = fighter("Yuji");
+        BattleCombatant second = fighter("Nanami");
+        BattleCombatant third = fighter("Nobara");
+        BattleCombatant fourth = fighter("Gojo");
+        BattleCombatant fifth = fighter("Megumi");
+        BattleTeam players = BattleState.teamOfFighters(
+            BattleTeamId.PLAYER, List.of(first, second, third, fourth, fifth));
+        BattleState state = new BattleState(
+            players,
+            BattleState.teamOfFighters(BattleTeamId.ENEMY, List.of(fighter("Enemy"))));
+        first.receiveDamage(first.getCurrentHp());
+        state.reconcileDefeats();
+        List<BattleCombatant> displayed = new ArrayList<>(
+            List.of(second, third, fourth));
+
+        BattleScreen.backfillLocalVisualRoster(displayed, players);
+
+        assertEquals(List.of(second, third, fourth, fifth), displayed);
     }
 
     private static BattleCombatant summon(

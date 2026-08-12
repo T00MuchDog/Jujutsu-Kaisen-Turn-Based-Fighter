@@ -5,40 +5,43 @@ import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveData;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MoveCardViewTest {
 
     @Test
-    void defensiveCardsUseTypeNamesWithTheDefensePalette() {
+    void reinforcementDefenseUsesTheDeepLimePalette() {
         Move move = moveWithTags("DEFENSIVE", "PHYSICAL", "CURSED_ENERGY");
 
         assertEquals("REINFORCEMENT", MoveCardView.typeNameFor(move));
-        assertEquals(new Color(0.940f, 0.690f, 0.140f, 1f), MoveCardView.typeColorFor(move));
+        assertEquals(new Color(0.310f, 0.540f, 0.140f, 1f), MoveCardView.typeColorFor(move));
     }
 
     @Test
-    void utilityCardsUseTypeNamesWithTheUtilityPalette() {
+    void cursedEnergyUtilityUsesAGreyBlueFusion() {
         Move move = moveWithTags("UTILITY", "CURSED_ENERGY");
 
         assertEquals("CURSED ENERGY", MoveCardView.typeNameFor(move));
-        assertEquals(new Color(0.450f, 0.510f, 0.610f, 1f), MoveCardView.typeColorFor(move));
+        assertEquals(new Color(0.510f, 0.650f, 0.750f, 1f), MoveCardView.typeColorFor(move));
     }
 
     @Test
-    void nonInnateTechniqueCardsKeepTheirPaletteAcrossRoles() {
-        Color nonInnate = new Color(0.180f, 0.450f, 0.800f, 1f);
+    void innateTechniqueRolePalettesKeepPurpleLavenderAndNearBlack() {
+        Move attack = moveWithTags("ATTACK", "INNATE_TECHNIQUE", "CURSED_ENERGY");
+        Move defensive = moveWithTags("DEFENSIVE", "INNATE_TECHNIQUE", "CURSED_ENERGY");
+        Move utility = moveWithTags("UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY");
 
-        Move defensive = moveWithTags(
-            "DEFENSIVE", "NON_INNATE_TECHNIQUE", "CURSED_ENERGY");
-        Move utility = moveWithTags(
-            "UTILITY", "NON_INNATE_TECHNIQUE", "CURSED_ENERGY");
-
-        assertEquals("NON-INNATE TECHNIQUE", MoveCardView.typeNameFor(defensive));
-        assertEquals(nonInnate, MoveCardView.typeColorFor(defensive));
-        assertEquals(nonInnate, MoveCardView.typeColorFor(utility));
+        assertEquals(new Color(0.560f, 0.280f, 0.820f, 1f), MoveCardView.typeColorFor(attack));
+        assertEquals(new Color(0.105f, 0.115f, 0.135f, 1f), MoveCardView.typeColorFor(defensive));
+        assertEquals(new Color(0.640f, 0.560f, 0.760f, 1f), MoveCardView.typeColorFor(utility));
     }
 
     @Test
@@ -57,6 +60,40 @@ class MoveCardViewTest {
         assertEquals("CURSED TOOL", MoveCardView.typeNameFor(move));
         assertEquals(new Color(0.545f, 0.000f, 0.000f, 1f), MoveCardView.typeColorFor(move));
         assertEquals("REINFORCEMENT", MoveCardView.typeNameFor(swordMove));
+    }
+
+    @Test
+    void everyValidRoleAndNatureCombinationHasAUniqueColor() {
+        String[][] natures = {
+            {"PHYSICAL"},
+            {"CURSED_ENERGY"},
+            {"INNATE_TECHNIQUE", "CURSED_ENERGY"},
+            {"NON_INNATE_TECHNIQUE", "CURSED_ENERGY"},
+            {"PHYSICAL", "CURSED_ENERGY"},
+            {"PHYSICAL", "INNATE_TECHNIQUE", "CURSED_ENERGY"},
+            {"PHYSICAL", "NON_INNATE_TECHNIQUE", "CURSED_ENERGY"},
+            {"INNATE_TECHNIQUE", "NON_INNATE_TECHNIQUE", "CURSED_ENERGY"},
+            {"PHYSICAL", "INNATE_TECHNIQUE", "NON_INNATE_TECHNIQUE", "CURSED_ENERGY"}
+        };
+        List<Move> combinations = new ArrayList<>();
+        for (String role : List.of("ATTACK", "DEFENSIVE", "UTILITY")) {
+            for (String[] nature : natures) {
+                combinations.add(moveWithTags(withRole(role, nature)));
+            }
+        }
+        combinations.add(moveWithTags("DEFENSIVE"));
+        combinations.add(moveWithTags("UTILITY"));
+        combinations.add(moveWithTags(true, "ATTACK", "PHYSICAL", "CURSED_ENERGY"));
+        combinations.add(moveWithTags(true, "DEFENSIVE", "PHYSICAL", "CURSED_ENERGY"));
+        combinations.add(moveWithTags(true, "UTILITY", "PHYSICAL", "CURSED_ENERGY"));
+
+        Set<Integer> colors = new HashSet<>();
+        for (Move move : combinations) {
+            Color color = MoveCardView.typeColorFor(move);
+            assertTrue(colors.add(Color.rgba8888(color)),
+                () -> "Duplicate move-card color " + color + " for " + move.getTags());
+        }
+        assertEquals(32, colors.size());
     }
 
     @Test
@@ -86,10 +123,23 @@ class MoveCardViewTest {
         data.weaponRequired = weaponRequired;
         data.apCost = 10;
         data.unleashPoint = 1;
-        if (data.tags.contains("NON_INNATE_TECHNIQUE")) {
-            data.prerequisites = java.util.Map.of("jujutsuSkill", 0);
+        Map<String, Integer> prerequisites = new HashMap<>();
+        if (data.tags.contains("INNATE_TECHNIQUE")) {
+            data.requiredTechniqueId = "TEST_TECHNIQUE";
+            prerequisites.put("cursedTechniqueMastery", 0);
         }
+        if (data.tags.contains("NON_INNATE_TECHNIQUE")) {
+            prerequisites.put("jujutsuSkill", 0);
+        }
+        data.prerequisites = prerequisites;
         return data.toMove();
+    }
+
+    private static String[] withRole(String role, String[] nature) {
+        String[] tags = new String[nature.length + 1];
+        tags[0] = role;
+        System.arraycopy(nature, 0, tags, 1, nature.length);
+        return tags;
     }
 
     private static MoveData.HitComponentData component(int power, String tag) {

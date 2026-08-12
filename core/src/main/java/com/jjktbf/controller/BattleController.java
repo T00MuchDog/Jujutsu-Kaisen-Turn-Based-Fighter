@@ -16,7 +16,9 @@ import java.util.Random;
  *  - Drives the state machine: PLANNING → RESOLUTION → ROUND_END → repeat
  *  - Never performs rendering (that's the View's job)
  *  - Never contains damage math (that's CombatResolver's job)
- *  - Delegates AI move selection to an AIStrategy (default: GreedyAIStrategy)
+ *  - Delegates AI move selection to an AIStrategy (default: ArchetypeAIStrategy,
+ *    which dispatches to a per-archetype brain — e.g. ShikigamiAIStrategy for
+ *    shikigami, GreedyAIStrategy for everyone else)
  *
  * This is the only class that the application entry point (GraphicsMain)
  * needs to instantiate and call to run a battle.
@@ -35,7 +37,7 @@ public class BattleController {
     private final ControlMode controlMode;
 
     public BattleController(BattleView view) {
-        this(view, new SeededRandomSource(), new GreedyAIStrategy(), null,
+        this(view, new SeededRandomSource(), new ArchetypeAIStrategy(), null,
             ControlMode.PLAYER_VS_AI);
     }
 
@@ -48,7 +50,7 @@ public class BattleController {
         BattleCharacterLookup characterLookup,
         ControlMode controlMode
     ) {
-        this(view, new SeededRandomSource(), new GreedyAIStrategy(), characterLookup, controlMode);
+        this(view, new SeededRandomSource(), new ArchetypeAIStrategy(), characterLookup, controlMode);
     }
 
     /** Compatibility constructor for callers that still supply {@link Random}. */
@@ -60,18 +62,18 @@ public class BattleController {
     public BattleController(
         BattleView view, Random rng, BattleCharacterLookup characterLookup
     ) {
-        this(view, new SeededRandomSource(rng), new GreedyAIStrategy(), characterLookup,
+        this(view, new SeededRandomSource(rng), new ArchetypeAIStrategy(), characterLookup,
             ControlMode.PLAYER_VS_AI);
     }
 
     public BattleController(BattleView view, RandomSource rng) {
-        this(view, rng, new GreedyAIStrategy(), null);
+        this(view, rng, new ArchetypeAIStrategy(), null);
     }
 
     public BattleController(
         BattleView view, RandomSource rng, BattleCharacterLookup characterLookup
     ) {
-        this(view, rng, new GreedyAIStrategy(), characterLookup, ControlMode.PLAYER_VS_AI);
+        this(view, rng, new ArchetypeAIStrategy(), characterLookup, ControlMode.PLAYER_VS_AI);
     }
 
     /** Compatibility constructor for callers that still supply {@link Random}. */

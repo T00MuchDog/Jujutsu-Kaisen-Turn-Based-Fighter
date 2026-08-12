@@ -121,6 +121,8 @@ public class BattleScreen implements Screen, BattleView {
      * distinct strike, not a single unleash.
      */
     private static final float HIT_FLASH_DURATION_SECONDS  = 0.6f;
+    /** Fast classic monster-battle sink used when a combatant is defeated. */
+    private static final float FAINT_SLIDE_DURATION_SECONDS = 0.42f;
     /** Chars revealed per second when typing a log line out letter-by-letter. */
     private static final float LOG_TYPE_RATE_CPS       = 40f;
     /**
@@ -160,17 +162,19 @@ public class BattleScreen implements Screen, BattleView {
     private final RatioMeter ratioMeter = new RatioMeter();
     private Texture playerSprite;
     private Texture enemySprite;
-    /**
-     * Per-side sprite lists for local battles. Index 0 is the primary
-     * fighter (whose sprite is also kept in {@link #playerSprite}/{@link #enemySprite});
-     * later indexes are the remaining visible fighters. Initially populated by the battle setup,
-     * then rebuilt from each side's active combatants at round start.
-     */
+    /** Per-side execution sprites in the same order as the local or online render roster. */
     private java.util.List<Texture> playerTeamSprites = java.util.List.of();
     private java.util.List<Texture> enemyTeamSprites = java.util.List.of();
     /** Local render-state snapshots in the same roster order as the panel lists. */
     private volatile List<BattleCombatant> renderPlayerTeam = List.of();
     private volatile List<BattleCombatant> renderEnemyTeam = List.of();
+    private volatile BattleState renderLocalState;
+    /** Multiplayer presentation rosters remain at round-start state until defeat playback removes them. */
+    private List<CharacterState> renderOnlinePlayerTeam = List.of();
+    private List<CharacterState> renderOnlineEnemyTeam = List.of();
+    /** Event-synchronised local HP snapshots, keyed by combatant identity. */
+    private final Map<BattleCombatant, LocalHpState> localHpStates =
+        new java.util.concurrent.ConcurrentHashMap<>();
     private final Rectangle logBounds = new Rectangle();
     private final Rectangle nextRoundBounds = new Rectangle();
 
@@ -238,6 +242,9 @@ public class BattleScreen implements Screen, BattleView {
      */
     private final java.util.List<HitFlash> hitFlashes = new java.util.ArrayList<>();
 
+    /** At most one defeat is played at a time; the battle reflows when it completes. */
+    private final List<FaintAnimation> faintAnimations = new ArrayList<>();
+
     // ── Move selection state ──────────────────────────────────────────────────
     private volatile boolean inputConfirmed = false;
     private volatile boolean awaitingNextRound = false;
@@ -261,20 +268,6 @@ public class BattleScreen implements Screen, BattleView {
     // ── Shared render state (written by controller thread, read by render) ────
     private volatile BattleCombatant renderPlayer;
     private volatile BattleCombatant renderEnemy;
-    /**
-     * LOCAL deferred HP. Seeded from the model at round boundaries and mutated
-     * only on damage/heal/max-HP events (paired with the matching log line), so
-     * the HP bar and HP text change when the "X took Y damage" line plays — not
-     * when the move unleashes or the tick fires. Mirrors the multiplayer
-     * {@code onlinePlayerHp}/{@code onlineEnemyHp} pattern. CE is left out: it
-     * drains at the move's start tick, before the fire tick, so it stays live.
-     * Volatile: written by the battle thread (applyLocalHpEvent) and read by the
-     * render thread (updatePanels).
-     */
-    private volatile int localPlayerHp;
-    private volatile int localPlayerMaxHp;
-    private volatile int localEnemyHp;
-    private volatile int localEnemyMaxHp;
     private volatile boolean         battleOver  = false;
     private volatile String          battleResult = "";
     private volatile String          battleResultReason = "";
@@ -315,16 +308,13 @@ public class BattleScreen implements Screen, BattleView {
     private int playbackActionIndex;
     private float playbackTickElapsedMs;
     private boolean playbackComplete;
-    private int onlinePlayerHp;
-    private int onlinePlayerMaxHp;
-    private int onlinePlayerCe;
-    private int onlinePlayerMaxCe;
+    private boolean playbackReturnsToPlanning;
+    private int playedPlanningDefeatRound = -1;
     private CodedAbilityState onlinePlayerMiracles;
     private CodedAbilityState onlinePlayerRatio;
-    private int onlineEnemyHp;
-    private int onlineEnemyMaxHp;
-    private int onlineEnemyCe;
-    private int onlineEnemyMaxCe;
+    /** Multiplayer resource playback for every displayed fighter, not just roster slot zero. */
+    private final Map<OnlineCombatantKey, OnlineResourceState> onlineResourceStates =
+        new HashMap<>();
 
     public BattleScreen(JJKGame game, AssetLoader assets) {
         this.game   = game;
@@ -347,6 +337,11 @@ public class BattleScreen implements Screen, BattleView {
         // Reset team-battle render state so a prior team battle doesn't leak into a 1v1.
         renderPlayerTeam = List.of();
         renderEnemyTeam = List.of();
+        renderLocalState = null;
+        renderOnlinePlayerTeam = List.of();
+        renderOnlineEnemyTeam = List.of();
+        localHpStates.clear();
+        onlineResourceStates.clear();
         playerPanels = List.of();
         enemyPanels = List.of();
         playerTeamSprites = java.util.List.of();
@@ -366,6 +361,13 @@ public class BattleScreen implements Screen, BattleView {
         multiplayerSetup = Objects.requireNonNull(setup, "setup");
         multiplayerSession = Objects.requireNonNull(session, "session");
         multiplayerMatchService = Objects.requireNonNull(matchService, "matchService");
+        renderPlayerTeam = List.of();
+        renderEnemyTeam = List.of();
+        renderLocalState = null;
+        renderOnlinePlayerTeam = List.of();
+        renderOnlineEnemyTeam = List.of();
+        localHpStates.clear();
+        onlineResourceStates.clear();
     }
 
     /** Associates local controller callbacks with the current battle run. */
@@ -418,10 +420,6 @@ public class BattleScreen implements Screen, BattleView {
         typingCharTimer = 0f;
         typingTailTimer = 0f;
         logScrollOffset = 0f;
-        localPlayerHp = 0;
-        localPlayerMaxHp = 0;
-        localEnemyHp = 0;
-        localEnemyMaxHp = 0;
         inputConfirmed = false;
         awaitingNextRound = false;
         nextRoundConfirmed = false;
@@ -433,6 +431,10 @@ public class BattleScreen implements Screen, BattleView {
         currentExecutionTick = 0;
         unleashedMoveIcon = null;
         unleashedMoveElapsed = 0f;
+        hitFlashes.clear();
+        faintAnimations.clear();
+        localHpStates.clear();
+        onlineResourceStates.clear();
         playbackEvents = List.of();
         playbackActionTicks = List.of();
         playbackRound = -1;
@@ -440,6 +442,8 @@ public class BattleScreen implements Screen, BattleView {
         playbackActionIndex = 0;
         playbackTickElapsedMs = 0f;
         playbackComplete = false;
+        playbackReturnsToPlanning = false;
+        playedPlanningDefeatRound = -1;
         onlinePlanningRound = -1;
         soundedOnlineRound = -1;
         loggedOnlineEventIds.clear();
@@ -468,6 +472,7 @@ public class BattleScreen implements Screen, BattleView {
         frameDelta = delta;
         updateMoveUnleashAnimation(delta);
         updateHitFlashes(delta);
+        updateFaintAnimations(delta);
         updateTyping(delta);
         if (mode == BattleMode.MULTIPLAYER) updateMultiplayerPlayback(delta);
         clearScreen();
@@ -628,8 +633,10 @@ public class BattleScreen implements Screen, BattleView {
         drawCombatantHuds(enemyPanels, enemyNames);
         if (!playerNames.isEmpty()) {
             drawCombatantHuds(playerPanels, playerNames);
-            miraclesMeter.draw(batch, assets.battleUi, assets.fontLarge);
-            ratioMeter.draw(batch, assets.battleUi, assets.fontLarge);
+            if (playerPanel != null && faintAnimationFor(playerPanel) == null) {
+                miraclesMeter.draw(batch, assets.battleUi, assets.fontLarge);
+                ratioMeter.draw(batch, assets.battleUi, assets.fontLarge);
+            }
         }
         drawLog(sw, sh);
         drawNextRoundButton();
@@ -644,12 +651,17 @@ public class BattleScreen implements Screen, BattleView {
     private void drawCombatantField(List<CombatantPanel> panels, int visibleCount) {
         int count = Math.min(panels.size(), visibleCount);
         if (count == 0) return;
-        panels.get(0).drawPlate(batch);
         // SpriteBatch composites later draws on top, so the rightmost fighter stays in front.
         List<CombatantPanel> drawOrder = new ArrayList<>(panels.subList(0, count));
         drawOrder.sort((left, right) -> Float.compare(left.spriteCenterX(), right.spriteCenterX()));
+        panels.get(0).drawPlate(batch);
         for (CombatantPanel panel : drawOrder) {
-            panel.drawSprite(batch, frameDelta);
+            FaintAnimation faint = faintAnimationFor(panel);
+            if (faint == null) {
+                panel.drawSprite(batch, frameDelta);
+            } else {
+                panel.drawFaintingSprite(batch, faintSlideRatio(faint.progress()));
+            }
         }
     }
 
@@ -657,7 +669,10 @@ public class BattleScreen implements Screen, BattleView {
     private void drawCombatantHuds(List<CombatantPanel> panels, List<String> names) {
         int count = Math.min(panels.size(), names.size());
         for (int i = 0; i < count; i++) {
-            panels.get(i).drawHud(batch, assets.fontMedium, assets.fontSmall, names.get(i), frameDelta);
+            CombatantPanel panel = panels.get(i);
+            if (faintAnimationFor(panel) == null) {
+                panel.drawHud(batch, assets.fontMedium, assets.fontSmall, names.get(i), frameDelta);
+            }
         }
     }
 
@@ -866,11 +881,12 @@ public class BattleScreen implements Screen, BattleView {
         unleashedMoveTargetPanel = null;
     }
 
-    private void playSuccessfulBlockAnimation(boolean playerTarget) {
+    private void playSuccessfulBlockAnimation(CombatantPanel targetPanel) {
+        if (targetPanel == null) return;
         unleashedMoveIcon = assets.battleUi.defenseEffectIcon;
         unleashedMoveElapsed = 0f;
         unleashedMoveDurationSeconds = BLOCK_EFFECT_DURATION_SECONDS;
-        unleashedMoveTargetPanel = playerTarget ? playerPanel : enemyPanel;
+        unleashedMoveTargetPanel = targetPanel;
     }
 
     private void playSuccessfulBlockAnimation(CombatEvent event) {
@@ -959,6 +975,101 @@ public class BattleScreen implements Screen, BattleView {
             this.targetPanel = targetPanel;
             this.duration = duration;
             this.elapsed = 0f;
+        }
+    }
+
+    private void updateFaintAnimations(float delta) {
+        if (faintAnimations.isEmpty()) return;
+        List<Runnable> completed = new ArrayList<>();
+        java.util.Iterator<FaintAnimation> iterator = faintAnimations.iterator();
+        while (iterator.hasNext()) {
+            FaintAnimation faint = iterator.next();
+            faint.elapsed += Math.max(0f, delta);
+            if (faint.elapsed >= FAINT_SLIDE_DURATION_SECONDS) {
+                iterator.remove();
+                completed.add(faint.onComplete);
+            }
+        }
+        // Completion rebuilds panel lists, so run it only after iteration ends.
+        for (Runnable callback : completed) callback.run();
+    }
+
+    private boolean startFaintAnimation(FaintAnimation faint) {
+        if (faint == null || faint.panel == null) return false;
+        for (FaintAnimation active : faintAnimations) {
+            if (active.sameCombatant(faint)) return false;
+        }
+        faint.panel.prepareFaint();
+        faintAnimations.add(faint);
+        return true;
+    }
+
+    private FaintAnimation faintAnimationFor(CombatantPanel panel) {
+        if (panel == null) return null;
+        for (FaintAnimation faint : faintAnimations) {
+            if (faint.panel == panel) return faint;
+        }
+        return null;
+    }
+
+    private boolean faintAnimationInProgress() {
+        return !faintAnimations.isEmpty();
+    }
+
+    /** Ease-out gives the short, decisive downward pull of classic faint animations. */
+    static float faintSlideRatio(float progress) {
+        float clamped = Math.max(0f, Math.min(1f, progress));
+        return 1f - (1f - clamped) * (1f - clamped);
+    }
+
+    private static final class FaintAnimation {
+        final BattleCombatant localCombatant;
+        final OnlineCombatantKey onlineCombatant;
+        final boolean playerSide;
+        final Runnable onComplete;
+        CombatantPanel panel;
+        float elapsed;
+
+        private FaintAnimation(
+            BattleCombatant localCombatant,
+            OnlineCombatantKey onlineCombatant,
+            boolean playerSide,
+            CombatantPanel panel,
+            Runnable onComplete
+        ) {
+            this.localCombatant = localCombatant;
+            this.onlineCombatant = onlineCombatant;
+            this.playerSide = playerSide;
+            this.panel = panel;
+            this.onComplete = onComplete;
+        }
+
+        static FaintAnimation local(
+            BattleCombatant combatant,
+            boolean playerSide,
+            CombatantPanel panel,
+            Runnable onComplete
+        ) {
+            return new FaintAnimation(combatant, null, playerSide, panel, onComplete);
+        }
+
+        static FaintAnimation online(
+            OnlineCombatantKey combatant,
+            boolean playerSide,
+            CombatantPanel panel,
+            Runnable onComplete
+        ) {
+            return new FaintAnimation(null, combatant, playerSide, panel, onComplete);
+        }
+
+        float progress() {
+            return Math.min(1f, elapsed / FAINT_SLIDE_DURATION_SECONDS);
+        }
+
+        boolean sameCombatant(FaintAnimation other) {
+            return localCombatant != null
+                ? localCombatant == other.localCombatant
+                : Objects.equals(onlineCombatant, other.onlineCombatant);
         }
     }
 
@@ -1116,6 +1227,7 @@ public class BattleScreen implements Screen, BattleView {
 
     /** Rebind the four visual slots per side to the active round-start roster. */
     private void syncLocalBattlefield(BattleState state) {
+        renderLocalState = state;
         syncLocalBattlefield(
             visibleCombatants(state.playerTeam()),
             visibleCombatants(state.enemyTeam()));
@@ -1125,15 +1237,16 @@ public class BattleScreen implements Screen, BattleView {
         List<BattleCombatant> players,
         List<BattleCombatant> enemies
     ) {
-        renderPlayerTeam = players;
-        renderEnemyTeam = enemies;
+        renderPlayerTeam = List.copyOf(players);
+        renderEnemyTeam = List.copyOf(enemies);
         renderPlayer = players.isEmpty() ? null : players.get(0);
         renderEnemy = enemies.isEmpty() ? null : enemies.get(0);
 
         playerTeamSprites = battleSprites(players, false);
         enemyTeamSprites = battleSprites(enemies, true);
-        playerSprite = playerTeamSprites.get(0);
-        enemySprite = enemyTeamSprites.get(0);
+        if (!playerTeamSprites.isEmpty()) playerSprite = playerTeamSprites.get(0);
+        if (!enemyTeamSprites.isEmpty()) enemySprite = enemyTeamSprites.get(0);
+        syncLocalHpFromModel();
     }
 
     static List<BattleCombatant> visibleCombatants(BattleTeam team) {
@@ -1145,7 +1258,7 @@ public class BattleScreen implements Screen, BattleView {
 
     private List<Texture> battleSprites(List<BattleCombatant> combatants, boolean opponent) {
         Texture fallback = opponent ? assets.enemySprite : assets.playerSprite;
-        if (combatants.isEmpty()) return List.of(fallback);
+        if (combatants.isEmpty()) return List.of();
         return combatants.stream()
             .map(combatant -> assets.characterBattleSprite(
                 game.multiplayerSpriteAsset(combatant.getCharacter().getId()),
@@ -1327,9 +1440,15 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayCombatEvents(List<CombatEvent> events, BattleState state) {
         if (abortRequested || !isCurrentLocalBattleThread()) return;
+        ensureLocalLifecycleVisualsAndWait(events, state);
 
         for (CombatEvent e : events) {
             if (abortRequested || !isCurrentLocalBattleThread()) return;
+            // Legacy 1v1 resolution does not emit COMBATANT_DEFEATED. Catch its
+            // loser before the BATTLE_OVER line so every KO gets the same exit.
+            if (e.getType() == CombatEvent.Type.BATTLE_OVER) {
+                playMissingLocalFaints(state);
+            }
             BattleAudioRouter.cueFor(e)
                 .ifPresent(cue -> postLocal(() -> game.audio().play(cue)));
             if (e.getType() == CombatEvent.Type.MOVE_FIRED) {
@@ -1384,6 +1503,130 @@ public class BattleScreen implements Screen, BattleView {
                 // out, they just don't block (see displayMessage).
                 if (executionUiActive) waitForLogLine();
             }
+            if (e.getType() == CombatEvent.Type.COMBATANT_DEFEATED) {
+                playLocalFaintAndWait(e.getTarget());
+            } else if (e.getType() == CombatEvent.Type.COMBATANT_REMOVED) {
+                removeLocalCombatantAndWait(e.getTarget());
+            }
+        }
+    }
+
+    private void ensureLocalLifecycleVisualsAndWait(
+        List<CombatEvent> events,
+        BattleState state
+    ) {
+        if (state == null || abortRequested || !isCurrentLocalBattleThread()) return;
+        Set<BattleCombatant> lifecycleTargets = new HashSet<>();
+        boolean battleEnding = state.isBattleOver();
+        for (CombatEvent event : events) {
+            if (event.getType() == CombatEvent.Type.COMBATANT_DEFEATED
+                || event.getType() == CombatEvent.Type.COMBATANT_REMOVED) {
+                if (event.getTarget() != null) lifecycleTargets.add(event.getTarget());
+            }
+            battleEnding |= event.getType() == CombatEvent.Type.BATTLE_OVER;
+        }
+        if (battleEnding) {
+            state.playerTeam().all().stream()
+                .filter(BattleCombatant::isDefeated).forEach(lifecycleTargets::add);
+            state.enemyTeam().all().stream()
+                .filter(BattleCombatant::isDefeated).forEach(lifecycleTargets::add);
+        }
+        if (lifecycleTargets.isEmpty()
+            || lifecycleTargets.stream().allMatch(target -> panelForCombatant(target) != null)) {
+            return;
+        }
+
+        List<BattleCombatant> players = lifecycleVisualRoster(
+            state.playerTeam(), renderPlayerTeam, lifecycleTargets);
+        List<BattleCombatant> enemies = lifecycleVisualRoster(
+            state.enemyTeam(), renderEnemyTeam, lifecycleTargets);
+        if (players.isEmpty() && enemies.isEmpty()) return;
+
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(1);
+        postLocal(() -> {
+            renderLocalState = state;
+            syncLocalBattlefield(players, enemies);
+            rewindLocalHpEvents(events);
+            initPanels();
+            showExecutionUi();
+            updatePanels();
+            ready.countDown();
+        });
+        while (ready.getCount() > 0L && !abortRequested && isCurrentLocalBattleThread()) {
+            sleepMs(16);
+        }
+    }
+
+    static List<BattleCombatant> lifecycleVisualRoster(
+        BattleTeam team,
+        List<BattleCombatant> displayed,
+        Set<BattleCombatant> lifecycleTargets
+    ) {
+        List<BattleCombatant> roster = new ArrayList<>(displayed);
+        if (roster.isEmpty()) {
+            for (BattleCombatant combatant : team.all()) {
+                if (combatant.isActive() || lifecycleTargets.contains(combatant)) {
+                    roster.add(combatant);
+                    if (roster.size() == MAX_VISIBLE_COMBATANTS_PER_SIDE) break;
+                }
+            }
+            return List.copyOf(roster);
+        }
+        for (BattleCombatant combatant : team.all()) {
+            if (roster.size() == MAX_VISIBLE_COMBATANTS_PER_SIDE) break;
+            if (lifecycleTargets.contains(combatant)
+                && roster.stream().noneMatch(current -> current == combatant)) {
+                roster.add(combatant);
+            }
+        }
+        return List.copyOf(roster);
+    }
+
+    private void playMissingLocalFaints(BattleState state) {
+        if (state == null) return;
+        List<BattleCombatant> displayed = new ArrayList<>(renderPlayerTeam);
+        displayed.addAll(renderEnemyTeam);
+        for (BattleCombatant combatant : displayed) {
+            if (combatant.isDefeated()) playLocalFaintAndWait(combatant);
+        }
+    }
+
+    private void playLocalFaintAndWait(BattleCombatant combatant) {
+        if (combatant == null || panelForCombatant(combatant) == null
+            || abortRequested || !isCurrentLocalBattleThread()) {
+            return;
+        }
+
+        java.util.concurrent.CountDownLatch complete = new java.util.concurrent.CountDownLatch(1);
+        postLocal(() -> {
+            CombatantPanel panel = panelForCombatant(combatant);
+            boolean playerSide = renderPlayerTeam.stream()
+                .anyMatch(candidate -> candidate == combatant);
+            FaintAnimation faint = FaintAnimation.local(
+                combatant, playerSide, panel,
+                () -> {
+                    removeLocalCombatantFromField(combatant);
+                    complete.countDown();
+                });
+            if (!startFaintAnimation(faint)) complete.countDown();
+        });
+        while (complete.getCount() > 0L && !abortRequested && isCurrentLocalBattleThread()) {
+            sleepMs(16);
+        }
+    }
+
+    private void removeLocalCombatantAndWait(BattleCombatant combatant) {
+        if (combatant == null || panelForCombatant(combatant) == null
+            || abortRequested || !isCurrentLocalBattleThread()) {
+            return;
+        }
+        java.util.concurrent.CountDownLatch complete = new java.util.concurrent.CountDownLatch(1);
+        postLocal(() -> {
+            removeLocalCombatantFromField(combatant);
+            complete.countDown();
+        });
+        while (complete.getCount() > 0L && !abortRequested && isCurrentLocalBattleThread()) {
+            sleepMs(16);
         }
     }
 
@@ -1439,6 +1682,9 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayBattleOver(BattleCombatant winner, BattleState state) {
         if (!isCurrentLocalBattleThread()) return;
+        // Compatibility fallback for a resolver that omitted lifecycle events.
+        ensureLocalLifecycleVisualsAndWait(List.of(), state);
+        playMissingLocalFaints(state);
         SoundCue resultCue = winner == null
             ? SoundCue.BATTLE_DRAW
             : BattleTeamId.PLAYER.equals(state.getWinnerTeam())
@@ -1530,31 +1776,35 @@ public class BattleScreen implements Screen, BattleView {
         multiplayerState = state;
         onlinePlayer = local;
         onlineEnemy = opponent;
-        if (!resolvingTicks || state.phase() == BattlePhase.PLANNING) {
-            onlinePlayerMiracles = findMiraclesState(local.character().codedAbilities());
-            onlinePlayerRatio = findRatioState(local.character().codedAbilities());
-        }
         initOnlineMoves(local, opponent);
-        initPanels();
 
         if (state.phase() == BattlePhase.PLANNING && !isTerminal(state.status())) {
             if (soundedOnlineRound != state.roundNumber()) {
                 soundedOnlineRound = state.roundNumber();
                 game.audio().play(SoundCue.BATTLE_ROUND_START);
             }
+            if (playbackReturnsToPlanning && resolvingTicks
+                && playbackRound == state.roundNumber()) {
+                return;
+            }
+            if (hasUnplayedPlanningDefeat(state)) {
+                startMultiplayerPlayback(state, true);
+                return;
+            }
             awaitingNextRound = false;
             nextRoundHovered = false;
             resolvingTicks = false;
             playbackComplete = false;
             currentExecutionTick = 0;
-            onlinePlayerHp = local.character().currentHp();
-            onlinePlayerMaxHp = local.character().maxHp();
-            onlinePlayerCe = local.character().currentCe();
-            onlinePlayerMaxCe = local.character().maxCe();
-            onlineEnemyHp = opponent.character().currentHp();
-            onlineEnemyMaxHp = opponent.character().maxHp();
-            onlineEnemyCe = opponent.character().currentCe();
-            onlineEnemyMaxCe = opponent.character().maxCe();
+            syncOnlineBattlefield(
+                activeOnlineFighters(local), activeOnlineFighters(opponent));
+            seedOnlineResourcesFromCurrentState();
+            CharacterState displayedPlayer = displayedOnlinePrimary(true);
+            onlinePlayerMiracles = displayedPlayer == null
+                ? null : findMiraclesState(displayedPlayer.codedAbilities());
+            onlinePlayerRatio = displayedPlayer == null
+                ? null : findRatioState(displayedPlayer.codedAbilities());
+            initPanels();
             updatePanels();
             logOnlineEvents(state.recentEvents());
 
@@ -1673,6 +1923,13 @@ public class BattleScreen implements Screen, BattleView {
 
     private static boolean isActiveCombatant(CharacterState combatant) {
         return combatant != null && "ACTIVE".equals(combatant.lifecycle());
+    }
+
+    private boolean hasUnplayedPlanningDefeat(MatchState state) {
+        return playedPlanningDefeatRound != state.roundNumber()
+            && state.recentEvents().stream()
+                .anyMatch(event -> event.roundNumber() == state.roundNumber()
+                    && event.type() == BattleEventType.COMBATANT_DEFEATED);
     }
 
     static Move toDisplayMove(MoveState state) {
@@ -1805,11 +2062,17 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     private void startMultiplayerPlayback(MatchState state) {
+        startMultiplayerPlayback(state, false);
+    }
+
+    private void startMultiplayerPlayback(MatchState state, boolean returnsToPlanning) {
         closePlanningPanel();
+        playbackReturnsToPlanning = returnsToPlanning;
+        if (returnsToPlanning) playedPlanningDefeatRound = state.roundNumber();
         playbackRound = state.roundNumber();
         playbackComplete = false;
         playbackEventIndex = 0;
-        playbackActionTicks = onlineActionTicks(state);
+        playbackActionTicks = returnsToPlanning ? List.of() : onlineActionTicks(state);
         playbackActionIndex = 0;
         playbackTickElapsedMs = 0f;
         currentExecutionTick = 0;
@@ -1821,36 +2084,45 @@ public class BattleScreen implements Screen, BattleView {
             .filter(event -> event.roundNumber() == playbackRound)
             .toList();
 
-        onlinePlayerHp = roundStartValue(
-            state, multiplayerSetup.playerSide(), true, onlinePlayer.character().currentHp());
-        onlinePlayerMaxHp = roundStartMaximum(
-            state, multiplayerSetup.playerSide(), true, onlinePlayer.character().maxHp());
-        onlinePlayerCe = roundStartValue(
-            state, multiplayerSetup.playerSide(), false, onlinePlayer.character().currentCe());
-        onlinePlayerMaxCe = roundStartMaximum(
-            state, multiplayerSetup.playerSide(), false, onlinePlayer.character().maxCe());
-        onlineEnemyHp = roundStartValue(
-            state, opposite(multiplayerSetup.playerSide()), true, onlineEnemy.character().currentHp());
-        onlineEnemyMaxHp = roundStartMaximum(
-            state, opposite(multiplayerSetup.playerSide()), true, onlineEnemy.character().maxHp());
-        onlineEnemyCe = roundStartValue(
-            state, opposite(multiplayerSetup.playerSide()), false, onlineEnemy.character().currentCe());
-        onlineEnemyMaxCe = roundStartMaximum(
-            state, opposite(multiplayerSetup.playerSide()), false, onlineEnemy.character().maxCe());
+        syncOnlineBattlefield(
+            roundStartOnlineFighters(state, multiplayerSetup.playerSide(), onlinePlayer),
+            roundStartOnlineFighters(state, opposite(multiplayerSetup.playerSide()), onlineEnemy));
+        seedOnlineResourcesFromRoundStart(state);
+        boolean tickZeroRoundStart = playbackEvents.stream().allMatch(event -> event.tick() == 0)
+            && playbackEvents.stream().anyMatch(event -> event.type() == BattleEventType.ROUND_START);
+        if (returnsToPlanning || tickZeroRoundStart) {
+            rewindOnlineResourceEvents(playbackEvents);
+        }
+        initPanels();
+        CharacterState displayedPlayer = displayedOnlinePrimary(true);
         onlinePlayerMiracles = roundStartMiraclesState(
-            state, multiplayerSetup.playerSide(), onlinePlayer.character().codedAbilities());
+            state, multiplayerSetup.playerSide(), onlineKey(
+                multiplayerSetup.playerSide(), displayedPlayer),
+            displayedPlayer == null ? List.of() : displayedPlayer.codedAbilities());
         onlinePlayerRatio = roundStartRatioState(
-            state, multiplayerSetup.playerSide(), onlinePlayer.character().codedAbilities());
-        processPlaybackEventsThrough(0);
+            state, multiplayerSetup.playerSide(), onlineKey(
+                multiplayerSetup.playerSide(), displayedPlayer),
+            displayedPlayer == null ? List.of() : displayedPlayer.codedAbilities());
+        boolean pausedForFaint = false;
+        if (!typingInProgress() && !faintAnimationInProgress()) {
+            pausedForFaint = processPlaybackEventsThrough(0);
+        }
         updatePanels();
-        if (playbackActionTicks.isEmpty()) finishMultiplayerPlayback();
+        if (playbackActionTicks.isEmpty() && !pausedForFaint
+            && !typingInProgress() && !faintAnimationInProgress()) {
+            finishMultiplayerPlayback();
+        }
     }
 
     private void updateMultiplayerPlayback(float delta) {
         if (!resolvingTicks || playbackComplete || multiplayerState == null) return;
         // Don't advance (or accumulate) while a log line is still typing, so
         // a tick that just queued messages can't outpace the typewriter.
-        if (typingInProgress()) return;
+        if (typingInProgress() || faintAnimationInProgress()) return;
+        // A defeat pauses event consumption mid-tick. Finish the remaining
+        // events at that same tick before the timeline advances again.
+        if (processPlaybackEventsThrough(currentExecutionTick)) return;
+        if (typingInProgress() || faintAnimationInProgress()) return;
         playbackTickElapsedMs += Math.max(0f, delta) * 1000f;
 
         while (resolvingTicks) {
@@ -1862,20 +2134,28 @@ public class BattleScreen implements Screen, BattleView {
                 return;
             }
             currentExecutionTick = playbackActionTicks.get(playbackActionIndex++);
-            processPlaybackEventsThrough(currentExecutionTick);
+            if (processPlaybackEventsThrough(currentExecutionTick)) return;
             // If advancing the tick just queued log lines, hold further
             // advancement until they type out.
-            if (typingInProgress()) return;
+            if (typingInProgress() || faintAnimationInProgress()) return;
         }
     }
 
-    private void processPlaybackEventsThrough(int tick) {
+    private boolean processPlaybackEventsThrough(int tick) {
         while (playbackEventIndex < playbackEvents.size()
             && playbackEvents.get(playbackEventIndex).tick() <= tick) {
             BattleEventState event = playbackEvents.get(playbackEventIndex++);
-            applyPlaybackEvent(event);
+            if (applyPlaybackEvent(event)) {
+                updatePanels();
+                return true;
+            }
+            if (typingInProgress()) {
+                updatePanels();
+                return false;
+            }
         }
         updatePanels();
+        return false;
     }
 
     private void refreshTerminalPlayback(MatchState state) {
@@ -1884,86 +2164,90 @@ public class BattleScreen implements Screen, BattleView {
         for (BattleEventState event : playbackEvents) {
             if (event.eventId() != null) eventIds.add(event.eventId());
         }
+        boolean added = false;
         for (BattleEventState event : state.recentEvents()) {
-            if (event.roundNumber() == state.roundNumber()
-                && (event.eventId() == null || eventIds.add(event.eventId()))) {
+            boolean unseen = event.eventId() == null
+                ? !merged.contains(event) : eventIds.add(event.eventId());
+            if (event.roundNumber() == state.roundNumber() && unseen) {
                 merged.add(event);
+                added = true;
             }
         }
         playbackEvents = List.copyOf(merged);
-        processPlaybackEventsThrough(
-            playbackComplete ? Integer.MAX_VALUE : currentExecutionTick);
-        if (playbackComplete) showMultiplayerResult(state);
+        // A late force-end event reopens playback. Event consumption remains in
+        // updateMultiplayerPlayback so duplicate terminal callbacks cannot race
+        // ahead of an active typewriter line or faint animation.
+        if (added && playbackComplete) {
+            playbackComplete = false;
+            resolvingTicks = true;
+            awaitingNextRound = false;
+            nextRoundHovered = false;
+            playbackTickElapsedMs = 0f;
+        }
+        if (!resolvingTicks && playbackComplete
+            && !typingInProgress() && !faintAnimationInProgress()) {
+            showMultiplayerResult(state);
+        }
     }
 
-    private void applyPlaybackEvent(BattleEventState event) {
-        Move unleashedMove = null;
+    private boolean applyPlaybackEvent(BattleEventState event) {
+        CharacterState target = onlineVisualForEvent(
+            event.targetSide(), event.targetInstanceId(), event.targetCharacterId());
+        CharacterState source = onlineVisualForEvent(
+            event.sourceSide(), event.sourceInstanceId(), event.sourceCharacterId());
+        OnlineCombatantKey targetKey = onlineKey(event.targetSide(), target);
+        OnlineCombatantKey sourceKey = onlineKey(event.sourceSide(), source);
+        CombatantPanel targetPanel = onlinePanelFor(event.targetSide(), target);
         Integer value = event.value();
-        boolean primaryTarget = isPrimaryOnlineCombatant(
-            event.targetSide(), event.targetInstanceId());
-        boolean primarySource = isPrimaryOnlineCombatant(
-            event.sourceSide(), event.sourceInstanceId());
-        if (primaryTarget && value != null && value > 0
-            && event.type() == BattleEventType.DAMAGE_DEALT) {
-            if (event.targetSide() == multiplayerSetup.playerSide()) {
-                onlinePlayerHp = Math.max(0, onlinePlayerHp - value);
-                flashDamageSprite(true);
-            } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
-                onlineEnemyHp = Math.max(0, onlineEnemyHp - value);
-                flashDamageSprite(false);
+        OnlineResourceState targetResources = onlineResourceStates.get(targetKey);
+        if (targetResources != null && value != null) {
+            switch (event.type()) {
+                case DAMAGE_DEALT -> {
+                    if (value > 0) {
+                        targetResources.hp = Math.max(0, targetResources.hp - value);
+                        if (targetPanel != null) targetPanel.flashDamage();
+                    }
+                }
+                case HP_RESTORED -> targetResources.hp += value;
+                case MAX_HP_CHANGED -> {
+                    targetResources.maxHp = Math.max(1, value);
+                    targetResources.hp = Math.min(targetResources.hp, targetResources.maxHp);
+                }
+                case MAX_CE_CHANGED -> {
+                    targetResources.maxCe = Math.max(0, value);
+                    targetResources.ce = Math.min(targetResources.ce, targetResources.maxCe);
+                }
+                default -> { }
             }
-        } else if (primaryTarget && value != null
-            && event.type() == BattleEventType.HP_RESTORED) {
-            // The server reports the already-capped amount. A following max-HP
-            // event may establish the cap used during deferred round-end work.
-            if (event.targetSide() == multiplayerSetup.playerSide()) {
-                onlinePlayerHp += value;
-            } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
-                onlineEnemyHp += value;
+        }
+        if (value != null && (event.type() == BattleEventType.CE_DRAINED
+            || event.type() == BattleEventType.CE_RESTORED)) {
+            OnlineCombatantKey resourceKey = event.targetSide() != null ? targetKey : sourceKey;
+            OnlineResourceState resources = onlineResourceStates.get(resourceKey);
+            if (resources != null) {
+                resources.ce = event.type() == BattleEventType.CE_DRAINED
+                    ? Math.max(0, resources.ce - value)
+                    : resources.ce + value;
             }
-        } else if (primaryTarget && value != null
-            && event.type() == BattleEventType.MAX_HP_CHANGED) {
-            if (event.targetSide() == multiplayerSetup.playerSide()) {
-                onlinePlayerMaxHp = Math.max(1, value);
-                onlinePlayerHp = Math.min(onlinePlayerHp, onlinePlayerMaxHp);
-            } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
-                onlineEnemyMaxHp = Math.max(1, value);
-                onlineEnemyHp = Math.min(onlineEnemyHp, onlineEnemyMaxHp);
-            }
-        } else if (primaryTarget && value != null
-            && event.type() == BattleEventType.MAX_CE_CHANGED) {
-            if (event.targetSide() == multiplayerSetup.playerSide()) {
-                onlinePlayerMaxCe = Math.max(0, value);
-                onlinePlayerCe = Math.min(onlinePlayerCe, onlinePlayerMaxCe);
-            } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
-                onlineEnemyMaxCe = Math.max(0, value);
-                onlineEnemyCe = Math.min(onlineEnemyCe, onlineEnemyMaxCe);
-            }
-        } else if (value != null && event.type() == BattleEventType.CE_DRAINED
-            && (event.targetSide() != null ? primaryTarget : primarySource)) {
-            drainPlaybackCe(
-                event.targetSide() != null ? event.targetSide() : event.sourceSide(), value);
-        } else if (value != null && event.type() == BattleEventType.CE_RESTORED
-            && (event.targetSide() != null ? primaryTarget : primarySource)) {
-            restorePlaybackCe(
-                event.targetSide() != null ? event.targetSide() : event.sourceSide(), value);
         }
 
+        boolean displayedPrimarySource = sourceKey != null
+            && sourceKey.equals(onlineKey(multiplayerSetup.playerSide(), displayedOnlinePrimary(true)));
         CodedAbilityState codedAbilityState = event.codedAbilityState();
-        if (primarySource && event.sourceSide() == multiplayerSetup.playerSide()
+        if (displayedPrimarySource && event.sourceSide() == multiplayerSetup.playerSide()
             && codedAbilityState != null
             && MiraclesAbility.KEY.equals(codedAbilityState.key())) {
             onlinePlayerMiracles = codedAbilityState;
-        } else if (primarySource && event.sourceSide() == multiplayerSetup.playerSide()
+        } else if (displayedPrimarySource && event.sourceSide() == multiplayerSetup.playerSide()
             && codedAbilityState != null
             && RatioAbility.KEY.equals(codedAbilityState.key())) {
             onlinePlayerRatio = codedAbilityState;
         }
 
-        if (primarySource && event.type() == BattleEventType.MOVE_FIRED
-            && event.moveId() != null) {
-            unleashedMove = findOnlineMove(event.sourceSide(), event.moveId());
-            if (unleashedMove != null) playMoveUnleashAnimation(unleashedMove);
+        Move unleashedMove = event.moveId() == null
+            ? null : findOnlineMove(event.sourceSide(), event.moveId());
+        if (event.type() == BattleEventType.MOVE_FIRED && unleashedMove != null) {
+            playMoveUnleashAnimation(unleashedMove);
         }
         // Per-hit impact flash for multi-hit moves (online path mirrors local).
         if (unleashedMove != null
@@ -1973,13 +2257,10 @@ public class BattleScreen implements Screen, BattleView {
                 || event.type() == BattleEventType.MOVE_BLOCK_REDUCED
                 || event.type() == BattleEventType.MOVE_DODGED
                 || event.type() == BattleEventType.MOVE_PARRIED)) {
-            boolean targetsPlayer = event.targetSide() == multiplayerSetup.playerSide();
-            boolean targetsEnemy = event.targetSide() == opposite(multiplayerSetup.playerSide());
-            if (targetsPlayer || targetsEnemy) {
+            if (targetPanel != null) {
                 CombatEvent.Type flashType = event.type() == BattleEventType.DAMAGE_DEALT
                     ? CombatEvent.Type.DAMAGE_DEALT : CombatEvent.Type.MOVE_BLOCKED;
-                spawnHitFlash(unleashedMove, flashType,
-                    targetsPlayer ? playerPanel : enemyPanel);
+                spawnHitFlash(unleashedMove, flashType, targetPanel);
             }
         }
         if (event.type() == BattleEventType.MOVE_BLOCKED
@@ -1988,11 +2269,7 @@ public class BattleScreen implements Screen, BattleView {
             // multi-hit per-hit blocks are rendered as flashes above.
             if (unleashedMove == null
                 || unleashedMove.getHitComponents().size() <= 1) {
-                if (event.targetSide() == multiplayerSetup.playerSide()) {
-                    playSuccessfulBlockAnimation(true);
-                } else if (event.targetSide() == opposite(multiplayerSetup.playerSide())) {
-                    playSuccessfulBlockAnimation(false);
-                }
+                playSuccessfulBlockAnimation(targetPanel);
             }
         }
         if (event.eventId() == null || soundedOnlineEventIds.add(event.eventId())) {
@@ -2006,6 +2283,8 @@ public class BattleScreen implements Screen, BattleView {
             && (event.eventId() == null || loggedOnlineEventIds.add(event.eventId()))) {
             queueLogLine(event.message());
         }
+        return event.type() == BattleEventType.COMBATANT_DEFEATED
+            && startOnlineFaint(event.targetSide(), target);
     }
 
     private void logOnlineEvents(List<BattleEventState> events) {
@@ -2018,23 +2297,6 @@ public class BattleScreen implements Screen, BattleView {
                 && (event.eventId() == null || loggedOnlineEventIds.add(event.eventId()))) {
                 queueLogLine(event.message());
             }
-        }
-    }
-
-    private void drainPlaybackCe(PlayerSide side, int amount) {
-        if (side == multiplayerSetup.playerSide()) {
-            onlinePlayerCe = Math.max(0, onlinePlayerCe - amount);
-        } else if (side == opposite(multiplayerSetup.playerSide())) {
-            onlineEnemyCe = Math.max(0, onlineEnemyCe - amount);
-        }
-    }
-
-    private void restorePlaybackCe(PlayerSide side, int amount) {
-        // As with HP restoration, the event amount was capped authoritatively.
-        if (side == multiplayerSetup.playerSide()) {
-            onlinePlayerCe += amount;
-        } else if (side == opposite(multiplayerSetup.playerSide())) {
-            onlineEnemyCe += amount;
         }
     }
 
@@ -2058,18 +2320,42 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     private void finishMultiplayerPlayback() {
-        processPlaybackEventsThrough(Integer.MAX_VALUE);
+        if (processPlaybackEventsThrough(Integer.MAX_VALUE)
+            || typingInProgress() || faintAnimationInProgress()) {
+            return;
+        }
         playbackComplete = true;
         resolvingTicks = false;
-        onlinePlayerHp = onlinePlayer.character().currentHp();
-        onlinePlayerMaxHp = onlinePlayer.character().maxHp();
-        onlinePlayerCe = onlinePlayer.character().currentCe();
-        onlinePlayerMaxCe = onlinePlayer.character().maxCe();
-        onlineEnemyHp = onlineEnemy.character().currentHp();
-        onlineEnemyMaxHp = onlineEnemy.character().maxHp();
-        onlineEnemyCe = onlineEnemy.character().currentCe();
-        onlineEnemyMaxCe = onlineEnemy.character().maxCe();
-        onlinePlayerMiracles = findMiraclesState(onlinePlayer.character().codedAbilities());
+        if (playbackReturnsToPlanning
+            && multiplayerState.phase() == BattlePhase.PLANNING
+            && !isTerminal(multiplayerState.status())) {
+            playbackReturnsToPlanning = false;
+            playbackRound = -1;
+            awaitingNextRound = false;
+            syncOnlineBattlefield(
+                activeOnlineFighters(onlinePlayer), activeOnlineFighters(onlineEnemy));
+            seedOnlineResourcesFromCurrentState();
+            CharacterState displayedPlayer = displayedOnlinePrimary(true);
+            onlinePlayerMiracles = displayedPlayer == null
+                ? null : findMiraclesState(displayedPlayer.codedAbilities());
+            onlinePlayerRatio = displayedPlayer == null
+                ? null : findRatioState(displayedPlayer.codedAbilities());
+            initPanels();
+            updatePanels();
+            ensureOnlinePlanner(
+                multiplayerState.roundNumber(), onlinePlayer, onlineEnemy);
+            if (onlinePlayer.planSubmitted() && teamPlanningPanel != null) {
+                teamPlanningPanel.lock();
+            }
+            return;
+        }
+        playbackReturnsToPlanning = false;
+        seedOnlineResourcesFromCurrentState();
+        CharacterState displayedPlayer = displayedOnlinePrimary(true);
+        onlinePlayerMiracles = displayedPlayer == null
+            ? null : findMiraclesState(displayedPlayer.codedAbilities());
+        onlinePlayerRatio = displayedPlayer == null
+            ? null : findRatioState(displayedPlayer.codedAbilities());
         updatePanels();
 
         if (isTerminal(multiplayerState.status())
@@ -2162,30 +2448,6 @@ public class BattleScreen implements Screen, BattleView {
         });
     }
 
-    private static int roundStartValue(
-        MatchState state,
-        PlayerSide side,
-        boolean hp,
-        int fallback
-    ) {
-        for (RoundStartCharacterState start : state.roundStartCharacterStates()) {
-            if (start.side() == side) return hp ? start.currentHp() : start.currentCe();
-        }
-        return fallback;
-    }
-
-    private static int roundStartMaximum(
-        MatchState state,
-        PlayerSide side,
-        boolean hp,
-        int fallback
-    ) {
-        for (RoundStartCharacterState start : state.roundStartCharacterStates()) {
-            if (start.side() == side) return hp ? start.maxHp() : start.maxCe();
-        }
-        return fallback;
-    }
-
     private static List<ActionSegmentState> onlineSegments(MatchState state) {
         List<ActionSegmentState> segments = new ArrayList<>();
         for (PlayerState player : state.players()) {
@@ -2196,13 +2458,6 @@ public class BattleScreen implements Screen, BattleView {
             }
         }
         return segments;
-    }
-
-    private boolean isPrimaryOnlineCombatant(PlayerSide side, String instanceId) {
-        if (side == null) return false;
-        PlayerState player = side == multiplayerSetup.playerSide() ? onlinePlayer : onlineEnemy;
-        CharacterState primary = player == null ? null : player.character();
-        return primary != null && (instanceId == null || instanceId.equals(primary.instanceId()));
     }
 
     private static List<Integer> onlineActionTicks(MatchState state) {
@@ -2375,6 +2630,338 @@ public class BattleScreen implements Screen, BattleView {
     // Helpers
     // -------------------------------------------------------------------------
 
+    private void removeLocalCombatantFromField(BattleCombatant defeated) {
+        CombatantPanel oldPanel = panelForCombatant(defeated);
+        List<BattleCombatant> players = new ArrayList<>(renderPlayerTeam);
+        List<BattleCombatant> enemies = new ArrayList<>(renderEnemyTeam);
+        boolean removed = players.removeIf(combatant -> combatant == defeated)
+            | enemies.removeIf(combatant -> combatant == defeated);
+        if (!removed) return;
+        if (renderLocalState != null) {
+            backfillLocalVisualRoster(players, renderLocalState.playerTeam());
+            backfillLocalVisualRoster(enemies, renderLocalState.enemyTeam());
+        }
+
+        renderPlayerTeam = List.copyOf(players);
+        renderEnemyTeam = List.copyOf(enemies);
+        renderPlayer = players.isEmpty() ? null : players.get(0);
+        renderEnemy = enemies.isEmpty() ? null : enemies.get(0);
+        playerTeamSprites = battleSprites(players, false);
+        enemyTeamSprites = battleSprites(enemies, true);
+        if (!playerTeamSprites.isEmpty()) playerSprite = playerTeamSprites.get(0);
+        if (!enemyTeamSprites.isEmpty()) enemySprite = enemyTeamSprites.get(0);
+        localHpStates.remove(defeated);
+        for (BattleCombatant combatant : players) {
+            localHpStates.putIfAbsent(combatant,
+                new LocalHpState(combatant.getCurrentHp(), combatant.getMaxHp()));
+        }
+        for (BattleCombatant combatant : enemies) {
+            localHpStates.putIfAbsent(combatant,
+                new LocalHpState(combatant.getCurrentHp(), combatant.getMaxHp()));
+        }
+        clearTransientPanelReferences(oldPanel);
+        layoutExecutionUi(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+    }
+
+    static void backfillLocalVisualRoster(
+        List<BattleCombatant> displayed,
+        BattleTeam team
+    ) {
+        for (BattleCombatant candidate : team.active()) {
+            if (displayed.size() == MAX_VISIBLE_COMBATANTS_PER_SIDE) return;
+            if (displayed.stream().noneMatch(current -> current == candidate)) {
+                displayed.add(candidate);
+            }
+        }
+    }
+
+    private void syncOnlineBattlefield(
+        List<CharacterState> players,
+        List<CharacterState> enemies
+    ) {
+        renderOnlinePlayerTeam = players.stream()
+            .limit(MAX_VISIBLE_COMBATANTS_PER_SIDE).toList();
+        renderOnlineEnemyTeam = enemies.stream()
+            .limit(MAX_VISIBLE_COMBATANTS_PER_SIDE).toList();
+        playerTeamSprites = onlineBattleSprites(renderOnlinePlayerTeam, false);
+        enemyTeamSprites = onlineBattleSprites(renderOnlineEnemyTeam, true);
+        if (!playerTeamSprites.isEmpty()) playerSprite = playerTeamSprites.get(0);
+        if (!enemyTeamSprites.isEmpty()) enemySprite = enemyTeamSprites.get(0);
+    }
+
+    private List<Texture> onlineBattleSprites(List<CharacterState> combatants, boolean opponent) {
+        Texture fallback = opponent ? assets.enemySprite : assets.playerSprite;
+        return combatants.stream()
+            .map(combatant -> assets.characterBattleSprite(
+                game.multiplayerSpriteAsset(combatant.characterId()), opponent, fallback))
+            .toList();
+    }
+
+    private static List<CharacterState> roundStartOnlineFighters(
+        MatchState state,
+        PlayerSide side,
+        PlayerState player
+    ) {
+        if (player == null) return List.of();
+        List<CharacterState> fighters = player.combatants().stream()
+            .filter(combatant -> "FIGHTER".equals(combatant.role()))
+            .toList();
+        List<RoundStartCharacterState> starts = state.roundStartCharacterStates().stream()
+            .filter(start -> start.side() == side && start.currentHp() > 0)
+            .toList();
+        Set<String> startIds = starts.stream()
+            .map(RoundStartCharacterState::instanceId)
+            .filter(id -> id != null && !id.isBlank())
+            .collect(java.util.stream.Collectors.toSet());
+        state.recentEvents().stream()
+            .filter(event -> event.roundNumber() == state.roundNumber()
+                && event.type() == BattleEventType.COMBATANT_DEFEATED
+                && event.targetSide() == side)
+            .map(BattleEventState::targetInstanceId)
+            .filter(id -> id != null && !id.isBlank())
+            .forEach(startIds::add);
+        if (!startIds.isEmpty()) {
+            return fighters.stream()
+                .filter(fighter -> startIds.contains(fighter.instanceId()))
+                .limit(MAX_VISIBLE_COMBATANTS_PER_SIDE)
+                .toList();
+        }
+        if (!starts.isEmpty()) {
+            return fighters.stream().limit(Math.min(starts.size(), MAX_VISIBLE_COMBATANTS_PER_SIDE))
+                .toList();
+        }
+
+        List<CharacterState> active = fighters.stream()
+            .filter(BattleScreen::isActiveCombatant)
+            .limit(MAX_VISIBLE_COMBATANTS_PER_SIDE)
+            .toList();
+        // Protocol-v8 has one fighter and may omit round-start instance ids.
+        return active.isEmpty() && fighters.size() == 1 ? fighters : active;
+    }
+
+    private void seedOnlineResourcesFromCurrentState() {
+        onlineResourceStates.clear();
+        seedOnlineResourcesFromCurrentState(
+            multiplayerSetup.playerSide(), renderOnlinePlayerTeam);
+        seedOnlineResourcesFromCurrentState(
+            opposite(multiplayerSetup.playerSide()), renderOnlineEnemyTeam);
+    }
+
+    private void seedOnlineResourcesFromCurrentState(
+        PlayerSide side,
+        List<CharacterState> combatants
+    ) {
+        for (CharacterState combatant : combatants) {
+            onlineResourceStates.put(onlineKey(side, combatant),
+                OnlineResourceState.from(combatant));
+        }
+    }
+
+    private void seedOnlineResourcesFromRoundStart(MatchState state) {
+        onlineResourceStates.clear();
+        seedOnlineResourcesFromRoundStart(
+            state, multiplayerSetup.playerSide(), renderOnlinePlayerTeam);
+        seedOnlineResourcesFromRoundStart(
+            state, opposite(multiplayerSetup.playerSide()), renderOnlineEnemyTeam);
+    }
+
+    private void seedOnlineResourcesFromRoundStart(
+        MatchState state,
+        PlayerSide side,
+        List<CharacterState> combatants
+    ) {
+        List<RoundStartCharacterState> sideStarts = state.roundStartCharacterStates().stream()
+            .filter(start -> start.side() == side && start.currentHp() > 0)
+            .toList();
+        for (int i = 0; i < combatants.size(); i++) {
+            CharacterState combatant = combatants.get(i);
+            RoundStartCharacterState start = sideStarts.stream()
+                .filter(candidate -> candidate.instanceId() != null
+                    && candidate.instanceId().equals(combatant.instanceId()))
+                .findFirst()
+                .orElse(i < sideStarts.size() ? sideStarts.get(i) : null);
+            OnlineResourceState resources = start == null
+                ? OnlineResourceState.from(combatant)
+                : new OnlineResourceState(
+                    start.currentHp(), start.maxHp(), start.currentCe(), start.maxCe());
+            onlineResourceStates.put(onlineKey(side, combatant), resources);
+        }
+    }
+
+    /** Restores pre-event resources when the server's tick-zero snapshot is post-resolution. */
+    private void rewindOnlineResourceEvents(List<BattleEventState> events) {
+        for (int i = events.size() - 1; i >= 0; i--) {
+            BattleEventState event = events.get(i);
+            Integer amount = event.value();
+            if (amount == null) continue;
+            CharacterState target = onlineVisualForEvent(
+                event.targetSide(), event.targetInstanceId(), event.targetCharacterId());
+            CharacterState source = onlineVisualForEvent(
+                event.sourceSide(), event.sourceInstanceId(), event.sourceCharacterId());
+            OnlineCombatantKey key = event.targetSide() != null
+                ? onlineKey(event.targetSide(), target)
+                : onlineKey(event.sourceSide(), source);
+            OnlineResourceState resources = onlineResourceStates.get(key);
+            if (resources == null) continue;
+            switch (event.type()) {
+                case DAMAGE_DEALT -> resources.hp = Math.min(
+                    resources.maxHp, resources.hp + amount);
+                case HP_RESTORED -> resources.hp = Math.max(0, resources.hp - amount);
+                case CE_DRAINED -> resources.ce = Math.min(
+                    resources.maxCe, resources.ce + amount);
+                case CE_RESTORED -> resources.ce = Math.max(0, resources.ce - amount);
+                default -> { }
+            }
+        }
+    }
+
+    private CharacterState onlineVisualForEvent(
+        PlayerSide side,
+        String instanceId,
+        String characterId
+    ) {
+        if (side == null || multiplayerSetup == null) return null;
+        List<CharacterState> combatants = side == multiplayerSetup.playerSide()
+            ? renderOnlinePlayerTeam : renderOnlineEnemyTeam;
+        if (instanceId != null && !instanceId.isBlank()) {
+            for (CharacterState combatant : combatants) {
+                if (instanceId.equals(combatant.instanceId())) return combatant;
+            }
+        }
+        if (characterId != null && !characterId.isBlank()) {
+            for (CharacterState combatant : combatants) {
+                if (characterId.equals(combatant.characterId())) return combatant;
+            }
+        }
+        return combatants.size() == 1 ? combatants.get(0) : null;
+    }
+
+    private CombatantPanel onlinePanelFor(PlayerSide side, CharacterState combatant) {
+        if (side == null || combatant == null) return null;
+        boolean playerSide = side == multiplayerSetup.playerSide();
+        List<CharacterState> combatants = playerSide
+            ? renderOnlinePlayerTeam : renderOnlineEnemyTeam;
+        List<CombatantPanel> panels = playerSide ? playerPanels : enemyPanels;
+        OnlineCombatantKey key = onlineKey(side, combatant);
+        for (int i = 0; i < Math.min(combatants.size(), panels.size()); i++) {
+            if (key.equals(onlineKey(side, combatants.get(i)))) return panels.get(i);
+        }
+        return null;
+    }
+
+    private CharacterState displayedOnlinePrimary(boolean playerSide) {
+        List<CharacterState> combatants = playerSide
+            ? renderOnlinePlayerTeam : renderOnlineEnemyTeam;
+        return combatants.isEmpty() ? null : combatants.get(0);
+    }
+
+    private boolean startOnlineFaint(PlayerSide side, CharacterState defeated) {
+        if (side == null || defeated == null) return false;
+        boolean playerSide = side == multiplayerSetup.playerSide();
+        OnlineCombatantKey key = onlineKey(side, defeated);
+        CombatantPanel panel = onlinePanelFor(side, defeated);
+        return startFaintAnimation(FaintAnimation.online(
+            key, playerSide, panel, () -> removeOnlineCombatantFromField(key)));
+    }
+
+    private void removeOnlineCombatantFromField(OnlineCombatantKey defeated) {
+        boolean playerSide = defeated.side() == multiplayerSetup.playerSide();
+        List<CharacterState> current = new ArrayList<>(playerSide
+            ? renderOnlinePlayerTeam : renderOnlineEnemyTeam);
+        List<CombatantPanel> currentPanels = playerSide ? playerPanels : enemyPanels;
+        CombatantPanel oldPanel = null;
+        for (int i = 0; i < current.size(); i++) {
+            if (defeated.equals(onlineKey(defeated.side(), current.get(i)))) {
+                if (i < currentPanels.size()) oldPanel = currentPanels.get(i);
+                current.remove(i);
+                break;
+            }
+        }
+        if (playerSide) {
+            syncOnlineBattlefield(current, renderOnlineEnemyTeam);
+        } else {
+            syncOnlineBattlefield(renderOnlinePlayerTeam, current);
+        }
+        onlineResourceStates.remove(defeated);
+        clearTransientPanelReferences(oldPanel);
+        if (playerSide) {
+            CharacterState primary = displayedOnlinePrimary(true);
+            onlinePlayerMiracles = primary == null
+                ? null : findMiraclesState(primary.codedAbilities());
+            onlinePlayerRatio = primary == null
+                ? null : findRatioState(primary.codedAbilities());
+        }
+        layoutExecutionUi(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+    }
+
+    private static OnlineCombatantKey onlineKey(PlayerSide side, CharacterState combatant) {
+        if (side == null || combatant == null) return null;
+        String identity = combatant.instanceId();
+        if (identity == null || identity.isBlank()) {
+            identity = combatant.characterId() + "#" + combatant.rosterOrder();
+        }
+        return new OnlineCombatantKey(side, identity);
+    }
+
+    private void remapFaintAnimationPanels() {
+        for (FaintAnimation faint : faintAnimations) {
+            if (faint.localCombatant != null) {
+                List<BattleCombatant> combatants = faint.playerSide
+                    ? renderPlayerTeam : renderEnemyTeam;
+                List<CombatantPanel> panels = faint.playerSide ? playerPanels : enemyPanels;
+                faint.panel = null;
+                for (int i = 0; i < Math.min(combatants.size(), panels.size()); i++) {
+                    if (combatants.get(i) == faint.localCombatant) {
+                        faint.panel = panels.get(i);
+                        faint.panel.prepareFaint();
+                        break;
+                    }
+                }
+            } else {
+                List<CharacterState> combatants = faint.playerSide
+                    ? renderOnlinePlayerTeam : renderOnlineEnemyTeam;
+                List<CombatantPanel> panels = faint.playerSide ? playerPanels : enemyPanels;
+                faint.panel = null;
+                for (int i = 0; i < Math.min(combatants.size(), panels.size()); i++) {
+                    if (faint.onlineCombatant.equals(onlineKey(
+                        faint.onlineCombatant.side(), combatants.get(i)))) {
+                        faint.panel = panels.get(i);
+                        faint.panel.prepareFaint();
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    private void clearTransientPanelReferences(CombatantPanel panel) {
+        if (panel == null) return;
+        if (unleashedMoveTargetPanel == panel) unleashedMoveTargetPanel = null;
+        hitFlashes.removeIf(flash -> flash.targetPanel == panel);
+    }
+
+    private record OnlineCombatantKey(PlayerSide side, String identity) { }
+
+    private static final class OnlineResourceState {
+        int hp;
+        int maxHp;
+        int ce;
+        int maxCe;
+
+        OnlineResourceState(int hp, int maxHp, int ce, int maxCe) {
+            this.hp = hp;
+            this.maxHp = maxHp;
+            this.ce = ce;
+            this.maxCe = maxCe;
+        }
+
+        static OnlineResourceState from(CharacterState combatant) {
+            return new OnlineResourceState(
+                combatant.currentHp(), combatant.maxHp(),
+                combatant.currentCe(), combatant.maxCe());
+        }
+    }
+
     private void initPanels() {
         layoutExecutionUi(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
     }
@@ -2382,8 +2969,8 @@ public class BattleScreen implements Screen, BattleView {
     /** Recreates all execution widgets from the live viewport after a resize. */
     private void layoutExecutionUi(float width, float height) {
         float margin = Math.min(32f, Math.max(16f, Math.min(width, height) * 0.035f));
-        List<Texture> visibleEnemySprites = visibleTeamSprites(enemyTeamSprites, enemySprite);
-        List<Texture> visiblePlayerSprites = visibleTeamSprites(playerTeamSprites, playerSprite);
+        List<Texture> visibleEnemySprites = visibleTeamSprites(enemyTeamSprites);
+        List<Texture> visiblePlayerSprites = visibleTeamSprites(playerTeamSprites);
         int enemyCount = visibleEnemySprites.size();
         int playerCount = visiblePlayerSprites.size();
 
@@ -2502,8 +3089,9 @@ public class BattleScreen implements Screen, BattleView {
         playerPanels = buildCombatantPanels(
             visiblePlayerSprites, playerPlate, playerSpriteY, playerSpriteSize,
             playerHud, playerHudColumnGap, hudRowGap, false);
-        enemyPanel = enemyPanels.get(0);
-        playerPanel = playerPanels.get(0);
+        enemyPanel = enemyPanels.isEmpty() ? null : enemyPanels.get(0);
+        playerPanel = playerPanels.isEmpty() ? null : playerPanels.get(0);
+        remapFaintAnimationPanels();
 
         float miracleSize = Math.min(MiraclesMeter.sizeForViewport(height),
             Math.min(hudHeight, width * 0.11f));
@@ -2564,8 +3152,8 @@ public class BattleScreen implements Screen, BattleView {
         return List.copyOf(panels);
     }
 
-    private static List<Texture> visibleTeamSprites(List<Texture> teamSprites, Texture fallback) {
-        if (teamSprites == null || teamSprites.isEmpty()) return List.of(fallback);
+    private static List<Texture> visibleTeamSprites(List<Texture> teamSprites) {
+        if (teamSprites == null || teamSprites.isEmpty()) return List.of();
         return teamSprites.stream().limit(MAX_VISIBLE_COMBATANTS_PER_SIDE).toList();
     }
 
@@ -2672,13 +3260,41 @@ public class BattleScreen implements Screen, BattleView {
      * maintenance (poison, max-HP changes) converges them back to the model.
      */
     private void syncLocalHpFromModel() {
-        if (renderPlayer != null) {
-            localPlayerHp    = renderPlayer.getCurrentHp();
-            localPlayerMaxHp = renderPlayer.getMaxHp();
+        localHpStates.clear();
+        for (BattleCombatant combatant : renderPlayerTeam) {
+            localHpStates.put(combatant,
+                new LocalHpState(combatant.getCurrentHp(), combatant.getMaxHp()));
         }
-        if (renderEnemy != null) {
-            localEnemyHp    = renderEnemy.getCurrentHp();
-            localEnemyMaxHp = renderEnemy.getMaxHp();
+        for (BattleCombatant combatant : renderEnemyTeam) {
+            localHpStates.put(combatant,
+                new LocalHpState(combatant.getCurrentHp(), combatant.getMaxHp()));
+        }
+        if (renderLocalState != null) {
+            for (BattleCombatant combatant : renderLocalState.playerTeam().active()) {
+                localHpStates.putIfAbsent(combatant,
+                    new LocalHpState(combatant.getCurrentHp(), combatant.getMaxHp()));
+            }
+            for (BattleCombatant combatant : renderLocalState.enemyTeam().active()) {
+                localHpStates.putIfAbsent(combatant,
+                    new LocalHpState(combatant.getCurrentHp(), combatant.getMaxHp()));
+            }
+        }
+    }
+
+    /** Restores pre-batch HP when the field had to be bound after the model advanced. */
+    private void rewindLocalHpEvents(List<CombatEvent> events) {
+        for (int i = events.size() - 1; i >= 0; i--) {
+            CombatEvent event = events.get(i);
+            BattleCombatant target = event.getTarget();
+            if (target == null) continue;
+            int amount = event.getIntValue();
+            localHpStates.computeIfPresent(target, (ignored, current) -> switch (event.getType()) {
+                case DAMAGE_DEALT -> new LocalHpState(
+                    Math.min(current.maxHp(), current.hp() + amount), current.maxHp());
+                case HP_RESTORED -> new LocalHpState(
+                    Math.max(0, current.hp() - amount), current.maxHp());
+                default -> current;
+            });
         }
     }
 
@@ -2691,40 +3307,27 @@ public class BattleScreen implements Screen, BattleView {
      */
     private void applyLocalHpEvent(CombatEvent e) {
         int amount = e.getIntValue();
-        boolean playerTarget = e.getTarget() == renderPlayer;
-        boolean enemyTarget  = e.getTarget() == renderEnemy;
-        switch (e.getType()) {
-            case DAMAGE_DEALT:
-                if (playerTarget)       localPlayerHp = Math.max(0, localPlayerHp - amount);
-                else if (enemyTarget)   localEnemyHp  = Math.max(0, localEnemyHp  - amount);
-                break;
-            case HP_RESTORED:
-                if (playerTarget)       localPlayerHp += amount;
-                else if (enemyTarget)   localEnemyHp  += amount;
-                break;
-            case MAX_HP_CHANGED:
-                if (playerTarget) {
-                    localPlayerMaxHp = Math.max(1, amount);
-                    localPlayerHp    = Math.min(localPlayerHp, localPlayerMaxHp);
-                } else if (enemyTarget) {
-                    localEnemyMaxHp = Math.max(1, amount);
-                    localEnemyHp    = Math.min(localEnemyHp, localEnemyMaxHp);
-                }
-                break;
-            default:
-                break;
-        }
+        BattleCombatant target = e.getTarget();
+        if (target == null) return;
+        localHpStates.computeIfPresent(target, (ignored, current) -> switch (e.getType()) {
+            case DAMAGE_DEALT -> new LocalHpState(
+                Math.max(0, current.hp() - amount), current.maxHp());
+            case HP_RESTORED -> new LocalHpState(
+                current.hp() + amount, current.maxHp());
+            case MAX_HP_CHANGED -> {
+                int maximum = Math.max(1, amount);
+                yield new LocalHpState(Math.min(current.hp(), maximum), maximum);
+            }
+            default -> current;
+        });
     }
+
+    private record LocalHpState(int hp, int maxHp) { }
 
     /** Called on the render thread alongside the matching local HP-bar update. */
     private void flashLocalDamageSprite(CombatEvent event) {
         if (event.getType() != CombatEvent.Type.DAMAGE_DEALT || event.getIntValue() <= 0) return;
         CombatantPanel panel = panelForCombatant(event.getTarget());
-        if (panel != null) panel.flashDamage();
-    }
-
-    private void flashDamageSprite(boolean playerTarget) {
-        CombatantPanel panel = playerTarget ? playerPanel : enemyPanel;
         if (panel != null) panel.flashDamage();
     }
 
@@ -2743,60 +3346,57 @@ public class BattleScreen implements Screen, BattleView {
 
     private void updatePanels() {
         if (mode == BattleMode.MULTIPLAYER) {
-            if (playerPanel != null && onlinePlayer != null) {
-                playerPanel.update(
-                    onlinePlayerHp, onlinePlayerMaxHp, onlinePlayerCe, onlinePlayerMaxCe);
-            }
             miraclesMeter.setState(onlinePlayerMiracles);
             ratioMeter.setState(onlinePlayerRatio);
-            if (enemyPanel != null && onlineEnemy != null) {
-                enemyPanel.update(
-                    onlineEnemyHp, onlineEnemyMaxHp, onlineEnemyCe, onlineEnemyMaxCe);
-            }
-            updateOnlineTeamPanels(playerPanels, activeOnlineFighters(onlinePlayer));
-            updateOnlineTeamPanels(enemyPanels, activeOnlineFighters(onlineEnemy));
+            updateOnlineTeamPanels(
+                playerPanels, renderOnlinePlayerTeam, multiplayerSetup.playerSide());
+            updateOnlineTeamPanels(
+                enemyPanels, renderOnlineEnemyTeam, opposite(multiplayerSetup.playerSide()));
             return;
         }
-        // LOCAL: HP comes from the deferred ints (so the bar follows the damage
-        // log line); CE/max-CE stay live from the model since CE drains at the
-        // move's start tick, before the fire tick.
-        if (playerPanel != null && renderPlayer != null) {
-            playerPanel.update(localPlayerHp, localPlayerMaxHp,
-                renderPlayer.getCurrentCe(), renderPlayer.getMaxCursedEnergy());
-        }
+        // LOCAL: HP follows each damage log line; CE stays live because it drains
+        // at a move's start tick, before that move fires.
         miraclesMeter.setState(renderPlayer == null
             ? null : findMiraclesState(renderPlayer.getCodedAbilities().states()));
         ratioMeter.setState(renderPlayer == null
             ? null : findRatioState(renderPlayer.getCodedAbilities().states()));
-        if (enemyPanel != null && renderEnemy != null) {
-            enemyPanel.update(localEnemyHp, localEnemyMaxHp,
-                renderEnemy.getCurrentCe(), renderEnemy.getMaxCursedEnergy());
-        }
-        // Remaining panels read live HP/CE; deferred log-synced HP applies to each
-        // side's primary combatant only, matching the existing execution timing.
         updateLocalTeamPanels(playerPanels, renderPlayerTeam);
         updateLocalTeamPanels(enemyPanels, renderEnemyTeam);
     }
 
-    private static void updateOnlineTeamPanels(
+    private void updateOnlineTeamPanels(
         List<CombatantPanel> panels,
-        List<CharacterState> fighters
+        List<CharacterState> fighters,
+        PlayerSide side
     ) {
         int count = Math.min(panels.size(), fighters.size());
-        for (int i = 1; i < count; i++) {
+        for (int i = 0; i < count; i++) {
             CharacterState fighter = fighters.get(i);
-            panels.get(i).update(fighter.currentHp(), fighter.maxHp(),
-                fighter.currentCe(), fighter.maxCe());
+            OnlineResourceState resources = onlineResourceStates.get(onlineKey(side, fighter));
+            if (resources == null) {
+                panels.get(i).update(fighter.currentHp(), fighter.maxHp(),
+                    fighter.currentCe(), fighter.maxCe());
+            } else {
+                panels.get(i).update(
+                    resources.hp, resources.maxHp, resources.ce, resources.maxCe);
+            }
         }
     }
 
-    private static void updateLocalTeamPanels(
+    private void updateLocalTeamPanels(
         List<CombatantPanel> panels,
         List<BattleCombatant> combatants
     ) {
         int count = Math.min(panels.size(), combatants.size());
-        for (int i = 1; i < count; i++) {
-            panels.get(i).update(combatants.get(i));
+        for (int i = 0; i < count; i++) {
+            BattleCombatant combatant = combatants.get(i);
+            LocalHpState hp = localHpStates.get(combatant);
+            if (hp == null) {
+                panels.get(i).update(combatant);
+            } else {
+                panels.get(i).update(hp.hp(), hp.maxHp(),
+                    combatant.getCurrentCe(), combatant.getMaxCursedEnergy());
+            }
         }
     }
 
@@ -2819,11 +3419,13 @@ public class BattleScreen implements Screen, BattleView {
     private static CodedAbilityState roundStartMiraclesState(
         MatchState state,
         PlayerSide side,
+        OnlineCombatantKey combatant,
         List<CodedAbilityState> fallback
     ) {
-        if (state.roundStartCharacterStates() == null) return findMiraclesState(fallback);
         return state.roundStartCharacterStates().stream()
             .filter(character -> character.side() == side)
+            .filter(character -> combatant == null || character.instanceId() == null
+                || combatant.identity().equals(character.instanceId()))
             .map(character -> findMiraclesState(character.codedAbilities()))
             .filter(Objects::nonNull)
             .findFirst()
@@ -2833,11 +3435,13 @@ public class BattleScreen implements Screen, BattleView {
     private static CodedAbilityState roundStartRatioState(
         MatchState state,
         PlayerSide side,
+        OnlineCombatantKey combatant,
         List<CodedAbilityState> fallback
     ) {
-        if (state.roundStartCharacterStates() == null) return findRatioState(fallback);
         return state.roundStartCharacterStates().stream()
             .filter(character -> character.side() == side)
+            .filter(character -> combatant == null || character.instanceId() == null
+                || combatant.identity().equals(character.instanceId()))
             .map(character -> findRatioState(character.codedAbilities()))
             .filter(Objects::nonNull)
             .findFirst()
@@ -2854,8 +3458,9 @@ public class BattleScreen implements Screen, BattleView {
 
     private List<String> combatantNames(boolean playerSide) {
         if (mode == BattleMode.MULTIPLAYER) {
-            PlayerState side = playerSide ? onlinePlayer : onlineEnemy;
-            return activeOnlineFighters(side).stream().map(CharacterState::name).toList();
+            List<CharacterState> side = playerSide
+                ? renderOnlinePlayerTeam : renderOnlineEnemyTeam;
+            return side.stream().map(CharacterState::name).toList();
         }
         List<BattleCombatant> team = playerSide ? renderPlayerTeam : renderEnemyTeam;
         if (!team.isEmpty()) {

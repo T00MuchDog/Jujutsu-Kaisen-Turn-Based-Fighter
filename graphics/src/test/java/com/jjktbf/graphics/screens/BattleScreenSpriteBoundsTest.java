@@ -101,4 +101,13 @@ class BattleScreenSpriteBoundsTest {
         assertEquals(145f, BattleScreen.centeredHudY(200f, 100f, 10f), 0.0001f);
     }
 
+    @Test
+    void faintSlideQuicklyPassesBelowTheOriginalFootLine() {
+        assertEquals(0f, BattleScreen.faintSlideRatio(0f), 0.0001f);
+        assertEquals(0.75f, BattleScreen.faintSlideRatio(0.5f), 0.0001f);
+        assertEquals(1f, BattleScreen.faintSlideRatio(1f), 0.0001f);
+        assertEquals(0f, BattleScreen.faintSlideRatio(-1f), 0.0001f);
+        assertEquals(1f, BattleScreen.faintSlideRatio(2f), 0.0001f);
+    }
+
 }

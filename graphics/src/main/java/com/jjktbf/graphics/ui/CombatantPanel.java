@@ -78,6 +78,11 @@ public class CombatantPanel {
         damageFlashRemaining = DAMAGE_FLASH_DURATION_SECONDS;
     }
 
+    /** Ends damage flicker before the uninterrupted faint slide begins. */
+    public void prepareFaint() {
+        damageFlashRemaining = 0f;
+    }
+
     public float spriteCenterX() {
         return spriteBounds.x + spriteBounds.width / 2f;
     }
@@ -110,6 +115,25 @@ public class CombatantPanel {
             batch.draw(sprite, spriteBounds.x, spriteBounds.y, spriteBounds.width, spriteBounds.height);
         }
         damageFlashRemaining = Math.max(0f, damageFlashRemaining - Math.max(0f, delta));
+    }
+
+    /**
+     * Slides the sprite down while cropping everything below its original foot
+     * line, making the fighter disappear into the plate instead of painting over
+     * the log area beneath it.
+     */
+    public void drawFaintingSprite(Batch batch, float slideRatio) {
+        float clamped = Math.max(0f, Math.min(1f, slideRatio));
+        float visibleRatio = 1f - clamped;
+        if (visibleRatio <= 0f) return;
+
+        float visibleHeight = spriteBounds.height * visibleRatio;
+        int sourceHeight = Math.max(1, Math.min(sprite.getHeight(),
+            Math.round(sprite.getHeight() * visibleRatio)));
+        batch.setColor(Color.WHITE);
+        batch.draw(sprite,
+            spriteBounds.x, spriteBounds.y, spriteBounds.width, visibleHeight,
+            0, 0, sprite.getWidth(), sourceHeight, false, false);
     }
 
     /** Draws only the resource card so it can be layered above a fighter pair. */

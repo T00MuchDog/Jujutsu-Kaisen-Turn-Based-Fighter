@@ -74,11 +74,11 @@ public class MoveCardView {
             case INNATE_TECHNIQUE -> new Color(0.560f, 0.280f, 0.820f, 1f);
             case NON_INNATE_TECHNIQUE -> new Color(0.180f, 0.450f, 0.800f, 1f);
             case CURSED_ENERGY -> new Color(0.150f, 0.620f, 0.910f, 1f);
-            case PHYSICAL_CURSED_ENERGY,
-                PHYSICAL_INNATE_TECHNIQUE,
-                PHYSICAL_NON_INNATE_TECHNIQUE,
-                INNATE_NON_INNATE_TECHNIQUE,
-                PHYSICAL_INNATE_NON_INNATE_TECHNIQUE -> new Color(0.130f, 0.690f, 0.570f, 1f);
+            case PHYSICAL_CURSED_ENERGY -> new Color(0.130f, 0.690f, 0.570f, 1f);
+            case PHYSICAL_INNATE_TECHNIQUE -> new Color(0.760f, 0.300f, 0.500f, 1f);
+            case PHYSICAL_NON_INNATE_TECHNIQUE -> new Color(0.610f, 0.350f, 0.560f, 1f);
+            case INNATE_NON_INNATE_TECHNIQUE -> new Color(0.380f, 0.300f, 0.860f, 1f);
+            case PHYSICAL_INNATE_NON_INNATE_TECHNIQUE -> new Color(0.660f, 0.260f, 0.700f, 1f);
             case UTILITY -> new Color(0.450f, 0.510f, 0.610f, 1f);
             case DEFENSIVE -> new Color(0.940f, 0.690f, 0.140f, 1f);
         };
@@ -87,37 +87,75 @@ public class MoveCardView {
     /** Returns the color from the move's role palette and its underlying nature. */
     public static Color typeColorFor(Move move) {
         if (move == null) return Color.GRAY;
-        if (isCursedTool(move)) return new Color(CURSED_TOOL);
+        if (isCursedTool(move)) {
+            if (isDefensiveRole(move)) return new Color(0.400f, 0.090f, 0.110f, 1f);
+            if (isUtilityRole(move)) return new Color(0.470f, 0.390f, 0.410f, 1f);
+            return new Color(CURSED_TOOL);
+        }
+
+        MoveCategory nature = natureCategoryFor(move);
+        if (isDefensiveRole(move)) return defensiveColorFor(nature);
+        if (isUtilityRole(move)) return utilityColorFor(nature);
+        return typeColorFor(nature);
+    }
+
+    private static Color defensiveColorFor(MoveCategory nature) {
+        if (nature == null) return new Color(0.650f, 0.540f, 0.330f, 1f);
+        return switch (nature) {
+            case PHYSICAL -> typeColorFor(MoveCategory.DEFENSIVE);
+            case CURSED_ENERGY -> new Color(0.100f, 0.330f, 0.520f, 1f);
+            case INNATE_TECHNIQUE -> new Color(0.105f, 0.115f, 0.135f, 1f);
+            case NON_INNATE_TECHNIQUE -> new Color(0.100f, 0.200f, 0.380f, 1f);
+            case PHYSICAL_CURSED_ENERGY -> new Color(0.310f, 0.540f, 0.140f, 1f);
+            case PHYSICAL_INNATE_TECHNIQUE -> new Color(0.330f, 0.120f, 0.240f, 1f);
+            case PHYSICAL_NON_INNATE_TECHNIQUE -> new Color(0.220f, 0.190f, 0.330f, 1f);
+            case INNATE_NON_INNATE_TECHNIQUE -> new Color(0.130f, 0.120f, 0.300f, 1f);
+            case PHYSICAL_INNATE_NON_INNATE_TECHNIQUE -> new Color(0.260f, 0.100f, 0.260f, 1f);
+            case UTILITY, DEFENSIVE -> typeColorFor(MoveCategory.DEFENSIVE);
+        };
+    }
+
+    /** Desaturated versions of the attack palette, visually fused with utility grey. */
+    private static Color utilityColorFor(MoveCategory nature) {
+        if (nature == null) return new Color(0.360f, 0.400f, 0.470f, 1f);
+        return switch (nature) {
+            case PHYSICAL -> typeColorFor(MoveCategory.UTILITY);
+            case CURSED_ENERGY -> new Color(0.510f, 0.650f, 0.750f, 1f);
+            case INNATE_TECHNIQUE -> new Color(0.640f, 0.560f, 0.760f, 1f);
+            case NON_INNATE_TECHNIQUE -> new Color(0.460f, 0.570f, 0.700f, 1f);
+            case PHYSICAL_CURSED_ENERGY -> new Color(0.440f, 0.650f, 0.600f, 1f);
+            case PHYSICAL_INNATE_TECHNIQUE -> new Color(0.700f, 0.540f, 0.620f, 1f);
+            case PHYSICAL_NON_INNATE_TECHNIQUE -> new Color(0.580f, 0.530f, 0.640f, 1f);
+            case INNATE_NON_INNATE_TECHNIQUE -> new Color(0.530f, 0.530f, 0.720f, 1f);
+            case PHYSICAL_INNATE_NON_INNATE_TECHNIQUE -> new Color(0.640f, 0.500f, 0.670f, 1f);
+            case UTILITY, DEFENSIVE -> typeColorFor(MoveCategory.UTILITY);
+        };
+    }
+
+    private static MoveCategory natureCategoryFor(Move move) {
+        boolean physical = hasNatureTag(move, MoveTag.PHYSICAL);
         boolean innate = hasNatureTag(move, MoveTag.INNATE_TECHNIQUE);
         boolean nonInnate = hasNatureTag(move, MoveTag.NON_INNATE_TECHNIQUE);
 
-        // Learned techniques retain their distinct identity even on utility or defensive cards.
-        if (nonInnate && !innate) return typeColorFor(MoveCategory.NON_INNATE_TECHNIQUE);
-        if (isDefensiveRole(move)) return typeColorFor(MoveCategory.DEFENSIVE);
-        // A utility innate technique is its own hybrid: a desaturated lavender that
-        // reads between UTILITY grey and the pure INNATE_TECHNIQUE purple.
-        if (isUtilityRole(move) && innate) {
-            return new Color(0.640f, 0.560f, 0.760f, 1f);
+        if (innate && nonInnate) {
+            return physical
+                ? MoveCategory.PHYSICAL_INNATE_NON_INNATE_TECHNIQUE
+                : MoveCategory.INNATE_NON_INNATE_TECHNIQUE;
         }
-        if (isUtilityRole(move)) return typeColorFor(MoveCategory.UTILITY);
-
-        boolean physical = hasNatureTag(move, MoveTag.PHYSICAL);
-        boolean cursedEnergy = hasNatureTag(move, MoveTag.CURSED_ENERGY);
-
-        // Innate technique is the headline category: it gets its own colour regardless
-        // of any physical pairing, kept distinct from reinforcement's teal.
-        if (innate) return typeColorFor(MoveCategory.INNATE_TECHNIQUE);
-
-        boolean hasTechnique = innate || nonInnate;
-        int natureCount = (physical ? 1 : 0) + (innate ? 1 : 0) + (nonInnate ? 1 : 0)
-            + (cursedEnergy && !hasTechnique ? 1 : 0);
-
-        if (natureCount > 1) return new Color(0.130f, 0.690f, 0.570f, 1f);
-        if (physical) return new Color(0.850f, 0.380f, 0.190f, 1f);
-        if (innate) return new Color(0.560f, 0.280f, 0.820f, 1f);
-        if (nonInnate) return new Color(0.180f, 0.450f, 0.800f, 1f);
-        if (cursedEnergy) return new Color(0.150f, 0.620f, 0.910f, 1f);
-        return Color.GRAY;
+        if (innate) {
+            return physical ? MoveCategory.PHYSICAL_INNATE_TECHNIQUE : MoveCategory.INNATE_TECHNIQUE;
+        }
+        if (nonInnate) {
+            return physical
+                ? MoveCategory.PHYSICAL_NON_INNATE_TECHNIQUE
+                : MoveCategory.NON_INNATE_TECHNIQUE;
+        }
+        if (physical && hasNatureTag(move, MoveTag.CURSED_ENERGY)) {
+            return MoveCategory.PHYSICAL_CURSED_ENERGY;
+        }
+        if (physical) return MoveCategory.PHYSICAL;
+        if (hasNatureTag(move, MoveTag.CURSED_ENERGY)) return MoveCategory.CURSED_ENERGY;
+        return null;
     }
 
     /** Returns the card's move-nature tag, excluding ATTACK, DEFENSIVE, and UTILITY. */
