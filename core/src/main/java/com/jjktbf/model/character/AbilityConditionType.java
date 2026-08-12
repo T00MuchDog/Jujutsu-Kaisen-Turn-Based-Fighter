@@ -42,6 +42,7 @@ public enum AbilityConditionType {
     ATTACK_HIT("Attack hit", "The selected combatant lands an attack.", ACTOR),
     ATTACK_MISSED("Attack missed", "The selected combatant misses an attack.", ACTOR),
     MOVE_BLOCKED("Attack blocked", "The selected combatant's attack is fully blocked.", ACTOR),
+    EVENT_TARGET("Current event targets combatant", "The selected combatant is the target of the current battle event.", ACTOR),
     ATTACK_CONNECTED("Attack connected", "The selected combatant's current hit connected before block and defense.", ACTOR),
     CONNECTED_HIT_HAS_TAG("Connected hit has tag", "The selected combatant's current connected hit has this tag.", ACTOR, MOVE_TAG),
     FATAL_DAMAGE("Fatal damage incoming", "The selected combatant is about to take damage or an effect that would reduce HP to zero.", ACTOR),

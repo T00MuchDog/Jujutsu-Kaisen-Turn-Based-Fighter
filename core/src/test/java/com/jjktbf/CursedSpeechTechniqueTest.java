@@ -172,7 +172,7 @@ class CursedSpeechTechniqueTest {
             event.getType() == CombatEvent.Type.STATUS_APPLIED
                 && event.getSource() == inumaki
                 && event.getTarget() == target
-                && event.getMessage().contains("INUMAKI applies Sleep to TARGET")));
+                && event.getMessage().contains("TARGET fell asleep")));
         assertNotNull(MoveAvailability.restrictionReason(state, target, physicalAttack("TRY", 1)));
 
         state.transitionTo(BattleState.Phase.ROUND_END);

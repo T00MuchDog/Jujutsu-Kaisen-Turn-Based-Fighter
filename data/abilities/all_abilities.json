@@ -105,8 +105,14 @@
     "condition" : {
       "type" : "ANY",
       "children" : [ {
-        "type" : "ATTACK_MISSED",
-        "actor" : "ENEMY"
+        "type" : "ALL",
+        "children" : [ {
+          "type" : "ATTACK_MISSED",
+          "actor" : "ENEMY"
+        }, {
+          "type" : "EVENT_TARGET",
+          "actor" : "SELF"
+        } ]
       }, {
         "type" : "BLACK_FLASH_HIT",
         "actor" : "SELF"

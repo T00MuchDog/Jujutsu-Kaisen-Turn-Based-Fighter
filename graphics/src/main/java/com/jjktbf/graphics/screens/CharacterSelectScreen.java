@@ -517,11 +517,11 @@ public class CharacterSelectScreen implements Screen {
             StatusBar hp = new StatusBar("HP", new Color(0.260f, 0.820f, 0.360f, 1f));
             hp.setBounds(barX, hpY, barWidth, barHeight);
             hp.setValues(combat.getMaxHp(), combat.getMaxHp());
-            hp.draw(batch, assets.fontMedium, assets.battleUi);
+            hp.draw(batch, assets.fontMedium, assets.battleUi, true);
             StatusBar ce = new StatusBar("CE", new Color(0.220f, 0.500f, 0.940f, 1f));
             ce.setBounds(barX, ceY, barWidth, barHeight);
             ce.setValues(combat.getMaxCursedEnergy(), combat.getMaxCursedEnergy());
-            ce.draw(batch, assets.fontMedium, assets.battleUi);
+            ce.draw(batch, assets.fontMedium, assets.battleUi, true);
         }
 
         // Right column: compact stats leave the remaining vertical space for the description.

@@ -27,6 +27,7 @@ public class CombatantPanel {
     private final Rectangle hudBounds;
     private final float hpBarTop;
     private final float hudScale;
+    private final boolean showResourceValues;
     private float damageFlashRemaining;
 
     /**
@@ -35,7 +36,7 @@ public class CombatantPanel {
      */
     public CombatantPanel(Texture sprite, Texture basePlate, BattleUiAssets ui,
                            Rectangle plateBounds, Rectangle spriteBounds, Rectangle hudBounds,
-                           float hudScale) {
+                           float hudScale, boolean showResourceValues) {
         this.sprite = sprite;
         this.basePlate = basePlate;
         this.ui = ui;
@@ -43,6 +44,7 @@ public class CombatantPanel {
         this.spriteBounds = new Rectangle(spriteBounds);
         this.hudBounds = new Rectangle(hudBounds);
         this.hudScale = hudScale;
+        this.showResourceValues = showResourceValues;
 
         hpBar = new StatusBar("HP", new Color(0.260f, 0.820f, 0.360f, 1f));
         ceBar = new StatusBar("CE", new Color(0.220f, 0.500f, 0.940f, 1f));
@@ -167,8 +169,8 @@ public class CombatantPanel {
         float originalBarScaleX = barFont.getData().scaleX;
         float originalBarScaleY = barFont.getData().scaleY;
         barFont.getData().setScale(originalBarScaleX * hudScale, originalBarScaleY * hudScale);
-        hpBar.draw(batch, barFont, ui);
-        ceBar.draw(batch, barFont, ui);
+        hpBar.draw(batch, barFont, ui, showResourceValues);
+        ceBar.draw(batch, barFont, ui, showResourceValues);
         barFont.getData().setScale(originalBarScaleX, originalBarScaleY);
     }
 }

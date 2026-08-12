@@ -230,9 +230,11 @@ public class AbilityData {
             belowCap.amount = 5;
             AbilityConditionData missed = AbilityConditionType.ATTACK_MISSED.createDefault();
             missed.actor = AbilityConditionActor.ENEMY.name();
+            AbilityConditionData eventTarget = AbilityConditionType.EVENT_TARGET.createDefault();
             AbilityConditionData blackFlash = AbilityConditionType.BLACK_FLASH_HIT.createDefault();
             condition = AbilityConditionData.all(List.of(
-                belowCap, AbilityConditionData.any(List.of(missed, blackFlash))));
+                belowCap, AbilityConditionData.any(List.of(
+                    AbilityConditionData.all(List.of(missed, eventTarget)), blackFlash))));
         } else if ("RATIO".equals(key) && "REINFORCEMENT_RATIO".equals(feature)) {
             AbilityConditionData connected = AbilityConditionType.ATTACK_CONNECTED.createDefault();
             AbilityConditionData physical =

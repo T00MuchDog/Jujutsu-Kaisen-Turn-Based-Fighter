@@ -21,13 +21,11 @@ import java.util.Random;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Regression test for the stat-boost expiry battle-log line.
+ * Regression test for stat-boost expiry events.
  *
  * <p>When a utility stat effect deactivates at
- * the end of its duration, the combat engine must emit a
- * {@link CombatEvent.Type#STATUS_EXPIRED} event whose message reads like a fading
- * surge — distinct from a defensive block "dropping its guard" (covered by
- * {@link DefenseExpiryLogTest}).
+ * the end of its duration, the combat engine must retain its structural
+ * {@link CombatEvent.Type#STATUS_EXPIRED} event without emitting implied log text.
  *
  * <p>The expiry is round-based (it lives on {@link StatusEffect} and fires during
  * {@link CombatResolver#processRoundEnd}), so this test drives a utility move
@@ -40,7 +38,7 @@ public class StatusExpiryLogTest {
      * at the first round-end.
      */
     @Test
-    void statBoostExpiryIsLoggedAtRoundEnd() {
+    void statBoostExpiryEventHasNoLogText() {
         Move focusMove = new Move.Builder("FOCUS_MOVE")
             .name("Focus Up")
             .category(MoveCategory.UTILITY)
@@ -70,23 +68,12 @@ public class StatusExpiryLogTest {
         events.addAll(resolver.resolveRound(state));
         events.addAll(resolver.processRoundEnd(state));
 
-        // The focus was applied on unleash.
-        assertTrue(user.hasEffect(StatusEffectType.ACCURACY_INCREASE)
-                || events.stream().anyMatch(e -> e.getMessage() != null
-                    && e.getMessage().contains("Increase Accuracy")),
-            "The Accuracy increase should be applied on unleash.");
-
         // It has expired by round-end.
         assertFalse(user.hasEffect(StatusEffectType.ACCURACY_INCREASE),
             "The effect should be gone after round-end.");
 
-        // And the round-end emits a STATUS_EXPIRED event with the focus wording.
-        boolean focusExpired = events.stream()
-            .anyMatch(e -> e.getType() == CombatEvent.Type.STATUS_EXPIRED
-                        && e.getMessage() != null
-                        && e.getMessage().contains("increase accuracy effect expires"));
-        assertTrue(focusExpired,
-            "A fading stat boost should log a STATUS_EXPIRED event with its per-effect wording.");
+        assertTrue(events.stream().anyMatch(e ->
+            e.getType() == CombatEvent.Type.STATUS_EXPIRED && e.getMessage().isBlank()));
     }
 
     /** Deterministic RNG: always returns the same double, for reproducible hit/miss rolls. */

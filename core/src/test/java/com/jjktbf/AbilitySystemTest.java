@@ -426,8 +426,7 @@ class AbilitySystemTest {
 
         assertEquals(70, defender.getEffectiveStats().getCursedEnergyOutput());
         assertTrue(events.stream().anyMatch(event ->
-            event.getType() == CombatEvent.Type.STATUS_APPLIED
-                && event.getMessage().contains("Decrease Cursed Energy Output")));
+            event.getType() == CombatEvent.Type.STATUS_APPLIED && event.getTarget() == defender));
     }
 
     @Test

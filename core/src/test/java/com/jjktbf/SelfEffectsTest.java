@@ -86,7 +86,6 @@ public class SelfEffectsTest {
         CombatEvent selfBuffEvent = events.stream()
             .filter(e -> e.getType() == CombatEvent.Type.STATUS_APPLIED)
             .filter(e -> "Attacker".equals(e.getSource().getCharacter().getName()))
-            .filter(e -> e.getMessage() != null && e.getMessage().contains("Increase Strength"))
             .findFirst().orElse(null);
         assertNotNull(selfBuffEvent,
             "A STATUS_APPLIED event for the attacker's Strength increase should be emitted.");

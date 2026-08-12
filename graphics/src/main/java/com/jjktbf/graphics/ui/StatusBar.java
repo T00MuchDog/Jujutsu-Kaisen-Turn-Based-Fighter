@@ -66,7 +66,7 @@ public class StatusBar {
         }
     }
 
-    public void draw(Batch batch, BitmapFont font, BattleUiAssets ui) {
+    public void draw(Batch batch, BitmapFont font, BattleUiAssets ui, boolean showValue) {
         float labelWidth = Math.max(38f, height * 1.55f);
         float trackX = x + labelWidth;
         float trackWidth = Math.max(1f, width - labelWidth);
@@ -94,25 +94,28 @@ public class StatusBar {
         }
         batch.setColor(Color.WHITE);
 
-        String value = current + "/" + max;
         float originalScaleX = font.getData().scaleX;
         float originalScaleY = font.getData().scaleY;
         labelLayout.setText(font, label);
-        valueLayout.setText(font, value);
-
-        float availableValueWidth = Math.max(1f, trackWidth - 12f);
-        if (valueLayout.width > availableValueWidth) {
-            float fittedScale = availableValueWidth / valueLayout.width;
-            font.getData().setScale(originalScaleX * fittedScale, originalScaleY * fittedScale);
-            labelLayout.setText(font, label);
+        if (showValue) {
+            String value = current + "/" + max;
             valueLayout.setText(font, value);
+            float availableValueWidth = Math.max(1f, trackWidth - 12f);
+            if (valueLayout.width > availableValueWidth) {
+                float fittedScale = availableValueWidth / valueLayout.width;
+                font.getData().setScale(originalScaleX * fittedScale, originalScaleY * fittedScale);
+                labelLayout.setText(font, label);
+                valueLayout.setText(font, value);
+            }
         }
 
         font.setColor(Color.WHITE);
         float textY = y + (height + font.getCapHeight()) / 2f;
         font.draw(batch, label, x + (labelWidth - labelLayout.width) / 2f, textY);
-        font.setColor(BattleUiAssets.INK);
-        font.draw(batch, value, x + width - 7f - valueLayout.width, textY);
+        if (showValue) {
+            font.setColor(BattleUiAssets.INK);
+            font.draw(batch, current + "/" + max, x + width - 7f - valueLayout.width, textY);
+        }
         font.getData().setScale(originalScaleX, originalScaleY);
         batch.setColor(Color.WHITE);
     }

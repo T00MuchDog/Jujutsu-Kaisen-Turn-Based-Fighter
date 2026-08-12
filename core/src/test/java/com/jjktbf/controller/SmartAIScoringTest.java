@@ -1,7 +1,11 @@
 package com.jjktbf.controller;
 
 import com.jjktbf.model.combat.BattleCombatant;
+import com.jjktbf.model.combat.BattlePlan;
+import com.jjktbf.model.combat.BattleState;
+import com.jjktbf.model.combat.BattleTeamId;
 import com.jjktbf.model.combat.SeededRandomSource;
+import com.jjktbf.model.combat.TeamBattlePlan;
 import com.jjktbf.model.move.Move;
 import org.junit.jupiter.api.Test;
 
@@ -155,5 +159,100 @@ class SmartAIScoringTest {
         }
         // B is weighted 3x; expect roughly 300/400. Allow a wide band to avoid flakiness.
         assertTrue(bCount > 240 && bCount < 360, "B should dominate but not always: " + bCount);
+    }
+
+    @Test
+    void weightedRandomTargetFavoursTargetsThatTakeMoreDamageWithoutGuaranteeingThem() {
+        Move attack = AIFixtures.meleeAttack("attack", 100, 10);
+        BattleCombatant attacker = AIFixtures.sorcerer("attacker", attack);
+        BattleCombatant fragile = AIFixtures.sorcerer("fragile", true,
+            new com.jjktbf.model.character.CharacterStats.Builder()
+                .vitality(100).speed(80).combatAbility(80).strength(80).durability(40).build(),
+            null);
+        BattleCombatant durable = AIFixtures.sorcerer("durable", true,
+            new com.jjktbf.model.character.CharacterStats.Builder()
+                .vitality(100).speed(80).combatAbility(80).strength(80).durability(100).build(),
+            null);
+        assertTrue(SmartAIScoring.estimatedDamage(attack, attacker, fragile)
+            > SmartAIScoring.estimatedDamage(attack, attacker, durable));
+
+        int fragileCount = 0;
+        int durableCount = 0;
+        SeededRandomSource rng = new SeededRandomSource(19L);
+        for (int i = 0; i < 500; i++) {
+            BattleCombatant chosen = SmartAIScoring.weightedRandomTarget(
+                attack, attacker, List.of(fragile, durable), rng);
+            if (chosen == fragile) fragileCount++;
+            if (chosen == durable) durableCount++;
+        }
+
+        assertTrue(fragileCount > durableCount,
+            "the higher-damage target should be selected more often");
+        assertTrue(durableCount > 0,
+            "damage weighting must remain random rather than forcing the best target");
+    }
+
+    @Test
+    void guaranteedKillOpeningIsRandomOnlyAmongLethalMoves() {
+        Move nonLethal = AIFixtures.meleeAttack("non-lethal", 1, 10);
+        Move lethalA = AIFixtures.meleeAttack("lethal-a", 300, 10);
+        Move lethalB = AIFixtures.rangedAttack("lethal-b", 300, 10);
+        BattleCombatant ai = AIFixtures.sorcerer("ai", nonLethal, lethalA, lethalB);
+        BattleCombatant enemy = AIFixtures.sorcerer("enemy");
+        enemy.receiveDamage(enemy.getCurrentHp() - 20);
+        BattleState state = new BattleState(
+            BattleState.teamOfFighters(BattleTeamId.PLAYER, List.of(enemy)),
+            BattleState.teamOfFighters(BattleTeamId.ENEMY, List.of(ai)));
+        SeededRandomSource rng = new SeededRandomSource(23L);
+        int lethalACount = 0;
+        int lethalBCount = 0;
+
+        for (int i = 0; i < 200; i++) {
+            BattlePlan original = new BattlePlan(ai.getMaxApBar(), ai.getCurrentCe(), 60);
+            original.place(nonLethal, 1, ai.computeMoveCeCost(nonLethal));
+            BattlePlan promoted = SmartAIScoring.promoteGuaranteedKillOpening(
+                state, ai, original, rng);
+            com.jjktbf.model.combat.ActionSegment opening = promoted.allSegments().stream()
+                .min(java.util.Comparator.comparingInt(
+                    com.jjktbf.model.combat.ActionSegment::getFireTick))
+                .orElseThrow();
+
+            assertFalse(opening.getMove() == nonLethal,
+                "a non-lethal move must never remain the opening when a lethal move fits");
+            assertEquals(List.of(enemy.getInstanceId()), opening.getTargets());
+            if (opening.getMove() == lethalA) lethalACount++;
+            if (opening.getMove() == lethalB) lethalBCount++;
+        }
+
+        assertTrue(lethalACount > 60 && lethalACount < 140,
+            "lethal A should be chosen uniformly at random: " + lethalACount);
+        assertTrue(lethalBCount > 60 && lethalBCount < 140,
+            "lethal B should be chosen uniformly at random: " + lethalBCount);
+    }
+
+    @Test
+    void dispatcherPromotesAndTargetsGuaranteedKillAsTheFirstMove() {
+        Move nonLethal = AIFixtures.meleeAttack("non-lethal", 1, 10);
+        Move lethal = AIFixtures.meleeAttack("lethal", 300, 10);
+        BattleCombatant ai = AIFixtures.sorcerer("000003", nonLethal, lethal);
+        BattleCombatant enemy = AIFixtures.sorcerer("enemy");
+        enemy.receiveDamage(enemy.getCurrentHp() - 20);
+        BattleState state = new BattleState(
+            BattleState.teamOfFighters(BattleTeamId.PLAYER, List.of(enemy)),
+            BattleState.teamOfFighters(BattleTeamId.ENEMY, List.of(ai)));
+
+        TeamBattlePlan teamPlan = new ArchetypeAIStrategy().selectTeamPlan(
+            state, state.enemyTeam().active(), new SeededRandomSource(31L));
+        BattlePlan plan = teamPlan.get(ai.getInstanceId());
+        com.jjktbf.model.combat.ActionSegment opening = plan.allSegments().stream()
+            .min(java.util.Comparator.comparingInt(
+                com.jjktbf.model.combat.ActionSegment::getFireTick))
+            .orElseThrow();
+
+        assertTrue(opening.getMove() == lethal);
+        assertEquals(List.of(enemy.getInstanceId()), opening.getTargets());
+        assertTrue(plan.allSegments().stream()
+            .filter(segment -> segment != opening)
+            .allMatch(segment -> segment.getFireTick() > opening.getFireTick()));
     }
 }

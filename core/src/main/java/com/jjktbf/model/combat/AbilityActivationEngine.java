@@ -554,7 +554,8 @@ public final class AbilityActivationEngine {
                 condition, owner, enemy, state, targetLocal,
                 combatant -> combatant.getConsecutiveBfsHits() >= conditionAmount(condition, owner));
             case MOVE_USED, MOVE_TAG_USED, MOVE_WEAPON_REQUIRED, MOVE_TYPE_TAGS_EXACTLY,
-                  ATTACK_HIT, ATTACK_MISSED, MOVE_BLOCKED, TIMELINE_POINT_REACHED -> history.stream().anyMatch(candidate ->
+                  ATTACK_HIT, ATTACK_MISSED, MOVE_BLOCKED, EVENT_TARGET,
+                  TIMELINE_POINT_REACHED -> history.stream().anyMatch(candidate ->
                 eventLeafMatches(type, condition, owner, enemy, state, candidate, targetLocal));
             case ATTACK_CONNECTED, CONNECTED_HIT_HAS_TAG, FATAL_DAMAGE ->
                 eventLeafMatches(type, condition, owner, enemy, state, trigger, targetLocal);
@@ -634,7 +635,7 @@ public final class AbilityActivationEngine {
                     events.add(CombatEvent.of(CombatEvent.Type.HP_RESTORED)
                         .source(owner).target(target).move(move)
                         .componentIndex(effectComponentIndex).intValue(healed).tick(tick)
-                        .message(target.getCharacter().getName() + " restores " + healed + " HP!").build());
+                        .build());
                     followUps.add(AbilityTrigger.amount(AbilityTrigger.Type.HEALED, target, null, healed, tick));
                 }
             }
@@ -648,7 +649,7 @@ public final class AbilityActivationEngine {
                     events.add(CombatEvent.of(CombatEvent.Type.CE_RESTORED)
                         .source(owner).target(target).move(move)
                         .componentIndex(effectComponentIndex).intValue(restored).tick(tick)
-                        .message(target.getCharacter().getName() + " restores " + restored + " CE!").build());
+                        .build());
                     followUps.add(AbilityTrigger.amount(AbilityTrigger.Type.CE_RESTORED, target, null, restored, tick));
                 }
             }
@@ -662,7 +663,7 @@ public final class AbilityActivationEngine {
                     events.add(CombatEvent.of(CombatEvent.Type.CE_DRAINED)
                         .source(owner).target(target).move(move)
                         .componentIndex(effectComponentIndex).intValue(drained).tick(tick)
-                        .message(target.getCharacter().getName() + " loses " + drained + " CE!").build());
+                        .build());
                     followUps.add(AbilityTrigger.amount(AbilityTrigger.Type.CE_LOST, target, null, drained, tick));
                 }
             }
@@ -686,9 +687,6 @@ public final class AbilityActivationEngine {
                             ? CombatEvent.Type.DAMAGE_IGNORED : CombatEvent.Type.DAMAGE_DEALT)
                         .source(owner).target(target).move(move).intValue(damage).tick(tick)
                         .componentIndex(effectComponentIndex)
-                        .message(damage == 0
-                            ? target.getCharacter().getName() + " ignores the ability damage!"
-                            : target.getCharacter().getName() + " takes " + damage + " ability damage!")
                         .build());
                     if (damage > 0) {
                         followUps.add(AbilityTrigger.amount(
@@ -752,8 +750,7 @@ public final class AbilityActivationEngine {
                     events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
                         .source(owner).target(target).move(move)
                         .componentIndex(effectComponentIndex).tick(tick)
-                        .message("Matching status effects were removed from "
-                            + target.getCharacter().getName() + ".").build());
+                        .build());
                     appendResourceMaximumEvents(
                         owner, target, previousMaxHp, previousMaxCe, tick, events);
                     for (StatusEffectType status : removed) {
@@ -834,8 +831,6 @@ public final class AbilityActivationEngine {
                     && moveContext) {
                     events.add(CombatEvent.of(CombatEvent.Type.MOVE_SUMMON)
                         .source(owner).move(move).componentIndex(effectComponentIndex).tick(tick)
-                        .message(owner.getCharacter().getName() + "'s " + move.getName()
-                            + " summons a shikigami!")
                         .build());
                 }
             }
@@ -884,6 +879,7 @@ public final class AbilityActivationEngine {
         boolean eventCondition = switch (type) {
             case BLACK_FLASH_HIT, MOVE_USED, MOVE_TAG_USED, MOVE_WEAPON_REQUIRED,
                   MOVE_TYPE_TAGS_EXACTLY, ATTACK_HIT, ATTACK_MISSED, MOVE_BLOCKED,
+                  EVENT_TARGET,
                   TIMELINE_POINT_REACHED, TIMELINE_POINT_ON_ROUND,
                   EVERY_N_ROUNDS, PHASE_REACHED, HEALED, DAMAGE_DEALT_AT_LEAST,
                   DAMAGE_TAKEN_AT_LEAST, CE_SPENT_AT_LEAST, CE_LOST_AT_LEAST,
@@ -939,6 +935,8 @@ public final class AbilityActivationEngine {
                 && eventActorMatches(condition, owner, state, trigger.actor());
             case MOVE_BLOCKED -> trigger.type() == AbilityTrigger.Type.MOVE_BLOCKED
                 && eventActorMatches(condition, owner, state, trigger.actor());
+            case EVENT_TARGET -> trigger.target() != null
+                && eventActorMatches(condition, owner, state, trigger.target());
             case ATTACK_CONNECTED -> (trigger.type() == AbilityTrigger.Type.ATTACK_CONNECTED
                     || moveContext && trigger.type() == AbilityTrigger.Type.ATTACK_HIT)
                 && eventActorMatches(condition, owner, state, trigger.actor());
@@ -1125,14 +1123,12 @@ public final class AbilityActivationEngine {
         if (target.getMaxHp() != previousMaxHp) {
             events.add(CombatEvent.of(CombatEvent.Type.MAX_HP_CHANGED)
                 .source(source).target(target).intValue(target.getMaxHp()).tick(tick)
-                .message(target.getCharacter().getName() + "'s max HP is now "
-                    + target.getMaxHp() + ".").build());
+                .build());
         }
         if (target.getMaxCursedEnergy() != previousMaxCe) {
             events.add(CombatEvent.of(CombatEvent.Type.MAX_CE_CHANGED)
                 .source(source).target(target).intValue(target.getMaxCursedEnergy()).tick(tick)
-                .message(target.getCharacter().getName() + "'s max CE is now "
-                    + target.getMaxCursedEnergy() + ".").build());
+                .build());
         }
     }
 

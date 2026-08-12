@@ -14,6 +14,7 @@ import com.jjktbf.model.character.coded.MiraclesAbility;
 import com.jjktbf.model.combat.AbilityTrigger;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
+import com.jjktbf.model.combat.BattleTeamId;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.CombatResolver;
 import com.jjktbf.model.combat.AbilityActivationEngine;
@@ -159,6 +160,31 @@ class MiraclesTechniqueTest {
     }
 
     @Test
+    void teammateNaturalMissDoesNotRestoreHarutasMiracle() {
+        BattleCombatant haruta = miracleCombatantWithFortuneOnly(null);
+        BattleCombatant teammate = combatant("TEAMMATE", List.of(), List.of());
+        BattleCombatant enemy = combatant("ENEMY", List.of(), List.of());
+        BattleState state = new BattleState(
+            BattleState.teamOfFighters(BattleTeamId.PLAYER, List.of(haruta, teammate)),
+            BattleState.teamOfFighters(BattleTeamId.ENEMY, List.of(enemy)));
+        AbilityActivationEngine engine = new AbilityActivationEngine(
+            new SeededRandomSource(new FixedRandom()));
+        Move attack = attack("ATTACK");
+
+        engine.process(state, AbilityTrigger.move(
+            AbilityTrigger.Type.ATTACK_MISSED, enemy, teammate, attack, 1));
+
+        assertEquals(0, miracleCount(haruta),
+            "An enemy missing Haruta's teammate must not restore Haruta's Miracle.");
+
+        engine.process(state, AbilityTrigger.move(
+            AbilityTrigger.Type.ATTACK_MISSED, enemy, haruta, attack, 2));
+
+        assertEquals(1, miracleCount(haruta),
+            "An enemy naturally missing Haruta must still restore a Miracle.");
+    }
+
+    @Test
     void eachCombatantGetsAnIndependentMiraclesRuntime() {
         Character sharedCharacter = new SorcererCharacter(
             "MIRACLE_USER", "Miracle User", new CharacterStats.Builder().build(),
@@ -259,9 +285,11 @@ class MiraclesTechniqueTest {
         belowCap.amount = MiraclesAbility.MAX_MIRACLES - 1;
         AbilityConditionData missed = AbilityConditionType.ATTACK_MISSED.createDefault();
         missed.actor = "ENEMY";
+        AbilityConditionData eventTarget = AbilityConditionType.EVENT_TARGET.createDefault();
         AbilityConditionData blackFlash = AbilityConditionType.BLACK_FLASH_HIT.createDefault();
         AbilityConditionRuleData rule = linkedRule(AbilityConditionData.all(List.of(
-            belowCap, AbilityConditionData.any(List.of(missed, blackFlash)))));
+            belowCap, AbilityConditionData.any(List.of(
+                AbilityConditionData.all(List.of(missed, eventTarget)), blackFlash)))));
         rule.matchSameTrigger = true;
         return rule;
     }

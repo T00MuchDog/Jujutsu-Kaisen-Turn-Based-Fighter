@@ -91,6 +91,17 @@ public interface AIStrategy {
                 }
                 plan = normalized;
             }
+            plan = SmartAIScoring.promoteGuaranteedKillOpening(state, ai, plan, rng);
+            alreadyPlannedMoves.clear();
+            for (com.jjktbf.model.combat.ActionSegment segment
+                : new java.util.ArrayList<>(plan.allSegments())) {
+                if (com.jjktbf.model.combat.MoveAvailability.restrictionReason(
+                    state, ai, segment.getMove(), alreadyPlannedMoves) != null) {
+                    plan.remove(segment);
+                } else {
+                    alreadyPlannedMoves.add(segment.getMove());
+                }
+            }
             assignExplicitTargets(state, plan, ai, rng);
             teamPlan.put(ai.getInstanceId(), plan);
         }
@@ -135,8 +146,8 @@ public interface AIStrategy {
                 if (!segment.getTargets().isEmpty()) continue;
             }
             if (targeting == MoveTargeting.SINGLE_ENEMY) {
-                // Deterministic pick under the shared seeded RNG.
-                BattleCombatant chosen = eligibleEnemies.get(rng.nextInt(eligibleEnemies.size()));
+                BattleCombatant chosen = SmartAIScoring.weightedRandomTarget(
+                    move, ai, eligibleEnemies, rng);
                 segment.setTarget(chosen.getInstanceId());
             } else if (targeting == MoveTargeting.MULTIPLE_ENEMIES) {
                 java.util.List<BattleCombatant> shuffled =

@@ -25,9 +25,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Design rule (see game_design_decisions): a stun stops a move from occurring;
  * it must NOT deactivate a move that already fired. A defensive block that fires
  * before a STUN-tagged hit lands on the same tick must keep protecting for the
- * rest of its AP window — its segment is not stunned, its activation is logged,
- * its eventual "drops their guard" expiry still fires when the window ends, and
- * no spurious mid-window expiry or "was stunned" line appears.
+ * rest of its AP window. Its segment is not stunned and no spurious "was
+ * stunned" line appears.
  */
 public class StunDoesNotDeactivateFiredBlockTest {
 
@@ -36,8 +35,7 @@ public class StunDoesNotDeactivateFiredBlockTest {
      * at tick 1, then the attacker's instant STUN move hits on the same tick.
      * Without the fix, {@code resolveStunTag} would stun the block segment (it
      * is still inside its AP window on tick 1), killing its protection for the
-     * rest of the round and emitting a spurious guard-expiry line. With the fix,
-     * the fired block is immune.
+     * rest of the round. With the fix, the fired block is immune.
      */
     @Test
     void stunDoesNotDeactivateBlockThatAlreadyFired() {
@@ -101,20 +99,12 @@ public class StunDoesNotDeactivateFiredBlockTest {
         assertFalse(defenderStunnedEvent,
             "No MOVE_STUNNED event should be emitted when the only target already fired.");
 
-        // The block's activation line must still have fired.
-        boolean blockActivated = events.stream()
-            .anyMatch(e -> e.getMessage() != null && e.getMessage().contains("raises their block"));
-        assertTrue(blockActivated, "The block activation should still be logged.");
-
-        // Its natural expiry must still be logged exactly once (no mid-window
-        // spurious expiry from the stun, no suppression either).
-        long expiryCount = events.stream()
-            .filter(e -> e.getType() == CombatEvent.Type.STATUS_EXPIRED
-                      && e.getMessage() != null
-                      && e.getMessage().contains("drops their guard"))
-            .count();
-        assertEquals(1, expiryCount,
-            "The block should log exactly one natural guard-expiry line at its window end.");
+        assertTrue(events.stream().anyMatch(e ->
+            e.getType() == CombatEvent.Type.MOVE_FIRED && e.getMove() == block));
+        assertFalse(events.stream().anyMatch(e ->
+            e.getMove() == block
+                && (e.getType() == CombatEvent.Type.STATUS_APPLIED
+                    || e.getType() == CombatEvent.Type.STATUS_EXPIRED)));
     }
 
     /** Deterministic RNG: always returns the same double, for reproducible hit rolls. */

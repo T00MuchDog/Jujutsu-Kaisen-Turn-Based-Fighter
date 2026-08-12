@@ -1,14 +1,25 @@
 package com.jjktbf.controller;
 
+import com.jjktbf.model.character.CombatStats;
+import com.jjktbf.model.character.BattleStatKey;
+import com.jjktbf.model.character.coded.CursedSpeechAbility;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
+import com.jjktbf.model.combat.BattleState;
+import com.jjktbf.model.combat.CombatantId;
+import com.jjktbf.model.combat.MoveAvailability;
+import com.jjktbf.model.combat.MoveTargeting;
+import com.jjktbf.model.combat.PowerCalculator;
 import com.jjktbf.model.combat.RandomSource;
 import com.jjktbf.model.combat.Timeline;
-import com.jjktbf.model.move.DefenseType;
+import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveEffectData;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -62,6 +73,10 @@ final class SmartAIScoring {
     static final double MIN_WEIGHT = 0.05;
     /** Random-placement attempts before falling back to first-fit. */
     static final int RANDOM_PLACE_TRIES = 12;
+    /** Mirrors {@code DamageCalculator.DAMAGE_SCALE} for planning-time damage estimates. */
+    static final double DAMAGE_SCALE = 0.42;
+    /** Mirrors {@code DamageCalculator.ROLL_MIN} — used for a conservative lethal check. */
+    static final double DAMAGE_ROLL_MIN = 0.85;
 
     // -------------------------------------------------------------------------
     // Move classification
@@ -259,6 +274,171 @@ final class SmartAIScoring {
         }
         return pool.get(pool.size() - 1);
     }
+
+    /**
+     * Pick a single target with weight proportional to the move's estimated
+     * minimum-roll damage. Every eligible target retains a non-zero chance.
+     */
+    static BattleCombatant weightedRandomTarget(
+        Move move, BattleCombatant attacker, List<BattleCombatant> targets, RandomSource rng
+    ) {
+        if (targets.isEmpty()) return null;
+        double total = 0.0;
+        List<Double> weights = new ArrayList<>(targets.size());
+        for (BattleCombatant target : targets) {
+            double weight = Math.max(MIN_WEIGHT, estimatedDamage(move, attacker, target));
+            weights.add(weight);
+            total += weight;
+        }
+        double roll = rng.nextDouble() * total;
+        for (int i = 0; i < targets.size(); i++) {
+            roll -= weights.get(i);
+            if (roll <= 0.0) return targets.get(i);
+        }
+        return targets.get(targets.size() - 1);
+    }
+
+    /**
+     * Estimate connected damage using the same power, Defense, ability
+     * multipliers, and minimum random roll as the runtime damage pipeline.
+     */
+    static int estimatedDamage(Move move, BattleCombatant attacker, BattleCombatant target) {
+        if (move == null || attacker == null || target == null) return 0;
+        long total = 0;
+        for (HitComponent component : move.getHitComponents()) {
+            double power = PowerCalculator.compute(component.getCategory(), attacker.getEffectiveStats());
+            if (component.getCategory() == MoveCategory.PHYSICAL) {
+                power *= CombatStats.PHYSICAL_POWER_MULTIPLIER;
+            }
+            power = Math.max(0.0, attacker.modifyBattleStat(BattleStatKey.POWER, power));
+
+            double attackValue = component.getBasePower()
+                * attacker.getAbilityFlags().basePowerMultiplierFor(move)
+                * power;
+            double defense = Math.max(1.0, target.computeCurrentDefense(1));
+            int damage = (int) Math.round(
+                (attackValue / defense) * DAMAGE_SCALE * DAMAGE_ROLL_MIN
+                    * attacker.getAbilityFlags().damageMultiplierFor(move)
+                    * target.getAbilityFlags().incomingDamageMultiplierFor(move));
+            damage = attackValue <= 0.0 ? 0 : Math.max(1, damage);
+            damage = Math.max(0, (int) Math.round(
+                attacker.modifyBattleStat(BattleStatKey.DAMAGE_DEALT, damage)));
+            damage = Math.max(0, (int) Math.round(
+                target.modifyBattleStat(BattleStatKey.DAMAGE_TAKEN, damage)));
+            total = Math.min(Integer.MAX_VALUE, total + damage);
+        }
+        return (int) total;
+    }
+
+    /**
+     * If an available move's minimum-roll connected damage can defeat an active
+     * enemy, make a uniformly random lethal move the first action in the plan.
+     * Existing actions are retained where budgets and later timeline space allow.
+     */
+    static BattlePlan promoteGuaranteedKillOpening(
+        BattleState state, BattleCombatant ai, BattlePlan plan, RandomSource rng
+    ) {
+        if (state == null || ai == null || plan == null) return plan;
+        List<BattleCombatant> enemies = state.activeEnemiesOf(ai);
+        if (enemies.isEmpty()) return plan;
+
+        List<LethalOpening> lethalOpenings = new ArrayList<>();
+        for (Move move : ai.getCharacter().getKnownMoves()) {
+            MoveTargeting targeting = MoveTargeting.forMove(move);
+            if (targeting == MoveTargeting.NONE
+                || !MoveAvailability.isAvailable(state, ai, move)
+                || CursedSpeechAbility.commandMode(move) != null) {
+                continue;
+            }
+            int ceCost = ai.computeMoveCeCost(move);
+            if (!fitsAsOpening(plan, move, ceCost)) continue;
+
+            List<BattleCombatant> lethalTargets = enemies.stream()
+                .filter(enemy -> CursedSpeechAbility.canTarget(move, enemy))
+                .filter(enemy -> estimatedDamage(move, ai, enemy) >= enemy.getCurrentHp())
+                .toList();
+            if (!lethalTargets.isEmpty()) {
+                lethalOpenings.add(new LethalOpening(move, ceCost, lethalTargets));
+            }
+        }
+        if (lethalOpenings.isEmpty()) return plan;
+
+        LethalOpening opening = lethalOpenings.get(rng.nextInt(lethalOpenings.size()));
+        BattleCombatant target = weightedRandomTarget(
+            opening.move(), ai, opening.targets(), rng);
+        return rebuildWithOpening(plan, opening, target, enemies, rng);
+    }
+
+    private static boolean fitsAsOpening(BattlePlan plan, Move move, int ceCost) {
+        if (move.getApCost() > plan.apBudget() || ceCost > plan.ceBudget()) return false;
+        Timeline board = new Timeline(plan.gridLength());
+        return board.placeAt(move, 1, ceCost) != null;
+    }
+
+    private static BattlePlan rebuildWithOpening(
+        BattlePlan original, LethalOpening opening, BattleCombatant target,
+        List<BattleCombatant> enemies, RandomSource rng
+    ) {
+        List<ActionSegment> existing = new ArrayList<>(original.allSegments());
+        existing.sort(Comparator.comparingInt(ActionSegment::getFireTick)
+            .thenComparingInt(ActionSegment::getStartTick));
+
+        BattlePlan rebuilt = new BattlePlan(
+            original.apBudget(), original.ceBudget(), original.gridLength());
+        ActionSegment first = rebuilt.placeWithTargets(
+            opening.move(), 1, opening.ceCost(), openingTargets(opening.move(), target, enemies, rng));
+        if (first == null) return original;
+
+        boolean promotedExistingUse = existing.stream()
+            .anyMatch(segment -> opening.move().getId().equals(segment.getMove().getId()));
+        for (ActionSegment segment : existing) {
+            if (promotedExistingUse
+                && opening.move().getId().equals(segment.getMove().getId())) {
+                promotedExistingUse = false;
+                continue;
+            }
+            Move move = segment.getMove();
+            int earliestStart = Math.max(1,
+                first.getFireTick() - move.getUnleashPoint() + 2);
+            ActionSegment retained = placeAtOrAfter(
+                rebuilt, move, segment.getActualCeCost(),
+                Math.max(segment.getStartTick(), earliestStart));
+            if (retained != null) retained.setTargets(segment.getTargets());
+        }
+        return rebuilt;
+    }
+
+    private static List<CombatantId> openingTargets(
+        Move move, BattleCombatant lethalTarget, List<BattleCombatant> enemies, RandomSource rng
+    ) {
+        MoveTargeting targeting = MoveTargeting.forMove(move);
+        if (targeting == MoveTargeting.SINGLE_ENEMY) {
+            return List.of(lethalTarget.getInstanceId());
+        }
+        if (targeting != MoveTargeting.MULTIPLE_ENEMIES) return List.of();
+
+        List<BattleCombatant> remaining = new ArrayList<>(enemies.stream()
+            .filter(enemy -> enemy != lethalTarget)
+            .filter(enemy -> CursedSpeechAbility.canTarget(move, enemy))
+            .toList());
+        for (int i = remaining.size() - 1; i > 0; i--) {
+            int swap = rng.nextInt(i + 1);
+            BattleCombatant value = remaining.get(i);
+            remaining.set(i, remaining.get(swap));
+            remaining.set(swap, value);
+        }
+        List<CombatantId> targets = new ArrayList<>();
+        targets.add(lethalTarget.getInstanceId());
+        remaining.stream()
+            .limit(Math.max(0, move.getAoeTargetCount() - 1L))
+            .map(BattleCombatant::getInstanceId)
+            .forEach(targets::add);
+        return List.copyOf(targets);
+    }
+
+    private record LethalOpening(
+        Move move, int ceCost, List<BattleCombatant> targets
+    ) { }
 
     // -------------------------------------------------------------------------
     // Placement helpers

@@ -108,7 +108,7 @@ class StaggerStatusTest {
             .count());
         assertTrue(events.stream().anyMatch(event -> event.getType() == CombatEvent.Type.STATUS_EXPIRED
             && event.getTick() == 2
-            && event.getMessage().contains("stagger effect expires")));
+            && event.getMessage().isBlank()));
     }
 
     @Test

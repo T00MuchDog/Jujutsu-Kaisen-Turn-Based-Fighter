@@ -1481,18 +1481,17 @@ public class BattleScreen implements Screen, BattleView {
             if (e.getType() == CombatEvent.Type.RATIO_TRIGGERED) {
                 postLocal(this::playRatioUnleashAnimation);
             }
-            if (e.getType() != CombatEvent.Type.CE_DRAINED && !e.getMessage().isBlank()) {
+            if (hasLocalPlaybackEffect(e)) {
                 final CombatEvent ev = e;
-                final String msg = e.getMessage();
-                // Apply this event's HP delta and enqueue its log line ON THE
-                // BATTLE THREAD, before posting the render work. Doing this
+                // Apply this event's resource delta and enqueue any log line ON
+                // THE BATTLE THREAD, before posting the render work. Doing this
                 // inside the posted lambda left the queue empty at the moment
                 // waitForLogLine() checked it, so the gate returned instantly
                 // and every event's runnable piled up and ran back-to-back —
                 // making HP appear to drop at the unleash line. Enqueuing here
                 // guarantees the queue is non-empty when we wait.
                 applyLocalHpEvent(ev);
-                queueLogLine(msg);
+                if (shouldLog(e)) queueLogLine(e.getMessage());
                 postLocal(() -> {
                     flashLocalDamageSprite(ev);
                     updatePanels();
@@ -1501,7 +1500,7 @@ public class BattleScreen implements Screen, BattleView {
                 // phase flips executionUiActive; gating there would stall the
                 // battle thread behind a blank screen. The lines still type
                 // out, they just don't block (see displayMessage).
-                if (executionUiActive) waitForLogLine();
+                if (executionUiActive && shouldLog(e)) waitForLogLine();
             }
             if (e.getType() == CombatEvent.Type.COMBATANT_DEFEATED) {
                 playLocalFaintAndWait(e.getTarget());
@@ -1509,6 +1508,60 @@ public class BattleScreen implements Screen, BattleView {
                 removeLocalCombatantAndWait(e.getTarget());
             }
         }
+    }
+
+    private static boolean hasLocalPlaybackEffect(CombatEvent event) {
+        return shouldLog(event) || switch (event.getType()) {
+            case DAMAGE_DEALT, HP_RESTORED, MAX_HP_CHANGED,
+                 CE_DRAINED, CE_RESTORED, CE_DEPLETED, MAX_CE_CHANGED -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean shouldLog(CombatEvent event) {
+        if (event == null || event.getMessage() == null || event.getMessage().isBlank()) {
+            return false;
+        }
+        return shouldLog(event.getType(), event.getSource(), event.getTarget(), event.getMove());
+    }
+
+    private static boolean shouldLog(BattleEventState event) {
+        if (event == null || event.message() == null || event.message().isBlank()) return false;
+        return shouldLog(event.type(), event.sourceCharacterId(), event.targetCharacterId(),
+            event.moveId());
+    }
+
+    private static boolean shouldLog(
+        CombatEvent.Type type,
+        Object source,
+        Object target,
+        Object move
+    ) {
+        return switch (type) {
+            case CE_DRAINED, CE_RESTORED,
+                 HP_RESTORED, MAX_HP_CHANGED, MAX_CE_CHANGED,
+                 MOVE_SUMMON, BFS_EXPIRED -> false;
+            case CE_DEPLETED -> move != null;
+            case DAMAGE_DEALT, DAMAGE_IGNORED -> move != null && source != target;
+            default -> true;
+        };
+    }
+
+    private static boolean shouldLog(
+        BattleEventType type,
+        String sourceId,
+        String targetId,
+        String moveId
+    ) {
+        return switch (type) {
+            case CE_DRAINED, CE_RESTORED,
+                 HP_RESTORED, MAX_HP_CHANGED, MAX_CE_CHANGED,
+                 MOVE_SUMMON, BFS_ENTERED, BFS_EXPIRED -> false;
+            case CE_DEPLETED -> moveId != null;
+            case DAMAGE_DEALT, DAMAGE_IGNORED -> moveId != null
+                && (sourceId == null || !sourceId.equals(targetId));
+            default -> true;
+        };
     }
 
     private void ensureLocalLifecycleVisualsAndWait(
@@ -2279,8 +2332,7 @@ public class BattleScreen implements Screen, BattleView {
         if (event.type() == BattleEventType.RATIO_TRIGGERED) {
             playRatioUnleashAnimation();
         }
-        if (event.type() != BattleEventType.CE_DRAINED
-            && event.message() != null && !event.message().isBlank()
+        if (shouldLog(event)
             && (event.eventId() == null || loggedOnlineEventIds.add(event.eventId()))) {
             queueLogLine(event.message());
         }
@@ -2293,8 +2345,7 @@ public class BattleScreen implements Screen, BattleView {
             if (event.eventId() == null || soundedOnlineEventIds.add(event.eventId())) {
                 BattleAudioRouter.cueFor(event, null).ifPresent(game.audio()::play);
             }
-            if (event.type() != BattleEventType.CE_DRAINED
-                && event.message() != null && !event.message().isBlank()
+            if (shouldLog(event)
                 && (event.eventId() == null || loggedOnlineEventIds.add(event.eventId()))) {
                 queueLogLine(event.message());
             }
@@ -3148,7 +3199,7 @@ public class BattleScreen implements Screen, BattleView {
                 primaryHud.height);
             panels.add(new CombatantPanel(spriteTexture,
                 i == 0 ? assets.stoneBasePlate : null,
-                assets.battleUi, plate, sprite, hud, COMBATANT_HUD_SCALE));
+                assets.battleUi, plate, sprite, hud, COMBATANT_HUD_SCALE, !opponent));
         }
         return List.copyOf(panels);
     }

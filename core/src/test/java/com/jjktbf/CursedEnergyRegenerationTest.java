@@ -110,7 +110,8 @@ class CursedEnergyRegenerationTest {
             event.getType() == CombatEvent.Type.CE_RESTORED
                 && event.getSource() == fighter
                 && event.getIntValue() == 1
-                && event.getTick() == 2));
+                && event.getTick() == 2
+                && event.getMessage().isEmpty()));
     }
 
     private static BattleCombatant combatant(

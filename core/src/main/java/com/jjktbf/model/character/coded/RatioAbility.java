@@ -183,8 +183,7 @@ public final class RatioAbility implements CodedAbilityRuntime {
         if (expiredTargets.isEmpty()) return List.of();
         List<CombatEvent> events = new ArrayList<>();
         for (BattleCombatant target : expiredTargets) {
-            events.add(event(tick, target, "A Ratio stack marking "
-                + target.getCharacter().getName() + " expires."));
+            events.add(event(tick, target, ""));
         }
         return events;
     }

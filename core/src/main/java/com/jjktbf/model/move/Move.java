@@ -720,36 +720,6 @@ public class Move {
     }
 
     /**
-     * Returns a human-readable activation message for this defensive move, for
-     * use in combat events. Returns null if this move is not an active defense.
-     */
-    public String defenseActivationMessage(String characterName) {
-        return switch (defenseType) {
-            case BLOCK -> switch (blockStyle) {
-                case PERCENTAGE -> characterName + " raises their block! (" + blockDamageReduction + "% damage reduction)";
-                case FLAT       -> characterName + " raises their block! (-" + blockFlatReduction + " flat damage reduction)";
-            };
-            case PARRY -> characterName + " readies a parry!";
-            case DODGE -> characterName + " stands ready to dodge!";
-            default    -> null;
-        };
-    }
-
-    /**
-     * Returns a human-readable expiry message for this defensive move, fired at
-     * the tick where its AP window ends. Returns null if this move is not an
-     * active defense.
-     */
-    public String defenseExpiryMessage(String characterName) {
-        return switch (defenseType) {
-            case BLOCK -> characterName + " drops their guard!";
-            case PARRY -> characterName + " lowers their parry stance.";
-            case DODGE -> characterName + " drops their ready stance.";
-            default    -> null;
-        };
-    }
-
-    /**
      * Apply this move's block reduction to an incoming raw damage value.
      *
      * Returns the modified damage. Damage is never reduced below 1.

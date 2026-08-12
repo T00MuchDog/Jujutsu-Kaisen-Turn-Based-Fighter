@@ -76,6 +76,16 @@ public class ArchetypeAIStrategy implements AIStrategy {
             if (plan.gridLength() != commonGridLength) {
                 plan = normalise(plan, commonGridLength);
             }
+            plan = SmartAIScoring.promoteGuaranteedKillOpening(state, ai, plan, rng);
+            alreadyPlanned.clear();
+            for (ActionSegment segment : new ArrayList<>(plan.allSegments())) {
+                if (MoveAvailability.restrictionReason(
+                    state, ai, segment.getMove(), alreadyPlanned) != null) {
+                    plan.remove(segment);
+                } else {
+                    alreadyPlanned.add(segment.getMove());
+                }
+            }
             assignExplicitTargets(state, plan, ai, rng);
             teamPlan.put(ai.getInstanceId(), plan);
         }

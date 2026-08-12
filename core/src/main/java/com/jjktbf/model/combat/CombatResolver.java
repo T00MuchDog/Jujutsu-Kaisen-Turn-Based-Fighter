@@ -208,14 +208,6 @@ public class CombatResolver {
         boolean roundCostsProcessed;
         boolean deferSummonMaterialization;
         final NavigableMap<Integer, List<PendingComponent>> pendingComponents = new TreeMap<>();
-        /**
-         * Block segments currently inside their defensive AP window, keyed by
-         * identity and mapped to their owning combatant. Carried tick to tick so
-         * the resolver can detect the active→inactive transition (a defensive
-         * move "running out") and log it exactly once per block — whether it ends
-         * naturally or is broken/stunned mid-window.
-         */
-        final Map<ActionSegment, BattleCombatant> activeBlocks = new IdentityHashMap<>();
     }
 
     private final ThreadLocal<ResolutionCursor> cursor = ThreadLocal.withInitial(ResolutionCursor::new);
@@ -254,7 +246,6 @@ public class CombatResolver {
         c.roundCostsProcessed = true;
         c.nextLaunchSequence = 0;
         c.pendingComponents.clear();
-        c.activeBlocks.clear();
 
         events.addAll(abilityActivations.process(state, AbilityTrigger.phase(BattleState.Phase.RESOLUTION)));
         if (finishBattleIfNeeded(state, events, 0)) {
@@ -343,11 +334,6 @@ public class CombatResolver {
                 if (finishBattleIfNeeded(state, events, tick)) return events;
             }
 
-        // --- Detect defensive blocks whose AP window just ended (active → inactive) ---
-            for (BattleCombatant combatant : state.activeCombatants()) {
-                detectExpiredBlocks(combatant, tick, events);
-            }
-
             processTimelineEffectExpiry(state, tick, events);
             if (finishBattleIfNeeded(state, events, tick)) return events;
             updateResolutionEndForTimelineEffects(state);
@@ -372,8 +358,6 @@ public class CombatResolver {
             if (restored <= 0) continue;
             events.add(CombatEvent.of(CombatEvent.Type.CE_RESTORED)
                 .source(fighter).target(fighter).intValue(restored).tick(tick)
-                .message(fighter.getCharacter().getName() + " regenerates "
-                    + restored + " CE.")
                 .build());
             events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
                 AbilityTrigger.Type.CE_RESTORED, fighter, null, restored, tick)));
@@ -430,16 +414,12 @@ public class CombatResolver {
             if (drained <= 0) continue;
             events.add(CombatEvent.of(CombatEvent.Type.CE_DRAINED)
                 .source(summoner).intValue(drained).tick(tick)
-                .message(summoner.getCharacter().getName() + " spends " + drained
-                    + " CE maintaining summoned shikigami.")
                 .build());
             events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
                 AbilityTrigger.Type.CE_LOST, summoner, null, drained, tick)));
             if (!summoner.hasAnyCe()) {
                 events.add(CombatEvent.of(CombatEvent.Type.CE_DEPLETED)
                     .source(summoner).tick(tick)
-                    .message(summoner.getCharacter().getName()
-                        + " has exhausted all Cursed Energy!")
                     .build());
             }
         }
@@ -553,8 +533,6 @@ public class CombatResolver {
                     .move(segment.getMove())
                     .intValue(drained)
                     .tick(tick)
-                    .message(combatant.getCharacter().getName() + " uses " + drained
-                             + " CE for " + segment.getMove().getName())
                     .build());
                 events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
                     AbilityTrigger.Type.CE_SPENT, combatant, null, drained, tick)));
@@ -564,7 +542,6 @@ public class CombatResolver {
                     events.add(CombatEvent.of(CombatEvent.Type.CE_DEPLETED)
                         .source(combatant)
                         .tick(tick)
-                        .message(combatant.getCharacter().getName() + " has exhausted all Cursed Energy!")
                         .build());
                 }
             }
@@ -584,7 +561,6 @@ public class CombatResolver {
         events.add(CombatEvent.of(CombatEvent.Type.CE_DRAINED)
             .source(combatant)
             .intValue(drained)
-            .message(combatant.getCharacter().getName() + " spends " + drained + " CE on passive abilities.")
             .build());
         if (drained > 0) {
             events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
@@ -593,7 +569,6 @@ public class CombatResolver {
         if (!combatant.hasAnyCe()) {
             events.add(CombatEvent.of(CombatEvent.Type.CE_DEPLETED)
                 .source(combatant)
-                .message(combatant.getCharacter().getName() + " has exhausted all Cursed Energy!")
                 .build());
         }
     }
@@ -782,7 +757,7 @@ public class CombatResolver {
             }
         }
 
-        resolveMove(entry, targets, state, tick, events, fullBlockByTarget);
+        resolveMove(entry, targets, state, tick, events, fullBlockByTarget, false);
     }
 
     /**
@@ -901,8 +876,6 @@ public class CombatResolver {
             int drained = reactor.drainCe(cost);
             events.add(CombatEvent.of(CombatEvent.Type.CE_DRAINED)
                 .source(reactor).move(reactionMove).intValue(drained).tick(tick)
-                .message(reactor.getCharacter().getName() + " uses " + drained
-                    + " CE for " + reactionMove.getName())
                 .build());
             events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
                 AbilityTrigger.Type.CE_SPENT, reactor, null, drained, tick)));
@@ -910,8 +883,6 @@ public class CombatResolver {
             if (!reactor.hasAnyCe()) {
                 events.add(CombatEvent.of(CombatEvent.Type.CE_DEPLETED)
                     .source(reactor).tick(tick)
-                    .message(reactor.getCharacter().getName()
-                    + " has exhausted all Cursed Energy!")
                     .build());
             }
         }
@@ -921,7 +892,7 @@ public class CombatResolver {
         resolveMove(
             new FiringEntry(reactionSegment, reactor),
             target == null ? TargetSet.empty() : TargetSet.single(target),
-            state, tick, events, Map.of());
+            state, tick, events, Map.of(), true);
     }
 
     private void resolveMove(
@@ -930,7 +901,8 @@ public class CombatResolver {
         BattleState       state,
         int               tick,
         List<CombatEvent> events,
-        Map<CombatantId, Boolean> forceFullBlockByTarget
+        Map<CombatantId, Boolean> forceFullBlockByTarget,
+        boolean reaction
     ) {
         ActionSegment   segment  = entry.segment;
         Move            move     = segment.getMove();
@@ -950,7 +922,8 @@ public class CombatResolver {
             .source(attacker)
             .move(move)
             .tick(tick)
-            .message(attacker.getCharacter().getName() + " unleashes " + move.getName() + "!")
+            .message(attacker.getCharacter().getName() + (reaction ? " reacted with " : " used ")
+                + move.getName() + "!")
             .build());
         // MOVE_FIRED fires once, regardless of how many targets the move hits.
         events.addAll(abilityActivations.process(state, AbilityTrigger.move(
@@ -981,10 +954,7 @@ public class CombatResolver {
         }
 
         // --- Defensive moves: apply buff or register full block ---
-        if (move.isDefensive()) {
-            resolveDefensiveMove(attacker, move, tick, events);
-            return; // defensive moves don't attack
-        }
+        if (move.isDefensive()) return;
 
         // --- Non-damaging utility moves (including summon-only moves) ---
         if (move.getHitComponents().isEmpty()) {
@@ -1164,9 +1134,7 @@ public class CombatResolver {
                 events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
                     .source(defender).target(attacker).move(move).componentIndex(componentIndex)
                     .tick(tick)
-                    .message(defender.getCharacter().getName() + "'s parry applies "
-                             + StatusEffectType.STAGGER.displayName() + " to "
-                             + attacker.getCharacter().getName() + "!")
+                    .message(attacker.getCharacter().getName() + " was staggered!")
                     .build());
                 stunActiveSegments(attacker, tick, false);
             }
@@ -1225,11 +1193,9 @@ public class CombatResolver {
                 .source(attacker).target(defender).move(move).componentIndex(componentIndex)
                 .intValue(appliedDamage)
                 .tick(tick)
-                .message(appliedDamage == 0
-                    ? defender.getCharacter().getName() + " ignores all damage from " + move.getName() + "!"
-                    : attacker.getCharacter().getName() + "'s " + move.getName()
-                        + " hits " + defender.getCharacter().getName()
-                        + " for " + appliedDamage + " damage!"
+                .message(wasBlocked ? "" : appliedDamage == 0
+                    ? defender.getCharacter().getName() + " ignored " + move.getName() + "!"
+                    : move.getName() + " hit " + defender.getCharacter().getName() + "!"
                         + hitQualifier(move, componentIndex))
                 .build());
         }
@@ -1254,12 +1220,11 @@ public class CombatResolver {
                 .intValue(result.getFinalDamage())
                 .tick(tick)
                 .message("*** BLACK FLASH! *** " + attacker.getCharacter().getName()
-                         + " lands a Black Flash! +" + ceRestored + " CE restored!")
+                         + " lands a Black Flash!")
                 .build());
             events.add(CombatEvent.of(CombatEvent.Type.CE_RESTORED)
                 .source(attacker).intValue(ceRestored).componentIndex(componentIndex)
                 .tick(tick)
-                .message(attacker.getCharacter().getName() + " recovered " + ceRestored + " CE!")
                 .build());
             events.addAll(abilityActivations.process(state, AbilityTrigger.move(
                 AbilityTrigger.Type.BLACK_FLASH, attacker, defender, move, tick)));
@@ -1436,125 +1401,6 @@ public class CombatResolver {
     }
 
     // -------------------------------------------------------------------------
-    // Defensive move resolution
-    // -------------------------------------------------------------------------
-
-    private void resolveDefensiveMove(BattleCombatant combatant, Move move, int tick, List<CombatEvent> events) {
-        String msg = move.defenseActivationMessage(combatant.getCharacter().getName());
-        if (msg != null) {
-            events.add(CombatEvent.of(CombatEvent.Type.STATUS_APPLIED)
-                .source(combatant).move(move)
-                .tick(tick)
-                .message(msg)
-                .build());
-        }
-        // Self-effects are applied by the caller (resolveMove) on unleash for
-        // all move types, so are not re-applied here.
-    }
-
-    /**
-     * Detect defensive blocks on this combatant's timeline whose AP window has
-     * just ended, and log one "drops their guard" expiry per block.
-     *
-     * <p>A block is tracked the moment it enters its window and logged once when
-     * it leaves — whether naturally (the counter passed the window's end tick)
-     * or because the segment was stunned/broken out from under it. The end-tick
-     * math mirrors {@link Timeline#activeBlockAt} so the two never disagree about
-     * when a block is protective.
-     *
-     * <p>Stunned blocks are considered ended: once interrupted, a defensive move
-     * is no longer protecting its user, so an expiry line correctly reflects that
-     * their guard is down for the rest of the round.
-     */
-    private void detectExpiredBlocks(BattleCombatant combatant, int tick, List<CombatEvent> events) {
-        Timeline tl = combatant.getTimeline();
-        if (tl == null) {
-            // No timeline means nothing to track; clear any stale carry so a
-            // prior round's blocks can't resurface as spurious expiries.
-            cursor.get().activeBlocks.entrySet().removeIf(e -> e.getValue() == combatant);
-            return;
-        }
-
-        int gridLength = tl.getGridLength();
-
-        // First pass: note every block that is STILL active this tick. This both
-        // refreshes the carry and tells us which previously-tracked blocks fell out.
-        IdentityHashMap<ActionSegment, Boolean> stillActive = new IdentityHashMap<>();
-        for (ActionSegment segment : tl.getSegments()) {
-            if (!segment.getMove().isActiveDefense()) continue;
-            int start = segment.getFireTick();
-            int end = blockWindowEnd(segment.getMove(), start, gridLength);
-            boolean activeNow = !segment.isStunned() && tick >= start && tick <= end;
-            if (activeNow) stillActive.put(segment, Boolean.TRUE);
-        }
-
-        ResolutionCursor c = cursor.get();
-        // Expire: previously tracked, no longer active this tick.
-        Iterator<Map.Entry<ActionSegment, BattleCombatant>> tracked = c.activeBlocks.entrySet().iterator();
-        while (tracked.hasNext()) {
-            Map.Entry<ActionSegment, BattleCombatant> entry = tracked.next();
-            if (entry.getValue() != combatant) continue;
-            if (stillActive.containsKey(entry.getKey())) continue; // still up — leave it tracked
-
-            Move move = entry.getKey().getMove();
-            String msg = move.defenseExpiryMessage(combatant.getCharacter().getName());
-            tracked.remove();
-            if (msg != null) {
-                events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
-                    .source(combatant).move(move)
-                    .tick(tick)
-                    .message(msg)
-                    .build());
-            }
-        }
-
-        // Register: newly active blocks that weren't tracked before.
-        for (ActionSegment segment : stillActive.keySet()) {
-            if (!c.activeBlocks.containsKey(segment)) {
-                c.activeBlocks.put(segment, combatant);
-            }
-        }
-    }
-
-    /**
-     * End tick of a block's defensive window, mirroring the computation in
-     * {@link Timeline#activeBlockAt}: {@code -1} lasts the whole grid, {@code 0}
-     * uses the move's AP width, otherwise the explicit duration from the fire tick.
-     */
-    private static int blockWindowEnd(Move move, int fireTick, int gridLength) {
-        return switch (move.getBlockDuration()) {
-            case -1 -> gridLength;
-            case 0  -> fireTick + move.getApCost() - 1;
-            default -> fireTick + move.getBlockDuration() - 1;
-        };
-    }
-
-    /**
-     * Log and clear any blocks for this combatant still tracked as active at the
-     * end of the round. Called from {@link #processRoundEnd} after the tick sweep
-     * so a round-long block (blockDuration -1) or one whose window out-ran the
-     * sweep still gets its "drops their guard" line exactly once.
-     */
-    private void flushRemainingBlocks(BattleCombatant combatant, List<CombatEvent> events) {
-        ResolutionCursor c = cursor.get();
-        if (c.activeBlocks.isEmpty()) return;
-        Iterator<Map.Entry<ActionSegment, BattleCombatant>> tracked = c.activeBlocks.entrySet().iterator();
-        while (tracked.hasNext()) {
-            Map.Entry<ActionSegment, BattleCombatant> entry = tracked.next();
-            if (entry.getValue() != combatant) continue;
-            Move move = entry.getKey().getMove();
-            String msg = move.defenseExpiryMessage(combatant.getCharacter().getName());
-            tracked.remove();
-            if (msg != null) {
-                events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
-                    .source(combatant).move(move)
-                    .message(msg)
-                    .build());
-            }
-        }
-    }
-
-    // -------------------------------------------------------------------------
     // Status effect application
     // -------------------------------------------------------------------------
 
@@ -1580,8 +1426,6 @@ public class CombatResolver {
             .source(summoner).move(move)
             .componentIndex(componentIndex)
             .tick(tick)
-            .message(summoner.getCharacter().getName()
-                + "'s " + move.getName() + " summons a shikigami!")
             .build());
     }
 
@@ -1657,23 +1501,12 @@ public class CombatResolver {
         events.add(CombatEvent.of(applied == 0
                 ? CombatEvent.Type.DAMAGE_IGNORED : CombatEvent.Type.DAMAGE_DEALT)
             .source(attacker).target(attacker).move(move).intValue(applied).tick(tick)
-            .message(applied == 0
-                ? attacker.getCharacter().getName() + " avoids the recoil from " + move.getName() + "."
-                : attacker.getCharacter().getName() + " takes " + applied
-                    + " recoil damage from commanding " + recoilTargetLabel(targets) + "!")
             .build());
         if (applied > 0) {
             events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
                 AbilityTrigger.Type.DAMAGE, attacker, attacker, applied, tick)));
             wakeFromSleep(state, attacker, attacker, move, -1, tick, events);
         }
-    }
-
-    private static String recoilTargetLabel(List<BattleCombatant> targets) {
-        if (targets != null && targets.size() == 1 && targets.get(0) != null) {
-            return targets.get(0).getCharacter().getName();
-        }
-        return (targets == null ? 0 : targets.size()) + " targets";
     }
 
     private void applyCursedSpeechCommandOutcome(
@@ -1720,8 +1553,8 @@ public class CombatResolver {
                         : defeated
                             ? defender.getCharacter().getName()
                                 + " is struck down by Cursed Speech!"
-                            : defender.getCharacter().getName() + " takes " + applied
-                                + " damage but survives the command to die!")
+                            : defender.getCharacter().getName()
+                                + " survives the command to die!")
                     .build());
                 if (applied > 0) {
                     events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
@@ -1970,15 +1803,11 @@ public class CombatResolver {
             for (BattleCombatant combatant : combatants) {
                 combatant.tickRoundEffects(round);
                 expiredByCombatant.put(combatant, combatant.drainExpiredStatusEffects());
-                flushRemainingBlocks(combatant, events);
-
                 boolean wasBfs = combatant.isInBlackFlashState();
                 combatant.tickBfsExpiry(round);
                 if (wasBfs && !combatant.isInBlackFlashState()) {
                     events.add(CombatEvent.of(CombatEvent.Type.BFS_EXPIRED)
                         .source(combatant)
-                        .message(combatant.getCharacter().getName()
-                            + "'s Black Flash State has ended.")
                         .build());
                 }
             }
@@ -2074,7 +1903,7 @@ public class CombatResolver {
             if (defeated) {
                 events.add(CombatEvent.of(CombatEvent.Type.COMBATANT_DEFEATED)
                     .target(c).tick(tick)
-                    .message(c.getCharacter().getName() + " is defeated!")
+                    .message(c.isSummon() ? "" : c.getCharacter().getName() + " is defeated!")
                     .build());
             }
             if (c.isRemoved()) {
@@ -2166,14 +1995,12 @@ public class CombatResolver {
         if (resultingMaxHp != previousMaxHp) {
             events.add(CombatEvent.of(CombatEvent.Type.MAX_HP_CHANGED)
                 .source(source).target(combatant).intValue(resultingMaxHp).tick(tick)
-                .message(combatant.getCharacter().getName() + "'s max HP is now "
-                    + resultingMaxHp + ".").build());
+                .build());
         }
         if (resultingMaxCe != previousMaxCe) {
             events.add(CombatEvent.of(CombatEvent.Type.MAX_CE_CHANGED)
                 .source(source).target(combatant).intValue(resultingMaxCe).tick(tick)
-                .message(combatant.getCharacter().getName() + "'s max CE is now "
-                    + resultingMaxCe + ".").build());
+                .build());
         }
     }
 }
