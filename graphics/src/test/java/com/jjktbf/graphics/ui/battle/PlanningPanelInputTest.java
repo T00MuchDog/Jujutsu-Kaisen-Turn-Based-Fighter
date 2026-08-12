@@ -348,7 +348,7 @@ class PlanningPanelInputTest {
      */
     private static PlanningPanel panel(Move move, int apBudget, int gridLength) {
         return new PlanningPanel(
-            gridLength, List.of(move), Map.of(move.getId(), 0), apBudget, 0,
+            gridLength, List.of(move), Map.of(move.getId(), 0), apBudget, 0, 0,
             null, null, WIDTH, HEIGHT
         );
     }
@@ -368,6 +368,7 @@ class PlanningPanelInputTest {
             List.of(move),
             Map.of(move.getId(), 0),
             150,
+            0,
             0,
             null,
             null,

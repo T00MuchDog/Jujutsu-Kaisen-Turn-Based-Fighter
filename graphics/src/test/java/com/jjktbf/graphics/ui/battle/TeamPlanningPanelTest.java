@@ -149,6 +149,7 @@ class TeamPlanningPanelTest {
             Map.of(move.getId(), 0),
             150,
             0,
+            0,
             null,
             Map.of(),
             List.of(

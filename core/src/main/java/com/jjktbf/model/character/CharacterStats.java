@@ -27,7 +27,7 @@ public class CharacterStats {
     private final int speed;
 
     // --- Cursed Energy ---
-    /** Total pool of cursed energy available in a fight. No mid-fight regeneration. */
+    /** Total pool of cursed energy available in a fight. */
     private final int cursedEnergyReserves;
 
     /**

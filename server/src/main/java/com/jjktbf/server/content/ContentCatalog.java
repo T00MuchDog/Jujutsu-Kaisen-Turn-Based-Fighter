@@ -383,11 +383,15 @@ public final class ContentCatalog {
             }
             if (definition.effects == null) continue;
             for (com.jjktbf.model.move.MoveEffectData effect : definition.effects) {
-                if (effect == null || !AbilityEffectType.SUMMON_CHARACTER.name()
-                    .equalsIgnoreCase(effect.type)) continue;
+                if (effect == null) continue;
+                AbilityEffectType effectType;
+                try { effectType = AbilityEffectType.fromName(effect.type); }
+                catch (IllegalArgumentException ignored) { continue; }
+                if (!effectType.uses(
+                    com.jjktbf.model.character.AbilityEffectParameter.CHARACTER_ID)) continue;
                 if (effect.characterId == null || effect.characterId.isBlank()) {
                     throw invalid(MOVES_RESOURCE,
-                        "move " + definition.id + " has no summon target");
+                        "move " + definition.id + " has no shikigami target");
                 }
                 verifySummonReference(effect.characterId, charactersById,
                     MOVES_RESOURCE, "move " + definition.id);

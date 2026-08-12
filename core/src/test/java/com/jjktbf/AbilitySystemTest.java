@@ -80,7 +80,7 @@ class AbilitySystemTest {
                 || type == AbilityEffectType.UNLOCK_MOVE) effect.moveId = "MOVE";
             if (type == AbilityEffectType.GRANT_ABILITY) effect.abilityId = "ABILITY";
             if (type == AbilityEffectType.UNLOCK_TECHNIQUE) effect.stringValue = "Technique";
-            if (type == AbilityEffectType.SUMMON_CHARACTER) effect.characterId = "000010";
+            if (type.uses(AbilityEffectParameter.CHARACTER_ID)) effect.characterId = "000010";
             assertNull(type.validationError(effect), type.name());
         }
     }

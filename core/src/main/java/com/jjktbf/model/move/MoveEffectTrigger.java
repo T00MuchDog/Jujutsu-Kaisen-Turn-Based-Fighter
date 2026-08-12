@@ -2,6 +2,7 @@ package com.jjktbf.model.move;
 
 /** Runtime moment that activates an effect attached to a move. */
 public enum MoveEffectTrigger {
+    AVAILABILITY("Move availability"),
     ACCURACY_CHECK("Accuracy check"),
     ON_FIRE("On move fire"),
     ON_HIT("On hit"),

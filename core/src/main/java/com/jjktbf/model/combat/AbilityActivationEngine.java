@@ -861,7 +861,8 @@ public final class AbilityActivationEngine {
                         state, coded, owner, target, tick));
                 }
             }
-            case MAX_ACTIVE_SUMMONS, SUMMON_CE_UPKEEP_PER_ACTIVE_TICK -> { }
+            case MAX_ACTIVE_SUMMONS, SUMMON_CE_UPKEEP_PER_ACTIVE_TICK,
+                 MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE -> { }
         }
     }
 

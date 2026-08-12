@@ -3,6 +3,7 @@ package com.jjktbf.controller;
 import com.jjktbf.model.character.AbilityEffectTarget;
 import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.CharacterStats;
+import com.jjktbf.model.character.ShikigamiCharacter;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.Timeline;
@@ -11,11 +12,18 @@ import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
+import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveEffectData;
 import com.jjktbf.model.move.MoveEffectTrigger;
 import com.jjktbf.model.move.MoveTag;
 import com.jjktbf.model.move.StatusEffectType;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -196,5 +204,67 @@ final class AIFixtures {
             cursor += m.getApCost() + 1;
         }
         c.setTimeline(timeline);
+    }
+
+    /** A Cursed Speech sorcerer with strong CE/CTM so his authored commands are usable. */
+    static BattleCombatant cursedSpeechSorcerer(String id, Move... moves) {
+        CharacterStats stats = new CharacterStats.Builder()
+            .vitality(120).speed(90).combatAbility(90).strength(90).durability(90)
+            .cursedEnergyReserves(160).cursedEnergyEfficiency(160).cursedEnergyOutput(160)
+            .jujutsuSkill(120).cursedTechniqueMastery(120).build();
+        SorcererCharacter c = new SorcererCharacter(
+            id, id, stats, "Cursed Speech", List.of(moves), List.of(), false);
+        return new BattleCombatant(c, List.of());
+    }
+
+    /** An enemy shikigami (low CE, so recoil against it stays small and predictable). */
+    static BattleCombatant shikigamiEnemy(String id) {
+        CharacterStats stats = new CharacterStats.Builder()
+            .vitality(80).speed(60).combatAbility(60).strength(60).durability(60)
+            .cursedEnergyReserves(10).cursedEnergyEfficiency(10).cursedEnergyOutput(10)
+            .jujutsuSkill(10).cursedTechniqueMastery(0).build();
+        ShikigamiCharacter c = new ShikigamiCharacter(id, id, stats, null, List.of());
+        return new BattleCombatant(c, List.of());
+    }
+
+    /** A low-CE sorcerer enemy. */
+    static BattleCombatant lowCeSorcererEnemy(String id) {
+        CharacterStats stats = new CharacterStats.Builder()
+            .vitality(80).speed(70).combatAbility(70).strength(70).durability(70)
+            .cursedEnergyReserves(10).cursedEnergyEfficiency(10).cursedEnergyOutput(10)
+            .jujutsuSkill(30).cursedTechniqueMastery(0).build();
+        SorcererCharacter c = new SorcererCharacter(
+            id, id, stats, null, List.of(), List.of(), true);
+        return new BattleCombatant(c, List.of());
+    }
+
+    // --- Canonical data loading -------------------------------------------------
+
+    static List<Move> loadCanonicalMoves() throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        List<MoveData> datas = mapper.readValue(
+            movesPath().toFile(), new TypeReference<>() { });
+        List<Move> moves = new ArrayList<>();
+        for (MoveData data : datas) {
+            moves.add(data.toMove());
+        }
+        return moves;
+    }
+
+    static Move canonicalMoveById(List<Move> moves, String id) {
+        return moves.stream()
+            .filter(m -> m.getId().equals(id))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("Missing canonical move " + id));
+    }
+
+    private static Path movesPath() throws IOException {
+        return List.of(
+                Path.of("data", "moves", "all_moves.json"),
+                Path.of("..", "data", "moves", "all_moves.json"))
+            .stream()
+            .filter(Files::isRegularFile)
+            .findFirst()
+            .orElseThrow(() -> new IOException("Could not locate canonical moves"));
     }
 }

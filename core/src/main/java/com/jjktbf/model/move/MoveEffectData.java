@@ -127,6 +127,24 @@ public class MoveEffectData extends AbilityEffectData {
         } catch (Exception exception) {
             return "Choose when the move effect fires.";
         }
+        if (effectType.isMoveAvailabilityConstraint()
+            && moveTrigger != MoveEffectTrigger.AVAILABILITY) {
+            return effectType.displayName() + " must use Move availability.";
+        }
+        if (!effectType.isMoveAvailabilityConstraint()
+            && moveTrigger == MoveEffectTrigger.AVAILABILITY) {
+            return "Only move availability constraints may use Move availability.";
+        }
+        if (effectType.isMoveAvailabilityConstraint()
+            && !AbilityConditionType.ALWAYS.name().equalsIgnoreCase(resolvedCondition().type)) {
+            return "Move availability constraints must always apply.";
+        }
+        if (effectType.isMoveAvailabilityConstraint()
+            && (Boolean.TRUE.equals(activationChanceEnabled)
+                || activationMasteryProgression != null
+                || masteryProgression != null)) {
+            return "Move availability constraints cannot use chance or mastery progression.";
+        }
         if (effectType.isAccuracyPriority()
             && moveTrigger != MoveEffectTrigger.ACCURACY_CHECK) {
             return effectType.displayName() + " must use Accuracy check.";

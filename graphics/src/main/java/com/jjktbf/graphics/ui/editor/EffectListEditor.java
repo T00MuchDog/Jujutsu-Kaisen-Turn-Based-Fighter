@@ -249,7 +249,7 @@ public class EffectListEditor extends Table {
                     soundPlayer.accept(SoundCue.UI_DENIED);
                     return;
                 }
-                if (selected == AbilityEffectType.SUMMON_CHARACTER
+                if (selected.uses(AbilityEffectParameter.CHARACTER_ID)
                     && !isShikigamiReference(characters, working.characterId)) {
                     error.setText("Choose a Shikigami that still exists.");
                     soundPlayer.accept(SoundCue.UI_DENIED);

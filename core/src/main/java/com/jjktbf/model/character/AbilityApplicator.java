@@ -74,7 +74,8 @@ public final class AbilityApplicator {
                 switch (type) {
 
                     // Compiled behavior is installed by CodedAbilityRegistry.
-                    case CODED, CODED_MOVE_ACTION -> { }
+                    case CODED, CODED_MOVE_ACTION,
+                         MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE -> { }
 
                     // ── Override (set) — applied before add/multiply ─────────
                     case STAT_SET_MIN -> {

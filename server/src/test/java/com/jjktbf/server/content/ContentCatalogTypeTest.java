@@ -9,6 +9,8 @@ import com.jjktbf.model.character.CharacterType;
 import com.jjktbf.model.character.ShikigamiCharacter;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.move.MoveData;
+import com.jjktbf.model.move.MoveEffectData;
+import com.jjktbf.model.move.MoveEffectTrigger;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -92,6 +94,11 @@ class ContentCatalogTypeTest {
         MoveData move = new MoveData();
         move.id = "000010";
         move.summonCharacterId = shikigami.getId();
+        MoveEffectData summonConstraint = AbilityEffectType
+            .MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE.createDefaultMoveEffect();
+        summonConstraint.characterId = shikigami.getId();
+        summonConstraint.trigger = MoveEffectTrigger.AVAILABILITY.name();
+        move.effects = List.of(summonConstraint);
         AbilityEffectData summon = AbilityEffectType.SUMMON_CHARACTER.createDefault();
         summon.characterId = shikigami.getId();
         AbilityData ability = new AbilityData();
@@ -107,6 +114,12 @@ class ContentCatalogTypeTest {
                 List.of(move), List.of(ability), characters));
 
         move.summonCharacterId = shikigami.getId();
+        summonConstraint.characterId = sorcerer.getId();
+        assertThrows(IllegalStateException.class,
+            () -> ContentCatalog.validateSummonReferences(
+                List.of(move), List.of(ability), characters));
+
+        summonConstraint.characterId = shikigami.getId();
         summon.characterId = "missing";
         assertThrows(IllegalStateException.class,
             () -> ContentCatalog.validateSummonReferences(

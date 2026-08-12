@@ -69,6 +69,7 @@ public class PlanningPanel {
     private static final float DRAG_THRESHOLD = 5f;
 
     private final BattlePlan plan;
+    private final int maxCe;
     private final String actorId;
     private final List<TargetOption> targetOptions;
     private final List<Move> knownMoves = new ArrayList<>();
@@ -177,6 +178,7 @@ public class PlanningPanel {
     ) {
         this.gridLength = gridLength;
         this.plan = new BattlePlan(combatant.getMaxApBar(), combatant.getCurrentCe(), gridLength);
+        this.maxCe = combatant.getMaxCursedEnergy();
         this.actorId = combatant.getInstanceId() == null
             ? null : combatant.getInstanceId().value();
         this.targetOptions = targetOptions(targets);
@@ -203,13 +205,14 @@ public class PlanningPanel {
         Map<String, Integer> ceCosts,
         int apBudget,
         int ceBudget,
+        int maxCe,
         CodedAbilityState miraclesState,
         BattleUiAssets ui,
         float screenWidth,
         float screenHeight
     ) {
         this(Timeline.gridLengthForStrongestAp(apBudget),
-            null, List.of(), moves, ceCosts, apBudget, ceBudget, miraclesState,
+            null, List.of(), moves, ceCosts, apBudget, ceBudget, maxCe, miraclesState,
             ui, screenWidth, screenHeight);
     }
 
@@ -220,12 +223,13 @@ public class PlanningPanel {
         Map<String, Integer> ceCosts,
         int apBudget,
         int ceBudget,
+        int maxCe,
         CodedAbilityState miraclesState,
         BattleUiAssets ui,
         float screenWidth,
         float screenHeight
     ) {
-        this(gridLength, null, List.of(), moves, ceCosts, apBudget, ceBudget,
+        this(gridLength, null, List.of(), moves, ceCosts, apBudget, ceBudget, maxCe,
             miraclesState, null, 0, ui, screenWidth, screenHeight);
     }
 
@@ -237,12 +241,13 @@ public class PlanningPanel {
         Map<String, Integer> ceCosts,
         int apBudget,
         int ceBudget,
+        int maxCe,
         CodedAbilityState miraclesState,
         BattleUiAssets ui,
         float screenWidth,
         float screenHeight
     ) {
-        this(gridLength, actorId, targetOptions, moves, ceCosts, apBudget, ceBudget,
+        this(gridLength, actorId, targetOptions, moves, ceCosts, apBudget, ceBudget, maxCe,
             miraclesState, null, 0, ui, screenWidth, screenHeight);
     }
 
@@ -254,6 +259,7 @@ public class PlanningPanel {
         Map<String, Integer> ceCosts,
         int apBudget,
         int ceBudget,
+        int maxCe,
         CodedAbilityState miraclesState,
         Integer maxActiveSummons,
         int activeSummonCount,
@@ -263,6 +269,7 @@ public class PlanningPanel {
     ) {
         this.gridLength = gridLength;
         this.plan = new BattlePlan(apBudget, ceBudget, gridLength);
+        this.maxCe = maxCe;
         this.actorId = actorId;
         this.targetOptions = targetOptions == null ? List.of() : List.copyOf(targetOptions);
         this.ceEfficiency = 0;
@@ -803,7 +810,7 @@ public class PlanningPanel {
         drawStat(batch, font, statX, headerBounds.y + (compactLayout ? 12f : 15f), statWidth,
             "AP", plan.remainingApBudget(), plan.apBudget(), BattleUiAssets.YELLOW);
         drawStat(batch, font, statX + statWidth + 8f, headerBounds.y + (compactLayout ? 12f : 15f),
-            compactLayout ? 82f : 108f, "CE", plan.remainingCe(), plan.ceBudget(), BattleUiAssets.CURSED_ENERGY);
+            compactLayout ? 82f : 108f, "CE", plan.remainingCe(), maxCe, BattleUiAssets.CURSED_ENERGY);
 
         if (confirmed) {
             ui.lockButtonDisabled.draw(batch, lockInBounds.x, lockInBounds.y, lockInBounds.width, lockInBounds.height);

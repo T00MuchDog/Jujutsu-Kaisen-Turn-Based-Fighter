@@ -2483,7 +2483,23 @@
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
   "onDodgeEffects" : [ ],
-  "effects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE",
+    "characterId" : "000007",
+    "trigger" : "AVAILABILITY",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE",
+    "characterId" : "000008",
+    "trigger" : "AVAILABILITY",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
+  } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 15,
     "combatAbility" : 30,
@@ -2532,7 +2548,15 @@
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
   "onDodgeEffects" : [ ],
-  "effects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE",
+    "characterId" : "000009",
+    "trigger" : "AVAILABILITY",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
+  } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 25,
     "cursedEnergyReserves" : 45,
@@ -2582,7 +2606,15 @@
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
   "onDodgeEffects" : [ ],
-  "effects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE",
+    "characterId" : "000010",
+    "trigger" : "AVAILABILITY",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
+  } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 25,
     "speed" : 45,
@@ -2631,7 +2663,15 @@
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
   "onDodgeEffects" : [ ],
-  "effects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE",
+    "characterId" : "000011",
+    "trigger" : "AVAILABILITY",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
+  } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 40,
     "cursedEnergyReserves" : 55,
@@ -2680,7 +2720,15 @@
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
   "onDodgeEffects" : [ ],
-  "effects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE",
+    "characterId" : "000012",
+    "trigger" : "AVAILABILITY",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
+  } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 55,
     "strength" : 25,
@@ -2751,7 +2799,15 @@
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
   "onDodgeEffects" : [ ],
-  "effects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE",
+    "characterId" : "000014",
+    "trigger" : "AVAILABILITY",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
+  } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 65,
     "cursedEnergyOutput" : 50,
@@ -2799,7 +2855,15 @@
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
   "onDodgeEffects" : [ ],
-  "effects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE",
+    "characterId" : "000013",
+    "trigger" : "AVAILABILITY",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
+  } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 70,
     "cursedEnergyReserves" : 80,

@@ -1,6 +1,7 @@
 package com.jjktbf.model.combat;
 
 import com.jjktbf.model.move.Move;
+import com.jjktbf.model.move.MoveEffectData;
 import com.jjktbf.model.move.StatusEffect;
 import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.move.StatusEffectType;
@@ -45,6 +46,9 @@ public final class MoveAvailability {
             return "Restricted by an active ability.";
         }
         if (state != null) {
+            String activeSummonRestriction = activeOwnedSummonRestrictionReason(
+                state, actor, move);
+            if (activeSummonRestriction != null) return activeSummonRestriction;
             for (String definitionId : summonedDefinitionIds(move)) {
                 String reason = state.summonRestrictionReason(actor, definitionId);
                 if (reason != null) return reason;
@@ -54,6 +58,25 @@ public final class MoveAvailability {
             : state.directActiveSummonCount(actor) + state.directPendingSummonCount(actor);
         return plannedSummonRestrictionReason(
             move, alreadyPlannedMoves, actor.getAbilityFlags().maxActiveSummons, occupiedSlots);
+    }
+
+    /** Restriction contributed by move rows tied to an already-deployed owned summon. */
+    public static String activeOwnedSummonRestrictionReason(
+        BattleState state,
+        BattleCombatant actor,
+        Move move
+    ) {
+        if (state == null || actor == null || move == null || !move.usesUnifiedEffects()) {
+            return null;
+        }
+        for (MoveEffectData effect : move.getEffects()) {
+            if (!AbilityEffectType.MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE.name()
+                .equalsIgnoreCase(effect.type)) continue;
+            if (state.hasDirectActiveSummonDefinition(actor, effect.characterId)) {
+                return "This move cannot be used while its shikigami is active on the field.";
+            }
+        }
+        return null;
     }
 
     /** Restriction contributed only by summons reserved in the current draft. */

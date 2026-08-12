@@ -539,12 +539,16 @@ public class BattleState {
         return Set.copyOf(active);
     }
 
-    private boolean hasDirectActiveSummonDefinition(
+    public boolean hasDirectActiveSummonDefinition(
         BattleCombatant summoner, String definitionId
     ) {
+        if (summoner == null || summoner.getInstanceId() == null
+            || definitionId == null || definitionId.isBlank()) return false;
+        String normalizedDefinitionId = definitionId.trim();
         return allCombatants().stream().anyMatch(candidate -> candidate.isActive()
+            && candidate.isSummon()
             && summoner.getInstanceId().equals(candidate.getSummonerId())
-            && definitionId.equals(candidate.getCharacter().getId()));
+            && normalizedDefinitionId.equals(candidate.getCharacter().getId()));
     }
 
     private boolean hasPendingSummonDefinition(BattleCombatant summoner, String definitionId) {

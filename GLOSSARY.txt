@@ -74,8 +74,8 @@ lookup aliases.
       AP Bar size and PHYSICAL Power. Determines the COMBAT_ARTS slot budget.
 
     CURSED_ENERGY_RESERVES         cursedEnergyReserves / cer
-      Total CE pool available in a fight (no mid-fight regen). Weighted 2 in the
-      CE Power component and supplies the CE term of Defense.
+      Total CE pool available in a fight. Weighted 2 in the CE Power component
+      and supplies the CE term of Defense.
 
     CURSED_ENERGY_EFFICIENCY       cursedEnergyEfficiency / ceeff
       Reduces the CE cost of CE-tagged moves (scaled stat). 80 = 1.0× cost.
@@ -730,9 +730,10 @@ BLACK FLASH STATE (BFS)
 
 CURSED ENERGY (CE)
   A combat resource. Spent when a CE-tagged action segment reaches its startTick.
-  Not regenerated during a fight (except BF procs and ability effects). Defense
-  holds at a plateau while the pool can supply the CE Output cap; once the pool
-  drops below that cap, Defense degrades.
+  Fighters regenerate 0.05 CE per resolution tick by default; fractional CE is
+  carried between ticks. CE_REGENERATION battle-stat effects can alter this rate.
+  Defense holds at a plateau while the pool can supply the CE Output cap; once
+  the pool drops below that cap, Defense degrades.
 
 CE POOL (Max Cursed Energy)
   Total CE at fight start. CE Pool = round(S(CursedEnergyReserves) × CE_POOL_SCALE) (= ×8, scaled).

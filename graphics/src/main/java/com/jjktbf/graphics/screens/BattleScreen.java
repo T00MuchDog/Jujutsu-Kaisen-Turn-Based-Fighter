@@ -1879,6 +1879,7 @@ public class BattleScreen implements Screen, BattleView {
                 ceCosts,
                 apBudget,
                 ceBudget,
+                character.maxCe(),
                 findMiraclesState(character.codedAbilities()),
                 character.maxActiveSummons(),
                 (int) local.combatants().stream()

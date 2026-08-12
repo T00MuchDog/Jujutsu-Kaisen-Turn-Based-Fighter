@@ -1098,6 +1098,13 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 d, MoveEffectTrigger.ON_FIRE, null)).growX().row();
         }
 
+        Table availability = formSection(sections, "AVAILABILITY");
+        availability.add(formHint(
+            "Constraints here disable and grey out the move while they apply."))
+            .left().row();
+        availability.add(buildMoveEffectsEditor(
+            d, MoveEffectTrigger.AVAILABILITY, null)).growX().row();
+
         return sections;
     }
 
@@ -1861,10 +1868,10 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             game.audio()::play,
             masteryEligible(move),
             false,
-            moveEffectTypes(),
+            moveEffectTypes(trigger),
             true,
             skin)).growX().row();
-        if (!context.isEmpty()) {
+        if (!context.isEmpty() && trigger != MoveEffectTrigger.AVAILABILITY) {
             editor.add(formHint(
                 trigger.displayName() + " is the mandatory first condition. "
                     + "Each row may add another condition and its own chance roll."))
@@ -1950,7 +1957,12 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         return list;
     }
 
-    private static List<AbilityEffectType> moveEffectTypes() {
+    private static List<AbilityEffectType> moveEffectTypes(MoveEffectTrigger trigger) {
+        if (trigger == MoveEffectTrigger.AVAILABILITY) {
+            return java.util.Arrays.stream(AbilityEffectType.values())
+                .filter(AbilityEffectType::isMoveAvailabilityConstraint)
+                .toList();
+        }
         List<AbilityEffectType> preferred = List.of(
             AbilityEffectType.APPLY_STATUS,
             AbilityEffectType.INSTANT_KILL,
@@ -1961,6 +1973,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         java.util.Arrays.stream(AbilityEffectType.values())
             .filter(AbilityEffectType::isMoveEffect)
             .filter(type -> !type.isAccuracyPriority())
+            .filter(type -> !type.isMoveAvailabilityConstraint())
             .filter(type -> !types.contains(type))
             .forEach(types::add);
         return List.copyOf(types);

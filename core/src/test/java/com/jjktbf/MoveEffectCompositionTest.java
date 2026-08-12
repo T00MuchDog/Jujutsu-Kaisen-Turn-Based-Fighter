@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,6 +53,34 @@ class MoveEffectCompositionTest {
             assertTrue(move.onHitEffects == null || move.onHitEffects.isEmpty(), move.name);
             assertFalse(move.summonCharacterId != null && !move.summonCharacterId.isBlank(), move.name);
             move.toMove();
+        }
+    }
+
+    @Test
+    void tenShadowsAssistedMovesDeclareTheirActiveSummonRestrictions() throws IOException {
+        List<MoveData> moves = MAPPER.readValue(movesPath().toFile(), new TypeReference<>() { });
+        Map<String, List<String>> expected = Map.of(
+            "000045", List.of("000007", "000008"),
+            "000046", List.of("000009"),
+            "000047", List.of("000010"),
+            "000048", List.of("000011"),
+            "000049", List.of("000012"),
+            "000050", List.of("000014"),
+            "000051", List.of("000013")
+        );
+
+        for (Map.Entry<String, List<String>> entry : expected.entrySet()) {
+            MoveData move = moves.stream()
+                .filter(candidate -> entry.getKey().equals(candidate.id))
+                .findFirst().orElseThrow();
+            List<String> restrictedSummons = move.effects.stream()
+                .filter(effect -> AbilityEffectType
+                    .MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE.name()
+                    .equals(effect.type))
+                .filter(effect -> MoveEffectTrigger.AVAILABILITY.name().equals(effect.trigger))
+                .map(effect -> effect.characterId)
+                .toList();
+            assertEquals(entry.getValue(), restrictedSummons, move.name);
         }
     }
 

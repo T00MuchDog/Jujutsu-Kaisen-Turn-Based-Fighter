@@ -297,6 +297,10 @@ public enum AbilityEffectType {
         "Temporarily lock move tag",
         "Prevents the target from planning moves with one tag for the duration.",
         TARGET, MOVE_SCOPE, DURATION),
+    MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE(
+        "Block while shikigami is active",
+        "Prevents this move from being used while the selected owned shikigami is active on the field.",
+        CHARACTER_ID),
     SUMMON_CHARACTER(
         "Summon character",
         "Summons a shikigami combatant onto the owner's team when activated.",
@@ -642,7 +646,8 @@ public enum AbilityEffectType {
         if (uses(MOVE_ID) && isBlank(effect.moveId)) return "Choose a move.";
         if (uses(ABILITY_ID) && isBlank(effect.abilityId)) return "Choose an ability to grant.";
         if (uses(CHARACTER_ID) && isBlank(effect.characterId)) {
-            return "Choose a shikigami to summon.";
+            return this == SUMMON_CHARACTER
+                ? "Choose a shikigami to summon." : "Choose a shikigami.";
         }
         if (uses(TECHNIQUE) && isBlank(effect.stringValue)) return "Choose a technique.";
 
@@ -834,7 +839,12 @@ public enum AbilityEffectType {
 
     /** Effect primitives that may be activated from a move effect row. */
     public boolean isMoveEffect() {
-        return requiresActivation() || isAccuracyPriority();
+        return requiresActivation() || isAccuracyPriority() || isMoveAvailabilityConstraint();
+    }
+
+    /** Move constraints queried before placement and again when the move fires. */
+    public boolean isMoveAvailabilityConstraint() {
+        return this == MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE;
     }
 
     /** Accuracy-priority primitives are queried during hit resolution rather than fired. */
@@ -843,7 +853,7 @@ public enum AbilityEffectType {
     }
 
     public boolean isMoveOnly() {
-        return this == CODED_MOVE_ACTION;
+        return this == CODED_MOVE_ACTION || isMoveAvailabilityConstraint();
     }
 
     private static void timedDefaults(AbilityEffectData effect) {

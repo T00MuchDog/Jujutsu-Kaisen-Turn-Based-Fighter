@@ -288,6 +288,9 @@ public class CombatResolver {
 
             state.advanceTick();
 
+            regenerateFighterCursedEnergy(state, tick, events);
+            if (finishBattleIfNeeded(state, events, tick)) return events;
+
             if (isChargeableTick(state, tick)) {
                 chargeSummonUpkeep(state, tick, events);
                 if (finishBattleIfNeeded(state, events, tick)) return events;
@@ -356,6 +359,24 @@ public class CombatResolver {
             return events;
         } finally {
             c.deferSummonMaterialization = false;
+        }
+    }
+
+    private void regenerateFighterCursedEnergy(
+        BattleState state,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        for (BattleCombatant fighter : state.activeCombatants()) {
+            int restored = fighter.regenerateCursedEnergyForTick();
+            if (restored <= 0) continue;
+            events.add(CombatEvent.of(CombatEvent.Type.CE_RESTORED)
+                .source(fighter).target(fighter).intValue(restored).tick(tick)
+                .message(fighter.getCharacter().getName() + " regenerates "
+                    + restored + " CE.")
+                .build());
+            events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
+                AbilityTrigger.Type.CE_RESTORED, fighter, null, restored, tick)));
         }
     }
 
@@ -501,6 +522,10 @@ public class CombatResolver {
             if (!combatant.isActive()) return;
             if (segment.isStunned()) continue;
             if (segment.getStartTick() == tick) {
+                if (stopMoveUnavailableForActiveSummon(
+                    state, combatant, segment.getMove(), segment, tick, events)) {
+                    continue;
+                }
                 if (combatant.consumeMoveCancellation()) {
                     segment.stun();
                     events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
@@ -853,6 +878,8 @@ public class CombatResolver {
         if ((long) tick + reactionMove.getMaxHitDelayTicks() > cursor.get().gridLimit) {
             return;
         }
+        if (stopMoveUnavailableForActiveSummon(
+            state, reactor, reactionMove, null, tick, events)) return;
         if (reactor.consumeMoveCancellation()) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
                 .target(reactor).move(reactionMove).tick(tick)
@@ -910,6 +937,9 @@ public class CombatResolver {
         BattleCombatant attacker = entry.attacker;
         if (!attacker.isActive()) return;
 
+        if (stopMoveUnavailableForActiveSummon(
+            state, attacker, move, segment, tick, events)) return;
+
         // This segment's move is now actually executing. Recording it as fired
         // makes it immune to retro-stunning for the rest of the round — a stun
         // or interrupt landing later this tick (or a later tick still inside a
@@ -966,6 +996,26 @@ public class CombatResolver {
             targets.all());
         scheduleComponents(execution);
         resolvePendingComponentsAtTick(state, tick, events);
+    }
+
+    private boolean stopMoveUnavailableForActiveSummon(
+        BattleState state,
+        BattleCombatant attacker,
+        Move move,
+        ActionSegment segment,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        String reason = MoveAvailability.activeOwnedSummonRestrictionReason(
+            state, attacker, move);
+        if (reason == null) return false;
+        if (segment != null) segment.stun();
+        events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
+            .source(attacker).target(attacker).move(move).tick(tick)
+            .message(attacker.getCharacter().getName() + " cannot use "
+                + move.getName() + ": " + reason)
+            .build());
+        return true;
     }
 
     private void scheduleComponents(MoveExecution execution) {

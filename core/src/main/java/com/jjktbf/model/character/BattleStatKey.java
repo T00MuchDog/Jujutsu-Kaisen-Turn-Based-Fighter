@@ -14,7 +14,8 @@ public enum BattleStatKey {
     CE_COST("CE costs"),
     BLACK_FLASH_CHANCE("Black Flash chance"),
     HEALING("HP healing"),
-    CE_RESTORATION("CE restoration");
+    CE_RESTORATION("CE restoration"),
+    CE_REGENERATION("Cursed energy regeneration per tick");
 
     public final String label;
 

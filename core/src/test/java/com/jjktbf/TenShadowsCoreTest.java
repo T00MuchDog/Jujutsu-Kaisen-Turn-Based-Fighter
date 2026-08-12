@@ -30,6 +30,8 @@ import com.jjktbf.model.combat.TeamBattlePlan;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
+import com.jjktbf.model.move.MoveEffectData;
+import com.jjktbf.model.move.MoveEffectTrigger;
 import com.jjktbf.model.move.StatusEffect;
 import com.jjktbf.model.progression.TechniqueMasteryProgressions;
 import com.jjktbf.model.progression.TechniqueMasteryProgressionData;
@@ -154,6 +156,54 @@ class TenShadowsCoreTest {
         String error = teamPlan.validationError(state);
         assertNotNull(error);
         assertTrue(error.contains("Maximum active summons reached"));
+    }
+
+    @Test
+    void summonAssistedMoveIsBlockedOnlyByItsOwnersActiveShikigami() {
+        BattleCombatant summoner = fighter("SUMMONER", List.of());
+        BattleCombatant enemy = fighter("ENEMY", List.of());
+        BattleState state = state(summoner, enemy);
+        Move dogAmbush = unavailableWhileSummonsActive("DOG_AMBUSH", "WHITE_DOG", "BLACK_DOG");
+
+        assertTrue(MoveAvailability.isAvailable(state, summoner, dogAmbush));
+        summon(state, enemy, "WHITE_DOG");
+        assertTrue(MoveAvailability.isAvailable(state, summoner, dogAmbush),
+            "another combatant's summon must not disable the move");
+
+        BattleCombatant blackDog = summon(state, summoner, "BLACK_DOG");
+        String restriction = MoveAvailability.restrictionReason(state, summoner, dogAmbush);
+        assertNotNull(restriction);
+        assertTrue(restriction.contains("active on the field"));
+
+        assertEquals(1, state.voluntarilyDesummon(blackDog));
+        state.reconcileDefeats();
+        assertTrue(MoveAvailability.isAvailable(state, summoner, dogAmbush));
+    }
+
+    @Test
+    void summonAssistedMoveIsRevalidatedWhenItFires() {
+        BattleCombatant summoner = fighter("SUMMONER", List.of());
+        BattleState state = state(summoner, fighter("ENEMY", List.of()));
+        Move assistedMove = unavailableWhileSummonsActive("ASSISTED_MOVE", "DOG");
+        int startingCe = summoner.getCurrentCe();
+        Timeline timeline = new Timeline(5);
+        timeline.placeAt(assistedMove, 1, 10);
+        summoner.setTimeline(timeline);
+
+        assertTrue(MoveAvailability.isAvailable(state, summoner, assistedMove));
+        summon(state, summoner, "DOG");
+        state.transitionTo(BattleState.Phase.RESOLUTION);
+
+        List<CombatEvent> events = new CombatResolver(new SeededRandomSource(1L))
+            .resolveRound(state);
+        assertTrue(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.MOVE_STUNNED
+                && event.getMove() == assistedMove));
+        assertFalse(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.MOVE_FIRED
+                && event.getMove() == assistedMove));
+        assertEquals(startingCe, summoner.getCurrentCe(),
+            "a move invalidated before it starts must not spend CE");
     }
 
     @Test
@@ -492,5 +542,21 @@ class TenShadowsCoreTest {
     private static Move.Builder utility(String id, int apCost) {
         return new Move.Builder(id).name(id).category(MoveCategory.UTILITY)
             .neverMiss(true).apCost(apCost).unleashPoint(1);
+    }
+
+    private static Move unavailableWhileSummonsActive(String id, String... definitionIds) {
+        List<MoveEffectData> constraints = java.util.stream.IntStream
+            .range(0, definitionIds.length)
+            .mapToObj(index -> {
+                MoveEffectData effect = AbilityEffectType
+                    .MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE.createDefaultMoveEffect();
+                effect.effectId = "effect-" + index;
+                effect.characterId = definitionIds[index];
+                effect.trigger = MoveEffectTrigger.AVAILABILITY.name();
+                effect.condition = AbilityConditionData.always();
+                return effect;
+            })
+            .toList();
+        return utility(id, 1).effects(constraints).build();
     }
 }

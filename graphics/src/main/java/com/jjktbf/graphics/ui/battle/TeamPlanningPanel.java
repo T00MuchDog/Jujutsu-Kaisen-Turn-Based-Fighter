@@ -35,6 +35,7 @@ public final class TeamPlanningPanel {
         Map<String, Integer> ceCosts,
         int apBudget,
         int ceBudget,
+        int maxCe,
         CodedAbilityState miraclesState,
         Integer maxActiveSummons,
         int activeSummonCount,
@@ -49,12 +50,13 @@ public final class TeamPlanningPanel {
             Map<String, Integer> ceCosts,
             int apBudget,
             int ceBudget,
+            int maxCe,
             CodedAbilityState miraclesState,
             Map<String, String> moveRestrictions,
             List<PlanningPanel.TargetOption> targets,
             PlanState restoredPlan
         ) {
-            this(actorId, name, moves, ceCosts, apBudget, ceBudget, miraclesState,
+            this(actorId, name, moves, ceCosts, apBudget, ceBudget, maxCe, miraclesState,
                 null, 0, moveRestrictions, targets, restoredPlan);
         }
     }
@@ -124,6 +126,7 @@ public final class TeamPlanningPanel {
                 spec.ceCosts(),
                 spec.apBudget(),
                 spec.ceBudget(),
+                spec.maxCe(),
                 spec.miraclesState(),
                 spec.maxActiveSummons(),
                 spec.activeSummonCount(),
