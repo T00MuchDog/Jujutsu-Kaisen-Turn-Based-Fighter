@@ -70,6 +70,10 @@ public final class BattleUiAssets {
     public final Texture attackEffectIcon;
     public final Texture defenseEffectIcon;
     public final Texture utilityEffectIcon;
+    public final Texture fastForwardInactive;
+    public final Texture fastForwardActive;
+    public final Texture skipInactive;
+    public final Texture skipActive;
     public final Texture ratioStack;
     private final Texture[] miracleCounters = new Texture[7];
 
@@ -118,6 +122,12 @@ public final class BattleUiAssets {
         attackEffectIcon = effectIcon("assets/moves/Attack_Icon.png");
         defenseEffectIcon = effectIcon("assets/moves/Defense_Icon.png");
         utilityEffectIcon = effectIcon("assets/moves/Utility_Icon.png");
+        fastForwardInactive = loadTexture(
+            "assets/ui/common/speedcontrol/FastForward_Inactive.png");
+        fastForwardActive = loadTexture(
+            "assets/ui/common/speedcontrol/FastForward_active.png");
+        skipInactive = loadTexture("assets/ui/common/speedcontrol/Skip_inactive.png");
+        skipActive = loadTexture("assets/ui/common/speedcontrol/Skip_active.png");
         ratioStack = loadTexture("assets/ui/techniques/ratio/ratioStack.png");
         for (int count = 0; count < miracleCounters.length; count++) {
             miracleCounters[count] = loadTexture(

@@ -36,6 +36,7 @@ import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.BattleTeam;
 import com.jjktbf.model.combat.BattleTeamId;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
+import com.jjktbf.model.combat.CombatantId;
 import com.jjktbf.model.combat.CombatEvent;
 import com.jjktbf.model.combat.TeamBattlePlan;
 import com.jjktbf.model.move.HitComponent;
@@ -108,6 +109,10 @@ public class BattleScreen implements Screen, BattleView {
     private static final float LOG_LINE_SPACING = 1.7f;
     /** Per-tick hold during resolution, in milliseconds. */
     private static final int   TICK_DURATION_MS        = 100;
+    private static final float FAST_FORWARD_MULTIPLIER = 2f;
+    private static final float SKIP_ACTIVE_FLASH_SECONDS = 0.16f;
+    private static final float SPEED_CONTROL_GAP = 8f;
+    private static final float SPEED_CONTROL_PANEL_INSET = 8f;
     /**
      * Move-unleash animation length. This is visual-only and does not delay
      * resolution after a move's dialogue finishes.
@@ -177,6 +182,8 @@ public class BattleScreen implements Screen, BattleView {
         new java.util.concurrent.ConcurrentHashMap<>();
     private final Rectangle logBounds = new Rectangle();
     private final Rectangle nextRoundBounds = new Rectangle();
+    private final Rectangle fastForwardBounds = new Rectangle();
+    private final Rectangle skipBounds = new Rectangle();
 
     // ── Event log ─────────────────────────────────────────────────────────────
     private final List<String> logLines = new ArrayList<>();
@@ -244,6 +251,8 @@ public class BattleScreen implements Screen, BattleView {
 
     /** At most one defeat is played at a time; the battle reflows when it completes. */
     private final List<FaintAnimation> faintAnimations = new ArrayList<>();
+    /** Prevents terminal compatibility backfill from replaying fighters that already fainted. */
+    private final Set<CombatantId> presentedLocalFaints = new HashSet<>();
 
     // ── Move selection state ──────────────────────────────────────────────────
     private volatile boolean inputConfirmed = false;
@@ -251,7 +260,13 @@ public class BattleScreen implements Screen, BattleView {
     private volatile boolean nextRoundConfirmed = false;
     /** True while resolution tick calls are streaming; used to pace between ticks. */
     private volatile boolean resolvingTicks = false;
+    private volatile boolean playbackControlsOpen = false;
     private boolean nextRoundHovered = false;
+    private volatile boolean fastForwardActive = false;
+    private volatile boolean skipRoundRequested = false;
+    private boolean fastForwardHovered = false;
+    private boolean skipHovered = false;
+    private float skipActiveFlashRemaining = 0f;
 
     /**
      * Set on the render thread when the player presses Escape to leave a battle
@@ -424,6 +439,12 @@ public class BattleScreen implements Screen, BattleView {
         awaitingNextRound = false;
         nextRoundConfirmed = false;
         resolvingTicks = false;
+        playbackControlsOpen = false;
+        fastForwardActive = false;
+        skipRoundRequested = false;
+        fastForwardHovered = false;
+        skipHovered = false;
+        skipActiveFlashRemaining = 0f;
         battleOver     = false;
         battleResultReason = "";
         abortRequested = false;
@@ -433,6 +454,7 @@ public class BattleScreen implements Screen, BattleView {
         unleashedMoveElapsed = 0f;
         hitFlashes.clear();
         faintAnimations.clear();
+        presentedLocalFaints.clear();
         localHpStates.clear();
         onlineResourceStates.clear();
         playbackEvents = List.of();
@@ -469,12 +491,22 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public void render(float delta) {
-        frameDelta = delta;
-        updateMoveUnleashAnimation(delta);
-        updateHitFlashes(delta);
-        updateFaintAnimations(delta);
-        updateTyping(delta);
-        if (mode == BattleMode.MULTIPLAYER) updateMultiplayerPlayback(delta);
+        float realDelta = Math.max(0f, delta);
+        skipActiveFlashRemaining = Math.max(0f, skipActiveFlashRemaining - realDelta);
+        float presentationDelta = realDelta * playbackSpeedMultiplier();
+        frameDelta = presentationDelta;
+        updateMoveUnleashAnimation(presentationDelta);
+        updateHitFlashes(presentationDelta);
+        updateFaintAnimations(presentationDelta);
+        if (skipRoundRequested) {
+            flushTypingImmediately();
+            clearTransientAnimations();
+            completeFaintAnimationsImmediately();
+            snapPanelAnimations();
+        } else {
+            updateTyping(presentationDelta);
+        }
+        if (mode == BattleMode.MULTIPLAYER) updateMultiplayerPlayback(presentationDelta);
         clearScreen();
         // Escape aborts from any phase, including planning (where the
         // PlanningInputProcessor owns Gdx.input, so handleInput() never runs).
@@ -550,7 +582,27 @@ public class BattleScreen implements Screen, BattleView {
         // The new two-board PlanningPanel owns its own drag input processor and
         // Lock In button — skip the legacy click-to-toggle / ENTER flow entirely
         // while it is active.
-        if (planningPanel != null || teamPlanningPanel != null) return;
+        if (planningPanel != null || teamPlanningPanel != null) {
+            fastForwardHovered = false;
+            skipHovered = false;
+            return;
+        }
+
+        float x = Gdx.input.getX();
+        float y = Gdx.graphics.getHeight() - Gdx.input.getY();
+        boolean controlsEnabled = playbackControlsEnabled();
+        fastForwardHovered = controlsEnabled && fastForwardBounds.contains(x, y);
+        skipHovered = controlsEnabled && skipBounds.contains(x, y);
+        if (controlsEnabled && Gdx.input.justTouched()) {
+            if (skipHovered) {
+                requestRoundSkip();
+                return;
+            }
+            if (fastForwardHovered) {
+                toggleFastForward();
+                return;
+            }
+        }
 
         if (awaitingNextRound) {
             // Install the wheel listener for the duration of this window so the
@@ -563,8 +615,6 @@ public class BattleScreen implements Screen, BattleView {
                 logScrollInputAttached = true;
             }
 
-            float x = Gdx.input.getX();
-            float y = Gdx.graphics.getHeight() - Gdx.input.getY();
             nextRoundHovered = nextRoundBounds.contains(x, y);
 
             if (!nextRoundConfirmed && Gdx.input.justTouched() && nextRoundHovered) {
@@ -639,6 +689,7 @@ public class BattleScreen implements Screen, BattleView {
             }
         }
         drawLog(sw, sh);
+        if (speedControlsVisible()) drawSpeedControls();
         drawNextRoundButton();
         if (SHOW_TICK_COUNTER) drawTickCounter(sw, sh);
         drawMoveUnleashAnimation(sw, sh);
@@ -720,8 +771,11 @@ public class BattleScreen implements Screen, BattleView {
         assets.fontSmall.draw(batch, "BATTLE LOG", logBounds.x + 14f, logBounds.y + logBounds.height - 14f);
 
         BitmapFont logFont = assets.fontLog;
-        float buttonSpace = awaitingNextRound ? nextRoundBounds.width + 24f : 0f;
-        float textWidth = logBounds.width - 28f - buttonSpace;
+        float speedControlSpace = speedControlsVisible()
+            ? logBounds.x + logBounds.width - fastForwardBounds.x + 14f : 0f;
+        float buttonSpace = Math.max(speedControlSpace,
+            awaitingNextRound ? nextRoundBounds.width + 24f : 0f);
+        float textWidth = Math.max(1f, logBounds.width - 28f - buttonSpace);
         // Wrap the retained messages to the panel width (fixed font; no scaling).
         List<String> lines = wrapAll(logFont, textWidth);
         // Append the in-progress typing line (newest) — wrapped from the
@@ -829,6 +883,97 @@ public class BattleScreen implements Screen, BattleView {
         assets.fontMedium.draw(batch, label,
             nextRoundBounds.x + (nextRoundBounds.width - layout.width) / 2f,
             nextRoundBounds.y + (nextRoundBounds.height + layout.height) / 2f);
+    }
+
+    private void drawSpeedControls() {
+        Texture fastForward = fastForwardActive
+            ? assets.battleUi.fastForwardActive : assets.battleUi.fastForwardInactive;
+        Texture skip = skipActiveFlashRemaining > 0f
+            ? assets.battleUi.skipActive : assets.battleUi.skipInactive;
+        drawSpeedControl(fastForward, fastForwardBounds, fastForwardHovered);
+        drawSpeedControl(skip, skipBounds, skipHovered);
+    }
+
+    private void drawSpeedControl(Texture texture, Rectangle bounds, boolean hovered) {
+        batch.setColor(Color.WHITE);
+        batch.draw(texture, bounds.x, bounds.y, bounds.width, bounds.height);
+        if (!hovered) return;
+
+        float edge = Math.max(2f, Math.min(3f, bounds.width * 0.06f));
+        batch.setColor(BattleUiAssets.YELLOW);
+        batch.draw(assets.battleUi.pixel, bounds.x, bounds.y, bounds.width, edge);
+        batch.draw(assets.battleUi.pixel, bounds.x, bounds.y + bounds.height - edge,
+            bounds.width, edge);
+        batch.draw(assets.battleUi.pixel, bounds.x, bounds.y, edge, bounds.height);
+        batch.draw(assets.battleUi.pixel, bounds.x + bounds.width - edge, bounds.y,
+            edge, bounds.height);
+        batch.setColor(Color.WHITE);
+    }
+
+    private float playbackSpeedMultiplier() {
+        return fastForwardActive ? FAST_FORWARD_MULTIPLIER : 1f;
+    }
+
+    private boolean playbackControlsEnabled() {
+        return speedControlsVisible() && playbackControlsOpen && !awaitingNextRound
+            && !battleOver && !skipRoundRequested;
+    }
+
+    private boolean speedControlsVisible() {
+        return executionUiActive && planningPanel == null && teamPlanningPanel == null
+            && !battleOver;
+    }
+
+    private void toggleFastForward() {
+        synchronized (this) {
+            if (!playbackControlsEnabled()) return;
+            fastForwardActive = !fastForwardActive;
+        }
+        game.audio().play(SoundCue.UI_CONFIRM);
+    }
+
+    private void requestRoundSkip() {
+        synchronized (this) {
+            if (!playbackControlsEnabled()) return;
+            skipRoundRequested = true;
+            fastForwardActive = false;
+        }
+        skipActiveFlashRemaining = SKIP_ACTIVE_FLASH_SECONDS;
+        game.audio().play(SoundCue.UI_CONFIRM);
+        clearTransientAnimations();
+        flushTypingImmediately();
+        completeFaintAnimationsImmediately();
+        snapPanelAnimations();
+    }
+
+    private void resetPlaybackControls() {
+        synchronized (this) {
+            playbackControlsOpen = false;
+            fastForwardActive = false;
+            skipRoundRequested = false;
+        }
+        fastForwardHovered = false;
+        skipHovered = false;
+    }
+
+    private void clearTransientAnimations() {
+        unleashedMoveIcon = null;
+        unleashedMoveTargetPanel = null;
+        hitFlashes.clear();
+    }
+
+    private void completeFaintAnimationsImmediately() {
+        if (faintAnimations.isEmpty()) return;
+        List<Runnable> completions = faintAnimations.stream()
+            .map(faint -> faint.onComplete)
+            .toList();
+        faintAnimations.clear();
+        for (Runnable completion : completions) completion.run();
+    }
+
+    private void snapPanelAnimations() {
+        playerPanels.forEach(CombatantPanel::snapAnimations);
+        enemyPanels.forEach(CombatantPanel::snapAnimations);
     }
 
     private void updateMoveUnleashAnimation(float delta) {
@@ -1121,6 +1266,24 @@ public class BattleScreen implements Screen, BattleView {
         pendingTypingQueue.add(message);
     }
 
+    /** Commit all current and queued dialogue without typewriter delays. */
+    private void flushTypingImmediately() {
+        if (typingLine != null) {
+            addLogLine(typingLine);
+            committedLogSeq++;
+        }
+        typingLine = null;
+        typingChars = 0;
+        typingCharTimer = 0f;
+        typingTailTimer = 0f;
+
+        String queued;
+        while ((queued = pendingTypingQueue.poll()) != null) {
+            addLogLine(queued);
+            committedLogSeq++;
+        }
+    }
+
     /**
      * Advance the typewriter reveal on the render thread: pop queued messages
      * one at a time, reveal a character at {@link #LOG_TYPE_RATE_CPS}, then
@@ -1178,7 +1341,8 @@ public class BattleScreen implements Screen, BattleView {
         // queue drained — rather than just the next commit. A "next commit"
         // gate would mis-fire if earlier lines (e.g. the BATTLE START banner,
         // which doesn't block) were still queued ahead of this one.
-        while (typingInProgress() && !abortRequested && isCurrentLocalBattleThread()) {
+        while (typingInProgress() && !skipRoundRequested
+            && !abortRequested && isCurrentLocalBattleThread()) {
             sleepMs(16);
         }
     }
@@ -1222,7 +1386,7 @@ public class BattleScreen implements Screen, BattleView {
         // Publish the battlefield with its planner below so no render boundary
         // can observe the next round's execution scene by itself.
         postLocal(() -> game.audio().play(SoundCue.BATTLE_ROUND_START));
-        sleepMs(200);
+        abortableSleepMs(200);
     }
 
     /** Rebind the four visual slots per side to the active round-start roster. */
@@ -1440,7 +1604,7 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayCombatEvents(List<CombatEvent> events, BattleState state) {
         if (abortRequested || !isCurrentLocalBattleThread()) return;
-        ensureLocalLifecycleVisualsAndWait(events, state);
+        if (!skipRoundRequested) ensureLocalLifecycleVisualsAndWait(events, state);
 
         for (CombatEvent e : events) {
             if (abortRequested || !isCurrentLocalBattleThread()) return;
@@ -1449,9 +1613,11 @@ public class BattleScreen implements Screen, BattleView {
             if (e.getType() == CombatEvent.Type.BATTLE_OVER) {
                 playMissingLocalFaints(state);
             }
-            BattleAudioRouter.cueFor(e)
-                .ifPresent(cue -> postLocal(() -> game.audio().play(cue)));
-            if (e.getType() == CombatEvent.Type.MOVE_FIRED) {
+            if (!skipRoundRequested) {
+                BattleAudioRouter.cueFor(e)
+                    .ifPresent(cue -> postLocal(() -> game.audio().play(cue)));
+            }
+            if (!skipRoundRequested && e.getType() == CombatEvent.Type.MOVE_FIRED) {
                 Move unleashedMove = e.getMove();
                 postLocal(() -> playMoveUnleashAnimation(unleashedMove));
             }
@@ -1459,17 +1625,17 @@ public class BattleScreen implements Screen, BattleView {
             // (damage, block, dodge, parry) spawns its own targeted flash so the
             // hits read as distinct strikes; single-hit moves keep using the
             // shared center-screen unleash slot.
-            if (e.getType() == CombatEvent.Type.DAMAGE_DEALT
+            if (!skipRoundRequested && (e.getType() == CombatEvent.Type.DAMAGE_DEALT
                 || e.getType() == CombatEvent.Type.DAMAGE_IGNORED
                 || e.getType() == CombatEvent.Type.MOVE_BLOCKED
                 || e.getType() == CombatEvent.Type.MOVE_BLOCK_REDUCED
                 || e.getType() == CombatEvent.Type.MOVE_DODGED
-                || e.getType() == CombatEvent.Type.MOVE_PARRIED) {
+                || e.getType() == CombatEvent.Type.MOVE_PARRIED)) {
                 final CombatEvent impactEvent = e;
                 postLocal(() -> spawnHitFlash(impactEvent));
             }
-            if (e.getType() == CombatEvent.Type.MOVE_BLOCKED
-                || e.getType() == CombatEvent.Type.MOVE_BLOCK_REDUCED) {
+            if (!skipRoundRequested && (e.getType() == CombatEvent.Type.MOVE_BLOCKED
+                || e.getType() == CombatEvent.Type.MOVE_BLOCK_REDUCED)) {
                 CombatEvent blockEvent = e;
                 // Single-hit blocked moves use the shared center unleash; a
                 // multi-hit move's per-hit blocks are drawn as flashes above.
@@ -1478,7 +1644,7 @@ public class BattleScreen implements Screen, BattleView {
                     postLocal(() -> playSuccessfulBlockAnimation(blockEvent));
                 }
             }
-            if (e.getType() == CombatEvent.Type.RATIO_TRIGGERED) {
+            if (!skipRoundRequested && e.getType() == CombatEvent.Type.RATIO_TRIGGERED) {
                 postLocal(this::playRatioUnleashAnimation);
             }
             if (hasLocalPlaybackEffect(e)) {
@@ -1492,10 +1658,12 @@ public class BattleScreen implements Screen, BattleView {
                 // guarantees the queue is non-empty when we wait.
                 applyLocalHpEvent(ev);
                 if (shouldLog(e)) queueLogLine(e.getMessage());
-                postLocal(() -> {
-                    flashLocalDamageSprite(ev);
-                    updatePanels();
-                });
+                if (!skipRoundRequested) {
+                    postLocal(() -> {
+                        if (!skipRoundRequested) flashLocalDamageSprite(ev);
+                        updatePanels();
+                    });
+                }
                 // Round-start ability events fire before the first planning
                 // phase flips executionUiActive; gating there would stall the
                 // battle thread behind a blank screen. The lines still type
@@ -1503,9 +1671,17 @@ public class BattleScreen implements Screen, BattleView {
                 if (executionUiActive && shouldLog(e)) waitForLogLine();
             }
             if (e.getType() == CombatEvent.Type.COMBATANT_DEFEATED) {
-                playLocalFaintAndWait(e.getTarget());
+                if (skipRoundRequested) {
+                    markAndRemoveLocalCombatantImmediately(e.getTarget());
+                } else {
+                    playLocalFaintAndWait(e.getTarget());
+                }
             } else if (e.getType() == CombatEvent.Type.COMBATANT_REMOVED) {
-                removeLocalCombatantAndWait(e.getTarget());
+                if (skipRoundRequested) {
+                    removeLocalCombatantImmediately(e.getTarget());
+                } else {
+                    removeLocalCombatantAndWait(e.getTarget());
+                }
             }
         }
     }
@@ -1569,21 +1745,8 @@ public class BattleScreen implements Screen, BattleView {
         BattleState state
     ) {
         if (state == null || abortRequested || !isCurrentLocalBattleThread()) return;
-        Set<BattleCombatant> lifecycleTargets = new HashSet<>();
-        boolean battleEnding = state.isBattleOver();
-        for (CombatEvent event : events) {
-            if (event.getType() == CombatEvent.Type.COMBATANT_DEFEATED
-                || event.getType() == CombatEvent.Type.COMBATANT_REMOVED) {
-                if (event.getTarget() != null) lifecycleTargets.add(event.getTarget());
-            }
-            battleEnding |= event.getType() == CombatEvent.Type.BATTLE_OVER;
-        }
-        if (battleEnding) {
-            state.playerTeam().all().stream()
-                .filter(BattleCombatant::isDefeated).forEach(lifecycleTargets::add);
-            state.enemyTeam().all().stream()
-                .filter(BattleCombatant::isDefeated).forEach(lifecycleTargets::add);
-        }
+        Set<BattleCombatant> lifecycleTargets = pendingLocalLifecycleTargets(
+            events, state, presentedLocalFaints);
         if (lifecycleTargets.isEmpty()
             || lifecycleTargets.stream().allMatch(target -> panelForCombatant(target) != null)) {
             return;
@@ -1608,6 +1771,31 @@ public class BattleScreen implements Screen, BattleView {
         while (ready.getCount() > 0L && !abortRequested && isCurrentLocalBattleThread()) {
             sleepMs(16);
         }
+    }
+
+    static Set<BattleCombatant> pendingLocalLifecycleTargets(
+        List<CombatEvent> events,
+        BattleState state,
+        Set<CombatantId> presentedFaints
+    ) {
+        Set<BattleCombatant> lifecycleTargets = new HashSet<>();
+        boolean battleEnding = state.isBattleOver();
+        for (CombatEvent event : events) {
+            if (event.getType() == CombatEvent.Type.COMBATANT_DEFEATED
+                || event.getType() == CombatEvent.Type.COMBATANT_REMOVED) {
+                if (event.getTarget() != null) lifecycleTargets.add(event.getTarget());
+            }
+            battleEnding |= event.getType() == CombatEvent.Type.BATTLE_OVER;
+        }
+        if (battleEnding) {
+            state.playerTeam().all().stream()
+                .filter(BattleCombatant::isDefeated).forEach(lifecycleTargets::add);
+            state.enemyTeam().all().stream()
+                .filter(BattleCombatant::isDefeated).forEach(lifecycleTargets::add);
+        }
+        lifecycleTargets.removeIf(combatant ->
+            presentedFaints.contains(combatant.getInstanceId()));
+        return lifecycleTargets;
     }
 
     static List<BattleCombatant> lifecycleVisualRoster(
@@ -1640,8 +1828,24 @@ public class BattleScreen implements Screen, BattleView {
         List<BattleCombatant> displayed = new ArrayList<>(renderPlayerTeam);
         displayed.addAll(renderEnemyTeam);
         for (BattleCombatant combatant : displayed) {
-            if (combatant.isDefeated()) playLocalFaintAndWait(combatant);
+            if (!combatant.isDefeated()) continue;
+            if (skipRoundRequested) {
+                markAndRemoveLocalCombatantImmediately(combatant);
+            } else {
+                playLocalFaintAndWait(combatant);
+            }
         }
+    }
+
+    private void markAndRemoveLocalCombatantImmediately(BattleCombatant combatant) {
+        if (combatant != null && combatant.getInstanceId() != null) {
+            presentedLocalFaints.add(combatant.getInstanceId());
+        }
+        removeLocalCombatantImmediately(combatant);
+    }
+
+    private void removeLocalCombatantImmediately(BattleCombatant combatant) {
+        if (combatant != null) postLocal(() -> removeLocalCombatantFromField(combatant));
     }
 
     private void playLocalFaintAndWait(BattleCombatant combatant) {
@@ -1649,6 +1853,8 @@ public class BattleScreen implements Screen, BattleView {
             || abortRequested || !isCurrentLocalBattleThread()) {
             return;
         }
+        CombatantId instanceId = combatant.getInstanceId();
+        if (instanceId != null && !presentedLocalFaints.add(instanceId)) return;
 
         java.util.concurrent.CountDownLatch complete = new java.util.concurrent.CountDownLatch(1);
         postLocal(() -> {
@@ -1684,6 +1890,17 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     @Override
+    public void displayResolutionStart(BattleState state) {
+        if (abortRequested || !isCurrentLocalBattleThread()) return;
+        synchronized (this) {
+            playbackControlsOpen = true;
+            fastForwardActive = false;
+            skipRoundRequested = false;
+        }
+        postLocal(this::showExecutionUi);
+    }
+
+    @Override
     public void displayResolutionTick(int tick, BattleState state) {
         if (abortRequested || !isCurrentLocalBattleThread()) return;
         // Hold the previous tick before advancing, regardless of whether it
@@ -1700,6 +1917,10 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayRoundEnd(BattleState state) {
         if (!isCurrentLocalBattleThread()) return;
+        synchronized (this) {
+            playbackControlsOpen = false;
+            fastForwardActive = false;
+        }
         // The final tick's brief hold runs here because no later
         // displayResolutionTick call follows it.
         if (resolvingTicks) {
@@ -1712,6 +1933,13 @@ public class BattleScreen implements Screen, BattleView {
             // changes, etc.) converges the deferred bars back to the true HP.
             syncLocalHpFromModel();
             updatePanels();
+            if (skipRoundRequested) {
+                flushTypingImmediately();
+                clearTransientAnimations();
+                completeFaintAnimationsImmediately();
+            }
+            snapPanelAnimations();
+            resetPlaybackControls();
         });
     }
 
@@ -1735,6 +1963,10 @@ public class BattleScreen implements Screen, BattleView {
     @Override
     public void displayBattleOver(BattleCombatant winner, BattleState state) {
         if (!isCurrentLocalBattleThread()) return;
+        synchronized (this) {
+            playbackControlsOpen = false;
+            fastForwardActive = false;
+        }
         // Compatibility fallback for a resolver that omitted lifecycle events.
         ensureLocalLifecycleVisualsAndWait(List.of(), state);
         playMissingLocalFaints(state);
@@ -1748,7 +1980,16 @@ public class BattleScreen implements Screen, BattleView {
             } else {
                 battleResult = winner.getCharacter().getName() + " WINS!";
             }
+            if (skipRoundRequested) {
+                flushTypingImmediately();
+                clearTransientAnimations();
+                completeFaintAnimationsImmediately();
+                syncLocalHpFromModel();
+                updatePanels();
+                snapPanelAnimations();
+            }
             game.audio().play(resultCue);
+            resetPlaybackControls();
             battleOver = true;
         });
     }
@@ -1844,6 +2085,7 @@ public class BattleScreen implements Screen, BattleView {
                 startMultiplayerPlayback(state, true);
                 return;
             }
+            resetPlaybackControls();
             awaitingNextRound = false;
             nextRoundHovered = false;
             resolvingTicks = false;
@@ -2121,6 +2363,8 @@ public class BattleScreen implements Screen, BattleView {
 
     private void startMultiplayerPlayback(MatchState state, boolean returnsToPlanning) {
         closePlanningPanel();
+        resetPlaybackControls();
+        playbackControlsOpen = true;
         playbackReturnsToPlanning = returnsToPlanning;
         if (returnsToPlanning) playedPlanningDefeatRound = state.roundNumber();
         playbackRound = state.roundNumber();
@@ -2170,6 +2414,10 @@ public class BattleScreen implements Screen, BattleView {
 
     private void updateMultiplayerPlayback(float delta) {
         if (!resolvingTicks || playbackComplete || multiplayerState == null) return;
+        if (skipRoundRequested) {
+            finishMultiplayerPlayback();
+            return;
+        }
         // Don't advance (or accumulate) while a log line is still typing, so
         // a tick that just queued messages can't outpace the typewriter.
         if (typingInProgress() || faintAnimationInProgress()) return;
@@ -2259,7 +2507,7 @@ public class BattleScreen implements Screen, BattleView {
                 case DAMAGE_DEALT -> {
                     if (value > 0) {
                         targetResources.hp = Math.max(0, targetResources.hp - value);
-                        if (targetPanel != null) targetPanel.flashDamage();
+                        if (targetPanel != null && !skipRoundRequested) targetPanel.flashDamage();
                     }
                 }
                 case HP_RESTORED -> targetResources.hp += value;
@@ -2300,11 +2548,12 @@ public class BattleScreen implements Screen, BattleView {
 
         Move unleashedMove = event.moveId() == null
             ? null : findOnlineMove(event.sourceSide(), event.moveId());
-        if (event.type() == BattleEventType.MOVE_FIRED && unleashedMove != null) {
+        if (!skipRoundRequested && event.type() == BattleEventType.MOVE_FIRED
+            && unleashedMove != null) {
             playMoveUnleashAnimation(unleashedMove);
         }
         // Per-hit impact flash for multi-hit moves (online path mirrors local).
-        if (unleashedMove != null
+        if (!skipRoundRequested && unleashedMove != null
             && unleashedMove.getHitComponents().size() > 1
             && (event.type() == BattleEventType.DAMAGE_DEALT
                 || event.type() == BattleEventType.MOVE_BLOCKED
@@ -2317,8 +2566,8 @@ public class BattleScreen implements Screen, BattleView {
                 spawnHitFlash(unleashedMove, flashType, targetPanel);
             }
         }
-        if (event.type() == BattleEventType.MOVE_BLOCKED
-            || event.type() == BattleEventType.MOVE_BLOCK_REDUCED) {
+        if (!skipRoundRequested && (event.type() == BattleEventType.MOVE_BLOCKED
+            || event.type() == BattleEventType.MOVE_BLOCK_REDUCED)) {
             // Only single-hit moves use the shared center-slot block animation;
             // multi-hit per-hit blocks are rendered as flashes above.
             if (unleashedMove == null
@@ -2327,17 +2576,28 @@ public class BattleScreen implements Screen, BattleView {
             }
         }
         if (event.eventId() == null || soundedOnlineEventIds.add(event.eventId())) {
-            BattleAudioRouter.cueFor(event, unleashedMove).ifPresent(game.audio()::play);
+            if (!skipRoundRequested) {
+                BattleAudioRouter.cueFor(event, unleashedMove).ifPresent(game.audio()::play);
+            }
         }
-        if (event.type() == BattleEventType.RATIO_TRIGGERED) {
+        if (!skipRoundRequested && event.type() == BattleEventType.RATIO_TRIGGERED) {
             playRatioUnleashAnimation();
         }
         if (shouldLog(event)
             && (event.eventId() == null || loggedOnlineEventIds.add(event.eventId()))) {
             queueLogLine(event.message());
         }
-        return event.type() == BattleEventType.COMBATANT_DEFEATED
-            && startOnlineFaint(event.targetSide(), target);
+        if (event.type() == BattleEventType.COMBATANT_DEFEATED) {
+            if (skipRoundRequested) {
+                removeOnlineCombatantImmediately(event.targetSide(), target);
+                return false;
+            }
+            return startOnlineFaint(event.targetSide(), target);
+        }
+        if (event.type() == BattleEventType.COMBATANT_REMOVED) {
+            removeOnlineCombatantImmediately(event.targetSide(), target);
+        }
+        return false;
     }
 
     private void logOnlineEvents(List<BattleEventState> events) {
@@ -2372,6 +2632,17 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     private void finishMultiplayerPlayback() {
+        boolean skipped = skipRoundRequested;
+        if (skipped) {
+            completeFaintAnimationsImmediately();
+            while (playbackEventIndex < playbackEvents.size()) {
+                applyPlaybackEvent(playbackEvents.get(playbackEventIndex++));
+            }
+            flushTypingImmediately();
+            clearTransientAnimations();
+            updatePanels();
+            snapPanelAnimations();
+        }
         if (processPlaybackEventsThrough(Integer.MAX_VALUE)
             || typingInProgress() || faintAnimationInProgress()) {
             return;
@@ -2394,11 +2665,13 @@ public class BattleScreen implements Screen, BattleView {
                 ? null : findRatioState(displayedPlayer.codedAbilities());
             initPanels();
             updatePanels();
+            if (skipped) snapPanelAnimations();
             ensureOnlinePlanner(
                 multiplayerState.roundNumber(), onlinePlayer, onlineEnemy);
             if (onlinePlayer.planSubmitted() && teamPlanningPanel != null) {
                 teamPlanningPanel.lock();
             }
+            resetPlaybackControls();
             return;
         }
         playbackReturnsToPlanning = false;
@@ -2409,6 +2682,7 @@ public class BattleScreen implements Screen, BattleView {
         onlinePlayerRatio = displayedPlayer == null
             ? null : findRatioState(displayedPlayer.codedAbilities());
         updatePanels();
+        if (skipped) snapPanelAnimations();
 
         if (isTerminal(multiplayerState.status())
             || multiplayerState.phase() == BattlePhase.BATTLE_OVER) {
@@ -2417,6 +2691,7 @@ public class BattleScreen implements Screen, BattleView {
         }
         awaitingNextRound = true;
         nextRoundHovered = false;
+        resetPlaybackControls();
     }
 
     private boolean submitReadyNextRound() {
@@ -2456,6 +2731,7 @@ public class BattleScreen implements Screen, BattleView {
         battleResultReason = state.endReason() == null
             ? "" : state.endReason().replace('_', ' ');
         if (firstResult) game.audio().play(resultCue);
+        resetPlaybackControls();
         battleOver = true;
     }
 
@@ -2879,11 +3155,13 @@ public class BattleScreen implements Screen, BattleView {
             for (CharacterState combatant : combatants) {
                 if (instanceId.equals(combatant.instanceId())) return combatant;
             }
+            return null;
         }
         if (characterId != null && !characterId.isBlank()) {
             for (CharacterState combatant : combatants) {
                 if (characterId.equals(combatant.characterId())) return combatant;
             }
+            return null;
         }
         return combatants.size() == 1 ? combatants.get(0) : null;
     }
@@ -2916,19 +3194,27 @@ public class BattleScreen implements Screen, BattleView {
             key, playerSide, panel, () -> removeOnlineCombatantFromField(key)));
     }
 
+    private void removeOnlineCombatantImmediately(PlayerSide side, CharacterState combatant) {
+        OnlineCombatantKey key = onlineKey(side, combatant);
+        if (key != null) removeOnlineCombatantFromField(key);
+    }
+
     private void removeOnlineCombatantFromField(OnlineCombatantKey defeated) {
         boolean playerSide = defeated.side() == multiplayerSetup.playerSide();
         List<CharacterState> current = new ArrayList<>(playerSide
             ? renderOnlinePlayerTeam : renderOnlineEnemyTeam);
         List<CombatantPanel> currentPanels = playerSide ? playerPanels : enemyPanels;
         CombatantPanel oldPanel = null;
+        boolean removed = false;
         for (int i = 0; i < current.size(); i++) {
             if (defeated.equals(onlineKey(defeated.side(), current.get(i)))) {
                 if (i < currentPanels.size()) oldPanel = currentPanels.get(i);
                 current.remove(i);
+                removed = true;
                 break;
             }
         }
+        if (!removed) return;
         if (playerSide) {
             syncOnlineBattlefield(current, renderOnlineEnemyTeam);
         } else {
@@ -3169,7 +3455,27 @@ public class BattleScreen implements Screen, BattleView {
             nextRoundWidth,
             nextRoundHeight
         );
+        layoutSpeedControls(nextRoundBounds, logBounds.y + logBounds.height,
+            fastForwardBounds, skipBounds);
         updatePanels();
+    }
+
+    static void layoutSpeedControls(
+        Rectangle nextRound,
+        float logTop,
+        Rectangle fastForward,
+        Rectangle skip
+    ) {
+        float availableHeight = Math.max(1f,
+            logTop - SPEED_CONTROL_PANEL_INSET
+                - (nextRound.y + nextRound.height)
+                - SPEED_CONTROL_GAP);
+        float availableWidth = Math.max(1f,
+            (nextRound.width - SPEED_CONTROL_GAP) / 2f);
+        float size = Math.min(nextRound.height, Math.min(availableHeight, availableWidth));
+        float y = nextRound.y + nextRound.height + SPEED_CONTROL_GAP;
+        skip.set(nextRound.x + nextRound.width - size, y, size, size);
+        fastForward.set(skip.x - SPEED_CONTROL_GAP - size, y, size, size);
     }
 
     private List<CombatantPanel> buildCombatantPanels(
@@ -3548,10 +3854,15 @@ public class BattleScreen implements Screen, BattleView {
      * already returned to the menu.
      */
     private void abortableSleepMs(long ms) {
-        long deadline = System.currentTimeMillis() + ms;
-        while (!abortRequested && isCurrentLocalBattleThread()
-            && System.currentTimeMillis() < deadline) {
-            sleepMs(Math.min(40L, deadline - System.currentTimeMillis() + 1));
+        double elapsedPlaybackMs = 0d;
+        long previousNanos = System.nanoTime();
+        while (!abortRequested && !skipRoundRequested && isCurrentLocalBattleThread()
+            && elapsedPlaybackMs < ms) {
+            sleepMs(8L);
+            long currentNanos = System.nanoTime();
+            elapsedPlaybackMs += (currentNanos - previousNanos) / 1_000_000d
+                * playbackSpeedMultiplier();
+            previousNanos = currentNanos;
         }
     }
 

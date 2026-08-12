@@ -248,6 +248,7 @@ public class BattleController {
 
     private void runResolutionPhase(BattleState state) {
         state.transitionTo(BattleState.Phase.RESOLUTION);
+        view.displayResolutionStart(state);
 
         // Drive the engine tick by tick so the view's pacing reflects real
         // progression, not a replay of pre-computed results. Each tick's events

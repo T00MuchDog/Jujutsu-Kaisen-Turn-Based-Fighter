@@ -102,6 +102,22 @@ class BattleScreenSpriteBoundsTest {
     }
 
     @Test
+    void speedControlsAlignAboveTheNextRoundButton() {
+        Rectangle nextRound = new Rectangle(800f, 17f, 210f, 54f);
+        Rectangle fastForward = new Rectangle();
+        Rectangle skip = new Rectangle();
+
+        BattleScreen.layoutSpeedControls(nextRound, 153f, fastForward, skip);
+
+        assertEquals(54f, fastForward.width, 0.0001f);
+        assertEquals(54f, fastForward.height, 0.0001f);
+        assertEquals(8f, skip.x - fastForward.x - fastForward.width, 0.0001f);
+        assertEquals(nextRound.x + nextRound.width, skip.x + skip.width, 0.0001f);
+        assertTrue(fastForward.y > nextRound.y + nextRound.height);
+        assertTrue(skip.y + skip.height < 153f);
+    }
+
+    @Test
     void faintSlideQuicklyPassesBelowTheOriginalFootLine() {
         assertEquals(0f, BattleScreen.faintSlideRatio(0f), 0.0001f);
         assertEquals(0.75f, BattleScreen.faintSlideRatio(0.5f), 0.0001f);

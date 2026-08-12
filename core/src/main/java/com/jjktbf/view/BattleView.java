@@ -80,6 +80,13 @@ public interface BattleView {
     void displayCombatEvents(List<CombatEvent> events, BattleState state);
 
     /**
+     * Enter round playback before the first resolution tick is processed. This
+     * also fires for an actionless round, where no displayResolutionTick call
+     * follows.
+     */
+    default void displayResolutionStart(BattleState state) {}
+
+    /**
      * Display an AP tick that contains at least one active action segment. Idle
      * ticks are resolved internally but skipped by playback.
      */

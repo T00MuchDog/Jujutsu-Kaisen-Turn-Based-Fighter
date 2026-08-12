@@ -66,6 +66,11 @@ public class StatusBar {
         }
     }
 
+    /** Completes the trailing damage-bar animation at its live value. */
+    public void snapToCurrent() {
+        displayed = current;
+    }
+
     public void draw(Batch batch, BitmapFont font, BattleUiAssets ui, boolean showValue) {
         float labelWidth = Math.max(38f, height * 1.55f);
         float trackX = x + labelWidth;

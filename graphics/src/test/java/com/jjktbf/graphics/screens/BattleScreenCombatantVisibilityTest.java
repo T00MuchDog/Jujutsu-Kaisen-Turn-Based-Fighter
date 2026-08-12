@@ -7,6 +7,7 @@ import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.BattleTeam;
 import com.jjktbf.model.combat.BattleTeamId;
+import com.jjktbf.model.combat.CombatEvent;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -90,6 +91,32 @@ class BattleScreenCombatantVisibilityTest {
 
         assertEquals(List.of(defeated, survivor),
             BattleScreen.lifecycleVisualRoster(players, List.of(), Set.of(defeated)));
+    }
+
+    @Test
+    void battleEndLifecycleTargetsExcludeFightersWhoseFaintsWereAlreadyPresented() {
+        BattleCombatant first = fighter("Yuji");
+        BattleCombatant last = fighter("Nanami");
+        BattleTeam players = BattleState.teamOfFighters(
+            BattleTeamId.PLAYER, List.of(first, last));
+        BattleState state = new BattleState(
+            players,
+            BattleState.teamOfFighters(BattleTeamId.ENEMY, List.of(fighter("Enemy"))));
+
+        first.receiveDamage(first.getCurrentHp());
+        state.reconcileDefeats();
+        last.receiveDamage(last.getCurrentHp());
+        state.reconcileDefeats();
+        state.checkAndResolveBattleOver();
+
+        List<CombatEvent> terminalEvents = List.of(
+            CombatEvent.of(CombatEvent.Type.COMBATANT_DEFEATED).target(last).build(),
+            CombatEvent.of(CombatEvent.Type.BATTLE_OVER).build());
+
+        assertEquals(Set.of(last), BattleScreen.pendingLocalLifecycleTargets(
+            terminalEvents, state, Set.of(first.getInstanceId())));
+        assertEquals(Set.of(), BattleScreen.pendingLocalLifecycleTargets(
+            List.of(), state, Set.of(first.getInstanceId(), last.getInstanceId())));
     }
 
     @Test

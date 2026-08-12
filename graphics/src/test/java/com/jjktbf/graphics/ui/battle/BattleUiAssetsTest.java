@@ -35,6 +35,19 @@ class BattleUiAssetsTest {
         assertNull(BattleUiAssets.techniqueEffectIconPathFor(ordinaryAttack));
     }
 
+    @Test
+    void speedControlAssetsArePackagedWithExactAuthoredNames() {
+        assertNotNull(resource("FastForward_Inactive.png"));
+        assertNotNull(resource("FastForward_active.png"));
+        assertNotNull(resource("Skip_inactive.png"));
+        assertNotNull(resource("Skip_active.png"));
+    }
+
+    private java.net.URL resource(String fileName) {
+        return getClass().getClassLoader().getResource(
+            "assets/ui/common/speedcontrol/" + fileName);
+    }
+
     private static Move innateTechniqueMove(
         String techniqueId,
         MoveCategory category,

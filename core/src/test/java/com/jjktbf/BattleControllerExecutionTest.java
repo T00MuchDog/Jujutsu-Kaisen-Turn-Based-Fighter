@@ -57,14 +57,39 @@ class BattleControllerExecutionTest {
 
         controller.runBattle(player, enemy);
 
+        assertEquals(1, view.resolutionStarts);
         assertEquals(List.of(1, 10), view.resolutionTicks);
         assertTrue(view.battleOverShown);
+    }
+
+    @Test
+    void entersResolutionPlaybackForAnActionlessRound() {
+        CharacterStats stats = new CharacterStats.Builder().speed(80).build();
+        Character player = new SorcererCharacter(
+            "PLAYER", "Player", stats, null, List.of());
+        Character enemy = new SorcererCharacter(
+            "ENEMY", "Enemy", stats, null, List.of());
+        RecordingView view = new RecordingView(new BattlePlan(0, 0));
+        view.abortAfterRoundEnd = true;
+        BattleController controller = new BattleController(
+            view,
+            new SeededRandomSource(1L),
+            (ai, opponent, rng) -> new BattlePlan(ai.getMaxApBar(), ai.getCurrentCe())
+        );
+
+        controller.runBattle(player, enemy);
+
+        assertEquals(1, view.resolutionStarts);
+        assertEquals(List.of(), view.resolutionTicks);
     }
 
     private static final class RecordingView implements BattleView {
         private final BattlePlan plan;
         private final List<Integer> resolutionTicks = new ArrayList<>();
+        private int resolutionStarts;
         private boolean battleOverShown;
+        private boolean abortAfterRoundEnd;
+        private boolean aborted;
 
         private RecordingView(BattlePlan plan) {
             this.plan = plan;
@@ -87,12 +112,18 @@ class BattleControllerExecutionTest {
         }
 
         @Override
+        public void displayResolutionStart(BattleState state) {
+            resolutionStarts++;
+        }
+
+        @Override
         public void displayResolutionTick(int tick, BattleState state) {
             resolutionTicks.add(tick);
         }
 
         @Override
         public void displayRoundEnd(BattleState state) {
+            if (abortAfterRoundEnd) aborted = true;
         }
 
         @Override
@@ -106,6 +137,11 @@ class BattleControllerExecutionTest {
 
         @Override
         public void displayMessage(String message) {
+        }
+
+        @Override
+        public boolean isAborted() {
+            return aborted;
         }
     }
 }

@@ -85,6 +85,13 @@ public class CombatantPanel {
         damageFlashRemaining = 0f;
     }
 
+    /** Completes visual-only damage flicker and resource-bar trails immediately. */
+    public void snapAnimations() {
+        damageFlashRemaining = 0f;
+        hpBar.snapToCurrent();
+        ceBar.snapToCurrent();
+    }
+
     public float spriteCenterX() {
         return spriteBounds.x + spriteBounds.width / 2f;
     }
