@@ -173,7 +173,7 @@
   },
   {
     "term": "STUN",
-    "description": "A move tag that cancels the target's active non-Heavy action segment on hit."
+    "description": "An immediate effect that cancels the target's active non-Heavy action segment."
   },
   {
     "term": "SWORD",
@@ -201,7 +201,7 @@
   },
   {
     "term": "SLEEP",
-    "description": "A Cursed Speech command effect that prevents actions until damage wakes the target or the current round ends."
+    "description": "A Cursed Speech command effect that prevents actions until damage or a 5% per-tick wake-up chance ends it, or the current round ends."
   },
   {
     "term": "COMBAT ABILITY",
@@ -237,7 +237,7 @@
   },
   {
     "term": "Jab",
-    "description": "A fast, accurate melee attack that applies Stun."
+    "description": "A fast, accurate Physical melee attack."
   },
   {
     "term": "Elbow Strike",
@@ -261,7 +261,7 @@
   },
   {
     "term": "Reinforced Jab",
-    "description": "A cursed-energy reinforced Jab that applies Stun."
+    "description": "A cursed-energy reinforced Physical melee attack."
   },
   {
     "term": "Reinforced Elbow",
@@ -297,11 +297,11 @@
   },
   {
     "term": "Braced Guard",
-    "description": "A delayed Potency 1 block that reduces pure Physical attack damage by 90%."
+    "description": "A delayed Heavy Potency 1 block that flat-reduces pure Physical attack damage by 20."
   },
   {
     "term": "Reinforced Braced Guard",
-    "description": "A delayed CE-powered block that reduces Potency 1 attack damage by 90%."
+    "description": "A delayed Heavy CE-powered block that flat-reduces any attack damage by 30."
   },
   {
     "term": "Reinforced Basic Block",
@@ -309,11 +309,19 @@
   },
   {
     "term": "Cursed Energy Focus",
-    "description": "A utility move that increases Accuracy for two rounds."
+    "description": "A utility move that raises Accuracy by 20% for two rounds."
   },
   {
     "term": "Cursed Energy Surge",
-    "description": "A utility move that temporarily increases Cursed Energy Output."
+    "description": "A utility move that raises Cursed Energy Output by 20% for one round."
+  },
+  {
+    "term": "Keen Observation",
+    "description": "A utility move that raises Accuracy and Evasion by 15% for one round."
+  },
+  {
+    "term": "Aerial Swarm",
+    "description": "A ranged area attack that reduces every enemy's Accuracy by 20% for one round."
   },
   {
     "term": "Miracle Creation",
@@ -329,7 +337,7 @@
   },
   {
     "term": "Ratio Mark",
-    "description": "A Ratio technique move that places one Ratio Stack on the target, up to three total."
+    "description": "A Ratio technique move that places Ratio Stacks on the target, up to capacity."
   },
   {
     "term": "Ratio Strike",
@@ -345,7 +353,7 @@
   },
   {
     "term": "Sidestep",
-    "description": "A short defensive move with a 60% chance to dodge Melee attacks."
+    "description": "A short defensive move with a 40% chance to dodge Melee attacks."
   },
   {
     "term": "Weapon Parry",

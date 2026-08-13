@@ -23,6 +23,11 @@ public enum BattleStatKey {
         this.label = label;
     }
 
+    /** Whether this value is represented as a probability in the range [0, 1]. */
+    public boolean isProbability() {
+        return this == BLACK_FLASH_CHANCE;
+    }
+
     public static BattleStatKey fromString(String value) {
         if (value == null) throw new IllegalArgumentException("Battle stat is required.");
         String normalized = value.trim().toUpperCase().replace(' ', '_');

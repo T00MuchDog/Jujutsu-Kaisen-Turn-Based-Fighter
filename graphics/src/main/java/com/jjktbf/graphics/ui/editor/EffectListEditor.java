@@ -302,6 +302,10 @@ public class EffectListEditor extends Table {
             ? integerField(effect.durationRounds) : null;
         TextField durationTicksField = type.uses(AbilityEffectParameter.DURATION)
             && !roundOnlyStatus ? nonNegativeIntegerField(effect.durationTicks) : null;
+        TextField perTickRemovalChanceField = type.uses(
+            AbilityEffectParameter.PER_TICK_REMOVAL_CHANCE)
+            ? nonNegativeDecimalField(effect.perTickRemovalChance == null
+                ? null : effect.perTickRemovalChance * 100.0) : null;
 
         if (type.uses(AbilityEffectParameter.CODED_FEATURE)) {
             List<CodedAbilityRegistry.AbilityFeature> features =
@@ -631,6 +635,19 @@ public class EffectListEditor extends Table {
                 () -> effect.magnitude == null ? 0 : (int) Math.round(effect.magnitude));
         }
 
+        if (perTickRemovalChanceField != null) {
+            perTickRemovalChanceField.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    Double value = parseDouble(perTickRemovalChanceField.getText());
+                    effect.perTickRemovalChance = value == null ? null : value / 100.0;
+                }
+            });
+            addRow(fields, "Remove per tick (%)", perTickRemovalChanceField);
+            addMasteryProgression(fields, effect,
+                TechniqueMasteryProgressions.PER_TICK_REMOVAL_CHANCE,
+                () -> percent(effect.perTickRemovalChance));
+        }
+
         if (type.uses(AbilityEffectParameter.USES)) {
             TextField uses = integerField(effect.uses);
             uses.addListener(new ChangeListener() {
@@ -837,7 +854,12 @@ public class EffectListEditor extends Table {
         }
         if (type.uses(AbilityEffectParameter.DECIMAL) && effect.doubleValue != null) {
             if (isPercentage(type)) {
-                summary.append(" | ").append(formatNumber(effect.doubleValue * 100.0)).append('%');
+                double pct = effect.doubleValue * 100.0;
+                boolean signed = type == AbilityEffectType.TEMP_STAT_PERCENT
+                    || type == AbilityEffectType.BATTLE_STAT_PERCENT;
+                summary.append(" | ");
+                if (signed && pct > 0) summary.append('+');
+                summary.append(formatNumber(pct)).append('%');
             } else if (type == AbilityEffectType.SUMMON_CE_UPKEEP_PER_ACTIVE_TICK) {
                 summary.append(" | ").append(formatNumber(effect.doubleValue)).append(" CE/tick");
             } else {
@@ -864,6 +886,10 @@ public class EffectListEditor extends Table {
                 summary.append(" | ").append(formatNumber(
                     StatusEffectType.normalizeStoredMagnitude(
                         effect.stringValue, effect.magnitude))).append(" points");
+            }
+            if (effect.perTickRemovalChance != null && effect.perTickRemovalChance > 0.0) {
+                summary.append(" | wake ").append(formatNumber(
+                    effect.perTickRemovalChance * 100.0)).append("%/tick");
             }
         }
         if (type.uses(AbilityEffectParameter.BATTLE_STAT) && effect.stringValue != null) {
@@ -923,6 +949,10 @@ public class EffectListEditor extends Table {
         } catch (IllegalArgumentException ignored) {
             return true;
         }
+    }
+
+    private static int percent(Double value) {
+        return value == null ? 0 : (int) Math.round(value * 100.0);
     }
 
     private String[] effectTypeLabels() {
@@ -1199,6 +1229,7 @@ public class EffectListEditor extends Table {
             case CE_COST_ALTER -> "CE cost multiplier";
             case HEAL_HP_PERCENT, RESTORE_CE_PERCENT, DRAIN_CE_PERCENT,
                  DEAL_MAX_HP_DAMAGE -> "Percentage";
+            case TEMP_STAT_PERCENT, BATTLE_STAT_PERCENT -> "Percentage (+/-)";
             case BATTLE_STAT_ADD -> "Amount (+/-)";
             case SUMMON_CE_UPKEEP_PER_ACTIVE_TICK -> "CE per active tick";
             default -> "Multiplier";
@@ -1210,7 +1241,9 @@ public class EffectListEditor extends Table {
             || type == AbilityEffectType.HEAL_HP_PERCENT
             || type == AbilityEffectType.RESTORE_CE_PERCENT
             || type == AbilityEffectType.DRAIN_CE_PERCENT
-            || type == AbilityEffectType.DEAL_MAX_HP_DAMAGE;
+            || type == AbilityEffectType.DEAL_MAX_HP_DAMAGE
+            || type == AbilityEffectType.TEMP_STAT_PERCENT
+            || type == AbilityEffectType.BATTLE_STAT_PERCENT;
     }
 
     private static String battleStatLabel(String value) {

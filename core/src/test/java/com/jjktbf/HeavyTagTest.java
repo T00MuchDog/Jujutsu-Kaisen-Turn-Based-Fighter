@@ -2,6 +2,8 @@ package com.jjktbf;
 
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterStats;
+import com.jjktbf.model.character.AbilityEffectTarget;
+import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
@@ -11,6 +13,8 @@ import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveData;
+import com.jjktbf.model.move.MoveEffectData;
+import com.jjktbf.model.move.MoveEffectTrigger;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -20,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for the HEAVY move tag: an action segment carrying a HEAVY move is immune
- * to being stunned by a STUN-tagged hit (it is skipped by the stun effect and still
+ * to STUN_CURRENT_ACTION (it is skipped by the stun effect and still
  * fires). This is the "heavy beats stun" half of the rock-paper-scissors trio.
  *
  * Drives the full CombatResolver via resolveRound.
@@ -28,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class HeavyTagTest {
 
     /**
-     * Headline case: attacker fires a STUN-tagged move first (higher speed). The
+     * Headline case: attacker fires a move with a stun effect first (higher speed). The
      * defender has a HEAVY-tagged move firing the same tick. On hit, the HEAVY
      * segment is NOT stunned and DOES fire — no "was stunned and could not move".
      */
@@ -39,7 +43,7 @@ public class HeavyTagTest {
             .category(MoveCategory.PHYSICAL)
             .basePower(10)
             .neverMiss(true)
-            .stun(true)
+            .effects(List.of(stunEffect()))
             .apCost(10)
             .unleashPoint(1)
             .build();
@@ -77,7 +81,7 @@ public class HeavyTagTest {
 
         // The defender's HEAVY segment was NOT stunned...
         assertFalse(heavySeg.isStunned(),
-            "A HEAVY move's segment should not be stunned by a STUN-tagged hit.");
+            "A HEAVY move's segment should not be stunned by STUN_CURRENT_ACTION.");
 
         // ...so no MOVE_STUNNED event should be emitted at all.
         boolean anyStunEvent = events.stream()
@@ -93,7 +97,7 @@ public class HeavyTagTest {
     }
 
     /**
-     * HEAVY only resists the STUN tag — a non-HEAVY segment is still stunned as
+     * HEAVY only resists the immediate stun effect; a non-HEAVY segment is still stunned as
      * usual (confirms the guard isn't accidentally skipping everything).
      */
     @Test
@@ -103,7 +107,7 @@ public class HeavyTagTest {
             .category(MoveCategory.PHYSICAL)
             .basePower(10)
             .neverMiss(true)
-            .stun(true)
+            .effects(List.of(stunEffect()))
             .apCost(10)
             .unleashPoint(1)
             .build();
@@ -139,7 +143,7 @@ public class HeavyTagTest {
         List<CombatEvent> events = new CombatResolver(new FixedRandom(0.0)).resolveRound(state);
 
         assertTrue(plainSeg.isStunned(),
-            "A non-HEAVY segment should still be stunned by a STUN-tagged hit.");
+            "A non-HEAVY segment should still be stunned by STUN_CURRENT_ACTION.");
         boolean anyStunEvent = events.stream()
             .anyMatch(e -> e.getType() == CombatEvent.Type.MOVE_STUNNED);
         assertTrue(anyStunEvent, "A MOVE_STUNNED event should be emitted for a non-HEAVY target.");
@@ -172,5 +176,12 @@ public class HeavyTagTest {
         private FixedRandom(double value) { this.value = value; }
         @Override public double nextDouble() { return value; }
         @Override public boolean nextBoolean() { return value < 0.5; }
+    }
+
+    private static MoveEffectData stunEffect() {
+        MoveEffectData effect = AbilityEffectType.STUN_CURRENT_ACTION.createDefaultMoveEffect();
+        effect.trigger = MoveEffectTrigger.ON_HIT.name();
+        effect.target = AbilityEffectTarget.ENEMY.name();
+        return effect;
     }
 }

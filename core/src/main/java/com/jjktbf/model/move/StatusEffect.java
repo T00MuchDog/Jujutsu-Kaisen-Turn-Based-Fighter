@@ -44,6 +44,9 @@ public class StatusEffect {
     /** Magnitude of a stat-modifying effect. Non-stat statuses store zero. */
     private final double magnitude;
 
+    /** Chance to remove this status at each resolution tick. */
+    private final double perTickRemovalChance;
+
     /** Coded-ability key for an effect that cannot be expressed as a status. Blank for status effects. */
     private final String codedAbilityKey;
 
@@ -80,6 +83,19 @@ public class StatusEffect {
         double magnitude
     ) {
         this(type, durationRounds, durationTicks, magnitude,
+            defaultPerTickRemovalChance(type),
+            null, null, null, null, null, null, null);
+    }
+
+    /** Construct a status with an explicit per-resolution-tick removal chance. */
+    public StatusEffect(
+        StatusEffectType type,
+        int durationRounds,
+        int durationTicks,
+        double magnitude,
+        double perTickRemovalChance
+    ) {
+        this(type, durationRounds, durationTicks, magnitude, perTickRemovalChance,
             null, null, null, null, null, null, null);
     }
 
@@ -91,6 +107,19 @@ public class StatusEffect {
         Map<String, TechniqueMasteryProgressionData> masteryProgression
     ) {
         this(type, durationRounds, durationTicks, magnitude,
+            defaultPerTickRemovalChance(type),
+            null, null, null, null, null, masteryProgression, null);
+    }
+
+    public StatusEffect(
+        StatusEffectType type,
+        int durationRounds,
+        int durationTicks,
+        double magnitude,
+        double perTickRemovalChance,
+        Map<String, TechniqueMasteryProgressionData> masteryProgression
+    ) {
+        this(type, durationRounds, durationTicks, magnitude, perTickRemovalChance,
             null, null, null, null, null, masteryProgression, null);
     }
 
@@ -108,7 +137,7 @@ public class StatusEffect {
         String codedAction
     ) {
         this(type, durationRounds, durationTicks, magnitude,
-            codedAbilityKey, codedAction, null, null, null, null, null);
+            0.0, codedAbilityKey, codedAction, null, null, null, null, null);
     }
 
     public StatusEffect(
@@ -122,7 +151,7 @@ public class StatusEffect {
         Integer codedStackCount
     ) {
         this(type, durationRounds, durationTicks, magnitude,
-            codedAbilityKey, codedAction, codedTarget, codedStackCount, null, null, null);
+            0.0, codedAbilityKey, codedAction, codedTarget, codedStackCount, null, null, null);
     }
 
     public StatusEffect(
@@ -137,7 +166,7 @@ public class StatusEffect {
         Map<String, Integer> codedParameters,
         Map<String, TechniqueMasteryProgressionData> masteryProgression
     ) {
-        this(type, durationRounds, durationTicks, magnitude,
+        this(type, durationRounds, durationTicks, magnitude, 0.0,
             codedAbilityKey, codedAction, codedTarget, codedStackCount,
             codedParameters, masteryProgression, null);
     }
@@ -149,7 +178,7 @@ public class StatusEffect {
      * {@code CharacterType.SHIKIGAMI} definitions may be referenced.
      */
     public StatusEffect(String summonCharacterId) {
-        this(null, 0, 0, 0,
+        this(null, 0, 0, 0, 0.0,
             null, null, null, null, null, null, summonCharacterId);
     }
 
@@ -158,6 +187,7 @@ public class StatusEffect {
         int durationRounds,
         int durationTicks,
         double magnitude,
+        double perTickRemovalChance,
         String codedAbilityKey,
         String codedAction,
         String codedTarget,
@@ -183,11 +213,17 @@ public class StatusEffect {
             if (!Double.isFinite(magnitude) || magnitude < 0) {
                 throw new IllegalArgumentException("Status effect amount must be a non-negative number");
             }
+            if (!Double.isFinite(perTickRemovalChance)
+                || perTickRemovalChance < 0.0 || perTickRemovalChance > 1.0) {
+                throw new IllegalArgumentException(
+                    "Status effect per-tick removal chance must be between 0% and 100%");
+            }
         }
         this.type            = type;
         this.durationRounds  = durationRounds;
         this.durationTicks   = durationTicks;
         this.magnitude       = (!coded && !summon && !type.usesMagnitude()) ? 0.0 : magnitude;
+        this.perTickRemovalChance = !coded && !summon ? perTickRemovalChance : 0.0;
         this.codedAbilityKey = codedAbilityKey;
         this.codedAction     = codedAction;
         this.codedTarget     = codedTarget;
@@ -262,6 +298,7 @@ public class StatusEffect {
     public int getDurationRounds()        { return durationRounds; }
     public int getDurationTicks()         { return durationTicks; }
     public double getMagnitude()          { return magnitude; }
+    public double getPerTickRemovalChance() { return perTickRemovalChance; }
     public String getCodedAbilityKey()    { return codedAbilityKey; }
     public String getCodedAction()        { return codedAction; }
     public String getCodedTarget()        { return codedTarget; }
@@ -285,6 +322,10 @@ public class StatusEffect {
     /** True when this row is a summon effect (enqueues a shikigami when it fires). */
     public boolean isSummon() {
         return summonCharacterId != null && !summonCharacterId.isBlank();
+    }
+
+    private static double defaultPerTickRemovalChance(StatusEffectType type) {
+        return type == null ? 0.0 : type.defaultPerTickRemovalChance();
     }
 
     @Override

@@ -438,7 +438,8 @@ public class BattleCombatant {
             if (appliedAtRoundEnd || waitsForNextPlanning) rounds++;
         }
         activeEffects.add(new StatusEffect(
-            effect.getType(), rounds, ticks, effect.getMagnitude()));
+            effect.getType(), rounds, ticks, effect.getMagnitude(),
+            effect.getPerTickRemovalChance()));
         clampPoolsToMaximums();
         return true;
     }
@@ -458,7 +459,10 @@ public class BattleCombatant {
             int ticks = effect.durationTicks != null ? effect.durationTicks : 0;
             double magnitude = StatusEffectType.normalizeStoredMagnitude(
                 effect.stringValue, storedMagnitude);
-            StatusEffect status = new StatusEffect(type, rounds, ticks, magnitude);
+            double perTickRemovalChance = effect.perTickRemovalChance != null
+                ? effect.perTickRemovalChance : type.defaultPerTickRemovalChance();
+            StatusEffect status = new StatusEffect(
+                type, rounds, ticks, magnitude, perTickRemovalChance);
             return phase == null ? addStatusEffect(status) : addStatusEffect(status, phase);
         } catch (IllegalArgumentException ex) {
             System.err.println("[WARN] Invalid automatic status: " + effect.stringValue);
@@ -507,7 +511,8 @@ public class BattleCombatant {
                 int rounds = e.getDurationRounds() - 1;
                 if (rounds > 0 || e.getDurationTicks() > 0) {
                     remaining.add(new StatusEffect(
-                        e.getType(), rounds, e.getDurationTicks(), e.getMagnitude()));
+                        e.getType(), rounds, e.getDurationTicks(), e.getMagnitude(),
+                        e.getPerTickRemovalChance()));
                 } else {
                     expired.add(e);
                 }
@@ -530,7 +535,8 @@ public class BattleCombatant {
                 remaining.add(effect);
             } else if (effect.getDurationTicks() > 1) {
                 remaining.add(new StatusEffect(
-                    effect.getType(), 0, effect.getDurationTicks() - 1, effect.getMagnitude()));
+                    effect.getType(), 0, effect.getDurationTicks() - 1, effect.getMagnitude(),
+                    effect.getPerTickRemovalChance()));
             } else {
                 expired.add(effect);
             }
@@ -588,8 +594,30 @@ public class BattleCombatant {
         int currentRound,
         BattleState.Phase phase
     ) {
+        addRuntimeAbilityEffect(effect, currentRound, phase, null);
+    }
+
+    /**
+     * Attach a runtime ability effect with an optional {@code refreshGroup}.
+     *
+     * <p>When {@code refreshGroup} is non-null, any existing runtime effect sharing
+     * that group is removed first, so re-applying the same buff <b>refreshes</b>
+     * (resets its duration) instead of stacking. A {@code null} group keeps the
+     * default additive-stack behaviour used by data-driven abilities. The group is
+     * a runtime-only tag — it is not persisted on {@link AbilityEffectData} and so
+     * has no effect on JSON data or editor tooling.
+     */
+    public void addRuntimeAbilityEffect(
+        AbilityEffectData effect,
+        int currentRound,
+        BattleState.Phase phase,
+        String refreshGroup
+    ) {
         if (effect == null || effect.type == null) return;
-        runtimeAbilityEffects.add(new RuntimeAbilityEffect(effect, currentRound, phase));
+        if (refreshGroup != null) {
+            runtimeAbilityEffects.removeIf(existing -> refreshGroup.equals(existing.refreshGroup));
+        }
+        runtimeAbilityEffects.add(new RuntimeAbilityEffect(effect, currentRound, phase, refreshGroup));
         clampPoolsToMaximums();
     }
 
@@ -660,6 +688,23 @@ public class BattleCombatant {
         return consumeFirst(AbilityEffectType.CANCEL_NEXT_MOVE);
     }
 
+    /** Cancel every active, not-yet-fired action on this tick. */
+    public boolean stunCurrentAction(int tick) {
+        if (timeline == null) return false;
+        boolean stunnedAny = false;
+        for (ActionSegment segment : timeline.getSegments()) {
+            if (segment.isStunned() || segment.hasFired() || segment.getMove().isHeavy()) {
+                continue;
+            }
+            boolean active = tick >= segment.getStartTick() && tick <= segment.getEndTick();
+            if (active || segment.getFireTick() == tick) {
+                segment.stun();
+                stunnedAny = true;
+            }
+        }
+        return stunnedAny;
+    }
+
     public double modifyBattleStat(BattleStatKey key, double baseValue) {
         double additions = activeEffects.stream()
             .filter(effect -> effect.getType().isStatModifier())
@@ -667,24 +712,55 @@ public class BattleCombatant {
             .mapToDouble(effect -> effect.getType().signedMagnitude(effect.getMagnitude()))
             .sum();
         double multiplier = 1.0;
+        double percent = 0.0;
+        double oddsMultiplier = 1.0;
+        for (AbilityEffectData effect : getAbilityFlags().passiveBattleStatEffects) {
+            if (matchesBattleStat(effect, AbilityEffectType.BATTLE_STAT_ODDS_MULTIPLY, key)) {
+                oddsMultiplier *= effect.doubleValue != null ? effect.doubleValue : 1.0;
+            }
+        }
         for (RuntimeAbilityEffect runtime : runtimeAbilityEffects) {
             AbilityEffectData effect = runtime.effect;
             AbilityEffectType type;
             try { type = AbilityEffectType.fromName(effect.type); }
             catch (IllegalArgumentException ex) { continue; }
             if (type != AbilityEffectType.BATTLE_STAT_ADD
-                && type != AbilityEffectType.BATTLE_STAT_MULTIPLY) continue;
+                && type != AbilityEffectType.BATTLE_STAT_MULTIPLY
+                && type != AbilityEffectType.BATTLE_STAT_PERCENT) continue;
             BattleStatKey effectKey;
             try { effectKey = BattleStatKey.fromString(effect.stringValue); }
             catch (IllegalArgumentException ex) { continue; }
             if (effectKey != key) continue;
             if (type == AbilityEffectType.BATTLE_STAT_ADD) {
                 additions += effect.doubleValue != null ? effect.doubleValue : 0.0;
-            } else {
+            } else if (type == AbilityEffectType.BATTLE_STAT_MULTIPLY) {
                 multiplier *= effect.doubleValue != null ? effect.doubleValue : 1.0;
+            } else {
+                percent += effect.doubleValue != null ? effect.doubleValue : 0.0;
             }
         }
-        return (baseValue + additions) * multiplier;
+        // Percentage effects stack additively and apply to the fully scaled value.
+        double percentFactor = 1.0 + percent;
+        if (percentFactor < 0.0) percentFactor = 0.0;
+        double value = (baseValue + additions) * multiplier * percentFactor;
+        if (oddsMultiplier == 1.0) return value;
+        double probability = Math.max(0.0, Math.min(1.0, value));
+        if (probability == 0.0 || probability == 1.0) return probability;
+        return oddsMultiplier * probability
+            / (1.0 - probability + oddsMultiplier * probability);
+    }
+
+    private static boolean matchesBattleStat(
+        AbilityEffectData effect,
+        AbilityEffectType expectedType,
+        BattleStatKey expectedKey
+    ) {
+        if (effect == null || !expectedType.name().equalsIgnoreCase(effect.type)) return false;
+        try {
+            return BattleStatKey.fromString(effect.stringValue) == expectedKey;
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
     }
 
     public int computeMoveCeCost(com.jjktbf.model.move.Move move) {
@@ -786,11 +862,14 @@ public class BattleCombatant {
         private int remainingUses;
         private int remainingCapacity;
         private final int notBeforeExpiryRound;
+        /** Runtime-only tag; re-applying with the same group refreshes instead of stacking. */
+        private final String refreshGroup;
 
         private RuntimeAbilityEffect(
             AbilityEffectData source,
             int currentRound,
-            BattleState.Phase phase
+            BattleState.Phase phase,
+            String refreshGroup
         ) {
             effect = source.copy();
             remainingRounds = source.durationRounds == null ? -1 : source.durationRounds;
@@ -802,6 +881,7 @@ public class BattleCombatant {
                 || (remainingTicks == 0 && affectsPlanning(source)
                     && phase == BattleState.Phase.RESOLUTION);
             notBeforeExpiryRound = currentRound + (mustReachNextPlanning ? 1 : 0);
+            this.refreshGroup = refreshGroup;
         }
 
         private static boolean affectsPlanning(AbilityEffectData effect) {
@@ -810,7 +890,8 @@ public class BattleCombatant {
             catch (IllegalArgumentException ex) { return false; }
             if (type == AbilityEffectType.TEMP_LOCK_MOVE_TAG) return true;
             if (type == AbilityEffectType.BATTLE_STAT_ADD
-                || type == AbilityEffectType.BATTLE_STAT_MULTIPLY) {
+                || type == AbilityEffectType.BATTLE_STAT_MULTIPLY
+                || type == AbilityEffectType.BATTLE_STAT_PERCENT) {
                 try {
                     BattleStatKey key = BattleStatKey.fromString(effect.stringValue);
                     return key == BattleStatKey.MAX_AP || key == BattleStatKey.CE_COST;

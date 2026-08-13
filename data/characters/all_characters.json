@@ -354,4 +354,24 @@
   "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000008", "000009", "000010", "000014", "000069", "000070", "000071", "000072", "000073", "000074", "000075", "000076" ],
   "abilityIds" : [ "000031", "000032" ],
   "availableAbilityIds" : [ "000031", "000032" ]
+}, {
+  "id" : "000016",
+  "name" : "Yuji Itadori (Kyoto Goodwill Event)",
+  "description" : "After learning to control the flow of his cursed energy, Yuji reinforces his extraordinary close-quarters combat and stands poised to call forth the sparks of Black Flash.",
+  "spriteAsset" : "assets/sprites/characters/yuji_frontsprite.png",
+  "hasWeapon" : false,
+  "vitality" : 95,
+  "strength" : 90,
+  "durability" : 85,
+  "speed" : 85,
+  "cursedEnergyReserves" : 90,
+  "cursedEnergyEfficiency" : 70,
+  "cursedEnergyOutput" : 80,
+  "jujutsuSkill" : 35,
+  "combatAbility" : 100,
+  "cursedTechniqueMastery" : 0,
+  "moveIds" : [ "000077", "000019", "000008", "000081", "000082", "000018", "000029", "000032" ],
+  "availableMoveIds" : [ "000000", "000001", "000008", "000014", "000016", "000018", "000019", "000029", "000032", "000077", "000078", "000079", "000080", "000081", "000082" ],
+  "abilityIds" : [ "000008", "000010", "000011", "000012", "000009", "000035" ],
+  "availableAbilityIds" : [ "000008", "000035" ]
 } ]

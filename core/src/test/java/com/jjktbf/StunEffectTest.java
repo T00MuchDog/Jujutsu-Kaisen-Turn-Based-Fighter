@@ -2,6 +2,8 @@ package com.jjktbf;
 
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterStats;
+import com.jjktbf.model.character.AbilityEffectTarget;
+import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
@@ -10,6 +12,9 @@ import com.jjktbf.model.combat.CombatResolver;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
+import com.jjktbf.model.move.MoveData;
+import com.jjktbf.model.move.MoveEffectData;
+import com.jjktbf.model.move.MoveEffectTrigger;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -18,29 +23,29 @@ import java.util.Random;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the STUN move tag: on a successful hit, the defender's action
+ * Tests for the STUN_CURRENT_ACTION move effect: on activation after a hit, the defender's action
  * segment(s) on the current tick are stunned (removed from the timeline and
  * prevented from firing).
  *
  * Drives the full CombatResolver via resolveRound, asserting on the returned
  * CombatEvents and the resulting segment state.
  */
-public class StunTagTest {
+public class StunEffectTest {
 
     /**
-     * The headline case: attacker has a STUN-tagged instant move that fires
+     * The headline case: attacker has an instant move with a stun effect that fires
      * first (higher speed). Defender has an instant move firing the same tick.
      * On hit, the defender's segment is stunned and never fires — the log reads
      * "<defender> was stunned and could not move."
      */
     @Test
-    void stunTagOnHitStunsDefenderSegmentAndPreventsItFiring() {
+    void stunEffectOnHitStunsDefenderSegmentAndPreventsItFiring() {
         Move stunAttack = new Move.Builder("STUN_ATTACK")
             .name("Stun Strike")
             .category(MoveCategory.PHYSICAL)
             .basePower(10)
             .neverMiss(true)
-            .stun(true)
+            .effects(List.of(stunEffect(1.0)))
             .apCost(10)
             .unleashPoint(1)
             .build();
@@ -77,7 +82,7 @@ public class StunTagTest {
 
         // The defender's segment was stunned.
         assertTrue(defenderSeg.segment.isStunned(),
-            "Defender's segment should be stunned after a STUN-tagged hit.");
+            "Defender's segment should be stunned after the stun effect activates.");
 
         // A MOVE_STUNNED event was emitted with the stun wording.
         CombatEvent stunEvent = events.stream()
@@ -110,13 +115,13 @@ public class StunTagTest {
      * and the defender's segment is neither stunned nor prevented from firing.
      */
     @Test
-    void stunTagOnMissDoesNotStun() {
+    void stunEffectOnMissDoesNotStun() {
         Move stunAttack = new Move.Builder("STUN_ATTACK")
             .name("Stun Strike")
             .category(MoveCategory.PHYSICAL)
             .basePower(10)
             .baseAccuracy(0.0)          // force a miss
-            .stun(true)
+            .effects(List.of(stunEffect(1.0)))
             .apCost(10)
             .unleashPoint(1)
             .build();
@@ -165,16 +170,15 @@ public class StunTagTest {
     }
 
     /**
-     * A hit from a move WITHOUT the stun tag does not stun the defender.
+     * A hit from a move without the stun effect does not stun the defender.
      */
     @Test
-    void nonStunHitDoesNotStun() {
+    void hitWithoutStunEffectDoesNotStun() {
         Move plainAttack = new Move.Builder("PLAIN_ATTACK")
             .name("Plain Strike")
             .category(MoveCategory.PHYSICAL)
             .basePower(10)
             .neverMiss(true)
-            // no .stun(true)
             .apCost(10)
             .unleashPoint(1)
             .build();
@@ -212,31 +216,82 @@ public class StunTagTest {
             "Defender's segment should NOT be stunned by a non-STUN move.");
         boolean anyStunEvent = events.stream()
             .anyMatch(e -> e.getType() == CombatEvent.Type.MOVE_STUNNED);
-        assertFalse(anyStunEvent, "No MOVE_STUNNED event should be emitted without the STUN tag.");
+        assertFalse(anyStunEvent, "No MOVE_STUNNED event should be emitted without the stun effect.");
     }
 
-    /**
-     * The STUN tag survives the MoveData ↔ Move round-trip (it is stored as a
-     * dedicated flag, not derived from the category).
-     */
     @Test
-    void stunTagSurvivesMoveDataRoundTrip() {
-        Move original = new Move.Builder("ROUND_TRIP")
-            .name("Round Trip Strike")
+    void failedEffectChanceDoesNotStunAfterAHit() {
+        Move stunAttack = new Move.Builder("CHANCE_STUN")
+            .name("Chance Stun")
             .category(MoveCategory.PHYSICAL)
             .basePower(10)
             .neverMiss(true)
-            .stun(true)
+            .effects(List.of(stunEffect(0.5)))
             .apCost(10)
             .unleashPoint(1)
             .build();
+        Move defenderMove = new Move.Builder("DEFENDER_MOVE")
+            .name("Defender Strike")
+            .category(MoveCategory.PHYSICAL)
+            .basePower(10)
+            .neverMiss(true)
+            .apCost(10)
+            .unleashPoint(1)
+            .build();
+        BattleCombatant attacker = combatant("A", "Attacker", 120, stunAttack);
+        BattleCombatant defender = combatant("D", "Defender", 80, defenderMove);
+        Timeline attackerTimeline = new Timeline(30);
+        Timeline defenderTimeline = new Timeline(30);
+        attackerTimeline.placeAt(stunAttack, 1, 0);
+        var defenderSegment = defenderTimeline.placeAt(defenderMove, 1, 0);
+        attacker.setTimeline(attackerTimeline);
+        defender.setTimeline(defenderTimeline);
+        BattleState state = new BattleState(attacker, defender);
+        state.transitionTo(BattleState.Phase.RESOLUTION);
 
-        com.jjktbf.model.move.MoveData dto = com.jjktbf.model.move.MoveData.fromMove(original);
-        assertTrue(dto.stun, "DTO should carry the stun flag after fromMove().");
+        List<CombatEvent> events = new CombatResolver(new FixedRandom(0.75)).resolveRound(state);
 
-        Move restored = dto.toMove();
-        assertTrue(restored.isStun(), "Restored Move should have isStun() true after toMove().");
-        assertTrue(restored.hasTag("STUN"), "Restored Move should hasTag(\"STUN\").");
+        assertFalse(defenderSegment.isStunned());
+        assertFalse(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.MOVE_STUNNED));
+    }
+
+    @Test
+    void legacyStunFlagMigratesToEffect() {
+        MoveData data = new MoveData();
+        data.id = "LEGACY_STUN";
+        data.name = "Legacy Stun";
+        data.tags = new java.util.ArrayList<>(List.of("PHYSICAL", "ATTACK", "MELEE", "STUN"));
+        data.basePower = 10;
+        data.apCost = 10;
+        data.unleashPoint = 1;
+        data.stun = true;
+
+        assertTrue(data.migrateLegacyEffects());
+        assertNull(data.stun);
+        assertFalse(data.tags.contains("STUN"));
+        assertEquals(AbilityEffectType.STUN_CURRENT_ACTION.name(), data.effects.get(0).type);
+        data.toMove();
+    }
+
+    private static MoveEffectData stunEffect(double chance) {
+        MoveEffectData effect = AbilityEffectType.STUN_CURRENT_ACTION.createDefaultMoveEffect();
+        effect.trigger = MoveEffectTrigger.ON_HIT.name();
+        effect.target = AbilityEffectTarget.ENEMY.name();
+        effect.activationChanceEnabled = chance < 1.0;
+        effect.activationChance = chance;
+        return effect;
+    }
+
+    private static BattleCombatant combatant(
+        String id,
+        String name,
+        int speed,
+        Move move
+    ) {
+        Character character = new SorcererCharacter(
+            id, name, new CharacterStats.Builder().speed(speed).build(), null, List.of(move));
+        return new BattleCombatant(character);
     }
 
     /** Deterministic RNG: always returns the same double, for reproducible hit/miss rolls. */

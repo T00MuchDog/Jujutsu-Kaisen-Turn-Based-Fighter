@@ -148,6 +148,8 @@ public final class AbilityApplicator {
                         flags.incomingDamageMultiplierEffects.add(eff);
                     }
                     case BF_CHANCE_ADD           -> flags.bfChanceBonus    += nvl(eff.doubleValue, 0.0);
+                    case BATTLE_STAT_ODDS_MULTIPLY ->
+                        flags.passiveBattleStatEffects.add(eff.copy());
                     case MODIFY_DEFENSE          -> flags.defenseMultiplier *= nvl(eff.doubleValue, 1.0);
                     case DEFENSE_FROM_DURABILITY ->
                         flags.defenseFromDurabilityMultiplier = nvl(eff.doubleValue, 1.0);
@@ -198,7 +200,9 @@ public final class AbilityApplicator {
                          DRAIN_CE, DRAIN_CE_PERCENT, DEAL_DIRECT_DAMAGE, DEAL_MAX_HP_DAMAGE,
                          INSTANT_KILL, APPLY_STATUS, REMOVE_STATUS, CLEAR_STATUSES,
                           TEMP_STAT_ADD, TEMP_STAT_MULTIPLY, TEMP_STAT_SET_VALUE,
-                          BATTLE_STAT_ADD, BATTLE_STAT_MULTIPLY, IGNORE_DAMAGE,
+                          BATTLE_STAT_ADD, BATTLE_STAT_MULTIPLY, BATTLE_STAT_PERCENT,
+                          TEMP_STAT_PERCENT,
+                          STUN_CURRENT_ACTION, IGNORE_DAMAGE,
                           DAMAGE_SHIELD, SURVIVE_FATAL_DAMAGE, GUARANTEE_NEXT_HIT,
                            GUARANTEE_NEXT_DODGE, GUARANTEE_NEXT_BLACK_FLASH,
                            CANCEL_NEXT_MOVE, TEMP_LOCK_MOVE_TAG,
@@ -291,9 +295,11 @@ public final class AbilityApplicator {
         Map<StatKey, Integer> overrides = new EnumMap<>(StatKey.class);
         Map<StatKey, Integer> additions = new EnumMap<>(StatKey.class);
         Map<StatKey, Double> multipliers = new EnumMap<>(StatKey.class);
+        Map<StatKey, Double> percents = new EnumMap<>(StatKey.class);
         for (StatKey key : StatKey.values()) {
             additions.put(key, 0);
             multipliers.put(key, 1.0);
+            percents.put(key, 0.0);
         }
         for (AbilityEffectData effect : effects == null ? List.<AbilityEffectData>of() : effects) {
             if (effect == null || effect.type == null) continue;
@@ -307,6 +313,7 @@ public final class AbilityApplicator {
                 && type != AbilityEffectType.TEMP_STAT_ADD
                 && type != AbilityEffectType.STAT_MULTIPLY
                 && type != AbilityEffectType.TEMP_STAT_MULTIPLY
+                && type != AbilityEffectType.TEMP_STAT_PERCENT
                 && type != AbilityEffectType.STAT_DIVIDE) continue;
             StatKey key = resolveStatKey(effect.stat);
             if (key == null) continue;
@@ -318,6 +325,8 @@ public final class AbilityApplicator {
                     additions.merge(key, nvl(effect.intValue, 0), Integer::sum);
                 case STAT_MULTIPLY, TEMP_STAT_MULTIPLY ->
                     multipliers.merge(key, nvl(effect.doubleValue, 1.0), (a, b) -> a * b);
+                case TEMP_STAT_PERCENT ->
+                    percents.merge(key, nvl(effect.doubleValue, 0.0), Double::sum);
                 case STAT_DIVIDE -> {
                     double divisor = effect.doubleValue != null && effect.doubleValue != 0
                         ? effect.doubleValue : 1.0;
@@ -327,16 +336,16 @@ public final class AbilityApplicator {
             }
         }
         return new CharacterStats(
-            finalStat(StatKey.VITALITY, baseStats, overrides, additions, multipliers),
-            finalStat(StatKey.STRENGTH, baseStats, overrides, additions, multipliers),
-            finalStat(StatKey.DURABILITY, baseStats, overrides, additions, multipliers),
-            finalStat(StatKey.SPEED, baseStats, overrides, additions, multipliers),
-            finalStat(StatKey.CURSED_ENERGY_RESERVES, baseStats, overrides, additions, multipliers),
-            finalStat(StatKey.CURSED_ENERGY_EFFICIENCY, baseStats, overrides, additions, multipliers),
-            finalStat(StatKey.CURSED_ENERGY_OUTPUT, baseStats, overrides, additions, multipliers),
-            finalStat(StatKey.JUJUTSU_SKILL, baseStats, overrides, additions, multipliers),
-            finalStat(StatKey.COMBAT_ABILITY, baseStats, overrides, additions, multipliers),
-            finalStat(StatKey.CURSED_TECHNIQUE_MASTERY, baseStats, overrides, additions, multipliers)
+            finalStat(StatKey.VITALITY, baseStats, overrides, additions, multipliers, percents),
+            finalStat(StatKey.STRENGTH, baseStats, overrides, additions, multipliers, percents),
+            finalStat(StatKey.DURABILITY, baseStats, overrides, additions, multipliers, percents),
+            finalStat(StatKey.SPEED, baseStats, overrides, additions, multipliers, percents),
+            finalStat(StatKey.CURSED_ENERGY_RESERVES, baseStats, overrides, additions, multipliers, percents),
+            finalStat(StatKey.CURSED_ENERGY_EFFICIENCY, baseStats, overrides, additions, multipliers, percents),
+            finalStat(StatKey.CURSED_ENERGY_OUTPUT, baseStats, overrides, additions, multipliers, percents),
+            finalStat(StatKey.JUJUTSU_SKILL, baseStats, overrides, additions, multipliers, percents),
+            finalStat(StatKey.COMBAT_ABILITY, baseStats, overrides, additions, multipliers, percents),
+            finalStat(StatKey.CURSED_TECHNIQUE_MASTERY, baseStats, overrides, additions, multipliers, percents)
         );
     }
 
@@ -370,6 +379,27 @@ public final class AbilityApplicator {
         return noNeg((int) Math.round(
             (startingValue + additions.getOrDefault(key, 0))
                 * multipliers.getOrDefault(key, 1.0)));
+    }
+
+    /**
+     * Runtime variant: additive percentage bonuses are applied last, on the fully
+     * scaled value. Percentage effects stack additively (e.g. +20% and +20% yield
+     * a single +40% factor), and the result is clamped to never drop below zero.
+     */
+    private static int finalStat(
+        StatKey key,
+        CharacterStats baseStats,
+        Map<StatKey, Integer> overrides,
+        Map<StatKey, Integer> additions,
+        Map<StatKey, Double> multipliers,
+        Map<StatKey, Double> percents
+    ) {
+        double percentFactor = 1.0 + percents.getOrDefault(key, 0.0);
+        if (percentFactor <= 0.0) return 0;
+        int startingValue = overrides.getOrDefault(key, key.get(baseStats));
+        return noNeg((int) Math.round(
+            (startingValue + additions.getOrDefault(key, 0))
+                * multipliers.getOrDefault(key, 1.0) * percentFactor));
     }
 
     // =========================================================================
@@ -435,6 +465,8 @@ public final class AbilityApplicator {
 
         // Black Flash
         public double  bfChanceBonus      = 0.0;
+        public final java.util.List<AbilityEffectData> passiveBattleStatEffects =
+            new java.util.ArrayList<>();
 
         // AP bar
         public int     apBarBonus         = 0;
@@ -508,6 +540,7 @@ public final class AbilityApplicator {
                     incomingDamageMultiplierEffects.add(effect);
                 }
                 case BF_CHANCE_ADD -> bfChanceBonus += nvl(effect.doubleValue, 0.0);
+                case BATTLE_STAT_ODDS_MULTIPLY -> passiveBattleStatEffects.add(effect.copy());
                 case MODIFY_DEFENSE -> defenseMultiplier *= nvl(effect.doubleValue, 1.0);
                 case DEFENSE_FROM_DURABILITY ->
                     defenseFromDurabilityMultiplier = nvl(effect.doubleValue, 1.0);
@@ -552,6 +585,7 @@ public final class AbilityApplicator {
             copy.defenseMultiplier = defenseMultiplier;
             copy.defenseFromDurabilityMultiplier = defenseFromDurabilityMultiplier;
             copy.bfChanceBonus = bfChanceBonus;
+            copy.passiveBattleStatEffects.addAll(passiveBattleStatEffects);
             copy.apBarBonus = apBarBonus;
             copy.jujutsuArtSlots = jujutsuArtSlots;
             copy.poisonImmune = poisonImmune;

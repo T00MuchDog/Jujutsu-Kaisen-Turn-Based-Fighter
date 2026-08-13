@@ -59,7 +59,7 @@ class BattleScreenMoveStateTest {
     void orderedHitComponentsSurviveDisplayReconstruction() {
         Move move = BattleScreen.toDisplayMove(moveState(
             MoveCategory.PHYSICAL_CURSED_ENERGY,
-            List.of("PHYSICAL", "CURSED_ENERGY", "ATTACK", "STUN"),
+            List.of("PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE"),
             PlanBoard.OFFENSIVE,
             999,
             List.of(
@@ -77,7 +77,7 @@ class BattleScreenMoveStateTest {
         assertEquals(4, move.getHitComponents().get(1).getDelayTicks());
         assertTrue(move.getHitComponents().get(1).requiresPreviousConnection());
         assertFalse(move.getHitComponents().get(1).isAvoidable());
-        assertTrue(move.getTags().contains(MoveTag.STUN));
+        assertTrue(move.getTags().contains(MoveTag.MELEE));
     }
 
     @Test

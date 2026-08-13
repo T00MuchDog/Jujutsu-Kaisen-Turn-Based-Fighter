@@ -498,6 +498,15 @@ public class JJKGame extends Game {
                 ? "Canonical fighter" : "Local fighter");
     }
 
+    /** Returns bundled cursed-technique metadata for an authoritative character ID. */
+    public String multiplayerCursedTechnique(String characterId) {
+        if (characterId == null || multiplayerCharacterRepository == null) return null;
+        return multiplayerCharacterRepository.findById(characterId)
+            .map(character -> character.innateTechniqueName)
+            .filter(technique -> technique != null && !technique.isBlank())
+            .orElse(null);
+    }
+
     /** Returns bundled visual metadata for an authoritative character ID. */
     public String multiplayerSpriteAsset(String characterId) {
         if (characterId == null) return null;

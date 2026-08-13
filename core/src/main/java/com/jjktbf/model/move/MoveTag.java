@@ -87,7 +87,7 @@ public enum MoveTag {
      * Melee range modifier — marks an attack as a close-quarters strike. Only
      * meaningful on {@link #ATTACK} moves: defensive and utility moves ignore it.
      *
-     * A modifier tag like {@link #ATTACK} and {@link #STUN}: it does not affect
+     * A modifier tag like {@link #ATTACK}: it does not affect
      * the Power formula, is not part of any {@link MoveCategory}'s tag set, and
      * does not change Black Flash eligibility. It is NOT backed by a dedicated
      * flag on {@link Move} — it lives purely in the tag set.
@@ -126,27 +126,12 @@ public enum MoveTag {
     SWORD,
 
     /**
-     * Stun modifier — on a successful hit, the defender's action segment(s) on the
-     * current tick are stunned (removed from the timeline and prevented from firing).
-     *
-     * A modifier tag like {@link #ATTACK}: it does not affect the Power formula, is
-     * not part of any {@link com.jjktbf.model.move.MoveCategory}'s tag set, and does
-     * not change Black Flash eligibility. It is stored as a dedicated flag on
-     * {@link com.jjktbf.model.move.Move} (see {@link Move#isStun()}), not derived
-     * from the category.
-     *
-     * Only meaningful on offensive moves: defensive and utility moves return before
-     * the stun effect is applied.
-     */
-    STUN,
-
-    /**
      * Guard break modifier — a successful hit from this move ignores the defender's
      * blocking defensive moves (BLOCK). Dodges and parries are unaffected; only
      * blocks are bypassed. A guard-break attack is still negated by a parry but
      * does not get staggered by one.
      *
-     * A modifier tag like {@link #ATTACK} and {@link #STUN}: it does not affect the
+     * A modifier tag like {@link #ATTACK}: it does not affect the
      * Power formula, is not part of any {@link com.jjktbf.model.move.MoveCategory}'s
      * tag set, and does not change Black Flash eligibility. It is stored as a dedicated
      * flag on {@link com.jjktbf.model.move.Move} (see {@link Move#isGuardBreak()}),
@@ -155,11 +140,10 @@ public enum MoveTag {
     GUARD_BREAK,
 
     /**
-     * Heavy modifier — an action segment carrying this move cannot be stunned
-     * (removed from the timeline) by a STUN-tagged hit. Interrupts are unaffected;
-     * only the STUN tag's effect is resisted.
+     * Heavy modifier — an action segment carrying this move cannot be cancelled by
+     * a stun-current-action effect. Interrupts and ongoing statuses are unaffected.
      *
-     * A modifier tag like {@link #ATTACK}, {@link #STUN} and {@link #GUARD_BREAK}:
+     * A modifier tag like {@link #ATTACK} and {@link #GUARD_BREAK}:
      * it does not affect the Power formula, is not part of any
      * {@link com.jjktbf.model.move.MoveCategory}'s tag set, and does not change
      * Black Flash eligibility. It is stored as a dedicated flag on

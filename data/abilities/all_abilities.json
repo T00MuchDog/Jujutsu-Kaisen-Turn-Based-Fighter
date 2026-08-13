@@ -746,4 +746,18 @@
     "codedFeature" : "WELLS_UNKNOWN_ABYSS"
   } ],
   "masteryThreshold" : 50
+}, {
+  "id" : "000035",
+  "name" : "Blessed by the Sparks of Black",
+  "flavourText" : "Yuji's exceptional concentration brings cursed energy and physical impact within a hair's breadth of perfect alignment.",
+  "mechanicText" : "Double the ODDS of landing a BLACK FLASH.",
+  "category" : "PASSIVE",
+  "sourceType" : "CHARACTER",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "BATTLE_STAT_ODDS_MULTIPLY",
+    "doubleValue" : 2.0,
+    "stringValue" : "BLACK_FLASH_CHANCE"
+  } ],
+  "masteryThreshold" : 0
 } ]

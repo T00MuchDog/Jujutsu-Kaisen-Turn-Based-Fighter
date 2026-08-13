@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.jjktbf.model.repo.BaseRepository;
 
 import java.util.List;
+import java.io.IOException;
 
 /**
  * Persistent repository for move definitions ({@code data/moves/all_moves.json}).
@@ -21,6 +22,16 @@ public class MoveRepository extends BaseRepository<MoveData> {
 
     public MoveRepository(String dataDirectory) {
         super(dataDirectory, "all_moves.json");
+    }
+
+    @Override
+    public void load() throws IOException {
+        super.load();
+        boolean migrated = false;
+        for (MoveData move : getAll()) {
+            if (move != null) migrated |= move.migrateLegacyEffects();
+        }
+        if (migrated) save();
     }
 
     @Override protected String idOf(MoveData d)            { return d.id; }

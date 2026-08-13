@@ -174,7 +174,7 @@ public class BattleScreen implements Screen, BattleView {
     private volatile List<BattleCombatant> renderPlayerTeam = List.of();
     private volatile List<BattleCombatant> renderEnemyTeam = List.of();
     private volatile BattleState renderLocalState;
-    /** Multiplayer presentation rosters remain at round-start state until defeat playback removes them. */
+    /** Multiplayer presentation rosters are mutated in step with summon/removal playback events. */
     private List<CharacterState> renderOnlinePlayerTeam = List.of();
     private List<CharacterState> renderOnlineEnemyTeam = List.of();
     /** Event-synchronised local HP snapshots, keyed by combatant identity. */
@@ -674,15 +674,15 @@ public class BattleScreen implements Screen, BattleView {
 
         batch.begin();
         drawExecutionBackground(sw, sh);
-        List<String> enemyNames = enemyPanel != null && hasEnemyRenderState()
-            ? combatantNames(false) : List.of();
-        List<String> playerNames = playerPanel != null && hasPlayerRenderState()
-            ? combatantNames(true) : List.of();
-        drawCombatantField(enemyPanels, enemyNames.size());
-        drawCombatantField(playerPanels, playerNames.size());
-        drawCombatantHuds(enemyPanels, enemyNames);
-        if (!playerNames.isEmpty()) {
-            drawCombatantHuds(playerPanels, playerNames);
+        List<CombatantHud> enemyHuds = enemyPanel != null && hasEnemyRenderState()
+            ? combatantHuds(false) : List.of();
+        List<CombatantHud> playerHuds = playerPanel != null && hasPlayerRenderState()
+            ? combatantHuds(true) : List.of();
+        drawCombatantField(enemyPanels, enemyHuds.size());
+        drawCombatantField(playerPanels, playerHuds.size());
+        drawCombatantHuds(enemyPanels, enemyHuds);
+        if (!playerHuds.isEmpty()) {
+            drawCombatantHuds(playerPanels, playerHuds);
             if (playerPanel != null && faintAnimationFor(playerPanel) == null) {
                 miraclesMeter.draw(batch, assets.battleUi, assets.fontLarge);
                 ratioMeter.draw(batch, assets.battleUi, assets.fontLarge);
@@ -717,12 +717,14 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     /** Draw one side's HUD grid after both teams' battlefield sprites. */
-    private void drawCombatantHuds(List<CombatantPanel> panels, List<String> names) {
-        int count = Math.min(panels.size(), names.size());
+    private void drawCombatantHuds(List<CombatantPanel> panels, List<CombatantHud> huds) {
+        int count = Math.min(panels.size(), huds.size());
         for (int i = 0; i < count; i++) {
             CombatantPanel panel = panels.get(i);
             if (faintAnimationFor(panel) == null) {
-                panel.drawHud(batch, assets.fontMedium, assets.fontSmall, names.get(i), frameDelta);
+                CombatantHud hud = huds.get(i);
+                panel.drawHud(batch, assets.fontMedium, assets.fontSmall,
+                    hud.name(), hud.cursedTechnique(), frameDelta);
             }
         }
     }
@@ -2092,7 +2094,7 @@ public class BattleScreen implements Screen, BattleView {
             playbackComplete = false;
             currentExecutionTick = 0;
             syncOnlineBattlefield(
-                activeOnlineFighters(local), activeOnlineFighters(opponent));
+                activeOnlineCombatants(local), activeOnlineCombatants(opponent));
             seedOnlineResourcesFromCurrentState();
             CharacterState displayedPlayer = displayedOnlinePrimary(true);
             onlinePlayerMiracles = displayedPlayer == null
@@ -2268,7 +2270,6 @@ public class BattleScreen implements Screen, BattleView {
             .basePower(state.basePower())
             .baseAccuracy(state.baseAccuracy())
             .neverMiss(state.neverMiss())
-            .stun(tags.contains(MoveTag.STUN))
             .guardBreak(tags.contains(MoveTag.GUARD_BREAK))
             .heavy(tags.contains(MoveTag.HEAVY))
             .apCost(state.apCost())
@@ -2383,8 +2384,8 @@ public class BattleScreen implements Screen, BattleView {
             .toList();
 
         syncOnlineBattlefield(
-            roundStartOnlineFighters(state, multiplayerSetup.playerSide(), onlinePlayer),
-            roundStartOnlineFighters(state, opposite(multiplayerSetup.playerSide()), onlineEnemy));
+            roundStartOnlineCombatants(state, multiplayerSetup.playerSide(), onlinePlayer),
+            roundStartOnlineCombatants(state, opposite(multiplayerSetup.playerSide()), onlineEnemy));
         seedOnlineResourcesFromRoundStart(state);
         boolean tickZeroRoundStart = playbackEvents.stream().allMatch(event -> event.tick() == 0)
             && playbackEvents.stream().anyMatch(event -> event.type() == BattleEventType.ROUND_START);
@@ -2493,6 +2494,10 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     private boolean applyPlaybackEvent(BattleEventState event) {
+        if (event.type() == BattleEventType.COMBATANT_SUMMONED) {
+            addOnlineCombatantToField(event.targetSide(), onlineCombatantForEvent(
+                event.targetSide(), event.targetInstanceId(), event.targetCharacterId()));
+        }
         CharacterState target = onlineVisualForEvent(
             event.targetSide(), event.targetInstanceId(), event.targetCharacterId());
         CharacterState source = onlineVisualForEvent(
@@ -2656,7 +2661,7 @@ public class BattleScreen implements Screen, BattleView {
             playbackRound = -1;
             awaitingNextRound = false;
             syncOnlineBattlefield(
-                activeOnlineFighters(onlinePlayer), activeOnlineFighters(onlineEnemy));
+                activeOnlineCombatants(onlinePlayer), activeOnlineCombatants(onlineEnemy));
             seedOnlineResourcesFromCurrentState();
             CharacterState displayedPlayer = displayedOnlinePrimary(true);
             onlinePlayerMiracles = displayedPlayer == null
@@ -3025,14 +3030,20 @@ public class BattleScreen implements Screen, BattleView {
             .toList();
     }
 
-    private static List<CharacterState> roundStartOnlineFighters(
+    static List<CharacterState> roundStartOnlineCombatants(
         MatchState state,
         PlayerSide side,
         PlayerState player
     ) {
         if (player == null) return List.of();
-        List<CharacterState> fighters = player.combatants().stream()
-            .filter(combatant -> "FIGHTER".equals(combatant.role()))
+        Set<String> summonedThisRound = eventTargetIds(
+            state, side, BattleEventType.COMBATANT_SUMMONED);
+        Set<String> removedThisRound = eventTargetIds(
+            state, side, BattleEventType.COMBATANT_REMOVED);
+        List<CharacterState> combatants = player.combatants().stream()
+            .filter(combatant -> !summonedThisRound.contains(combatant.instanceId()))
+            .filter(combatant -> !"REMOVED".equals(combatant.lifecycle())
+                || removedThisRound.contains(combatant.instanceId()))
             .toList();
         List<RoundStartCharacterState> starts = state.roundStartCharacterStates().stream()
             .filter(start -> start.side() == side && start.currentHp() > 0)
@@ -3049,22 +3060,35 @@ public class BattleScreen implements Screen, BattleView {
             .filter(id -> id != null && !id.isBlank())
             .forEach(startIds::add);
         if (!startIds.isEmpty()) {
-            return fighters.stream()
-                .filter(fighter -> startIds.contains(fighter.instanceId()))
+            return combatants.stream()
+                .filter(combatant -> startIds.contains(combatant.instanceId()))
                 .limit(MAX_VISIBLE_COMBATANTS_PER_SIDE)
                 .toList();
         }
         if (!starts.isEmpty()) {
-            return fighters.stream().limit(Math.min(starts.size(), MAX_VISIBLE_COMBATANTS_PER_SIDE))
-                .toList();
+            return combatants.stream()
+                .limit(Math.min(starts.size(), MAX_VISIBLE_COMBATANTS_PER_SIDE)).toList();
         }
 
-        List<CharacterState> active = fighters.stream()
+        List<CharacterState> active = combatants.stream()
             .filter(BattleScreen::isActiveCombatant)
             .limit(MAX_VISIBLE_COMBATANTS_PER_SIDE)
             .toList();
         // Protocol-v8 has one fighter and may omit round-start instance ids.
-        return active.isEmpty() && fighters.size() == 1 ? fighters : active;
+        return active.isEmpty() && combatants.size() == 1 ? combatants : active;
+    }
+
+    private static Set<String> eventTargetIds(
+        MatchState state,
+        PlayerSide side,
+        BattleEventType type
+    ) {
+        return state.recentEvents().stream()
+            .filter(event -> event.roundNumber() == state.roundNumber()
+                && event.type() == type && event.targetSide() == side)
+            .map(BattleEventState::targetInstanceId)
+            .filter(id -> id != null && !id.isBlank())
+            .collect(java.util.stream.Collectors.toSet());
     }
 
     private void seedOnlineResourcesFromCurrentState() {
@@ -3151,6 +3175,25 @@ public class BattleScreen implements Screen, BattleView {
         if (side == null || multiplayerSetup == null) return null;
         List<CharacterState> combatants = side == multiplayerSetup.playerSide()
             ? renderOnlinePlayerTeam : renderOnlineEnemyTeam;
+        return findOnlineCombatant(combatants, instanceId, characterId);
+    }
+
+    private CharacterState onlineCombatantForEvent(
+        PlayerSide side,
+        String instanceId,
+        String characterId
+    ) {
+        if (side == null || multiplayerSetup == null) return null;
+        PlayerState player = side == multiplayerSetup.playerSide() ? onlinePlayer : onlineEnemy;
+        return player == null
+            ? null : findOnlineCombatant(player.combatants(), instanceId, characterId);
+    }
+
+    private static CharacterState findOnlineCombatant(
+        List<CharacterState> combatants,
+        String instanceId,
+        String characterId
+    ) {
         if (instanceId != null && !instanceId.isBlank()) {
             for (CharacterState combatant : combatants) {
                 if (instanceId.equals(combatant.instanceId())) return combatant;
@@ -3164,6 +3207,41 @@ public class BattleScreen implements Screen, BattleView {
             return null;
         }
         return combatants.size() == 1 ? combatants.get(0) : null;
+    }
+
+    private void addOnlineCombatantToField(PlayerSide side, CharacterState combatant) {
+        if (side == null || combatant == null) return;
+        boolean playerSide = side == multiplayerSetup.playerSide();
+        List<CharacterState> current = playerSide
+            ? renderOnlinePlayerTeam : renderOnlineEnemyTeam;
+        List<CharacterState> updated = withOnlineCombatantVisible(current, combatant);
+        if (updated.equals(current)) return;
+
+        onlineResourceStates.put(onlineKey(side, combatant),
+            OnlineResourceState.full(combatant));
+        if (playerSide) {
+            syncOnlineBattlefield(updated, renderOnlineEnemyTeam);
+        } else {
+            syncOnlineBattlefield(renderOnlinePlayerTeam, updated);
+        }
+        layoutExecutionUi(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+    }
+
+    static List<CharacterState> withOnlineCombatantVisible(
+        List<CharacterState> displayed,
+        CharacterState combatant
+    ) {
+        if (combatant == null || displayed.size() >= MAX_VISIBLE_COMBATANTS_PER_SIDE) {
+            return displayed;
+        }
+        String identity = onlineIdentity(combatant);
+        if (displayed.stream().anyMatch(current ->
+            identity.equals(onlineIdentity(current)))) {
+            return displayed;
+        }
+        List<CharacterState> updated = new ArrayList<>(displayed);
+        updated.add(combatant);
+        return List.copyOf(updated);
     }
 
     private CombatantPanel onlinePanelFor(PlayerSide side, CharacterState combatant) {
@@ -3234,11 +3312,15 @@ public class BattleScreen implements Screen, BattleView {
 
     private static OnlineCombatantKey onlineKey(PlayerSide side, CharacterState combatant) {
         if (side == null || combatant == null) return null;
+        return new OnlineCombatantKey(side, onlineIdentity(combatant));
+    }
+
+    private static String onlineIdentity(CharacterState combatant) {
         String identity = combatant.instanceId();
         if (identity == null || identity.isBlank()) {
             identity = combatant.characterId() + "#" + combatant.rosterOrder();
         }
-        return new OnlineCombatantKey(side, identity);
+        return identity;
     }
 
     private void remapFaintAnimationPanels() {
@@ -3297,6 +3379,12 @@ public class BattleScreen implements Screen, BattleView {
             return new OnlineResourceState(
                 combatant.currentHp(), combatant.maxHp(),
                 combatant.currentCe(), combatant.maxCe());
+        }
+
+        static OnlineResourceState full(CharacterState combatant) {
+            return new OnlineResourceState(
+                combatant.maxHp(), combatant.maxHp(),
+                combatant.maxCe(), combatant.maxCe());
         }
     }
 
@@ -3724,16 +3812,16 @@ public class BattleScreen implements Screen, BattleView {
 
     private void updateOnlineTeamPanels(
         List<CombatantPanel> panels,
-        List<CharacterState> fighters,
+        List<CharacterState> combatants,
         PlayerSide side
     ) {
-        int count = Math.min(panels.size(), fighters.size());
+        int count = Math.min(panels.size(), combatants.size());
         for (int i = 0; i < count; i++) {
-            CharacterState fighter = fighters.get(i);
-            OnlineResourceState resources = onlineResourceStates.get(onlineKey(side, fighter));
+            CharacterState combatant = combatants.get(i);
+            OnlineResourceState resources = onlineResourceStates.get(onlineKey(side, combatant));
             if (resources == null) {
-                panels.get(i).update(fighter.currentHp(), fighter.maxHp(),
-                    fighter.currentCe(), fighter.maxCe());
+                panels.get(i).update(combatant.currentHp(), combatant.maxHp(),
+                    combatant.currentCe(), combatant.maxCe());
             } else {
                 panels.get(i).update(
                     resources.hp, resources.maxHp, resources.ce, resources.maxCe);
@@ -3814,24 +3902,35 @@ public class BattleScreen implements Screen, BattleView {
         return mode == BattleMode.MULTIPLAYER ? onlineEnemy != null : renderEnemy != null;
     }
 
-    private List<String> combatantNames(boolean playerSide) {
+    private List<CombatantHud> combatantHuds(boolean playerSide) {
         if (mode == BattleMode.MULTIPLAYER) {
             List<CharacterState> side = playerSide
                 ? renderOnlinePlayerTeam : renderOnlineEnemyTeam;
-            return side.stream().map(CharacterState::name).toList();
+            return side.stream()
+                .map(character -> new CombatantHud(
+                    character.name(), game.multiplayerCursedTechnique(character.characterId())))
+                .toList();
         }
         List<BattleCombatant> team = playerSide ? renderPlayerTeam : renderEnemyTeam;
         if (!team.isEmpty()) {
-            return team.stream().map(c -> c.getCharacter().getName()).toList();
+            return team.stream()
+                .map(combatant -> new CombatantHud(
+                    combatant.getCharacter().getName(),
+                    combatant.getCharacter().getInnateTechniqueName()))
+                .toList();
         }
         BattleCombatant primary = playerSide ? renderPlayer : renderEnemy;
-        return primary == null ? List.of() : List.of(primary.getCharacter().getName());
+        return primary == null ? List.of() : List.of(new CombatantHud(
+            primary.getCharacter().getName(),
+            primary.getCharacter().getInnateTechniqueName()));
     }
 
-    private static List<CharacterState> activeOnlineFighters(PlayerState player) {
+    private record CombatantHud(String name, String cursedTechnique) { }
+
+    static List<CharacterState> activeOnlineCombatants(PlayerState player) {
         if (player == null) return List.of();
         return player.combatants().stream()
-            .filter(c -> "FIGHTER".equals(c.role()) && "ACTIVE".equals(c.lifecycle()))
+            .filter(BattleScreen::isActiveCombatant)
             .limit(MAX_VISIBLE_COMBATANTS_PER_SIDE)
             .toList();
     }

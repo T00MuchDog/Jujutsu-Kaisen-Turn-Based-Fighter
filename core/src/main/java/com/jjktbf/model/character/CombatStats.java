@@ -155,6 +155,22 @@ public class CombatStats {
     public static final double BF_CE_RESTORE_FRACTION = 0.05;
 
     /**
+     * Cursed Energy Output buff applied on a Black Flash proc, expressed as the
+     * additive percentage granted via a {@code TEMP_STAT_PERCENT} effect
+     * (0.20 = +20% = an effective ×1.2 multiplier).
+     */
+    public static final double BF_CE_OUTPUT_BUFF_FRACTION = 0.20;
+
+    /** Duration, in AP ticks, of the Black Flash CE Output buff. Persists across rounds. */
+    public static final int BF_CE_OUTPUT_BUFF_TICKS = 80;
+
+    /**
+     * Refresh-group tag for the Black Flash CE Output buff. A second Black Flash
+     * while the buff is active refreshes (resets) its timer instead of stacking.
+     */
+    public static final String BF_CE_OUTPUT_BUFF_REFRESH_GROUP = "BLACK_FLASH_CE_OUTPUT";
+
+    /**
      * PLACEHOLDER: Caps CE reinforcement for Defense at this factor × Cursed Energy Output.
      * While the CE pool can supply at least (CE_OUTPUT × this factor), Defense holds at a
      * plateau — spending CE early costs no Defense. Below that, Defense degrades with the

@@ -12,6 +12,7 @@ public final class TechniqueMasteryProgressions {
     public static final String DURATION_ROUNDS = "durationRounds";
     public static final String DURATION_TICKS = "durationTicks";
     public static final String MAGNITUDE = "magnitude";
+    public static final String PER_TICK_REMOVAL_CHANCE = "perTickRemovalChance";
     public static final String USES = "uses";
     public static final String CODED_STACK_COUNT = "codedStackCount";
     public static final String ACTIVATION_CHANCE = "activationChance";

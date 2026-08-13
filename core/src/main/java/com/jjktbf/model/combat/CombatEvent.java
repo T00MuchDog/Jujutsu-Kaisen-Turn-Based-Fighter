@@ -23,7 +23,7 @@ public class CombatEvent {
         MOVE_BLOCK_REDUCED,  // block reduced but did not fully negate damage
         MOVE_DODGED,         // defender's DODGE defense avoided the attack entirely
         MOVE_PARRIED,        // defender's PARRY negated the attack (attacker may be staggered)
-        MOVE_STUNNED,       // interrupt or stun tag removed this action segment
+        MOVE_STUNNED,       // interrupt or stun effect removed this action segment
 
         // Targeting
         TARGET_RETARGETED,  // a single-target move's invalid target was retargeted at fire time

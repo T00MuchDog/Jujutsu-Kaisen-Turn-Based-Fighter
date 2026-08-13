@@ -124,7 +124,9 @@ public final class NewShadowStyleAbility implements CodedAbilityRuntime {
             && move.getTags().contains(MoveTag.ATTACK)
             && move.getTags().contains(MoveTag.MELEE)
             && move.getTags().contains(MoveTag.SWORD)
-            && move.getTags().contains(MoveTag.STUN);
+            && move.getEffects().stream().anyMatch(effect ->
+                AbilityEffectType.STUN_CURRENT_ACTION.name().equalsIgnoreCase(effect.type)
+                    && effect.resolvedTrigger() == MoveEffectTrigger.ON_HIT);
     }
 
     private static boolean activatesSimpleDomain(Move move) {

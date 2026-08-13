@@ -2,6 +2,8 @@ package com.jjktbf;
 
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterStats;
+import com.jjktbf.model.character.AbilityEffectTarget;
+import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
@@ -12,6 +14,8 @@ import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
+import com.jjktbf.model.move.MoveEffectData;
+import com.jjktbf.model.move.MoveEffectTrigger;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -24,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <p>Design rule (see game_design_decisions): a stun stops a move from occurring;
  * it must NOT deactivate a move that already fired. A defensive block that fires
- * before a STUN-tagged hit lands on the same tick must keep protecting for the
+ * before a stun effect lands on the same tick must keep protecting for the
  * rest of its AP window. Its segment is not stunned and no spurious "was
  * stunned" line appears.
  */
@@ -32,8 +36,8 @@ public class StunDoesNotDeactivateFiredBlockTest {
 
     /**
      * Headline case. The defender is faster so its instant block resolves first
-     * at tick 1, then the attacker's instant STUN move hits on the same tick.
-     * Without the fix, {@code resolveStunTag} would stun the block segment (it
+     * at tick 1, then the attacker's instant stun move hits on the same tick.
+     * Without the fix, the effect would stun the block segment (it
      * is still inside its AP window on tick 1), killing its protection for the
      * rest of the round. With the fix, the fired block is immune.
      */
@@ -44,7 +48,7 @@ public class StunDoesNotDeactivateFiredBlockTest {
             .category(MoveCategory.PHYSICAL)
             .basePower(10)
             .neverMiss(true)
-            .stun(true)
+            .effects(List.of(stunEffect()))
             // Wide AP window so the resolution sweep runs well past the block's
             // window (tick 10). This both matches a realistic "fight continues"
             // scenario and lets the block's natural guard-expiry be detected,
@@ -113,5 +117,12 @@ public class StunDoesNotDeactivateFiredBlockTest {
         private FixedRandom(double value) { this.value = value; }
         @Override public double nextDouble() { return value; }
         @Override public boolean nextBoolean() { return value < 0.5; }
+    }
+
+    private static MoveEffectData stunEffect() {
+        MoveEffectData effect = AbilityEffectType.STUN_CURRENT_ACTION.createDefaultMoveEffect();
+        effect.trigger = MoveEffectTrigger.ON_HIT.name();
+        effect.target = AbilityEffectTarget.ENEMY.name();
+        return effect;
     }
 }

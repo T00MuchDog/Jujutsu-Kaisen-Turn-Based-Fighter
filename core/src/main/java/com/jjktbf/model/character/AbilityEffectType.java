@@ -16,6 +16,7 @@ import static com.jjktbf.model.character.AbilityEffectParameter.DECIMAL;
 import static com.jjktbf.model.character.AbilityEffectParameter.DURATION;
 import static com.jjktbf.model.character.AbilityEffectParameter.INTEGER;
 import static com.jjktbf.model.character.AbilityEffectParameter.MAGNITUDE;
+import static com.jjktbf.model.character.AbilityEffectParameter.PER_TICK_REMOVAL_CHANCE;
 import static com.jjktbf.model.character.AbilityEffectParameter.ABILITY_ID;
 import static com.jjktbf.model.character.AbilityEffectParameter.CHARACTER_ID;
 import static com.jjktbf.model.character.AbilityEffectParameter.MOVE_ID;
@@ -172,7 +173,7 @@ public enum AbilityEffectType {
     AUTO_STATUS_APPLY(
         "Apply status automatically",
         "Applies a supported status at fight start, round start, or after a hit.",
-        STATUS_TYPE, TARGET, TIMING, DURATION, MAGNITUDE),
+        STATUS_TYPE, TARGET, TIMING, DURATION, MAGNITUDE, PER_TICK_REMOVAL_CHANCE),
     LOCK_MOVE_TAG(
         "Lock own move tag",
         "Prevents this character from selecting moves with one tag.",
@@ -234,7 +235,7 @@ public enum AbilityEffectType {
     APPLY_STATUS(
         "Apply status",
         "Applies any status when the ability activates.",
-        STATUS_TYPE, TARGET, DURATION, MAGNITUDE),
+        STATUS_TYPE, TARGET, DURATION, MAGNITUDE, PER_TICK_REMOVAL_CHANCE),
     REMOVE_STATUS(
         "Remove status",
         "Removes every instance of one status from the target.",
@@ -256,6 +257,10 @@ public enum AbilityEffectType {
         "Timed character stat set",
         "Sets a character stat to an exact value for the configured rounds and ticks.",
         STAT, TARGET, INTEGER, DURATION),
+    TEMP_STAT_PERCENT(
+        "Stat percentage",
+        "Adds or subtracts a percentage of the scaled character stat for the configured rounds and ticks. Percentage effects stack additively with each other.",
+        STAT, TARGET, DECIMAL, DURATION),
     BATTLE_STAT_ADD(
         "Timed battle stat change",
         "Adds to a derived battle value for the configured rounds and ticks.",
@@ -264,6 +269,14 @@ public enum AbilityEffectType {
         "Timed battle stat multiplier",
         "Multiplies a derived battle value for the configured rounds and ticks.",
         BATTLE_STAT, TARGET, DECIMAL, DURATION),
+    BATTLE_STAT_PERCENT(
+        "Battle stat percentage",
+        "Adds or subtracts a percentage of the scaled derived battle value for the configured rounds and ticks. Percentage effects stack additively with each other.",
+        BATTLE_STAT, TARGET, DECIMAL, DURATION),
+    BATTLE_STAT_ODDS_MULTIPLY(
+        "Multiply battle-stat odds",
+        "Permanently multiplies the odds of a probability battle stat. A factor of 2 doubles odds without directly doubling probability.",
+        BATTLE_STAT, DECIMAL),
 
     IGNORE_DAMAGE(
         "Ignore incoming damage",
@@ -293,6 +306,10 @@ public enum AbilityEffectType {
         "Cancel next move",
         "Stuns the target's next move when it begins execution.",
         TARGET, USES, DURATION),
+    STUN_CURRENT_ACTION(
+        "Stun current action",
+        "Cancels the target's active, not-yet-fired action on the current tick. HEAVY actions resist this effect.",
+        TARGET),
     TEMP_LOCK_MOVE_TAG(
         "Temporarily lock move tag",
         "Prevents the target from planning moves with one tag for the duration.",
@@ -324,11 +341,11 @@ public enum AbilityEffectType {
             HEAL_HP, HEAL_HP_PERCENT, RESTORE_CE, RESTORE_CE_PERCENT,
             DRAIN_CE, DRAIN_CE_PERCENT, DEAL_DIRECT_DAMAGE, DEAL_MAX_HP_DAMAGE,
             INSTANT_KILL, APPLY_STATUS, REMOVE_STATUS, CLEAR_STATUSES,
-            TEMP_STAT_ADD, TEMP_STAT_MULTIPLY, TEMP_STAT_SET_VALUE,
-            BATTLE_STAT_ADD, BATTLE_STAT_MULTIPLY,
+            TEMP_STAT_ADD, TEMP_STAT_MULTIPLY, TEMP_STAT_SET_VALUE, TEMP_STAT_PERCENT,
+            BATTLE_STAT_ADD, BATTLE_STAT_MULTIPLY, BATTLE_STAT_PERCENT,
             IGNORE_DAMAGE, DAMAGE_SHIELD, SURVIVE_FATAL_DAMAGE,
             GUARANTEE_NEXT_HIT, GUARANTEE_NEXT_DODGE, GUARANTEE_NEXT_BLACK_FLASH,
-            CANCEL_NEXT_MOVE, TEMP_LOCK_MOVE_TAG, SUMMON_CHARACTER,
+            CANCEL_NEXT_MOVE, STUN_CURRENT_ACTION, TEMP_LOCK_MOVE_TAG, SUMMON_CHARACTER,
             DESUMMON_OWNED_SHIKIGAMI, DESUMMON_TARGET_SHIKIGAMI,
             CODED_MOVE_ACTION);
 
@@ -410,6 +427,7 @@ public enum AbilityEffectType {
         effect.durationRounds = null;
         effect.durationTicks = null;
         effect.magnitude = null;
+        effect.perTickRemovalChance = null;
         effect.uses = null;
         effect.masteryProgression = null;
 
@@ -499,6 +517,19 @@ public enum AbilityEffectType {
                 effect.doubleValue = 1.10;
                 timedDefaults(effect);
             }
+            case TEMP_STAT_PERCENT -> {
+                effect.doubleValue = 0.20;
+                timedDefaults(effect);
+            }
+            case BATTLE_STAT_PERCENT -> {
+                effect.stringValue = BattleStatKey.ACCURACY.name();
+                effect.doubleValue = 0.20;
+                timedDefaults(effect);
+            }
+            case BATTLE_STAT_ODDS_MULTIPLY -> {
+                effect.stringValue = BattleStatKey.BLACK_FLASH_CHANCE.name();
+                effect.doubleValue = 2.0;
+            }
             case IGNORE_DAMAGE, SURVIVE_FATAL_DAMAGE, GUARANTEE_NEXT_HIT,
                  GUARANTEE_NEXT_DODGE, GUARANTEE_NEXT_BLACK_FLASH, CANCEL_NEXT_MOVE -> {
                 effect.target = AbilityEffectTarget.SELF.name();
@@ -567,6 +598,9 @@ public enum AbilityEffectType {
         if (uses(DURATION) && effect.durationRounds == null) effect.durationRounds = defaults.durationRounds;
         if (uses(DURATION) && effect.durationTicks == null) effect.durationTicks = defaults.durationTicks;
         if (uses(MAGNITUDE) && effect.magnitude == null) effect.magnitude = defaults.magnitude;
+        if (uses(PER_TICK_REMOVAL_CHANCE) && effect.perTickRemovalChance == null) {
+            effect.perTickRemovalChance = defaultPerTickRemovalChance(effect.stringValue);
+        }
         if (uses(STATUS_TYPE) && uses(MAGNITUDE)) {
             try {
                 if (!StatusEffectType.fromName(effect.stringValue).usesMagnitude()) {
@@ -605,6 +639,7 @@ public enum AbilityEffectType {
             effect.durationTicks = null;
         }
         if (!uses(MAGNITUDE)) effect.magnitude = null;
+        if (!uses(PER_TICK_REMOVAL_CHANCE)) effect.perTickRemovalChance = null;
         if (!uses(USES)) effect.uses = null;
         if (!uses(BATTLE_STAT) && !uses(TECHNIQUE) && !uses(STATUS_TYPE)) effect.stringValue = null;
         Set<String> allowedProgressions = masteryProgressionFields(effect);
@@ -694,11 +729,21 @@ public enum AbilityEffectType {
         if (uses(MAGNITUDE) && (!isFinite(effect.magnitude) || effect.magnitude < 0)) {
             return "Enter a non-negative status amount.";
         }
+        if (uses(PER_TICK_REMOVAL_CHANCE) && effect.perTickRemovalChance != null
+            && (!isFinite(effect.perTickRemovalChance)
+                || effect.perTickRemovalChance < 0.0 || effect.perTickRemovalChance > 1.0)) {
+            return "Per-tick removal chance must be between 0% and 100%.";
+        }
         if (uses(USES) && (effect.uses == null || (effect.uses != -1 && effect.uses < 1))) {
             return "Uses must be -1 (unlimited) or at least 1.";
         }
         if (uses(BATTLE_STAT)) {
-            try { BattleStatKey.fromString(effect.stringValue); }
+            try {
+                BattleStatKey stat = BattleStatKey.fromString(effect.stringValue);
+                if (this == BATTLE_STAT_ODDS_MULTIPLY && !stat.isProbability()) {
+                    return "Choose a probability battle stat.";
+                }
+            }
             catch (Exception ex) { return "Choose a valid battle stat."; }
         }
         if (uses(CODED_FEATURE) && !CodedAbilityRegistry.supportsAbilityEffect(
@@ -735,9 +780,12 @@ public enum AbilityEffectType {
             case STAT_MULTIPLY, CE_COST_MULTIPLY, MOVE_ACCURACY_MULTIPLY,
                   OPPONENT_ACCURACY_MULTIPLY, DAMAGE_MULTIPLY, MOVE_BASE_POWER_MULTIPLY,
                   INCOMING_DAMAGE_MULTIPLY, MODIFY_DEFENSE, DEFENSE_FROM_DURABILITY,
-                  TEMP_STAT_MULTIPLY, BATTLE_STAT_MULTIPLY ->
+                  TEMP_STAT_MULTIPLY, BATTLE_STAT_MULTIPLY, BATTLE_STAT_ODDS_MULTIPLY ->
                 effect.doubleValue <= 0 || effect.doubleValue == 1.0
                     ? "Enter a positive multiplier other than 1.0." : null;
+            case TEMP_STAT_PERCENT, BATTLE_STAT_PERCENT -> effect.doubleValue == 0
+                    || effect.doubleValue <= -1.0
+                        ? "Enter a non-zero percentage greater than -100%." : null;
             case CE_COST_ALTER -> effect.doubleValue < 0
                 || (effect.doubleValue == 1.0 && effect.intValue == 0)
                     ? "Use a non-negative multiplier or a non-zero CE change."
@@ -806,6 +854,9 @@ public enum AbilityEffectType {
             fields.add(TechniqueMasteryProgressions.DURATION_TICKS);
         }
         if (uses(MAGNITUDE)) fields.add(TechniqueMasteryProgressions.MAGNITUDE);
+        if (uses(PER_TICK_REMOVAL_CHANCE)) {
+            fields.add(TechniqueMasteryProgressions.PER_TICK_REMOVAL_CHANCE);
+        }
         if (uses(USES)) fields.add(TechniqueMasteryProgressions.USES);
         if (uses(CODED_FEATURE) && effect != null && effect.codedParameters != null) {
             fields.addAll(effect.codedParameters.keySet());
@@ -829,10 +880,11 @@ public enum AbilityEffectType {
         return switch (this) {
             case STAT_ALLOCATION_MINIMUM, STAT_ALLOCATION_MAXIMUM, STAT_BONUS_POINTS,
                   POISON_IMMUNITY, SOUL_AWARE_ATTACKS,
-                  GRANT_MOVE, GRANT_ABILITY, UNLOCK_MOVE,
-                  UNLOCK_TECHNIQUE, AUTO_STATUS_APPLY, DEFENSE_FROM_DURABILITY,
-                  SET_JUJUTSU_ART_SLOTS, MAX_ACTIVE_SUMMONS,
-                  SUMMON_CE_UPKEEP_PER_ACTIVE_TICK, NEVER_MISS, NEVER_HIT -> true;
+                   GRANT_MOVE, GRANT_ABILITY, UNLOCK_MOVE,
+                   UNLOCK_TECHNIQUE, AUTO_STATUS_APPLY, DEFENSE_FROM_DURABILITY,
+                   SET_JUJUTSU_ART_SLOTS, MAX_ACTIVE_SUMMONS,
+                   SUMMON_CE_UPKEEP_PER_ACTIVE_TICK, NEVER_MISS, NEVER_HIT,
+                   BATTLE_STAT_ODDS_MULTIPLY -> true;
             default -> false;
         };
     }
@@ -863,6 +915,14 @@ public enum AbilityEffectType {
 
     private static boolean isFinite(Double value) {
         return value != null && Double.isFinite(value);
+    }
+
+    private static double defaultPerTickRemovalChance(String statusName) {
+        try {
+            return StatusEffectType.fromName(statusName).defaultPerTickRemovalChance();
+        } catch (IllegalArgumentException ignored) {
+            return 0.0;
+        }
     }
 
     private static boolean isBlank(String value) {

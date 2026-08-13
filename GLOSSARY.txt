@@ -247,27 +247,41 @@ are the Move/MoveData field names.
     potency               1–5. Gates defence vs attack: a BLOCK/PARRY applies iff
                           its potency ≥ the attack's potency. Always 1 for utility.
 
-  Effects
-    onHitEffects          List<StatusEffect> applied to the target on a hit.
-                          STAGGER is configured here with an AP-tick duration.
-    selfEffects           List<StatusEffect> applied to the user on unleash
-                          (hit/miss/block agnostic). May carry a coded action.
-    onBlockEffects        List<StatusEffect> applied to the defender when a BLOCK
-                          negates/reduces a hit.
-    onParryEffects        List<StatusEffect> applied to the defender when a PARRY
-                          negates a hit.
-    onDodgeEffects        List<StatusEffect> applied to the defender when a DODGE
-                          avoids a hit.
-
-  Effect row flavours (MoveData.StatusEffectData / StatusEffect)
-    A move-effect row is exactly one of three mutually-exclusive flavours:
-      STATUS  — carries a StatusEffectType; applied to a combatant for a duration.
-      CODED   — carries codedAbilityKey + codedAction; dispatched to a compiled
-                CodedAbilityRuntime instead of applied as a status.
-      SUMMON  — carries summonCharacterId (a SHIKIGAMI definition id); enqueues a
-                shikigami onto the wielder's team when the row fires (self / on-hit /
-                on-defense). Materialized after the current tick batch, so the summon
-                joins planning next round. Only SHIKIGAMI definitions may be summoned.
+  Effects (canonical: unified effects array)
+    effects               List<MoveEffectData> — the authoritative composition of a
+                          move's non-damage behaviour. Each row reuses the shared
+                          AbilityEffectType vocabulary (§14) plus move-only
+                          activation context. When non-null it is authoritative over
+                          the legacy attachment fields; MoveData.fromMove emits only
+                          this list for unified moves (Move.usesUnifiedEffects).
+    trigger               MoveEffectTrigger — when the row fires:
+                            AVAILABILITY    gates whether the move can be planned
+                                            (e.g. MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE).
+                            ACCURACY_CHECK  modifies the hit roll (NEVER_MISS / NEVER_HIT).
+                            ON_FIRE         on unleash (hit/miss/block agnostic).
+                            ON_HIT          on a connected hit (may bind to one
+                                            hitComponent via hitComponentIndex).
+                            ON_BLOCK / ON_PARRY / ON_DODGE  on the matching defense.
+    Per-row shape         type (AbilityEffectType) + target (SELF / ENEMY / BOTH) +
+                          an optional condition + duration/magnitude as the type
+                          requires + coded fields (codedAbilityKey / codedAction /
+                          codedTarget / codedStackCount / codedParameters) + an
+                          optional masteryProgression map (modes FORMULA / BENCHMARKS,
+                          resolved by TechniqueMasteryResolver; progression is gated
+                          to INNATE_TECHNIQUE-tagged moves).
+    Status / Coded / Summon   The three canonical row kinds map to APPLY_STATUS
+                          (a StatusEffectType + duration), CODED_MOVE_ACTION
+                          (codedAbilityKey + codedAction; dispatched to a
+                          CodedAbilityRuntime, §15), and SUMMON_CHARACTER
+                          (characterId = a SHIKIGAMI definition id; enqueues a
+                          shikigami that materializes after the current tick batch
+                          and joins planning next round. Only SHIKIGAMI definitions
+                          may be summoned).
+    Legacy attachment     onHitEffects / selfEffects / onBlockEffects /
+                          onParryEffects / onDodgeEffects — the pre-unified
+                          StatusEffectData lists (the old STATUS / CODED / SUMMON
+                          flavours). Retained for backward compatibility and migrated
+                          into the unified list by MoveData.migrateLegacyEffects().
 
     Summon stat scaling (SummonStatScaler.java) — at materialization each of the
     shikigami's RAW base stats is multiplied by a factor derived from the SUMMONER,
@@ -308,13 +322,12 @@ are the Move/MoveData field names.
                           respects prerequisites, technique restrictions, and CE/AP.
     mustBeGranted         If true, the move cannot be assigned directly in the
                           Character Editor; it must be made available through a
-                          GRANT_MOVE or FORCE_MOVE ability effect.
+                          GRANT_MOVE or UNLOCK_MOVE ability effect.
     weaponRequired        If true, only a character with a weapon
                           (CharacterData.hasWeapon) can learn/use the move. Forced
                           on for PARRY moves.
 
   Modifier flags (back dedicated MoveTag entries; see §5)
-    stun        boolean  → Move.isStun()       → STUN tag
     guardBreak  boolean  → Move.isGuardBreak() → GUARD_BREAK tag
     heavy       boolean  → Move.isHeavy()      → HEAVY tag
 
@@ -371,6 +384,12 @@ tag names below.
     RANGED                Distance strike (projectile, beam, thrown weapon).
                           Same rules as MELEE.
 
+  AOE / FRIENDLY-FIRE TAGS:
+    AOE                  Marks an area-of-effect attack. Paired with aoeType and
+                         aoeTargetCount (see "Area of effect" in §4).
+    FRIENDLY_FIRE        On an AOE move, migrates aoeType to ALL_OTHERS so the
+                         attack can also hit allies. Lives only in the tag set.
+
   WEAPON TAG:
     SWORD                 Sword / sword-like weapon modifier used by move-scoped
                            abilities (e.g. Earnest Swordswoman). Modifier tag.
@@ -381,23 +400,22 @@ tag names below.
                           accuracy, ordinary Defense, coded resistance, and damage
                           immunity are unaffected. Lives only in the tag set.
 
+  IMMEDIATE EFFECTS:
+    STUN_CURRENT_ACTION   Cancels the target's not-yet-fired action segment(s)
+                          active on the current tick. Authored as a shared move
+                          effect row with trigger, target, optional condition,
+                          and optional activation chance. HEAVY segments resist.
+
   MODIFIER FLAGS (also backed by a dedicated boolean on Move):
-    STUN                  On a successful offensive hit, the defender's action
-                          segment(s) active on the current tick are stunned
-                          (removed from the timeline and prevented from firing).
-                          Segments that already fired are unaffected; HEAVY
-                           segments resist the stun. Defensive/utility moves do
-                           not apply the stun effect. Backed by Move.isStun().
     GUARD_BREAK           A successful hit ignores the defender's BLOCK defensive
                           moves — the block applies no reduction and cannot negate
                           the hit. Dodges and parries are unaffected; only blocks
                           bypass. A guard-break attack is still negated by a parry
                           but does NOT get staggered by one. Backed by
                           Move.isGuardBreak().
-    HEAVY                 An action segment carrying this move is IMMUNE to being
-                          stunned by a STUN-tagged hit. HEAVY only resists the
-                           STUN tag (not CE-depletion, ability-driven stuns, or
-                           the STAGGER status).
+    HEAVY                 An action segment carrying this move is IMMUNE to
+                          STUN_CURRENT_ACTION. HEAVY does not resist CE depletion,
+                          ability cancellation, or the STAGGER status.
                           The "heavy beats stun" half of the stun ↔ heavy
                           interaction. Backed by Move.isHeavy().
 
@@ -567,7 +585,7 @@ ACTION SEGMENT
     endTick        = startTick + apCost − 1. The last tick of the segment.
     actualCeCost   CE after efficiency scaling (drained at startTick).
     stunned / fired flags.
-  Can be stunned (skipped) by: a STUN-tagged hit, CE depletion, or an ability
+  Can be stunned (skipped) by: STUN_CURRENT_ACTION, CE depletion, or an ability
   cancellation. markFired() is final — a fired segment cannot be retro-cancelled
   (a fired block keeps protecting for its AP window).
 
@@ -581,7 +599,7 @@ INSTANT MOVE
   to fire BEFORE the attack lands, not merely on the same tick.
 
 STUNNED (segment state)
-  An action segment removed from firing — by a STUN-tagged hit, by CE depletion,
+  An action segment removed from firing — by STUN_CURRENT_ACTION, by CE depletion,
   or by an ability cancellation (CANCEL_NEXT_MOVE). Its AP slot is still spent
   and any CE already drained remains spent; the move simply does not fire.
   Log line: "<combatant> was stunned and could not move."
@@ -790,13 +808,11 @@ AVAILABLE
   Content shown in the Character Editor's AVAILABLE list. Available content is
   not learned or active until moved into LEARNED (moves) or ASSIGNED (abilities).
 
-GRANT_MOVE        Adds a move to AVAILABLE. The move must still be learned
-                  normally (prerequisites, technique, slot budget all apply).
+GRANT_MOVE        Adds a move to AVAILABLE, bypassing all requirements (it still
+                  occupies a slot once learned).
+UNLOCK_MOVE       Adds a move to AVAILABLE; it must still be learned normally
+                  (prerequisites, technique, slot budget all apply).
 GRANT_ABILITY     Adds an ability to AVAILABLE for normal assignment.
-FORCE_MOVE        Adds a move directly to LEARNED and locks it: it bypasses
-                  normal prerequisites and slot limits, is greyed in the editor,
-                  and cannot be removed while its source remains active. Source
-                  label: "Granted by ability" / "Granted by technique".
 UNLOCK_TECHNIQUE  Lets a character learn and use moves belonging to a technique
                   it does not innately possess.
 
@@ -804,10 +820,16 @@ CHARACTER-SOURCE ABILITY
   An ability whose sourceType is CHARACTER. It is available to every character;
   CHARACTER does not mean character-exclusive. Only assigned abilities are active.
 
-ABILITY EFFECT TYPES  (54 enum constants; grouped as in source).
+ABILITY EFFECT TYPES  (69 enum constants; grouped as in source).
   Each type owns its editor display name, description, required parameters, and
-  defaults. Effects with ordinal ≥ HEAL_HP are TRIGGERED RUNTIME EFFECTS: applied
-  by the passive dispatcher on activation, not at construction.
+  defaults. TRIGGERED RUNTIME EFFECTS are the members of the explicit
+  ACTIVATION_REQUIRED set (queried via requiresActivation()): applied by the
+  passive dispatcher on activation, not at construction. (This set replaces the
+  former ordinal >= HEAL_HP check so adding activation-required effects such as
+  SUMMON_CHARACTER does not silently shift the boundary.) Move effect rows reuse
+  this same enum, restricted to the isMoveEffect() subset, and carry a trigger
+  (see §4); STATUS / CODED / SUMMON map to APPLY_STATUS / CODED_MOVE_ACTION /
+  SUMMON_CHARACTER.
 
   Stat modifiers (construction-time):
     STAT_ADD            Add to stat                       (STAT, INTEGER)
@@ -816,6 +838,7 @@ ABILITY EFFECT TYPES  (54 enum constants; grouped as in source).
     STAT_SET_VALUE      Set stat to an exact value        (STAT, INTEGER)
     STAT_SET_MIN        Set stat to 0 (display N/A)       (STAT)
     STAT_ALLOCATION_MINIMUM  Set editor allocation floor  (STAT, INTEGER)
+    STAT_ALLOCATION_MAXIMUM  Set editor allocation ceiling (STAT, INTEGER)
     STAT_BONUS_POINTS   Change point-buy budget (editor)  (INTEGER)
 
   Marker templates:
@@ -823,7 +846,9 @@ ABILITY EFFECT TYPES  (54 enum constants; grouped as in source).
     SOUL_AWARE_ATTACKS  Mark the character's attacks as soul-aware
 
   Compiled mechanics:
-    CODED               Enable an allow-listed compiled feature  (CODED_FEATURE)
+    CODED               Enable an allow-listed compiled feature on an ability  (CODED_FEATURE)
+    CODED_MOVE_ACTION   A move effect row dispatched to a CodedAbilityRuntime
+                        (codedAbilityKey + codedAction; see §15). Activation-required.
 
   CE cost modifiers (move-scoped):
     CE_COST_TO_MINIMUM  Force matching moves to min CE cost      (MOVE_SCOPE)
@@ -835,24 +860,33 @@ ABILITY EFFECT TYPES  (54 enum constants; grouped as in source).
     MOVE_ACCURACY_MULTIPLY    × accuracy on own moves           (MOVE_SCOPE, DECIMAL)
     OPPONENT_ACCURACY_ADD     ± accuracy on enemy's moves       (MOVE_SCOPE, INTEGER)
     OPPONENT_ACCURACY_MULTIPLY × accuracy on enemy's moves      (MOVE_SCOPE, DECIMAL)
+    NEVER_MISS          Accuracy-priority tier for matching attacks; wins against an
+                        equal-or-lower NEVER_HIT tier            (MOVE_SCOPE, INTEGER tier)
+    NEVER_HIT           Accuracy-defense tier; blocks only lower-tier NEVER_MISS
+                        attacks                                 (MOVE_SCOPE, INTEGER tier)
 
   Damage modifiers (move-scoped):
     DAMAGE_MULTIPLY           × damage dealt                   (MOVE_SCOPE, DECIMAL)
     MOVE_BASE_POWER_MULTIPLY  × configured base power (pre-Power, pre-Defense) (MOVE_SCOPE, DECIMAL)
+    INCOMING_DAMAGE_MULTIPLY  × incoming damage taken               (MOVE_SCOPE, DECIMAL)
 
   Grants / technique:
-    GRANT_MOVE         Add move to AVAILABLE                    (MOVE_ID)
+    GRANT_MOVE         Add move to AVAILABLE, bypassing requirements (MOVE_ID)
+    UNLOCK_MOVE        Add move to AVAILABLE (still must be learned) (MOVE_ID)
     GRANT_ABILITY      Add ability to AVAILABLE                 (ABILITY_ID)
-    FORCE_MOVE         Add+lock move in LEARNED                 (MOVE_ID)
     UNLOCK_TECHNIQUE   Grant an innate cursed technique         (TECHNIQUE)
 
   Other persistent passives:
-    BF_CHANCE_ADD      ± Black Flash chance (enter 5 for +5pp)  (DECIMAL)
-    MODIFY_DEFENSE     × effective Defense                       (DECIMAL)
-    MODIFY_AP_BAR      ± flat AP bar size                        (INTEGER)
-    AUTO_STATUS_APPLY  Apply a status automatically              (STATUS_TYPE, TARGET, TIMING, DURATION, MAGNITUDE)
-    LOCK_MOVE_TAG      Prevent this character using one tag      (MOVE_SCOPE)
-    COST_CE_PER_ROUND  Drain CE at round start                   (INTEGER)
+    BF_CHANCE_ADD                    ± Black Flash chance (enter 5 for +5pp) (DECIMAL)
+    MODIFY_DEFENSE                   × effective Defense                    (DECIMAL)
+    DEFENSE_FROM_DURABILITY          Defense = scaled Durability × value    (DECIMAL)
+    MODIFY_AP_BAR                    ± flat AP bar size                     (INTEGER)
+    SET_JUJUTSU_ART_SLOTS            Override Jujutsu Art slot count        (INTEGER)
+    AUTO_STATUS_APPLY                Apply a status automatically           (STATUS_TYPE, TARGET, TIMING, DURATION, MAGNITUDE)
+    LOCK_MOVE_TAG                    Prevent this character using one tag   (MOVE_SCOPE)
+    COST_CE_PER_ROUND                Drain CE at round start                (INTEGER)
+    MAX_ACTIVE_SUMMONS               Cap on active+pending shikigami        (INTEGER)
+    SUMMON_CE_UPKEEP_PER_ACTIVE_TICK Extra CE drain per active summon tick  (DECIMAL)
 
   Triggered runtime — resources (target SELF / ENEMY / BOTH):
     HEAL_HP            Restore flat HP                           (TARGET, INTEGER)
@@ -876,6 +910,18 @@ ABILITY EFFECT TYPES  (54 enum constants; grouped as in source).
     TEMP_STAT_SET_VALUE Timed set of a base stat                 (STAT, TARGET, INTEGER, DURATION)
     BATTLE_STAT_ADD    Timed ± to a battle stat                  (BATTLE_STAT, TARGET, DECIMAL, DURATION)
     BATTLE_STAT_MULTIPLY Timed × a battle stat                   (BATTLE_STAT, TARGET, DECIMAL, DURATION)
+    TEMP_STAT_PERCENT  Timed ± % of a scaled base stat           (STAT, TARGET, DECIMAL, DURATION)
+    BATTLE_STAT_PERCENT Timed ± % of a scaled battle stat        (BATTLE_STAT, TARGET, DECIMAL, DURATION)
+
+  Flat vs percentage stat modifiers:
+    • Flat (STAT_ADD / TEMP_STAT_ADD / BATTLE_STAT_ADD / *_INCREASE-DECREASE
+      statuses) add or subtract points. These are the rare raw-stat changes used
+      by passive abilities and the occasional active ability.
+    • Percentage (TEMP_STAT_PERCENT / BATTLE_STAT_PERCENT) add or subtract a
+      fraction of the SCALED value and are the default for move buffs/nerfs
+      (utility, on-hit, on-defense). Percentage effects STACK ADDITIVELY:
+      +20% then +20% = +40% (not +44%). Stored as a fraction in doubleValue
+      (0.20 = +20%, −0.20 = −20%).
 
   Triggered runtime — one-shot defensive/offensive guarantees (USES-based):
     IGNORE_DAMAGE           Negate damaging instances (USES=1 once, −1 every hit) (TARGET, USES, DURATION)
@@ -887,9 +933,15 @@ ABILITY EFFECT TYPES  (54 enum constants; grouped as in source).
     CANCEL_NEXT_MOVE        Stun the target's next move when it begins            (TARGET, USES, DURATION)
     TEMP_LOCK_MOVE_TAG      Prevent target planning moves with one tag            (TARGET, MOVE_SCOPE, DURATION)
 
+  Summon / shikigami control (move effect or triggered):
+    SUMMON_CHARACTER                              Summon a shikigami onto the owner's team (CHARACTER_ID)
+    DESUMMON_OWNED_SHIKIGAMI                      Voluntarily dismiss every direct owned summon
+    DESUMMON_TARGET_SHIKIGAMI                     Voluntarily dismiss the targeted summon (TARGET)
+    MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE    Hide this move unless the named shikigami is active (CHARACTER_ID)
+
   Effect parameters (AbilityEffectParameter): STAT, INTEGER, DECIMAL, MOVE_SCOPE,
     MOVE_ID, ABILITY_ID, TECHNIQUE, STATUS_TYPE, TARGET, TIMING, DURATION,
-    MAGNITUDE, USES, BATTLE_STAT, CODED_FEATURE.
+    MAGNITUDE, USES, BATTLE_STAT, CODED_FEATURE, CHARACTER_ID.
   Effect target (AbilityEffectTarget): SELF, ENEMY, BOTH.
   Effect timing (AbilityEffectTiming): FIGHT_START, ROUND_START, ON_HIT.
     A ROUND_START AUTO_STATUS_APPLY must last exactly 1 round / 0 ticks so it
@@ -897,7 +949,11 @@ ABILITY EFFECT TYPES  (54 enum constants; grouped as in source).
 
   Per-stat processing order (AbilityApplicator):
     STAT_SET_MIN / STAT_SET_VALUE (overrides) → STAT_ADD (additive) →
-    STAT_MULTIPLY / STAT_DIVIDE (multiplicative, product) → noNeg clamp (≥0).
+    STAT_MULTIPLY / STAT_DIVIDE (multiplicative, product) → TEMP_STAT_PERCENT
+    (additive percentage, applied to the fully scaled value) → noNeg clamp (≥0).
+  Battle-stat processing (BattleCombatant.modifyBattleStat):
+    result = (baseValue + flat additions) × multiplicative product × (1 + summed
+    percentage); the percentage term stacks additively and never drops below 0.
   Move-scoped effects filter by tag: appliesTo(effect, move) is true when the
   effect's moveTag is blank OR move.hasTag(moveTag).
 
@@ -917,13 +973,18 @@ it collects every coded ability key the character has (from CODED rows on assign
 abilities and from coded effect rows on known moves), validates each binding, and
 instantiates one runtime per key. Unknown bindings log a warning and are skipped.
 
-CodedAbilityRuntime hooks (all optional except the first two):
+CodedAbilityRuntime hooks (all optional except onTrigger, drainPendingEvents, state):
   onTrigger(state, trigger)            activation predicate fired
   onEffectFired(state, effect, attacker, defender, tick)  coded effect row fired
-  onAttackConnected(attacker, defender, move, tick, rng)  → CodedHitModifiers (pre-block/defense)
+  onAttackConnected(attacker, defender, move, tick[, component], rng)
+                                       → CodedHitModifiers (pre-block/defense);
+                                         component-aware overloads exist
   beforeIncomingMove(state, attacker, defender, move, tick) → CodedMoveResponse
   tickTimelineEffects(tick)            advance universal-tick timers
+  getRemainingTimelineEffectTicks()    longest remaining AP-tick timer owned (view)
   preventFatalDamage()                 true if a fatal hit should be negated this tick
+  onOwnedSummonDestroyed(state, owner, destroyedSummon)  record permanent rest-of-
+                                       battle state when an owned summon is defeated
   drainPendingEvents(tick)             flush queued events
   state()                              → CodedAbilityState snapshot for the view
 
@@ -958,7 +1019,36 @@ Shipped coded abilities (keys / features / actions):
     Effect action: ACTIVATE_SIMPLE_DOMAIN — a coded self-effect (on the Simple
                    Domain move) that activates Simple Domain as a reaction bound
                    to a target move (codedTarget = move id, e.g. Batto Sword
-                   Drawing). Reacts to that move via MoveTag.STUN.
+                   Drawing). Validates that move through its STUN_CURRENT_ACTION row.
+
+  TEN_SHADOWS                            (TenShadowsAbility)
+    KEY = "TEN_SHADOWS". Marker features only — exposes no move effect action.
+    Features:
+      TECHNIQUE           Foundational Ten Shadows passive; gates the destroyed-
+                          shikigami permanence rule (a defeated shikigami cannot be
+                          resummoned that battle) via onOwnedSummonDestroyed.
+      TOTALITY            Unlocks Totality-class shikigami fusions.
+      WELLS_UNKNOWN_ABYSS Unlocks temporary two-shikigami fusions.
+    Effect action: none.
+
+  CURSED_SPEECH                          (CursedSpeechAbility)
+    KEY = "CURSED_SPEECH". Spoken commands that compel up to three enemies; each
+    command can be resisted and always inflicts recoil. Success chance and recoil
+    both scale from Cursed Technique Mastery and the user/target cursed-energy
+    ratio (stronger targets resist more and recoil harder).
+    Features:
+      TECHNIQUE          Enables Cursed Speech commands.
+      REFINED_COMMANDS   Adds a CTM-scaled bonus to each command's success chance.
+    Effect action: COMMAND — a coded on-hit effect whose codedTarget is one of
+                   DONT_MOVE, BLAST_AWAY, SLEEP, PLUMMET, GET_TWISTED, RETURN,
+                   EXPLODE, DIE. RETURN may only target a manifested summon.
+
+  SHIKIGAMI                              (ShikigamiMoveRuntime)
+    KEY = "SHIKIGAMI". Stateless move-action runtime carried by shikigami.
+    Features: none.
+    Effect action: DESUMMON_SELF — a coded self-effect that voluntarily returns the
+                   acting shikigami to its summoner's shadow (cooldown to next round;
+                   not permanently destroyed).
 
 CodedAbilityState (emitted with events) carries {key, label, value, max} for the
 view (e.g. "Miracles 3/6", "Ratio 2/3").
@@ -967,6 +1057,8 @@ Effect actions exposed to editors (CodedAbilityRegistry.effectActions):
   MIRACLES / CREATE                 "Create Miracle"
   RATIO / RATIO_EFFECT              "Ratio Effect"
   NEW_SHADOW_STYLE / ACTIVATE_SIMPLE_DOMAIN  "Activate Simple Domain"
+  SHIKIGAMI / DESUMMON_SELF         "Desummon self"
+  CURSED_SPEECH / COMMAND           "Cursed Speech command"
 
 Ability features exposed to editors (CodedAbilityRegistry.abilityFeatures):
   MIRACLES / RESERVOIR                    "Miracle Reservoir"
@@ -974,6 +1066,11 @@ Ability features exposed to editors (CodedAbilityRegistry.abilityFeatures):
   MIRACLES / FORTUNE_RECLAIMED            "Fortune Reclaimed"
   RATIO / REINFORCEMENT_RATIO             "Ratio Reinforcement"
   NEW_SHADOW_STYLE / SIMPLE_DOMAIN_BINDING_VOW  "Simple Domain Binding Vow"
+  TEN_SHADOWS / TECHNIQUE                 "Ten Shadows Technique"
+  TEN_SHADOWS / TOTALITY                  "Totality"
+  TEN_SHADOWS / WELLS_UNKNOWN_ABYSS       "Well's Unknown Abyss"
+  CURSED_SPEECH / TECHNIQUE               "Cursed Speech"
+  CURSED_SPEECH / REFINED_COMMANDS        "Refined Commands"
 
 ================================================================================
   16. STATUS EFFECTS  (StatusEffectType.java)
@@ -1010,8 +1107,9 @@ Non-stat control status:
   SLEEP
     Must use rounds > 0 with 0 ticks. When an affected combatant reaches an
     action's fire tick, that action fails and the battle log names the attempted
-    move. Damage wakes the combatant immediately and allows later actions;
-    otherwise SLEEP expires at the end of the current round.
+    move. Damage wakes the combatant immediately and allows later actions. It
+    also has a 5% chance to end at the start of each resolution tick; otherwise
+    SLEEP expires at the end of the current round.
 
   POISON
     Must use rounds > 0 with 0 ticks, or be permanent. Magnitude stores flat
@@ -1047,8 +1145,13 @@ hit-component index, an optional CodedAbilityState snapshot, and a message.
     MOVE_MISSED         hit roll failed
     MOVE_BLOCKED        block fully negated the damage (PERCENTAGE_BLOCK at 100%)
     MOVE_BLOCK_REDUCED  block reduced but did not fully negate damage
-    MOVE_STUNNED        a STUN tag, active STAGGER status, CE depletion, or
+    MOVE_DODGED         defender's DODGE defense avoided the attack entirely
+    MOVE_PARRIED        defender's PARRY negated the attack (attacker may stagger)
+    MOVE_STUNNED        a stun effect, active STAGGER status, CE depletion, or
                          ability cancellation removed this action segment
+    TARGET_RETARGETED   a single-target move's invalid target was retargeted at fire
+    MOVE_SUMMON         a move effect row enqueued a shikigami summon
+                         (pre-materialization)
 
   Damage:
     DAMAGE_DEALT        HP was deducted from a combatant
@@ -1067,11 +1170,17 @@ hit-component index, an optional CodedAbilityState snapshot, and a message.
     STATUS_APPLIED      a status effect or block message was applied
     STATUS_EXPIRED      a status effect ended
 
+  Combatants / summons:
+    COMBATANT_SUMMONED  a shikigami was materialized onto a team
+    COMBATANT_DEFEATED  a combatant reached 0 HP
+    COMBATANT_REMOVED   a combatant left the battle (e.g. desummoned)
+
   BFS:
     BFS_EXPIRED         Black Flash State ended (round maintenance)
 
   Abilities:
     ABILITY_ACTIVATED   a triggered/coded ability activated
+    RATIO_TRIGGERED     a Ratio mark fired on a connected hit
 
   Round / battle:
     ROUND_END           end of the round (used by the view)
@@ -1205,57 +1314,113 @@ TECHNIQUE EDITOR  (TechniqueEditorScreen)
 This section summarises the content currently shipped in data/; counts and names
 reflect HEAD at the time of writing. See the JSON files for full detail.
 
-  MOVES — 33 moves (data/moves/all_moves.json), ids 000000–000032.
-    Free moves:            000000 Basic Strike, 000001 Basic Block.
-    Must-be-granted:       000028 Simple Domain.
-    STUN-tagged (4):       000002 Jab, 000005 Sweeping Kick, 000008 Reinforced
-                           Jab, 000027 Batto Sword Drawing.
-    GUARD_BREAK-tagged (1):000004 Body Blow.
-    HEAVY-tagged (2):      000007 Overhand Punch, 000012 Cursed Energy Blast.
-    SWORD-tagged (3):      000023 Sword Slash, 000024 Sword Throw,
-                           000027 Batto Sword Drawing.
-    INNATE_TECHNIQUE moves:000022 Miracle Creation (Miracles),
-                           000025 Ratio Mark, 000026 Ratio Strike (Ratio).
+  MOVES — 83 moves (data/moves/all_moves.json), ids 000000–000082.
+    Free moves (11):       000000 Basic Strike, 000001 Basic Block, 000053
+                           Desummon, and the eight base Ten Shadows summons
+                           000033/000034/000039/000040/000041/000042/000043/000044.
+    Must-be-granted (17):  000028 Simple Domain, 000053 Desummon, and the
+                           shikigami attack moves 000054–000068 (granted via the
+                           matching SHIKIGAMI-sourced ability).
+    STUN effects (11):     000005 Sweeping Kick, 000027 Batto Sword Drawing,
+                           000046 Nue Lightning Strike, 000048 Serpent Snare,
+                           000050 Winged Toad Snare, 000058 Lightning Discharge,
+                           000067 Winged Tongue Snare, 000072 Plummet,
+                           000078 Grapple, 000080 Upper Cut,
+                           000082 Reinforced Upper Cut.
+    GUARD_BREAK-tagged (5):000004 Body Blow, 000051 Elephant Drop,
+                           000056 Rending Pounce, 000062 Devouring Lunge,
+                           000065 Crushing Stomp.
+    HEAVY-tagged (7):      000007 Overhand Punch, 000012 Cursed Energy Blast,
+                           000017 Braced Guard, 000018 Reinforced Braced Guard,
+                           000051 Elephant Drop, 000062 Devouring Lunge,
+                           000065 Crushing Stomp.
+    SWORD-tagged (5):      000023 Sword Slash, 000024 Sword Throw,
+                           000027 Batto Sword Drawing, 000035 Katana Combination,
+                           000036 Cursed Sword Slash.
+    INTANGIBLE-tagged (8): the eight Cursed Speech commands 000069–000076.
+    AOE-tagged (12):       ALL_ENEMIES — 000051 Elephant Drop, 000065 Crushing
+                           Stomp, 000066 Water Deluge, 000068 Aerial Swarm;
+                           MULTIPLE (up to 3) — the eight Cursed Speech commands.
+    INNATE_TECHNIQUE (27): Miracles 000022; Ratio 000025/000026; Ten Shadows
+                           000033–000052 (20); Cursed Speech 000069–000076 (8).
     NON_INNATE_TECHNIQUE:  000028 Simple Domain.
-    Multi-hit:              000032 Divergent Fist (PHYSICAL then delayed CE).
-    Notable: 000028 Simple Domain is a NON_INNATE_TECHNIQUE defensive move with
-             a coded self-effect NEW_SHADOW_STYLE/ACTIVATE_SIMPLE_DOMAIN.
+    Summon (SUMMON_CHARACTER, 8): 000033/000034 and 000039–000044 — each
+                           references a SHIKIGAMI character id (000007–000014).
+    Multi-hit (8):         000032 Divergent Fist, 000035 Katana Combination,
+                           000045 Dog Ambush, 000050 Winged Toad Snare,
+                           000064 Predator Rush, 000067 Winged Tongue Snare,
+                           000079 Triple Kick, 000081 Reinforced Triple Kick.
+    Cursed Speech cmds (8):000069 Don't Move, 000070 Blast Away, 000071 Sleep,
+                           000072 Plummet, 000073 Get Twisted, 000074 Return,
+                           000075 Explode, 000076 Die (CURSED_SPEECH/COMMAND;
+                           codedTargets DONT_MOVE/BLAST_AWAY/SLEEP/PLUMMET/
+                           GET_TWISTED/RETURN/EXPLODE/DIE).
+    Notable: 000028 Simple Domain is a NON_INNATE_TECHNIQUE defensive move with a
+             coded self-effect NEW_SHADOW_STYLE/ACTIVATE_SIMPLE_DOMAIN that fully
+             blocks RANGED PHYSICAL attacks and counters MELEE with Batto Sword
+             Drawing (000027). 000053 Desummon is a SHIKIGAMI/DESUMMON_SELF move
+             carried by every shikigami (voluntary; cooldown to next round).
 
-  ABILITIES — 13 abilities (data/abilities/all_abilities.json), ids 000000–000012.
-    Abilities with editable CODED effect rows (passive or automatically triggered):
-      000001 Miracle Reservoir        MIRACLES/RESERVOIR
-      000002 Fateful Reprieve         MIRACLES/FATEFUL_REPRIEVE
-      000003 Fortune Reclaimed        MIRACLES/FORTUNE_RECLAIMED
-      000004 Ratio Reinforcement      RATIO/REINFORCEMENT_RATIO
-      000006 Simple Domain Binding Vow NEW_SHADOW_STYLE/SIMPLE_DOMAIN_BINDING_VOW
-    Generic abilities:
-      000000 Iron Constitution        STAT_ADD durability +15 (CHARACTER)
-      000005 New Shadow Style         GRANT_MOVE 000027 + GRANT_MOVE 000028 (CHARACTER)
-      000007 Earnest Swordswoman      MOVE_BASE_POWER_MULTIPLY ×1.10 on SWORD (CHARACTER)
-      000008 Vessel of Sukuna         grants abilities 000009–000011
-      000009 Freak of Nature          physical allocation floors at 60
-      000010 Immune to Poisons        POISON_IMMUNITY marker
-      000011 Vessel                   grants ability 000012
-      000012 Visualise the Soul       SOUL_AWARE_ATTACKS marker
+  ABILITIES — 36 abilities (data/abilities/all_abilities.json), ids 000000–000035.
+    sourceType: TECHNIQUE (11), SHIKIGAMI (9), ABILITY (8 sub-abilities),
+                CHARACTER (7). 30 PASSIVE, 5 ACTIVE.
+    Abilities with editable CODED effect rows (key/feature):
+      MIRACLES          000001 Miracle Reservoir, 000002 Fateful Reprieve,
+                        000003 Fortune Reclaimed
+      RATIO             000004 Ratio Reinforcement
+      NEW_SHADOW_STYLE  000006 Simple Domain Binding Vow
+      TEN_SHADOWS       000013 Ten Shadows Technique, 000020 Totality,
+                        000034 Well's Unknown Abyss
+      CURSED_SPEECH     000031 Cursed Speech, 000032 Refined Commands
+    Other notable:
+      000014 Parallel Manifestation  MAX_ACTIVE_SUMMONS 1→2 (CTM 30)→3 (CTM 60)
+      000021 Shadows Unravel         DESUMMON_OWNED_SHIKIGAMI at 0 CE
+      000015 Partially Realised Heavenly Restriction (grants 000016–000018)
+      000016 Jujutsu Inaptitude      caps CE stats + Jujutsu Skill at 10
+      000017 Heavenly Body           DEFENSE_FROM_DURABILITY (Durability-only Defense)
+      000019 Cursed Tool Access      grants move 000036 Cursed Sword Slash
+      000005 New Shadow Style        UNLOCK_MOVE 000027 + 000028 (CHARACTER)
+      000007 Earnest Swordswoman     MOVE_BASE_POWER_MULTIPLY on SWORD (CHARACTER)
+      000008 Vessel of Sukuna        grants 000009–000011 (CHARACTER)
+      000000 Iron Constitution       STAT_ADD durability +15 (CHARACTER)
+      000035 Blessed by the Sparks of Black doubles BLACK_FLASH_CHANCE odds
+      000022–000030                  per-shikigami SHIKIGAMI-sourced abilities that
+                                     grant each shikigami its attack moves
+    masteryThreshold > 0: 000020 Totality (50), 000032 Refined Commands (60),
+                          000034 Well's Unknown Abyss (50).
 
-  CHARACTERS — 7 characters (data/characters/all_characters.json), ids 000000–000006.
-    000000 Ren Kurogane     (no innate technique)
-    000001 Mina Ishikawa    (no innate technique; ability: Iron Constitution)
-    000002 Sora Aizawa      (no innate technique)
-    000003 Haruta Shigemo   innate: Miracles  (abilities: Miracles trio)
-    000004 Shigechi Urata   innate: Ratio     (ability: Ratio Reinforcement)
-    000005 Miwa Kasumi      (no innate technique; abilities: New Shadow Style,
-                              Simple Domain Binding Vow, Earnest Swordswoman;
-                              includes move 000028 Simple Domain)
-    000006 Yuji Itadori (Vs. Mahito) (no innate technique; includes move 000032
-                              Divergent Fist and abilities 000008–000012)
-    Characters without an innate technique have cursedTechniqueMastery = 0.
+  CHARACTERS — 17 (data/characters/all_characters.json): 9 SORCERERS + 8 SHIKIGAMI.
+    Sorcerers:
+      000000 Haruta Shigemo                    innate: Miracles
+      000001 Shigechi Urata                    innate: Ratio
+      000002 Miwa Kasumi                       (none; New Shadow Style + Simple Domain)
+      000003 Yuji Itadori (Vs. Mahito)         (none; Divergent Fist, Vessel of Sukuna)
+      000004 Megumi Fushiguro (Fearsome Womb)  innate: Ten Shadows
+      000005 Maki Zenin (Pre-Awakened)         (none; Heavenly Restriction)
+      000006 Megumi Fushiguro (Kyoto Goodwill Event)
+                                              innate: Ten Shadows (Totality + Well's
+                                              Unknown Abyss)
+      000015 Toge Inumaki                      innate: Cursed Speech
+      000016 Yuji Itadori (Kyoto Goodwill Event)
+                                               (none; reinforcement + Black Flash)
+    Shikigami (type SHIKIGAMI, summoned; not directly selectable):
+      000007 Divine Dog White, 000008 Divine Dog Black, 000009 Nue,
+      000010 Toad Gamma, 000011 Great Serpent Orochi, 000012 Divine Dog Totality,
+      000013 Max Elephant, 000014 Toad/Nue Fusion.
+      Each is referenced by exactly one Summon move (see above) and carries the
+      Desummon move plus its own attack moves. Characters without an innate
+      technique have cursedTechniqueMastery = 0.
 
-  TECHNIQUES — 2 techniques (data/techniques/all_techniques.json), ids 000000–000001.
-    000000 Miracles   skill tree: move Miracle Creation; abilities Miracle
-                      Reservoir, Fateful Reprieve, Fortune Reclaimed.
-    000001 Ratio      skill tree: abilities Ratio Reinforcement; moves Ratio
-                      Mark, Ratio Strike.
+  TECHNIQUES — 4 (data/techniques/all_techniques.json), ids 000000–000003.
+    000000 Miracles       tree: move Miracle Creation; abilities Miracle
+                          Reservoir, Fateful Reprieve, Fortune Reclaimed.
+    000001 Ratio          tree: ability Ratio Reinforcement; moves Ratio Mark,
+                          Ratio Strike.
+    000002 Ten Shadows    tree: abilities Ten Shadows Technique, Parallel
+                          Manifestation, Totality, Shadows Unravel, Well's Unknown
+                          Abyss; moves 000033–000052 (summons + command attacks).
+    000003 Cursed Speech  tree: abilities Cursed Speech, Refined Commands;
+                          command moves 000069–000076.
     NOTE: "Simple Domain" is a MOVE (000028), not a technique. "New Shadow Style"
     is a CHARACTER-sourced ability (000005), not a technique.
 

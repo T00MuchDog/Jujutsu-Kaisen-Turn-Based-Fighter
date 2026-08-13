@@ -715,7 +715,10 @@ public final class AbilityActivationEngine {
                         effect.durationRounds == null ? 1 : effect.durationRounds,
                         effect.durationTicks == null ? 0 : effect.durationTicks,
                         StatusEffectType.normalizeStoredMagnitude(
-                            effect.stringValue, effect.magnitude == null ? 0.0 : effect.magnitude));
+                            effect.stringValue, effect.magnitude == null ? 0.0 : effect.magnitude),
+                        effect.perTickRemovalChance == null
+                            ? status.defaultPerTickRemovalChance()
+                            : effect.perTickRemovalChance);
                     boolean accepted = extendStatusForCurrentPhase(state)
                         ? target.addStatusEffect(applied, state.getCurrentPhase())
                         : target.addStatusEffect(applied);
@@ -773,8 +776,9 @@ public final class AbilityActivationEngine {
                         owner, target, previousMaxHp, previousMaxCe, tick, events);
                 }
             }
-            case TEMP_STAT_ADD, TEMP_STAT_MULTIPLY, TEMP_STAT_SET_VALUE,
-                 BATTLE_STAT_ADD, BATTLE_STAT_MULTIPLY, IGNORE_DAMAGE, DAMAGE_SHIELD,
+            case TEMP_STAT_ADD, TEMP_STAT_MULTIPLY, TEMP_STAT_SET_VALUE, TEMP_STAT_PERCENT,
+                 BATTLE_STAT_ADD, BATTLE_STAT_MULTIPLY, BATTLE_STAT_PERCENT,
+                 IGNORE_DAMAGE, DAMAGE_SHIELD,
                  SURVIVE_FATAL_DAMAGE, GUARANTEE_NEXT_HIT, GUARANTEE_NEXT_DODGE,
                  GUARANTEE_NEXT_BLACK_FLASH, CANCEL_NEXT_MOVE,
                  TEMP_LOCK_MOVE_TAG -> {
@@ -782,11 +786,23 @@ public final class AbilityActivationEngine {
                     addRuntimeEffect(state, owner, target, effect, tick, events);
                 }
             }
+            case STUN_CURRENT_ACTION -> {
+                for (BattleCombatant target : targets) {
+                    if (!target.stunCurrentAction(tick)) continue;
+                    events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
+                        .source(owner).target(target).move(move)
+                        .componentIndex(effectComponentIndex).tick(tick)
+                        .message(owner.getCharacter().getName() + "'s "
+                            + (move == null ? "ability" : move.getName()) + " stunned "
+                            + target.getCharacter().getName() + ", who could not move.")
+                        .build());
+                }
+            }
             case STAT_ADD, STAT_MULTIPLY, STAT_DIVIDE, STAT_SET_VALUE, STAT_SET_MIN,
                  CE_COST_TO_MINIMUM, CE_COST_MULTIPLY, MOVE_ACCURACY_ADD,
                  MOVE_ACCURACY_MULTIPLY, OPPONENT_ACCURACY_ADD,
                  OPPONENT_ACCURACY_MULTIPLY, NEVER_MISS, NEVER_HIT, DAMAGE_MULTIPLY,
-                 MOVE_BASE_POWER_MULTIPLY, BF_CHANCE_ADD,
+                  MOVE_BASE_POWER_MULTIPLY, BF_CHANCE_ADD,
                  MODIFY_DEFENSE, MODIFY_AP_BAR, LOCK_MOVE_TAG, COST_CE_PER_ROUND ->
                 addRuntimeEffect(state, owner, owner, effect, tick, events);
             case AUTO_STATUS_APPLY -> {
@@ -857,7 +873,8 @@ public final class AbilityActivationEngine {
                 }
             }
             case MAX_ACTIVE_SUMMONS, SUMMON_CE_UPKEEP_PER_ACTIVE_TICK,
-                 MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE -> { }
+                  BATTLE_STAT_ODDS_MULTIPLY,
+                  MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE -> { }
         }
     }
 

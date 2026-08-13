@@ -14,7 +14,7 @@ import java.util.List;
  *  - Its total AP width (== move.getApCost())
  *  - The absolute tick at which it fires (startTick + unleashPoint - 1)
  *  - Whether it has fired (the resolver actually executed it this round)
- *  - Whether it has been stunned (removed from the timeline by an interrupt or stun-tag hit)
+ *  - Whether it has been stunned (removed from the timeline by an interrupt or stun effect)
  *
  * The "action counter" sweeps from tick 1 to the end of the AP bar.
  * When the counter reaches a segment's fireTick, the move resolves.
@@ -33,7 +33,7 @@ public class ActionSegment {
     private final Move   move;
     private final int    startTick;
     private final int    fireTick;       // absolute tick: startTick + unleashPoint - 1
-    private boolean      stunned;        // set true when interrupted or hit by a stun-tag move
+    private boolean      stunned;        // set true when interrupted or hit by a stun effect
     private boolean      fired;          // set true once the resolver actually executes this move
 
     /**
@@ -133,7 +133,7 @@ public class ActionSegment {
      * are already in play — most importantly, a defensive block that already
      * fired keeps protecting for the rest of its AP window and cannot be
      * cancelled out from under itself by a stun landing on the same tick. This
-     * choke-point guards every stun entry point (STUN tag, interrupt, CE drain).
+     * choke-point guards every stun entry point (stun effect, interrupt, CE drain).
      */
     public void stun()                { if (!fired) this.stunned = true; }
 

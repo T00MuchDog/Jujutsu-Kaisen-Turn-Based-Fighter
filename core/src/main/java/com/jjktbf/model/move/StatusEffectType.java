@@ -60,8 +60,8 @@ public enum StatusEffectType {
      */
     STAGGER("Stagger", 0),
 
-    /** Prevents actions while active and ends on damage or at the current round's expiry. */
-    SLEEP("Sleep", 0),
+    /** Prevents actions while active and ends on damage, natural recovery, or round expiry. */
+    SLEEP("Sleep", 0, 0.05),
 
     /** Round-duration poison template. Magnitude is flat damage per round. */
     POISON("Poison", 1);
@@ -70,29 +70,36 @@ public enum StatusEffectType {
     private final StatKey baseStat;
     private final BattleStatKey battleStat;
     private final int direction;
+    private final double defaultPerTickRemovalChance;
 
     StatusEffectType(String displayName, StatKey baseStat, int direction) {
-        this(displayName, baseStat, null, direction);
+        this(displayName, baseStat, null, direction, 0.0);
     }
 
     StatusEffectType(String displayName, BattleStatKey battleStat, int direction) {
-        this(displayName, null, battleStat, direction);
+        this(displayName, null, battleStat, direction, 0.0);
     }
 
     StatusEffectType(String displayName, int direction) {
-        this(displayName, null, null, direction);
+        this(displayName, null, null, direction, 0.0);
+    }
+
+    StatusEffectType(String displayName, int direction, double defaultPerTickRemovalChance) {
+        this(displayName, null, null, direction, defaultPerTickRemovalChance);
     }
 
     StatusEffectType(
         String displayName,
         StatKey baseStat,
         BattleStatKey battleStat,
-        int direction
+        int direction,
+        double defaultPerTickRemovalChance
     ) {
         this.displayName = displayName;
         this.baseStat = baseStat;
         this.battleStat = battleStat;
         this.direction = direction;
+        this.defaultPerTickRemovalChance = defaultPerTickRemovalChance;
     }
 
     public String displayName() {
@@ -125,6 +132,11 @@ public enum StatusEffectType {
     /** Whether this status rejects AP-tick durations. */
     public boolean requiresRoundDuration() {
         return this == POISON || this == SLEEP;
+    }
+
+    /** Default chance for a live status to remove itself at each resolution tick. */
+    public double defaultPerTickRemovalChance() {
+        return defaultPerTickRemovalChance;
     }
 
     public double signedMagnitude(double magnitude) {

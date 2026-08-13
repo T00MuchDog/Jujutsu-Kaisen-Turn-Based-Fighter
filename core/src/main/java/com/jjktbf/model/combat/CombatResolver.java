@@ -3,6 +3,7 @@ package com.jjktbf.model.combat;
 import com.jjktbf.model.character.CombatStats;
 import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectTarget;
+import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.character.AbilityEffectTiming;
 import com.jjktbf.model.character.coded.CodedMoveResponse;
 import com.jjktbf.model.character.coded.CursedSpeechAbility;
@@ -287,6 +288,9 @@ public class CombatResolver {
                 if (finishBattleIfNeeded(state, events, tick)) return events;
             }
 
+            processPerTickStatusRemoval(state, tick, events);
+            if (finishBattleIfNeeded(state, events, tick)) return events;
+
             events.addAll(abilityActivations.process(state, AbilityTrigger.tick(tick)));
             if (finishBattleIfNeeded(state, events, tick)) return events;
 
@@ -481,6 +485,43 @@ public class CombatResolver {
                 hpClamped.contains(combatant) ? -1 : previousMaxHp.get(combatant),
                 ceClamped.contains(combatant) ? -1 : previousMaxCe.get(combatant),
                 tick, events);
+        }
+    }
+
+    /** Resolve configured status self-removal before this tick's actions can fire. */
+    private void processPerTickStatusRemoval(
+        BattleState state,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        for (BattleCombatant combatant : state.activeCombatants()) {
+            Map<StatusEffectType, Double> removalChances = new LinkedHashMap<>();
+            for (StatusEffect effect : combatant.getActiveEffects()) {
+                double chance = effect.getPerTickRemovalChance();
+                if (chance > 0.0) {
+                    removalChances.merge(effect.getType(), chance, Math::max);
+                }
+            }
+            for (Map.Entry<StatusEffectType, Double> entry : removalChances.entrySet()) {
+                double chance = entry.getValue();
+                if (chance < 1.0 && rng.nextDouble() >= chance) continue;
+                StatusEffectType status = entry.getKey();
+                int previousMaxHp = combatant.getMaxHp();
+                int previousMaxCe = combatant.getMaxCursedEnergy();
+                if (combatant.removeStatusEffects(status) == 0) continue;
+                events.add(CombatEvent.of(CombatEvent.Type.STATUS_EXPIRED)
+                    .source(combatant).target(combatant).tick(tick)
+                    .message(status == StatusEffectType.SLEEP
+                        ? combatant.getCharacter().getName() + " wakes from Sleep!"
+                        : StatusEffectMessages.expiryMessage(
+                            combatant.getCharacter().getName(), status))
+                    .build());
+                appendResourceMaximumEvents(
+                    combatant, combatant, previousMaxHp, previousMaxCe, tick, events);
+                events.addAll(abilityActivations.process(state, AbilityTrigger.status(
+                    AbilityTrigger.Type.STATUS_REMOVED, combatant, status, tick)));
+                if (state.isBattleOver()) return;
+            }
         }
     }
 
@@ -1215,6 +1256,16 @@ public class CombatResolver {
             attacker.enterBlackFlashState(state.getRoundNumber());
             if (wasInBfs) attacker.recordBfsHit();
 
+            // Landing a Black Flash focuses the wielder's cursed energy: a timed
+            // CE Output buff that refreshes (resets) instead of stacking on repeat procs.
+            attacker.addRuntimeAbilityEffect(
+                AbilityEffectData.tempStatPercent(
+                    StatKey.CURSED_ENERGY_OUTPUT.fieldName,
+                    CombatStats.BF_CE_OUTPUT_BUFF_FRACTION,
+                    0, CombatStats.BF_CE_OUTPUT_BUFF_TICKS),
+                state.getRoundNumber(), state.getCurrentPhase(),
+                CombatStats.BF_CE_OUTPUT_BUFF_REFRESH_GROUP);
+
             events.add(CombatEvent.of(CombatEvent.Type.BLACK_FLASH)
                 .source(attacker).target(defender).move(move).componentIndex(componentIndex)
                 .intValue(result.getFinalDamage())
@@ -1249,8 +1300,6 @@ public class CombatResolver {
         }
         applyAbilityOnHitEffects(
             state, attacker, defender, move, componentIndex, tick, events);
-        if (move.isStun()) resolveStunTag(
-            attacker, defender, move, componentIndex, tick, events);
         return true;
     }
 
@@ -1285,52 +1334,7 @@ public class CombatResolver {
             ? null : result.getDefenseSegment().getMove();
     }
 
-    // -------------------------------------------------------------------------
-    // Stun-tag resolution
-    // -------------------------------------------------------------------------
-
-    /**
-     * Apply the STUN move tag's on-hit effect: stun every non-stunned action
-     * segment of the defender that is on the current tick — both the segment
-     * currently being occupied and any segment firing this tick (the "moves
-     * second" case).
-     *
-     * <p>This sweeps the defender's (merged legacy) timeline, which already
-     * flattens both the offensive and defensive boards, so both are covered.
-     *
-     * <p>Segments whose move is HEAVY are immune and are skipped — heavy moves
-     * cannot be stunned by a STUN-tagged hit. Interrupts are unaffected.
-     *
-     * <p>Segments that have already fired are skipped: a stun stops a move from
-     * occurring, it does not deactivate one whose effects are already in play.
-     * In particular a defensive block that already fired keeps protecting for
-     * the rest of its AP window and cannot be cancelled by a stun landing on the
-     * same tick. (The {@link ActionSegment#stun()} choke-point guards this too,
-     * but filtering here keeps the "was stunned and could not move" event from
-     * firing spuriously for already-resolved moves.)
-     */
-    private void resolveStunTag(
-        BattleCombatant   attacker,
-        BattleCombatant   defender,
-        Move              move,
-        int               componentIndex,
-        int               tick,
-        List<CombatEvent> events
-    ) {
-        if (stunActiveSegments(defender, tick, true)) {
-            events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
-                .source(attacker).target(defender)
-                .move(move)
-                .componentIndex(componentIndex)
-                .tick(tick)
-                .message(attacker.getCharacter().getName() + "'s " + move.getName()
-                         + " stunned " + defender.getCharacter().getName()
-                         + ", who could not move.")
-                .build());
-        }
-    }
-
-    /** Apply STAGGER's ongoing stun. HEAVY only resists the STUN move tag. */
+    /** Apply STAGGER's ongoing stun. HEAVY resists only immediate stun effects. */
     private void resolveStaggerStatus(
         BattleCombatant defender,
         int tick,

@@ -78,13 +78,6 @@ public class Move {
     private final boolean neverMiss;
 
     /**
-     * If true, a successful hit stuns the defender's action segment(s) on the current
-     * tick (removes them from the timeline). A modifier flag backing the STUN move tag;
-     * not derived from {@link #category}.
-     */
-    private final boolean stun;
-
-    /**
      * If true, a successful hit ignores the defender's blocking defensive moves
      * ({@link DefenseType#BLOCK}). Dodges and parries are unaffected; only blocks
      * are bypassed. Backs the GUARD_BREAK move tag; not derived from {@link #category}.
@@ -107,9 +100,8 @@ public class Move {
     private final boolean weaponRequired;
 
     /**
-     * If true, an action segment carrying this move cannot be stunned by a STUN-tagged
-     * hit (it is skipped by the stun effect). Interrupts are unaffected. Backs the
-     * HEAVY move tag; not derived from {@link #category}.
+     * If true, an action segment carrying this move cannot be cancelled by a
+     * stun-current-action effect. Interrupts are unaffected. Backs the HEAVY move tag.
      */
     private final boolean heavy;
 
@@ -270,7 +262,6 @@ public class Move {
         this.totalBasePower      = totalBasePower(hitComponents);
         this.baseAccuracy        = b.baseAccuracy;
         this.neverMiss           = b.neverMiss;
-        this.stun                = b.stun;
         this.guardBreak          = b.guardBreak;
         this.heavy               = b.heavy;
         this.potency             = b.potency;
@@ -386,7 +377,6 @@ public class Move {
     public int getNeverHitTier(int mastery) {
         return accuracyPriorityTier(AbilityEffectType.NEVER_HIT, mastery);
     }
-    public boolean isStun()                       { return stun; }
     public boolean isGuardBreak()                 { return guardBreak; }
     public boolean isHeavy()                      { return heavy; }
     public int getPotency()                       { return potency; }
@@ -496,7 +486,6 @@ public class Move {
             return tags.contains(MoveTag.ATTACK)
                 || !hitComponents.isEmpty();
         }
-        if ("STUN".equals(normalized)) return stun;
         if ("GUARD_BREAK".equals(normalized)) return guardBreak;
         if ("HEAVY".equals(normalized)) return heavy;
         if ("CURSED_ENERGY".equals(normalized)) {
@@ -765,7 +754,6 @@ public class Move {
         private boolean hitComponentsExplicit = false;
         private double baseAccuracy          = 1.0;
         private boolean neverMiss            = false;
-        private boolean stun                 = false;
         private boolean guardBreak           = false;
         private boolean heavy                = false;
         private int potency                  = 1;
@@ -822,7 +810,6 @@ public class Move {
         }
         public Builder baseAccuracy(double v)              { this.baseAccuracy = v; return this; }
         public Builder neverMiss(boolean v)                { this.neverMiss = v; return this; }
-        public Builder stun(boolean v)                     { this.stun = v; return this; }
         public Builder guardBreak(boolean v)               { this.guardBreak = v; return this; }
         public Builder heavy(boolean v)                    { this.heavy = v; return this; }
         public Builder potency(int v)                      { this.potency = v; return this; }

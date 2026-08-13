@@ -1,6 +1,8 @@
 package com.jjktbf;
 
 import com.jjktbf.model.character.CharacterStats;
+import com.jjktbf.model.character.AbilityEffectTarget;
+import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.ShikigamiCharacter;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.character.coded.NewShadowStyleAbility;
@@ -18,6 +20,8 @@ import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveTag;
+import com.jjktbf.model.move.MoveEffectData;
+import com.jjktbf.model.move.MoveEffectTrigger;
 import com.jjktbf.model.move.StatusEffect;
 import org.junit.jupiter.api.Test;
 
@@ -430,8 +434,9 @@ class MultiCombatantResolverTest {
             .name(name + " Reaction")
             .category(MoveCategory.PHYSICAL_CURSED_ENERGY)
             .tags(Set.of(MoveTag.PHYSICAL, MoveTag.CURSED_ENERGY, MoveTag.ATTACK,
-                MoveTag.MELEE, MoveTag.SWORD, MoveTag.STUN))
-            .stun(true).neverMiss(true).apCost(2).unleashPoint(1)
+                MoveTag.MELEE, MoveTag.SWORD))
+            .effects(List.of(stunEffect()))
+            .neverMiss(true).apCost(2).unleashPoint(1)
             .hitComponents(List.of(new HitComponent(10,
                 Set.of(MoveTag.PHYSICAL, MoveTag.CURSED_ENERGY), 0, false, true)))
             .build();
@@ -448,6 +453,13 @@ class MultiCombatantResolverTest {
         SorcererCharacter character = new SorcererCharacter(
             name.toLowerCase(), name, stats, null, List.of(reaction, domain), List.of(), true);
         return new BattleCombatant(character, List.of());
+    }
+
+    private static MoveEffectData stunEffect() {
+        MoveEffectData effect = AbilityEffectType.STUN_CURRENT_ACTION.createDefaultMoveEffect();
+        effect.trigger = MoveEffectTrigger.ON_HIT.name();
+        effect.target = AbilityEffectTarget.ENEMY.name();
+        return effect;
     }
 
     private static void activateSimpleDomain(BattleState state, BattleCombatant combatant) {

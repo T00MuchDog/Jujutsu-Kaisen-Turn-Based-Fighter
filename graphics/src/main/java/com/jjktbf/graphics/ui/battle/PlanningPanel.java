@@ -71,6 +71,7 @@ public class PlanningPanel {
     private final BattlePlan plan;
     private final int maxCe;
     private final String actorId;
+    private String actorName = "";
     private final List<TargetOption> targetOptions;
     private final List<Move> knownMoves = new ArrayList<>();
     private final int ceEfficiency;
@@ -181,6 +182,7 @@ public class PlanningPanel {
         this.maxCe = combatant.getMaxCursedEnergy();
         this.actorId = combatant.getInstanceId() == null
             ? null : combatant.getInstanceId().value();
+        this.actorName = combatant.getCharacter().getName();
         this.targetOptions = targetOptions(targets);
         this.ceEfficiency = combatant.getEffectiveStats().getCursedEnergyEfficiency();
         this.ceOutput = combatant.getEffectiveStats().getCursedEnergyOutput();
@@ -313,6 +315,11 @@ public class PlanningPanel {
     public String getActorId() { return actorId; }
     public String getLockError() { return lockError; }
     public List<TargetOption> getTargetOptions() { return targetOptions; }
+
+    /** Sets the character name displayed beneath the planning header. */
+    public void setActorName(String actorName) {
+        this.actorName = actorName == null ? "" : actorName;
+    }
 
     public void setAllowManualUnlock(boolean allowManualUnlock) {
         this.allowManualUnlock = allowManualUnlock;
@@ -700,6 +707,7 @@ public class PlanningPanel {
         refresh();
         batch.begin();
         drawHeader(batch, font, titleFont);
+        drawActorName(batch, font);
         miraclesMeter.draw(batch, ui, statFont);
         drawTimelineLabel(batch, font, offensiveBar, "OFFENSE", ui.offenseIcon, BattleUiAssets.OFFENSE);
         drawTimelineLabel(batch, font, defensiveBar, "DEFENSE", ui.defenseIcon, BattleUiAssets.DEFENSE);
@@ -826,6 +834,13 @@ public class PlanningPanel {
             font.setColor(BattleUiAssets.YELLOW);
             font.draw(batch, lockError, headerBounds.x + 18f, headerBounds.y + 13f);
         }
+    }
+
+    private void drawActorName(Batch batch, BitmapFont font) {
+        if (actorName.isBlank()) return;
+        font.setColor(Color.BLACK);
+        font.draw(batch, actorName, headerBounds.x + 18f,
+            headerBounds.y - 6f);
     }
 
     private void drawTargetMenu(Batch batch, BitmapFont font) {

@@ -1,7 +1,7 @@
 [ {
   "id" : "000000",
   "name" : "Basic Strike",
-  "description" : "Perform a basic PHYSICAL MELEE ATTACK.",
+  "description" : "A free baseline PHYSICAL MELEE ATTACK.",
   "tags" : [ "PHYSICAL", "ATTACK", "MELEE" ],
   "basePower" : 25,
   "baseAccuracy" : 0.9,
@@ -39,7 +39,7 @@
 }, {
   "id" : "000001",
   "name" : "Basic Block",
-  "description" : "Raise a 50% BLOCK against pure PHYSICAL ATTACKS with POTENCY 1 for 10 AP ticks.",
+  "description" : "Raise a POTENCY 1 BLOCK that halves pure PHYSICAL ATTACKS for 12 AP TICKS.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -82,7 +82,7 @@
 }, {
   "id" : "000002",
   "name" : "Jab",
-  "description" : "a quick and accurate weak melee blow",
+  "description" : "A lightning-fast PHYSICAL MELEE jab.",
   "tags" : [ "PHYSICAL", "ATTACK", "MELEE" ],
   "basePower" : 15,
   "baseAccuracy" : 0.95,
@@ -129,7 +129,7 @@
 }, {
   "id" : "000003",
   "name" : "Elbow Strike",
-  "description" : "Perform a high-ACCURACY PHYSICAL MELEE ATTACK.",
+  "description" : "A sharp, close-range PHYSICAL MELEE elbow strike.",
   "tags" : [ "PHYSICAL", "ATTACK", "MELEE" ],
   "basePower" : 34,
   "baseAccuracy" : 0.97,
@@ -172,7 +172,7 @@
 }, {
   "id" : "000004",
   "name" : "Body Blow",
-  "description" : "Use GUARD BREAK to bypass BLOCK on a successful MELEE hit.",
+  "description" : "Drive a fist into the gut: a MELEE blow with GUARD BREAK that blows straight through the target's BLOCK.",
   "tags" : [ "PHYSICAL", "ATTACK", "GUARD_BREAK", "MELEE" ],
   "basePower" : 38,
   "baseAccuracy" : 0.88,
@@ -218,12 +218,11 @@
 }, {
   "id" : "000005",
   "name" : "Sweeping Kick",
-  "description" : "Apply STUN to the target's active ACTION SEGMENT on a successful MELEE hit.",
-  "tags" : [ "PHYSICAL", "ATTACK", "STUN", "MELEE" ],
+  "description" : "A low PHYSICAL MELEE sweep that STUNs the target's active ACTION SEGMENT on a hit.",
+  "tags" : [ "PHYSICAL", "ATTACK", "MELEE" ],
   "basePower" : 25,
   "baseAccuracy" : 0.84,
   "neverMiss" : false,
-  "stun" : true,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -244,6 +243,12 @@
   "parryStaggerTicks" : 0,
   "onHitEffects" : [ ],
   "selfEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "STUN_CURRENT_ACTION",
+    "target" : "ENEMY",
+    "trigger" : "ON_HIT"
+  } ],
   "prerequisites" : {
     "combatAbility" : 35,
     "speed" : 25,
@@ -261,7 +266,7 @@
 }, {
   "id" : "000006",
   "name" : "Knee Strike",
-  "description" : "Perform a balanced PHYSICAL MELEE ATTACK.",
+  "description" : "A balanced PHYSICAL MELEE knee strike.",
   "tags" : [ "PHYSICAL", "ATTACK", "MELEE" ],
   "basePower" : 35,
   "baseAccuracy" : 0.91,
@@ -308,7 +313,7 @@
 }, {
   "id" : "000007",
   "name" : "Overhand Punch",
-  "description" : "This HEAVY MELEE ATTACK cannot be interrupted by STUN.",
+  "description" : "A committed HEAVY PHYSICAL MELEE overhand whose ACTION SEGMENT cannot be interrupted by STUN.",
   "tags" : [ "PHYSICAL", "ATTACK", "HEAVY", "MELEE" ],
   "basePower" : 50,
   "baseAccuracy" : 0.84,
@@ -354,9 +359,9 @@
 }, {
   "id" : "000008",
   "name" : "Reinforced Jab",
-  "description" : "a quick and weak melee blow reinforced with cursed energy",
+  "description" : "A lightning-fast REINFORCEMENT MELEE jab.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
-  "basePower" : 45,
+  "basePower" : 35,
   "baseAccuracy" : 0.98,
   "neverMiss" : false,
   "stun" : false,
@@ -405,7 +410,7 @@
 }, {
   "id" : "000009",
   "name" : "Reinforced Elbow",
-  "description" : "Trade CE for a stronger REINFORCEMENT MELEE ATTACK.",
+  "description" : "A REINFORCEMENT MELEE elbow strike.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 64,
   "baseAccuracy" : 0.97,
@@ -454,7 +459,7 @@
 }, {
   "id" : "000010",
   "name" : "Reinforced Knee",
-  "description" : "Perform a high-power REINFORCEMENT MELEE ATTACK eligible for BLACK FLASH.",
+  "description" : "A REINFORCEMENT MELEE knee strike, eligible for BLACK FLASH.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 65,
   "baseAccuracy" : 0.91,
@@ -505,7 +510,7 @@
 }, {
   "id" : "000011",
   "name" : "Cursed Energy Burst",
-  "description" : "Project a CURSED ENERGY RANGED ATTACK.",
+  "description" : "Project a compact CURSED ENERGY RANGED burst.",
   "tags" : [ "CURSED_ENERGY", "ATTACK", "RANGED" ],
   "basePower" : 30,
   "baseAccuracy" : 0.85,
@@ -553,7 +558,7 @@
 }, {
   "id" : "000012",
   "name" : "Cursed Energy Blast",
-  "description" : "Launch a HEAVY blast of raw CURSED ENERGY as a RANGED ATTACK..",
+  "description" : "Unleash a HEAVY blast of raw CURSED ENERGY as a POTENCY 2 RANGED ATTACK whose ACTION SEGMENT resists STUN.",
   "tags" : [ "CURSED_ENERGY", "ATTACK", "HEAVY", "RANGED" ],
   "basePower" : 80,
   "baseAccuracy" : 0.8,
@@ -601,7 +606,7 @@
 }, {
   "id" : "000013",
   "name" : "Deflection",
-  "description" : "Raise a 100% BLOCK against MELEE ATTACKS with POTENCY 1 for 5 AP ticks.",
+  "description" : "Raise a POTENCY 1 BLOCK that fully negates MELEE ATTACKS for 5 AP TICKS.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -650,7 +655,7 @@
 }, {
   "id" : "000014",
   "name" : "Reinforced Deflection",
-  "description" : "Spend CE to raise a 100% BLOCK against MELEE ATTACKS with POTENCY 1 for 5 AP ticks.",
+  "description" : "Channel cursed energy to raise a POTENCY 1 BLOCK that fully negates MELEE ATTACKS for 5 AP TICKS.",
   "tags" : [ "DEFENSIVE", "PHYSICAL", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -704,7 +709,7 @@
 }, {
   "id" : "000015",
   "name" : "Cross Guard",
-  "description" : "Raise a 70% BLOCK against pure PHYSICAL ATTACKS with POTENCY 1 for 15 AP ticks.",
+  "description" : "Raise a POTENCY 1 BLOCK that reduces pure PHYSICAL ATTACKS by 70% for 15 AP TICKS.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -749,7 +754,7 @@
 }, {
   "id" : "000016",
   "name" : "Reinforced Cross Guard",
-  "description" : "Spend CE to raise a 70% BLOCK against POTENCY 1 ATTACKS for 15 AP ticks.",
+  "description" : "Channel cursed energy to raise a POTENCY 1 BLOCK that reduces any ATTACK by 70% for 15 AP TICKS.",
   "tags" : [ "DEFENSIVE", "PHYSICAL", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -802,7 +807,7 @@
 }, {
   "id" : "000017",
   "name" : "Braced Guard",
-  "description" : "After setup, raise a 90% BLOCK against pure PHYSICAL ATTACKS with POTENCY 1 for 20 AP ticks.",
+  "description" : "After a brief brace, raise a HEAVY, POTENCY 1 BLOCK that flat-reduces pure PHYSICAL ATTACKS by 20 for 20 AP TICKS.",
   "tags" : [ "DEFENSIVE", "PHYSICAL", "HEAVY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -851,7 +856,7 @@
 }, {
   "id" : "000018",
   "name" : "Reinforced Braced Guard",
-  "description" : "Spend CE to raise a 30 FLAT REDUCTION BLOCK against ATTACKS for 20 AP ticks.",
+  "description" : "After a brief brace, raise a HEAVY, POTENCY 1 BLOCK that flat-reduces any ATTACK by 30 for 20 AP TICKS.",
   "tags" : [ "DEFENSIVE", "PHYSICAL", "CURSED_ENERGY", "HEAVY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -903,7 +908,7 @@
 }, {
   "id" : "000019",
   "name" : "Reinforced Basic Block",
-  "description" : "Spend CE to raise a 50% BLOCK against POTENCY 1 ATTACKS for 10 AP ticks.",
+  "description" : "Channel cursed energy to raise a POTENCY 1 BLOCK that halves any ATTACK for 10 AP TICKS.",
   "tags" : [ "DEFENSIVE", "PHYSICAL", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -955,7 +960,7 @@
 }, {
   "id" : "000020",
   "name" : "Cursed Energy Focus",
-  "description" : "Gain 10 ACCURACY for 2 rounds.",
+  "description" : "Focus cursed energy to raise your ACCURACY by 20% for 2 ROUNDS.",
   "tags" : [ "UTILITY", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -987,12 +992,12 @@
   "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
-    "type" : "APPLY_STATUS",
-    "stringValue" : "ACCURACY_INCREASE",
+    "type" : "BATTLE_STAT_PERCENT",
+    "doubleValue" : 0.2,
+    "stringValue" : "ACCURACY",
     "target" : "SELF",
     "durationRounds" : 2,
     "durationTicks" : 0,
-    "magnitude" : 10.0,
     "trigger" : "ON_FIRE",
     "condition" : {
       "type" : "ALWAYS"
@@ -1016,7 +1021,7 @@
 }, {
   "id" : "000021",
   "name" : "Cursed Energy Surge",
-  "description" : "Gain 15 CURSED ENERGY OUTPUT for 1 round.",
+  "description" : "Surge cursed energy to raise your CURSED ENERGY OUTPUT by 20% for 1 ROUND.",
   "tags" : [ "UTILITY", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -1048,12 +1053,12 @@
   "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
-    "type" : "APPLY_STATUS",
-    "stringValue" : "CURSED_ENERGY_OUTPUT_INCREASE",
+    "type" : "TEMP_STAT_PERCENT",
+    "stat" : "cursedEnergyOutput",
+    "doubleValue" : 0.2,
     "target" : "SELF",
     "durationRounds" : 1,
     "durationTicks" : 0,
-    "magnitude" : 15.0,
     "trigger" : "ON_FIRE",
     "condition" : {
       "type" : "ALWAYS"
@@ -1077,7 +1082,7 @@
 }, {
   "id" : "000022",
   "name" : "Miracle Creation",
-  "description" : "With MIRACLE RESERVOIR, create 1 MIRACLE, or 2 at CTM 225+, up to your capacity.",
+  "description" : "With Miracle Reservoir active, create 1 MIRACLE (or 2 at CURSED TECHNIQUE MASTERY 225+), up to your capacity.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -1153,7 +1158,7 @@
 }, {
   "id" : "000023",
   "name" : "Sword Slash",
-  "description" : "Perform a PHYSICAL MELEE ATTACK with a SWORD.",
+  "description" : "A disciplined close-range PHYSICAL MELEE SWORD cut.",
   "tags" : [ "PHYSICAL", "ATTACK", "MELEE", "SWORD" ],
   "basePower" : 42,
   "baseAccuracy" : 0.88,
@@ -1199,7 +1204,7 @@
 }, {
   "id" : "000024",
   "name" : "Sword Throw",
-  "description" : "Perform a PHYSICAL RANGED ATTACK with a SWORD.",
+  "description" : "Hurl your SWORD at the target as a PHYSICAL RANGED ATTACK.",
   "tags" : [ "PHYSICAL", "ATTACK", "RANGED", "SWORD" ],
   "basePower" : 51,
   "baseAccuracy" : 0.82,
@@ -1245,7 +1250,7 @@
 }, {
   "id" : "000025",
   "name" : "Ratio Mark",
-  "description" : "With RATIO REINFORCEMENT, create 1 RATIO STACK, or 2 at CTM 200+, with CTM-scaled duration and trigger chance.",
+  "description" : "With Ratio Reinforcement active, place 1 RATIO STACK (or 2 at CURSED TECHNIQUE MASTERY 200+) on the target, up to your capacity.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -1354,7 +1359,7 @@
 }, {
   "id" : "000026",
   "name" : "Ratio Strike",
-  "description" : "On hit, apply RATIO to bypass BLOCK and reduce DEFENSE to 30% for that hit.",
+  "description" : "On a MELEE hit, drive RATIO into the target, bypassing BLOCK and resolving the strike against 30% DEFENSE.",
   "tags" : [ "PHYSICAL", "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 42,
   "baseAccuracy" : 0.94,
@@ -1416,12 +1421,11 @@
 }, {
   "id" : "000027",
   "name" : "Batto Sword Drawing",
-  "description" : "Apply STUN with a fast REINFORCEMENT MELEE ATTACK using a SWORD.",
-  "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "STUN", "MELEE", "SWORD" ],
+  "description" : "A swift iaijutsu draw: a REINFORCEMENT SWORD MELEE strike that STUNs.",
+  "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE", "SWORD" ],
   "basePower" : 30,
   "baseAccuracy" : 0.96,
   "neverMiss" : false,
-  "stun" : true,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1445,7 +1449,12 @@
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
   "onDodgeEffects" : [ ],
-  "effects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "STUN_CURRENT_ACTION",
+    "target" : "ENEMY",
+    "trigger" : "ON_HIT"
+  } ],
   "prerequisites" : {
     "strength" : 25,
     "combatAbility" : 55,
@@ -1466,7 +1475,7 @@
 }, {
   "id" : "000028",
   "name" : "Simple Domain",
-  "description" : "Consume this stance on the next MELEE or RANGED ATTACK to BLOCK PHYSICAL RANGED attacks or counter MELEE with BATTO SWORD DRAWING.",
+  "description" : "Establish a Simple Domain that intercepts the next MELEE or RANGED ATTACK, absorbing RANGED PHYSICAL strikes behind a full BLOCK and countering MELEE assailants with Batto Sword Drawing.",
   "tags" : [ "DEFENSIVE", "NON_INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -1526,7 +1535,7 @@
 }, {
   "id" : "000029",
   "name" : "Sidestep",
-  "description" : "Gain a 40% chance to DODGE MELEE attacks for 8 AP ticks.",
+  "description" : "Gain a 40% chance to DODGE MELEE ATTACKS for 8 AP TICKS.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -1572,7 +1581,7 @@
 }, {
   "id" : "000030",
   "name" : "Weapon Parry",
-  "description" : "PARRY POTENCY 1 ATTACKS for 3 AP ticks and STAGGER non-GUARD BREAK attackers for 2 AP ticks.",
+  "description" : "PARRY POTENCY 1 ATTACKS for 3 AP TICKS, STAGGERing non-GUARD BREAK attackers for 4 AP TICKS.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -1620,7 +1629,7 @@
 }, {
   "id" : "000031",
   "name" : "Evasive Dash",
-  "description" : "Gain a 75% chance to DODGE RANGED attacks for 10 AP ticks.",
+  "description" : "Gain a 75% chance to DODGE RANGED ATTACKS for 10 AP TICKS.",
   "tags" : [ "DEFENSIVE", "PHYSICAL" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -1666,7 +1675,7 @@
 }, {
   "id" : "000032",
   "name" : "Divergent Fist",
-  "description" : "Perform a weak PHYSICAL hit followed by a delayed, stronger CURSED ENERGY hit.",
+  "description" : "A PHYSICAL MELEE lead strike followed by a delayed CURSED ENERGY impact from the lagging fist.",
   "tags" : [ "ATTACK", "MELEE", "PHYSICAL", "CURSED_ENERGY" ],
   "basePower" : 35,
   "hitComponents" : [ {
@@ -1732,7 +1741,7 @@
 }, {
   "id" : "000033",
   "name" : "Summon White Dog",
-  "description" : "Manifest White Dog from the user's shadow.",
+  "description" : "Draw Divine Dog White from your shadow; it materializes and joins the fight next ROUND.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -1791,7 +1800,7 @@
 }, {
   "id" : "000034",
   "name" : "Summon Black Dog",
-  "description" : "Manifest Black Dog from the user's shadow.",
+  "description" : "Draw Divine Dog Black from your shadow; it materializes and joins the fight next ROUND.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -1850,7 +1859,7 @@
 }, {
   "id" : "000035",
   "name" : "Katana Combination",
-  "description" : "Chain disciplined cuts into a swift PHYSICAL MELEE ATTACK with a SWORD.",
+  "description" : "Chain disciplined SWORD cuts into a swift PHYSICAL MELEE flurry.",
   "tags" : [ "ATTACK", "MELEE", "SWORD", "PHYSICAL" ],
   "basePower" : 60,
   "hitComponents" : [ {
@@ -1921,7 +1930,7 @@
 }, {
   "id" : "000036",
   "name" : "Cursed Sword Slash",
-  "description" : "Commit to a crushing HEAVY PHYSICAL MELEE ATTACK with a cursed tool.",
+  "description" : "Drive a cursed tool forward in a crushing REINFORCEMENT MELEE SWORD strike.",
   "tags" : [ "PHYSICAL", "ATTACK", "MELEE", "CURSED_ENERGY", "SWORD" ],
   "basePower" : 60,
   "baseAccuracy" : 0.88,
@@ -1972,8 +1981,8 @@
 }, {
   "id" : "000037",
   "name" : "Cursed Tool Deflection",
-  "description" : "PARRY POTENCY 1 PHYSICAL and CURSED ENERGY attacks for 3 AP ticks, staggering the attacker for 1 AP tick.",
-  "tags" : [ "DEFENSIVE", "PHYSICAL" ],
+  "description" : "PARRY POTENCY 1 PHYSICAL and CURSED ENERGY ATTACKS for 3 AP TICKS, STAGGERing the attacker for 1 AP TICK.",
+  "tags" : [ "DEFENSIVE", "PHYSICAL", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
@@ -1987,7 +1996,7 @@
   "unleashPoint" : 1,
   "baseCeCost" : 18,
   "hasCeCost" : true,
-  "minCeCost" : 0,
+  "minCeCost" : 3,
   "maxCeCost" : 75,
   "defenseType" : "PARRY",
   "blockStyle" : "PERCENTAGE",
@@ -2020,7 +2029,7 @@
 }, {
   "id" : "000038",
   "name" : "Keen Observation",
-  "description" : "Read the opponent's rhythm to gain 10 ACCURACY and 10 EVASION for 1 round. Usable once per round.",
+  "description" : "Read the opponent's rhythm to raise your ACCURACY and EVASION by 15% for 1 ROUND.",
   "tags" : [ "PHYSICAL", "UTILITY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -2052,21 +2061,21 @@
   "onDodgeEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
-    "type" : "APPLY_STATUS",
-    "stringValue" : "ACCURACY_INCREASE",
+    "type" : "BATTLE_STAT_PERCENT",
+    "doubleValue" : 0.15,
+    "stringValue" : "ACCURACY",
     "target" : "SELF",
     "durationRounds" : 1,
     "durationTicks" : 0,
-    "magnitude" : 10.0,
     "trigger" : "ON_FIRE"
   }, {
     "effectId" : "effect-000001",
-    "type" : "APPLY_STATUS",
-    "stringValue" : "EVASION_INCREASE",
+    "type" : "BATTLE_STAT_PERCENT",
+    "doubleValue" : 0.15,
+    "stringValue" : "EVASION",
     "target" : "SELF",
     "durationRounds" : 1,
     "durationTicks" : 0,
-    "magnitude" : 10.0,
     "trigger" : "ON_FIRE"
   } ],
   "prerequisites" : {
@@ -2085,7 +2094,7 @@
 }, {
   "id" : "000039",
   "name" : "Summon Nue",
-  "description" : "Manifest Nue from the user's shadow.",
+  "description" : "Draw Nue from your shadow; it materializes and joins the fight next ROUND.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -2144,7 +2153,7 @@
 }, {
   "id" : "000040",
   "name" : "Summon Toad",
-  "description" : "Manifest Toad from the user's shadow.",
+  "description" : "Draw Toad Gamma from your shadow; it materializes and joins the fight next ROUND.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -2203,7 +2212,7 @@
 }, {
   "id" : "000041",
   "name" : "Summon Great Serpent",
-  "description" : "Manifest Great Serpent from the user's shadow.",
+  "description" : "Draw Great Serpent Orochi from your shadow; it materializes and joins the fight next ROUND.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -2262,7 +2271,7 @@
 }, {
   "id" : "000042",
   "name" : "Summon Divine Dog Totality",
-  "description" : "Manifest Divine Dog Totality from the user's shadow.",
+  "description" : "Draw Divine Dog Totality from your shadow; it materializes and joins the fight next ROUND.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -2321,7 +2330,7 @@
 }, {
   "id" : "000043",
   "name" : "Summon Toad/Nue Fusion",
-  "description" : "Fuse Toad and Nue through Well's Unknown Abyss into a temporary winged swarm.",
+  "description" : "Fuse Toad and Nue through Well's Unknown Abyss into a winged swarm that joins the fight next ROUND.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -2380,7 +2389,7 @@
 }, {
   "id" : "000044",
   "name" : "Summon Max Elephant",
-  "description" : "Manifest Max Elephant from the user's shadow.",
+  "description" : "Draw Max Elephant from your shadow; it materializes and joins the fight next ROUND.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -2439,7 +2448,7 @@
 }, {
   "id" : "000045",
   "name" : "Dog Ambush",
-  "description" : "Direct a Divine Dog through the target's shadow for a sudden ranged attack.",
+  "description" : "Command an active Divine Dog to strike from the target's shadow in a two-hit RANGED assault.",
   "tags" : [ "ATTACK", "RANGED", "PHYSICAL", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 48,
   "hitComponents" : [ {
@@ -2519,12 +2528,11 @@
 }, {
   "id" : "000046",
   "name" : "Nue Lightning Strike",
-  "description" : "Call Nue's lightning down on a distant target and STUN its active action.",
-  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "STUN" ],
+  "description" : "Command an active Nue to call lightning down on a distant target and STUN it.",
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED" ],
   "basePower" : 60,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : true,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2556,6 +2564,11 @@
     "condition" : {
       "type" : "ALWAYS"
     }
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "STUN_CURRENT_ACTION",
+    "target" : "ENEMY",
+    "trigger" : "ON_HIT"
   } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 25,
@@ -2576,7 +2589,7 @@
 }, {
   "id" : "000047",
   "name" : "Toad Pull",
-  "description" : "Have Toad pull the user clear, granting a 75% DODGE chance against MELEE and RANGED attacks for 6 AP ticks.",
+  "description" : "Have Toad yank you clear, granting a 75% DODGE chance against MELEE and RANGED ATTACKS for 6 AP TICKS.",
   "tags" : [ "DEFENSIVE", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -2634,12 +2647,11 @@
 }, {
   "id" : "000048",
   "name" : "Serpent Snare",
-  "description" : "Send Great Serpent through the target's shadow to strike and STUN from range.",
-  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "STUN" ],
+  "description" : "Command an active Great Serpent to lunge from the target's shadow and STUN it from range.",
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED" ],
   "basePower" : 35,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : true,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2671,6 +2683,11 @@
     "condition" : {
       "type" : "ALWAYS"
     }
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "STUN_CURRENT_ACTION",
+    "target" : "ENEMY",
+    "trigger" : "ON_HIT"
   } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 40,
@@ -2691,7 +2708,7 @@
 }, {
   "id" : "000049",
   "name" : "Totality Rush",
-  "description" : "Drive Divine Dog Totality through a close-range rush of overwhelming speed and force.",
+  "description" : "Drive Divine Dog Totality through the target in an overwhelming close-range MELEE rush.",
   "tags" : [ "PHYSICAL", "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 70,
   "baseAccuracy" : 0.95,
@@ -2748,8 +2765,8 @@
 }, {
   "id" : "000050",
   "name" : "Winged Toad Snare",
-  "description" : "Send three winged toads at the target, each striking with a binding tongue that can STUN.",
-  "tags" : [ "ATTACK", "RANGED", "STUN", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
+  "description" : "Send three winged toads at the target, each lashing out with a binding tongue that can STUN.",
+  "tags" : [ "ATTACK", "RANGED", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 45,
   "hitComponents" : [ {
     "basePower" : 15,
@@ -2775,7 +2792,6 @@
   } ],
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : true,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2807,6 +2823,11 @@
     "condition" : {
       "type" : "ALWAYS"
     }
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "STUN_CURRENT_ACTION",
+    "target" : "ENEMY",
+    "trigger" : "ON_HIT"
   } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 65,
@@ -2826,7 +2847,7 @@
 }, {
   "id" : "000051",
   "name" : "Elephant Drop",
-  "description" : "Drop Max Elephant onto every enemy in a crushing HEAVY impact that breaks guards.",
+  "description" : "Drop Max Elephant onto every enemy in a HEAVY POTENCY 2 impact with GUARD BREAK.",
   "tags" : [ "PHYSICAL", "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "AOE", "HEAVY", "GUARD_BREAK" ],
   "basePower" : 80,
   "baseAccuracy" : 0.9,
@@ -2884,7 +2905,7 @@
 }, {
   "id" : "000052",
   "name" : "Shadow Movement",
-  "description" : "Flow through shadow to gain a 95% DODGE chance against MELEE and RANGED attacks for 7 AP ticks.",
+  "description" : "Flow through shadow for an 85% DODGE chance against MELEE and RANGED ATTACKS for 7 AP TICKS.",
   "tags" : [ "DEFENSIVE", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -2934,7 +2955,7 @@
 }, {
   "id" : "000053",
   "name" : "Desummon",
-  "description" : "Return this shikigami to its summoner's shadow.",
+  "description" : "Return this shikigami to the summoner's shadow, ready to be called again next ROUND.",
   "tags" : [ "UTILITY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
@@ -2982,7 +3003,7 @@
 }, {
   "id" : "000054",
   "name" : "Divine Dog Bite",
-  "description" : "Bite into the target with cursed-energy reinforced fangs.",
+  "description" : "Sink cursed-energy-reinforced fangs into the target with a REINFORCEMENT MELEE bite.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 42,
   "baseAccuracy" : 0.95,
@@ -3029,7 +3050,7 @@
 }, {
   "id" : "000055",
   "name" : "Tracking Pounce",
-  "description" : "Track the target's cursed trace and pounce with an attack that never misses.",
+  "description" : "Track the target's cursed trace and pounce with a REINFORCEMENT MELEE strike that never misses.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 40,
   "baseAccuracy" : 1.0,
@@ -3076,7 +3097,7 @@
 }, {
   "id" : "000056",
   "name" : "Rending Pounce",
-  "description" : "Pounce with enough force to rip through a guarding target.",
+  "description" : "Pounce with enough force to shred a guarding target: a REINFORCEMENT MELEE strike with GUARD BREAK.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE", "GUARD_BREAK" ],
   "basePower" : 55,
   "baseAccuracy" : 0.9,
@@ -3124,7 +3145,7 @@
 }, {
   "id" : "000057",
   "name" : "Electrified Talons",
-  "description" : "Rake the target with electrified talons and STUN its active action.",
+  "description" : "Rake the target with electrified talons in a REINFORCEMENT MELEE strike.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 40,
   "baseAccuracy" : 0.9,
@@ -3173,12 +3194,11 @@
 }, {
   "id" : "000058",
   "name" : "Lightning Discharge",
-  "description" : "Release a concentrated bolt of cursed lightning from range.",
-  "tags" : [ "CURSED_ENERGY", "ATTACK", "RANGED", "STUN" ],
+  "description" : "Loose a concentrated bolt of CURSED ENERGY from range that STUNs the target.",
+  "tags" : [ "CURSED_ENERGY", "ATTACK", "RANGED" ],
   "basePower" : 60,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : true,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -3202,7 +3222,12 @@
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
   "onDodgeEffects" : [ ],
-  "effects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "STUN_CURRENT_ACTION",
+    "target" : "ENEMY",
+    "trigger" : "ON_HIT"
+  } ],
   "prerequisites" : {
     "combatAbility" : 0,
     "cursedEnergyEfficiency" : 0,
@@ -3222,7 +3247,7 @@
 }, {
   "id" : "000059",
   "name" : "Tongue Lash",
-  "description" : "Lash the target from range with Toad's reinforced tongue.",
+  "description" : "Lash the target from range with a reinforced tongue: a REINFORCEMENT RANGED strike.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "RANGED" ],
   "basePower" : 24,
   "baseAccuracy" : 0.9,
@@ -3269,7 +3294,7 @@
 }, {
   "id" : "000060",
   "name" : "Binding Tongue",
-  "description" : "Wrap the target in Toad's tongue and STAGGER it for 4 AP ticks.",
+  "description" : "Bind the target in Toad's tongue, STAGGERing it for 4 AP TICKS with a REINFORCEMENT RANGED strike.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "RANGED" ],
   "basePower" : 18,
   "baseAccuracy" : 0.9,
@@ -3326,7 +3351,7 @@
 }, {
   "id" : "000061",
   "name" : "Serpent Constrict",
-  "description" : "Coil around the target at close range and STAGGER it for 8 AP ticks.",
+  "description" : "Coil around the target and STAGGER it for 8 AP TICKS with a REINFORCEMENT MELEE constriction.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 50,
   "baseAccuracy" : 0.9,
@@ -3386,7 +3411,7 @@
 }, {
   "id" : "000062",
   "name" : "Devouring Lunge",
-  "description" : "Commit to a HEAVY lunge that breaks through guards with POTENCY 2.",
+  "description" : "Commit to a HEAVY POTENCY 2 lunge with GUARD BREAK that devours through the target's guard.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE", "HEAVY", "GUARD_BREAK" ],
   "basePower" : 70,
   "baseAccuracy" : 0.9,
@@ -3434,7 +3459,7 @@
 }, {
   "id" : "000063",
   "name" : "Totality Claw",
-  "description" : "Tear through the target with Divine Dog Totality's empowered claws.",
+  "description" : "Tear through the target with Divine Dog Totality's empowered claws in a REINFORCEMENT MELEE strike.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
   "basePower" : 70,
   "baseAccuracy" : 0.96,
@@ -3481,7 +3506,7 @@
 }, {
   "id" : "000064",
   "name" : "Predator Rush",
-  "description" : "Rush the target with two consecutive claw strikes.",
+  "description" : "Rush the target with two consecutive REINFORCEMENT MELEE claw strikes.",
   "tags" : [ "ATTACK", "MELEE", "PHYSICAL", "CURSED_ENERGY" ],
   "basePower" : 84,
   "hitComponents" : [ {
@@ -3545,7 +3570,7 @@
 }, {
   "id" : "000065",
   "name" : "Crushing Stomp",
-  "description" : "Stomp every enemy beneath immense weight with a POTENCY 2 HEAVY guard-breaking impact.",
+  "description" : "Stomp every enemy beneath immense weight in a HEAVY POTENCY 2 impact with GUARD BREAK.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE", "AOE", "HEAVY", "GUARD_BREAK" ],
   "basePower" : 80,
   "baseAccuracy" : 0.9,
@@ -3595,7 +3620,7 @@
 }, {
   "id" : "000066",
   "name" : "Water Deluge",
-  "description" : "Flood every enemy with a cursed torrent, reducing SPEED by 10 for 1 round.",
+  "description" : "Inundate every enemy with a CURSED ENERGY RANGED torrent.",
   "tags" : [ "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
   "basePower" : 55,
   "baseAccuracy" : 0.9,
@@ -3643,8 +3668,8 @@
 }, {
   "id" : "000067",
   "name" : "Winged Tongue Snare",
-  "description" : "Three winged toads strike with binding tongues that can STUN the target.",
-  "tags" : [ "ATTACK", "RANGED", "STUN", "PHYSICAL", "CURSED_ENERGY" ],
+  "description" : "Three winged toads lash the target with binding tongues, each strike able to STUN.",
+  "tags" : [ "ATTACK", "RANGED", "PHYSICAL", "CURSED_ENERGY" ],
   "basePower" : 42,
   "hitComponents" : [ {
     "basePower" : 14,
@@ -3673,7 +3698,6 @@
   } ],
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : true,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -3697,6 +3721,12 @@
   "onBlockEffects" : [ ],
   "onParryEffects" : [ ],
   "onDodgeEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "STUN_CURRENT_ACTION",
+    "target" : "ENEMY",
+    "trigger" : "ON_HIT"
+  } ],
   "prerequisites" : {
     "speed" : 0,
     "combatAbility" : 0,
@@ -3715,7 +3745,7 @@
 }, {
   "id" : "000068",
   "name" : "Aerial Swarm",
-  "description" : "Swarm every enemy from the air, reducing ACCURACY by 10 for 1 round.",
+  "description" : "Swarm every enemy from the air, lowering their ACCURACY by 20% for 1 ROUND.",
   "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE" ],
   "basePower" : 28,
   "baseAccuracy" : 0.9,
@@ -3742,12 +3772,12 @@
   "selfEffects" : [ ],
   "effects" : [ {
     "effectId" : "effect-000000",
-    "type" : "APPLY_STATUS",
-    "stringValue" : "ACCURACY_DECREASE",
+    "type" : "BATTLE_STAT_PERCENT",
+    "doubleValue" : -0.2,
+    "stringValue" : "ACCURACY",
     "target" : "ENEMY",
     "durationRounds" : 1,
     "durationTicks" : 0,
-    "magnitude" : 10.0,
     "trigger" : "ON_HIT"
   } ],
   "prerequisites" : {
@@ -3769,7 +3799,7 @@
 }, {
   "id" : "000069",
   "name" : "Don't Move",
-  "description" : "Command up to three enemies to stop. Success applies STAGGER for 6 AP ticks; every target contributes 4 BASE RECOIL scaled by current CE.",
+  "description" : "Command up to three enemies to halt. Success STAGGERs them for 6 AP TICKS, and each target also inflicts RECOIL (even if resisted) that scales with its cursed energy.",
   "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "INTANGIBLE" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -3861,7 +3891,7 @@
 }, {
   "id" : "000070",
   "name" : "Blast Away",
-  "description" : "Blast up to three enemies away with 40 BASE POWER and 3-tick STAGGER on success; every target contributes 8 BASE RECOIL.",
+  "description" : "Command up to three enemies to be blasted back. Success deals damage and STAGGERs them for 4 AP TICKS, and each target also inflicts RECOIL (even if resisted) that scales with its cursed energy.",
   "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "INTANGIBLE" ],
   "basePower" : 40,
   "baseAccuracy" : 1.0,
@@ -3947,7 +3977,7 @@
 }, {
   "id" : "000071",
   "name" : "Sleep",
-  "description" : "Command up to three enemies to SLEEP until damaged or the end of the current round; every target contributes 6 BASE RECOIL.",
+  "description" : "Command up to three enemies to SLEEP. They slumber until damaged, a 5% per-tick wake chance, or the ROUND's end, and each target also inflicts RECOIL (even if resisted) that scales with its cursed energy.",
   "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "INTANGIBLE" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -4039,12 +4069,11 @@
 }, {
   "id" : "000072",
   "name" : "Plummet",
-  "description" : "Drive up to three enemies downward with 65 BASE POWER and 4-tick STAGGER on success; every target contributes 12 BASE RECOIL.",
-  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "STUN", "INTANGIBLE" ],
+  "description" : "Command up to three enemies to plummet. Success deals damage and STUNs their active ACTION SEGMENT, and each target also inflicts RECOIL (even if resisted) that scales with its cursed energy.",
+  "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "INTANGIBLE" ],
   "basePower" : 65,
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : true,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -4097,6 +4126,11 @@
     "condition" : {
       "type" : "ALWAYS"
     }
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "STUN_CURRENT_ACTION",
+    "target" : "ENEMY",
+    "trigger" : "ON_HIT"
   } ],
   "prerequisites" : {
     "cursedTechniqueMastery" : 50,
@@ -4119,7 +4153,7 @@
 }, {
   "id" : "000073",
   "name" : "Get Twisted",
-  "description" : "Twist up to three enemies with 90 BASE POWER on success; every target contributes 20 BASE RECOIL.",
+  "description" : "Command up to three enemies to twist apart. Success deals heavy damage, and each target also inflicts RECOIL (even if resisted) that scales with its cursed energy.",
   "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "INTANGIBLE" ],
   "basePower" : 90,
   "baseAccuracy" : 1.0,
@@ -4199,7 +4233,7 @@
 }, {
   "id" : "000074",
   "name" : "Return",
-  "description" : "Command up to three enemy summons to return on success; every target contributes 10 BASE RECOIL.",
+  "description" : "Command up to three enemy summons to return to their summoner on success.",
   "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "INTANGIBLE" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -4287,7 +4321,7 @@
 }, {
   "id" : "000075",
   "name" : "Explode",
-  "description" : "Detonate up to three enemies with 135 BASE POWER on success; every target contributes 36 BASE RECOIL.",
+  "description" : "Command up to three enemies to explode. Success deals massive damage, and each target also inflicts RECOIL (even if resisted) that scales with its cursed energy.",
   "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "INTANGIBLE" ],
   "basePower" : 150,
   "baseAccuracy" : 1.0,
@@ -4367,7 +4401,7 @@
 }, {
   "id" : "000076",
   "name" : "Die",
-  "description" : "Command up to three enemies to die, respecting fatal protection; every target contributes 80 BASE RECOIL.",
+  "description" : "Command up to three enemies to die. Success slays them outright (halting at 1 HP against fatal protection), and each target also inflicts heavy RECOIL (even if resisted) that scales with its cursed energy.",
   "tags" : [ "INNATE_TECHNIQUE", "CURSED_ENERGY", "ATTACK", "RANGED", "AOE", "INTANGIBLE" ],
   "basePower" : 0,
   "baseAccuracy" : 1.0,
@@ -4455,7 +4489,7 @@
 }, {
   "id" : "000077",
   "name" : "Reinforced Strike",
-  "description" : "Perform a basic REINFORCED MELEE ATTACK.",
+  "description" : "A basic REINFORCEMENT MELEE strike.",
   "tags" : [ "ATTACK", "PHYSICAL", "CURSED_ENERGY", "MELEE" ],
   "basePower" : 45,
   "baseAccuracy" : 0.9,
@@ -4499,4 +4533,234 @@
   "dodge" : false,
   "percentageBlock" : false,
   "flatBlock" : false
+}, {
+  "id" : "000078",
+  "name" : "Grapple",
+  "description" : "Seize the target with a low-ACCURACY PHYSICAL MELEE ATTACK that has a 50% chance to STUN its active ACTION SEGMENT.",
+  "tags" : [ "PHYSICAL", "ATTACK", "MELEE" ],
+  "basePower" : 10,
+  "baseAccuracy" : 0.7,
+  "neverMiss" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 14,
+  "unleashPoint" : 7,
+  "baseCeCost" : 0,
+  "hasCeCost" : false,
+  "minCeCost" : 0,
+  "maxCeCost" : 0,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "STUN_CURRENT_ACTION",
+    "target" : "ENEMY",
+    "trigger" : "ON_HIT",
+    "activationChanceEnabled" : true,
+    "activationChance" : 0.5
+  } ],
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "aoeTargetCount" : 2,
+  "mustBeGranted" : false
+}, {
+  "id" : "000079",
+  "name" : "Triple Kick",
+  "description" : "Unleash three explosive PHYSICAL MELEE kicks, each with 85% BASE ACCURACY.",
+  "tags" : [ "PHYSICAL", "ATTACK", "MELEE" ],
+  "basePower" : 54,
+  "hitComponents" : [ {
+    "basePower" : 18,
+    "tags" : [ "PHYSICAL" ],
+    "delayTicks" : 0,
+    "requiresPreviousConnection" : false,
+    "avoidable" : true,
+    "baseAccuracy" : 0.85
+  }, {
+    "basePower" : 18,
+    "tags" : [ "PHYSICAL" ],
+    "delayTicks" : 1,
+    "requiresPreviousConnection" : false,
+    "avoidable" : true,
+    "baseAccuracy" : 0.85
+  }, {
+    "basePower" : 18,
+    "tags" : [ "PHYSICAL" ],
+    "delayTicks" : 2,
+    "requiresPreviousConnection" : false,
+    "avoidable" : true,
+    "baseAccuracy" : 0.85
+  } ],
+  "baseAccuracy" : 0.85,
+  "neverMiss" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 24,
+  "unleashPoint" : 10,
+  "baseCeCost" : 0,
+  "hasCeCost" : false,
+  "minCeCost" : 0,
+  "maxCeCost" : 0,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "effects" : [ ],
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "aoeTargetCount" : 2,
+  "mustBeGranted" : false
+}, {
+  "id" : "000080",
+  "name" : "Upper Cut",
+  "description" : "Drive a medium-power PHYSICAL MELEE uppercut into the target with a 5% chance to STUN its active ACTION SEGMENT.",
+  "tags" : [ "PHYSICAL", "ATTACK", "MELEE" ],
+  "basePower" : 32,
+  "baseAccuracy" : 0.9,
+  "neverMiss" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 14,
+  "unleashPoint" : 7,
+  "baseCeCost" : 0,
+  "hasCeCost" : false,
+  "minCeCost" : 0,
+  "maxCeCost" : 0,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "STUN_CURRENT_ACTION",
+    "target" : "ENEMY",
+    "trigger" : "ON_HIT",
+    "activationChanceEnabled" : true,
+    "activationChance" : 0.05
+  } ],
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "aoeTargetCount" : 2,
+  "mustBeGranted" : false
+}, {
+  "id" : "000081",
+  "name" : "Reinforced Triple Kick",
+  "description" : "Reinforce three explosive MELEE kicks with CURSED ENERGY for 75 combined BASE POWER, each with 85% BASE ACCURACY.",
+  "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
+  "basePower" : 75,
+  "hitComponents" : [ {
+    "basePower" : 25,
+    "tags" : [ "PHYSICAL", "CURSED_ENERGY" ],
+    "delayTicks" : 0,
+    "requiresPreviousConnection" : false,
+    "avoidable" : true,
+    "baseAccuracy" : 0.85
+  }, {
+    "basePower" : 25,
+    "tags" : [ "PHYSICAL", "CURSED_ENERGY" ],
+    "delayTicks" : 1,
+    "requiresPreviousConnection" : false,
+    "avoidable" : true,
+    "baseAccuracy" : 0.85
+  }, {
+    "basePower" : 25,
+    "tags" : [ "PHYSICAL", "CURSED_ENERGY" ],
+    "delayTicks" : 2,
+    "requiresPreviousConnection" : false,
+    "avoidable" : true,
+    "baseAccuracy" : 0.85
+  } ],
+  "baseAccuracy" : 0.85,
+  "neverMiss" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 24,
+  "unleashPoint" : 10,
+  "baseCeCost" : 24,
+  "hasCeCost" : true,
+  "minCeCost" : 4,
+  "maxCeCost" : 110,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "effects" : [ ],
+  "prerequisites" : {
+    "jujutsuSkill" : 20,
+    "cursedEnergyOutput" : 20,
+    "cursedEnergyEfficiency" : 20
+  },
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "aoeTargetCount" : 2,
+  "mustBeGranted" : false
+}, {
+  "id" : "000082",
+  "name" : "Reinforced Upper Cut",
+  "description" : "Drive a CURSED ENERGY-reinforced MELEE uppercut into the target for 45 BASE POWER with a 5% chance to STUN its active ACTION SEGMENT.",
+  "tags" : [ "PHYSICAL", "CURSED_ENERGY", "ATTACK", "MELEE" ],
+  "basePower" : 45,
+  "baseAccuracy" : 0.9,
+  "neverMiss" : false,
+  "guardBreak" : false,
+  "heavy" : false,
+  "potency" : 1,
+  "weaponRequired" : false,
+  "apCost" : 14,
+  "unleashPoint" : 7,
+  "baseCeCost" : 16,
+  "hasCeCost" : true,
+  "minCeCost" : 3,
+  "maxCeCost" : 85,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "STUN_CURRENT_ACTION",
+    "target" : "ENEMY",
+    "trigger" : "ON_HIT",
+    "activationChanceEnabled" : true,
+    "activationChance" : 0.05
+  } ],
+  "prerequisites" : {
+    "jujutsuSkill" : 20,
+    "cursedEnergyOutput" : 20,
+    "cursedEnergyEfficiency" : 20
+  },
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "aoeTargetCount" : 2,
+  "mustBeGranted" : false
 } ]

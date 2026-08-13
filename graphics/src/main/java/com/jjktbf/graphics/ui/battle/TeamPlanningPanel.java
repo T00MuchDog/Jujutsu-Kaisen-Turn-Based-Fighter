@@ -141,6 +141,7 @@ public final class TeamPlanningPanel {
     }
 
     private void addPage(String name, PlanningPanel panel) {
+        panel.setActorName(name);
         panel.setAllowManualUnlock(true);
         panel.setOnConfirm(this::pageLocked);
         panel.setSoundPlayer(soundPlayer);

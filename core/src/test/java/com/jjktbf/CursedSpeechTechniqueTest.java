@@ -156,7 +156,7 @@ class CursedSpeechTechniqueTest {
         place(inumaki, sleep, List.of(target), 2);
 
         state.transitionTo(BattleState.Phase.RESOLUTION);
-        CombatResolver resolver = new CombatResolver(new SequenceRandom(0.0, 0.5));
+        CombatResolver resolver = new CombatResolver(sequenceWithFallback(0.5, 0.0));
         List<CombatEvent> sleepEvents = resolver.resolveRound(state);
         assertTrue(target.hasEffect(StatusEffectType.SLEEP));
         assertTrue(blockSegment.hasFired(), "the block is active before Sleep lands");
@@ -210,7 +210,7 @@ class CursedSpeechTechniqueTest {
 
         state.transitionTo(BattleState.Phase.RESOLUTION);
         List<CombatEvent> events = new CombatResolver(
-            new SequenceRandom(0.0, 0.5, 0.5)).resolveRound(state);
+            sequenceWithFallback(0.5, 0.0)).resolveRound(state);
 
         assertFalse(target.hasEffect(StatusEffectType.SLEEP));
         assertTrue(laterSegment.hasFired(), "waking before fire allows the action to occur");
@@ -221,6 +221,56 @@ class CursedSpeechTechniqueTest {
                 && event.getMessage().contains("TARGET wakes from Sleep")));
         assertFalse(events.stream().anyMatch(event ->
             event.getMessage().contains("TARGET tried to use LATER but was asleep")));
+    }
+
+    @Test
+    void sleepCanWakeAtTheStartOfAResolutionTick() {
+        Move sleep = command("SLEEP", CursedSpeechAbility.SLEEP, 95, 0, 0, 0);
+        Move later = physicalAttack("LATER", 10);
+        BattleCombatant inumaki = cursedSpeechUser("INUMAKI", sleep);
+        BattleCombatant target = fighter("TARGET");
+        BattleState state = new BattleState(inumaki, target);
+
+        ActionSegment sleepSegment = place(inumaki, sleep, List.of(target), 1);
+        Timeline targetTimeline = new Timeline(60);
+        ActionSegment laterSegment = targetTimeline.placeAt(later, 2, 0);
+        assertNotNull(laterSegment);
+        laterSegment.setTarget(inumaki.getInstanceId());
+        target.setTimeline(targetTimeline);
+
+        state.transitionTo(BattleState.Phase.RESOLUTION);
+        List<CombatEvent> events = new CombatResolver(
+            new SequenceRandom(0.0, 0.0499)).resolveRound(state);
+
+        assertTrue(sleepSegment.hasFired());
+        assertFalse(target.hasEffect(StatusEffectType.SLEEP));
+        assertTrue(laterSegment.hasFired(), "waking before fire allows the action to occur");
+        assertFalse(laterSegment.isStunned());
+        assertTrue(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.STATUS_EXPIRED
+                && event.getTarget() == target
+                && event.getTick() == laterSegment.getFireTick()
+                && event.getMessage().contains("TARGET wakes from Sleep")));
+    }
+
+    @Test
+    void sleepPerTickWakeChanceUsesAnExclusiveFivePercentBoundary() {
+        Move sleep = command("SLEEP", CursedSpeechAbility.SLEEP, 95, 0, 0, 0);
+        BattleCombatant inumaki = cursedSpeechUser("INUMAKI", sleep);
+        BattleCombatant target = fighter("TARGET");
+        BattleState state = new BattleState(inumaki, target);
+
+        place(inumaki, sleep, List.of(target), 1);
+        Timeline targetTimeline = new Timeline(60);
+        ActionSegment later = targetTimeline.placeAt(physicalAttack("LATER", 10), 2, 0);
+        assertNotNull(later);
+        later.setTarget(inumaki.getInstanceId());
+        target.setTimeline(targetTimeline);
+
+        state.transitionTo(BattleState.Phase.RESOLUTION);
+        new CombatResolver(sequenceWithFallback(0.05, 0.0)).resolveRound(state);
+
+        assertTrue(target.hasEffect(StatusEffectType.SLEEP));
     }
 
     @Test
@@ -581,16 +631,30 @@ class CursedSpeechTechniqueTest {
 
     private static final class SequenceRandom implements RandomSource {
         private final ArrayDeque<Double> values;
+        private final double fallback;
 
         private SequenceRandom(double... values) {
+            this(0.0, values);
+        }
+
+        private SequenceRandom(double fallback, double[] values) {
             this.values = new ArrayDeque<>();
             for (double value : values) this.values.add(value);
+            this.fallback = fallback;
+        }
+
+        private static SequenceRandom withFallback(double fallback, double... values) {
+            return new SequenceRandom(fallback, values);
         }
 
         @Override public int nextInt(int bound) { return 0; }
         @Override public double nextDouble() {
-            return values.isEmpty() ? 0.0 : values.removeFirst();
+            return values.isEmpty() ? fallback : values.removeFirst();
         }
         @Override public boolean nextBoolean() { return false; }
+    }
+
+    private static SequenceRandom sequenceWithFallback(double fallback, double... values) {
+        return SequenceRandom.withFallback(fallback, values);
     }
 }

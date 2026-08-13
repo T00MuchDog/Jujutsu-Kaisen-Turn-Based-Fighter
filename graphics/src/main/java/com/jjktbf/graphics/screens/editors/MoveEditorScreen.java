@@ -305,6 +305,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         c.magnitude       = type.usesMagnitude()
             ? type.signedMagnitude(StatusEffectType.normalizeStoredMagnitude(e.type, e.magnitude))
             : 0.0;
+        c.perTickRemovalChance = e.perTickRemovalChance;
         c.masteryProgression = TechniqueMasteryProgressions.copy(e.masteryProgression);
         return c;
     }
@@ -862,9 +863,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                     synchronizeParentDamageTags(d);
                 }
             }
-            // STUN/GUARD_BREAK/HEAVY are modifier tags backed by dedicated flags (not
+            // GUARD_BREAK/HEAVY are modifier tags backed by dedicated flags (not
             // part of any MoveCategory), so keep them in sync with the tag selection.
-            d.stun = tags.contains(MoveTag.STUN);
             d.guardBreak = tags.contains(MoveTag.GUARD_BREAK);
             d.heavy = tags.contains(MoveTag.HEAVY);
             ensureTechniqueStatPrerequisites(d, tags);
@@ -884,7 +884,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         }
         previousTypeTags.clear();
         previousTypeTags.addAll(typeTagsFromNames(d.tags));
-        d.stun = tagPicker.getSelected().contains(MoveTag.STUN);
         d.guardBreak = tagPicker.getSelected().contains(MoveTag.GUARD_BREAK);
         d.heavy = tagPicker.getSelected().contains(MoveTag.HEAVY);
         synchronizeWeaponRequirement(d);
@@ -1964,6 +1963,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 .toList();
         }
         List<AbilityEffectType> preferred = List.of(
+            AbilityEffectType.TEMP_STAT_PERCENT,
+            AbilityEffectType.BATTLE_STAT_PERCENT,
             AbilityEffectType.APPLY_STATUS,
             AbilityEffectType.INSTANT_KILL,
             AbilityEffectType.SUMMON_CHARACTER,

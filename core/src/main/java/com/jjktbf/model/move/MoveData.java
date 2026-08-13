@@ -48,12 +48,9 @@ public class MoveData {
     /** Legacy compatibility field; new move content uses a NEVER_MISS effect row. */
     public boolean neverMiss      = false;
 
-    /**
-     * Backs the STUN move tag. When true, a successful hit stuns the defender's
-     * segment(s) on the current tick. Not part of {@link MoveCategory}; stored as a
-     * dedicated flag so it survives the DTO↔domain round-trip.
-     */
-    public boolean stun           = false;
+    /** Legacy compatibility field migrated to a STUN_CURRENT_ACTION effect row. */
+    @Deprecated
+    public Boolean stun;
 
     /**
      * Backs the GUARD_BREAK move tag. When true, a successful hit ignores the
@@ -63,7 +60,7 @@ public class MoveData {
 
     /**
      * Backs the HEAVY move tag. When true, an action segment carrying this move
-     * cannot be stunned by a STUN-tagged hit.
+     * cannot be cancelled by a stun-current-action effect.
      */
     public boolean heavy          = false;
 
@@ -264,6 +261,7 @@ public class MoveData {
         public int    durationRounds = 1;
         public int    durationTicks  = 0;
         public double magnitude      = 1.0;
+        public Double perTickRemovalChance;
 
         /**
          * Coded-action binding. When {@code codedAbilityKey} is set (and {@code type}
@@ -488,7 +486,6 @@ public class MoveData {
             .basePower(basePower)
             .baseAccuracy(baseAccuracy)
             .neverMiss(neverMiss)
-            .stun(stun)
             .guardBreak(guardBreak)
             .heavy(heavy)
             .potency(potency)
@@ -708,10 +705,13 @@ public class MoveData {
                 }
             }
             if (type.usesMagnitude()) allowed.add(TechniqueMasteryProgressions.MAGNITUDE);
+            allowed.add(TechniqueMasteryProgressions.PER_TICK_REMOVAL_CHANCE);
             validateEffectProgression(d, allowed);
+            double perTickRemovalChance = d.perTickRemovalChance == null
+                ? type.defaultPerTickRemovalChance() : d.perTickRemovalChance;
             StatusEffect effect = new StatusEffect(type, d.durationRounds, d.durationTicks,
                 StatusEffectType.normalizeStoredMagnitude(d.type, d.magnitude),
-                d.masteryProgression);
+                perTickRemovalChance, d.masteryProgression);
             validateResolvedEffect(effect);
             effects.add(effect);
         }
@@ -802,7 +802,6 @@ public class MoveData {
         }
         d.baseAccuracy        = move.getBaseAccuracy();
         d.neverMiss           = move.hasLegacyNeverMiss();
-        d.stun                = move.isStun();
         d.guardBreak          = move.isGuardBreak();
         d.heavy               = move.isHeavy();
         d.potency             = move.getPotency();
@@ -872,11 +871,28 @@ public class MoveData {
      */
     @JsonIgnore
     public boolean migrateLegacyEffects() {
-        if (effects != null) {
-            AbilityData.ensureEffectIds(effects);
-            return false;
+        boolean legacyStun = Boolean.TRUE.equals(stun)
+            || tags != null && tags.stream().anyMatch(MoveData::isLegacyStunTag);
+        boolean changed = stun != null;
+        if (tags != null && tags.stream().anyMatch(MoveData::isLegacyStunTag)) {
+            tags = tags.stream().filter(tag -> !isLegacyStunTag(tag))
+                .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+            changed = true;
         }
-        java.util.ArrayList<MoveEffectData> migrated = new java.util.ArrayList<>();
+        stun = null;
+        java.util.ArrayList<MoveEffectData> migrated = effects == null
+            ? new java.util.ArrayList<>()
+            : effects.stream().filter(java.util.Objects::nonNull).map(MoveEffectData::copy)
+                .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+        if (effects != null) {
+            if (legacyStun && migrated.stream().noneMatch(MoveData::isStunEffect)) {
+                migrated.add(stunCurrentActionEffect());
+                changed = true;
+            }
+            effects = migrated;
+            AbilityData.ensureEffectIds(effects);
+            return changed;
+        }
         if (summonCharacterId != null && !summonCharacterId.isBlank()) {
             MoveEffectData summon = AbilityEffectType.SUMMON_CHARACTER.createDefaultMoveEffect();
             summon.trigger = MoveEffectTrigger.ON_FIRE.name();
@@ -908,6 +924,7 @@ public class MoveData {
             }
         }
         effects = migrated;
+        if (legacyStun) migrated.add(stunCurrentActionEffect());
         AbilityData.ensureEffectIds(effects);
         summonCharacterId = null;
         onHitEffects = null;
@@ -915,7 +932,23 @@ public class MoveData {
         onBlockEffects = null;
         onParryEffects = null;
         onDodgeEffects = null;
-        return !migrated.isEmpty();
+        return changed || !migrated.isEmpty();
+    }
+
+    private static boolean isLegacyStunTag(String tag) {
+        return tag != null && "STUN".equalsIgnoreCase(tag.trim());
+    }
+
+    private static boolean isStunEffect(MoveEffectData effect) {
+        return effect != null
+            && AbilityEffectType.STUN_CURRENT_ACTION.name().equalsIgnoreCase(effect.type);
+    }
+
+    private static MoveEffectData stunCurrentActionEffect() {
+        MoveEffectData effect = AbilityEffectType.STUN_CURRENT_ACTION.createDefaultMoveEffect();
+        effect.trigger = MoveEffectTrigger.ON_HIT.name();
+        effect.target = AbilityEffectTarget.ENEMY.name();
+        return effect;
     }
 
     /** Upgrade the legacy attack boolean when an author opens the move editor. */
@@ -965,6 +998,7 @@ public class MoveData {
                 effect.durationRounds = source.durationRounds;
                 effect.durationTicks = source.durationTicks;
                 effect.magnitude = source.magnitude;
+                effect.perTickRemovalChance = source.perTickRemovalChance;
                 effect.masteryProgression = TechniqueMasteryProgressions.copy(
                     source.masteryProgression);
             } else {
@@ -1024,6 +1058,7 @@ public class MoveData {
         effect.durationRounds = rounds;
         effect.durationTicks = ticks;
         effect.magnitude = 0.0;
+        effect.perTickRemovalChance = type.defaultPerTickRemovalChance();
         return effect;
     }
 
@@ -1051,6 +1086,7 @@ public class MoveData {
         sd.durationRounds = e.getDurationRounds();
         sd.durationTicks  = e.getDurationTicks();
         sd.magnitude      = e.getMagnitude();
+        sd.perTickRemovalChance = e.getPerTickRemovalChance();
         sd.masteryProgression = TechniqueMasteryProgressions.copy(e.getMasteryProgression());
         return sd;
     }

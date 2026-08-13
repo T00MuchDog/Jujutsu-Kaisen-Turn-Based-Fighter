@@ -394,7 +394,6 @@ class MultiHitMoveTest {
                 component(1, MoveCategory.PHYSICAL, 3, false, true)))
             .build();
         Move laterStun = attackBuilder("LATER_STUN")
-            .stun(true)
             .basePower(1)
             .build();
 

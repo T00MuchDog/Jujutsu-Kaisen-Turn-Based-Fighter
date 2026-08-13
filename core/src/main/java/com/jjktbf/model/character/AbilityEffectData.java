@@ -104,6 +104,9 @@ public class AbilityEffectData {
     /** Magnitude for AUTO_STATUS_APPLY. */
     public Double magnitude;
 
+    /** Chance in [0, 1] to remove an applied status on each resolution tick. */
+    public Double perTickRemovalChance;
+
     /** Number of times a consumable effect may be used. -1 means unlimited. */
     public Integer uses;
 
@@ -145,6 +148,7 @@ public class AbilityEffectData {
         this.durationRounds = source.durationRounds;
         this.durationTicks = source.durationTicks;
         this.magnitude = source.magnitude;
+        this.perTickRemovalChance = source.perTickRemovalChance;
         this.uses = source.uses;
         this.masteryProgression = TechniqueMasteryProgressions.copy(source.masteryProgression);
     }
@@ -156,6 +160,25 @@ public class AbilityEffectData {
         e.type     = AbilityEffectType.STAT_ADD.name();
         e.stat     = stat;
         e.intValue = amount;
+        return e;
+    }
+
+    /**
+     * Timed percentage stat modifier ({@code TEMP_STAT_PERCENT}). The percent is
+     * additive (0.20 = +20%); percentage effects stack additively with each other.
+     * {@code rounds}/{@code ticks} follow the standard duration model — a tick-only
+     * duration ({@code rounds == 0, ticks > 0}) persists across round boundaries.
+     */
+    public static AbilityEffectData tempStatPercent(
+        String stat, double percent, int rounds, int ticks
+    ) {
+        AbilityEffectData e = new AbilityEffectData();
+        e.type           = AbilityEffectType.TEMP_STAT_PERCENT.name();
+        e.stat           = stat;
+        e.target         = "SELF";
+        e.doubleValue    = percent;
+        e.durationRounds = rounds;
+        e.durationTicks  = ticks;
         return e;
     }
 
@@ -243,6 +266,7 @@ public class AbilityEffectData {
             + (durationRounds != null ? " rounds=" + durationRounds : "")
             + (durationTicks != null ? " ticks=" + durationTicks : "")
             + (magnitude   != null ? " mag=" + magnitude : "")
+            + (perTickRemovalChance != null ? " remove/tick=" + perTickRemovalChance : "")
             + (uses        != null ? " uses=" + uses : "")
             + " }";
     }

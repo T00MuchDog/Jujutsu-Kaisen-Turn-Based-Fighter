@@ -54,6 +54,21 @@ class MoveEffectCompositionTest {
             assertFalse(move.summonCharacterId != null && !move.summonCharacterId.isBlank(), move.name);
             move.toMove();
         }
+        MoveEffectData sleep = moves.stream()
+            .filter(move -> "000071".equals(move.id))
+            .flatMap(move -> move.effects.stream())
+            .filter(effect -> AbilityEffectType.APPLY_STATUS.name().equals(effect.type))
+            .filter(effect -> StatusEffectType.SLEEP.name().equals(effect.stringValue))
+            .findFirst().orElseThrow();
+        assertEquals(0.05, sleep.perTickRemovalChance == null
+            ? StatusEffectType.SLEEP.defaultPerTickRemovalChance()
+            : sleep.perTickRemovalChance);
+        assertTrue(moves.stream().flatMap(move ->
+                (move.effects == null ? List.<MoveEffectData>of() : move.effects).stream())
+            .anyMatch(effect -> AbilityEffectType.STUN_CURRENT_ACTION.name().equals(effect.type)));
+        assertTrue(moves.stream().noneMatch(move -> Boolean.TRUE.equals(move.stun)));
+        assertTrue(moves.stream().noneMatch(move -> move.tags != null
+            && move.tags.stream().anyMatch("STUN"::equalsIgnoreCase)));
     }
 
     @Test

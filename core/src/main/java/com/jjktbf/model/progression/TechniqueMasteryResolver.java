@@ -57,6 +57,11 @@ public final class TechniqueMasteryResolver {
                 TechniqueMasteryProgressions.MAGNITUDE);
             if (progression != null) resolved.magnitude = (double) progression.resolve(mastery);
         }
+        if (source.perTickRemovalChance != null) {
+            resolved.perTickRemovalChance = resolvePercent(
+                values, TechniqueMasteryProgressions.PER_TICK_REMOVAL_CHANCE,
+                source.perTickRemovalChance, mastery);
+        }
         if (source.uses != null) {
             resolved.uses = TechniqueMasteryProgressions.resolve(
                 values, TechniqueMasteryProgressions.USES, source.uses, mastery);
@@ -116,7 +121,11 @@ public final class TechniqueMasteryResolver {
             TechniqueMasteryProgressions.MAGNITUDE);
         double magnitude = magnitudeProgression == null
             ? source.getMagnitude() : magnitudeProgression.resolve(mastery);
+        double perTickRemovalChance = TechniqueMasteryProgressions.resolvePercent(
+            values, TechniqueMasteryProgressions.PER_TICK_REMOVAL_CHANCE,
+            source.getPerTickRemovalChance(), mastery);
         return new StatusEffect(source.getType(), rounds, ticks, magnitude,
+            perTickRemovalChance,
             source.getMasteryProgression());
     }
 
@@ -173,6 +182,7 @@ public final class TechniqueMasteryResolver {
             || TechniqueMasteryProgressions.DURATION_ROUNDS.equals(field)
             || TechniqueMasteryProgressions.DURATION_TICKS.equals(field)
             || TechniqueMasteryProgressions.MAGNITUDE.equals(field)
+            || TechniqueMasteryProgressions.PER_TICK_REMOVAL_CHANCE.equals(field)
             || TechniqueMasteryProgressions.USES.equals(field)
             || TechniqueMasteryProgressions.CODED_STACK_COUNT.equals(field);
     }
