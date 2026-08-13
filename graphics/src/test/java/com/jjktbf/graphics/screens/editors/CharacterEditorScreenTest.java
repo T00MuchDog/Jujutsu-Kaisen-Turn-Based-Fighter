@@ -9,6 +9,7 @@ import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MovePool;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -87,6 +88,19 @@ class CharacterEditorScreenTest {
             List.of(ability), remapped));
         assertEquals("000002", move.summonCharacterId);
         assertEquals("000002", effect.characterId);
+    }
+
+    @Test
+    void reorderingOneMovePoolPreservesOtherPoolPositions() {
+        List<String> allIds = new ArrayList<>(List.of("combat-a", "jujutsu-a", "combat-b"));
+
+        assertTrue(CharacterEditorScreen.replaceIndexedValues(
+            allIds,
+            List.of(0, 2),
+            List.of("combat-a", "combat-b"),
+            List.of("combat-b", "combat-a")));
+
+        assertEquals(List.of("combat-b", "jujutsu-a", "combat-a"), allIds);
     }
 
     private static MoveData move() {

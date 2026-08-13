@@ -1,6 +1,7 @@
 package com.jjktbf.graphics.ui.editor;
 
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
@@ -36,6 +37,7 @@ public class MoveAssignmentPanel extends Table {
         boolean canLearn(String id);
         void onLearn(String id);
         void onForget(String id);
+        void onReorder(MovePool pool, List<String> orderedIds);
         int learnedCount(MovePool pool);
         int learnedLimit(MovePool pool);
     }
@@ -103,7 +105,8 @@ public class MoveAssignmentPanel extends Table {
         defaults().top();
 
         add(groupHeading("AVAILABLE")).colspan(2).growX().center().padBottom(6f);
-        add(groupHeading("LEARNED")).colspan(2).growX().center().padBottom(6f).row();
+        add(groupHeading("LEARNED (DRAG TO REORDER)"))
+            .colspan(2).growX().center().padBottom(6f).row();
 
         add(buildColumn(Side.AVAILABLE, MovePool.COMBAT_ARTS))
             .growX().uniformX().padRight(COLUMN_GAP);
@@ -129,6 +132,17 @@ public class MoveAssignmentPanel extends Table {
         return contains(item.label, needle)
             || contains(item.sublabel, needle)
             || contains(item.id, needle);
+    }
+
+    static boolean moveToInsertionIndex(List<String> ids, int sourceIndex, int insertionIndex) {
+        if (ids == null || sourceIndex < 0 || sourceIndex >= ids.size()
+            || insertionIndex < 0 || insertionIndex > ids.size()) return false;
+
+        List<String> original = new ArrayList<>(ids);
+        String movedId = ids.remove(sourceIndex);
+        if (sourceIndex < insertionIndex) insertionIndex--;
+        ids.add(insertionIndex, movedId);
+        return !ids.equals(original);
     }
 
     private static boolean contains(String value, String needle) {
@@ -188,9 +202,10 @@ public class MoveAssignmentPanel extends Table {
         column.dragSources.clear();
         column.rows.clearChildren();
         boolean anyVisible = false;
-        for (AssignmentPanel.Item item : items) {
+        for (int index = 0; index < items.size(); index++) {
+            AssignmentPanel.Item item = items.get(index);
             if (!matchesSearch(item, query)) continue;
-            column.rows.add(makeMoveCard(item, column)).growX().left().row();
+            column.rows.add(makeMoveCard(item, column, index)).growX().left().row();
             anyVisible = true;
         }
         if (!anyVisible) {
@@ -202,8 +217,9 @@ public class MoveAssignmentPanel extends Table {
         column.scroll.setScrollX(0f);
     }
 
-    private Actor makeMoveCard(AssignmentPanel.Item item, MoveColumn column) {
+    private Actor makeMoveCard(AssignmentPanel.Item item, MoveColumn column, int itemIndex) {
         Table card = new Table(skin);
+        card.setUserObject(itemIndex);
         card.setBackground(skin.getDrawable(
             item.locked ? "battle-card-disabled" : "white-panel"));
         card.setClip(true);
@@ -266,7 +282,7 @@ public class MoveAssignmentPanel extends Table {
                 soundPlayer.accept(SoundCue.UI_PICKUP);
                 DragAndDrop.Payload payload = new DragAndDrop.Payload();
                 payload.setObject(new String[] {
-                    column.side.name(), column.pool.name(), item.id
+                    column.side.name(), column.pool.name(), item.id, String.valueOf(itemIndex)
                 });
                 Label dragLabel = new Label(item.label, skin, "small");
                 dragLabel.setColor(skin.get("white", Color.class));
@@ -300,9 +316,14 @@ public class MoveAssignmentPanel extends Table {
                 int pointer
             ) {
                 String id = payloadValue(payload, 2);
-                return id != null
-                    && column.pool.name().equals(payloadValue(payload, 1))
-                    && !column.side.name().equals(payloadValue(payload, 0))
+                if (!column.pool.name().equals(payloadValue(payload, 1))) {
+                    return false;
+                }
+                String sourceSide = payloadValue(payload, 0);
+                if (column.side == Side.LEARNED && Side.LEARNED.name().equals(sourceSide)) {
+                    return column.search.getText().isBlank() && payloadIndex(payload) >= 0;
+                }
+                return id != null && !column.side.name().equals(sourceSide)
                     && (column.side != Side.LEARNED || controller.canLearn(id));
             }
 
@@ -314,18 +335,56 @@ public class MoveAssignmentPanel extends Table {
                 int pointer
             ) {
                 String id = payloadValue(payload, 2);
-                if (id == null) return;
-                if (column.side == Side.LEARNED) controller.onLearn(id);
-                else controller.onForget(id);
+                if (column.side == Side.LEARNED
+                    && Side.LEARNED.name().equals(payloadValue(payload, 0))) {
+                    List<String> orderedIds = new ArrayList<>();
+                    for (AssignmentPanel.Item item : controller.learnedItems(column.pool)) {
+                        orderedIds.add(item.id);
+                    }
+                    if (moveToInsertionIndex(
+                        orderedIds, payloadIndex(payload), insertionIndex(column, x, y)
+                    )) {
+                        controller.onReorder(column.pool, orderedIds);
+                    }
+                } else if (id != null && column.side == Side.LEARNED) {
+                    controller.onLearn(id);
+                } else if (id != null) {
+                    controller.onForget(id);
+                }
                 soundPlayer.accept(SoundCue.UI_DROP);
                 refresh();
             }
         });
     }
 
+    private static int insertionIndex(MoveColumn column, float x, float y) {
+        Vector2 point = column.scroll.localToActorCoordinates(column.rows, new Vector2(x, y));
+        for (Actor actor : column.rows.getChildren()) {
+            if (!(actor.getUserObject() instanceof Integer index)) continue;
+            if (point.y >= actor.getY() + actor.getHeight() / 2f) return index;
+        }
+        return controllerSize(column);
+    }
+
+    private static int controllerSize(MoveColumn column) {
+        int size = 0;
+        for (Actor actor : column.rows.getChildren()) {
+            if (actor.getUserObject() instanceof Integer index) size = Math.max(size, index + 1);
+        }
+        return size;
+    }
+
     private static String payloadValue(DragAndDrop.Payload payload, int index) {
         Object value = payload.getObject();
         return value instanceof String[] values && values.length > index ? values[index] : null;
+    }
+
+    private static int payloadIndex(DragAndDrop.Payload payload) {
+        try {
+            return Integer.parseInt(payloadValue(payload, 3));
+        } catch (NumberFormatException ex) {
+            return -1;
+        }
     }
 
     private static String poolLabel(MovePool pool) {

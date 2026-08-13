@@ -498,7 +498,11 @@ public class CharacterSelectScreen implements Screen {
         float leftCenterX = innerLeft + leftWidth / 2f;
         float barHeight = 28f;
         float barGap = 8f;
-        float barsAndSpacing = 24f + barHeight * 2f + barGap;
+        boolean hasCursedTechnique = character.innateTechniqueName != null
+            && !character.innateTechniqueName.isBlank();
+        float techniqueGap = hasCursedTechnique ? 8f : 0f;
+        float techniqueHeight = hasCursedTechnique ? assets.fontSmall.getCapHeight() : 0f;
+        float barsAndSpacing = 24f + barHeight * 2f + barGap + techniqueGap + techniqueHeight;
         float spriteSize = Math.min(leftWidth, Math.max(0f, infoHeight - barsAndSpacing));
         spriteSize = Math.min(spriteSize, 336f); // ~3x the original 112px display width
         if (spriteSize > 0f) {
@@ -522,6 +526,11 @@ public class CharacterSelectScreen implements Screen {
             ce.setBounds(barX, ceY, barWidth, barHeight);
             ce.setValues(combat.getMaxCursedEnergy(), combat.getMaxCursedEnergy());
             ce.draw(batch, assets.fontMedium, assets.battleUi, true);
+            if (hasCursedTechnique) {
+                assets.fontSmall.setColor(Color.BLACK);
+                drawFittedText(assets.fontSmall, character.innateTechniqueName, barX,
+                    ceY - techniqueGap, barWidth);
+            }
         }
 
         // Right column: compact stats leave the remaining vertical space for the description.

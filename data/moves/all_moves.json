@@ -6,7 +6,6 @@
   "basePower" : 25,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -25,17 +24,16 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
+  "effects" : [ ],
   "isFreeMove" : true,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000001",
   "name" : "Basic Block",
@@ -45,7 +43,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -65,20 +62,16 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "isFreeMove" : true,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000002",
   "name" : "Jab",
@@ -87,7 +80,6 @@
   "basePower" : 15,
   "baseAccuracy" : 0.95,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -121,11 +113,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000003",
   "name" : "Elbow Strike",
@@ -134,7 +126,6 @@
   "basePower" : 34,
   "baseAccuracy" : 0.97,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -153,8 +144,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "strength" : 20,
     "speed" : 25,
@@ -164,11 +154,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000004",
   "name" : "Body Blow",
@@ -177,7 +167,6 @@
   "basePower" : 38,
   "baseAccuracy" : 0.88,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : true,
   "heavy" : false,
   "potency" : 1,
@@ -196,11 +185,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "strength" : 35,
     "speed" : 0,
@@ -210,11 +195,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000005",
   "name" : "Sweeping Kick",
@@ -258,11 +243,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000006",
   "name" : "Knee Strike",
@@ -271,7 +256,6 @@
   "basePower" : 35,
   "baseAccuracy" : 0.91,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -290,11 +274,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "speed" : 0,
     "strength" : 35,
@@ -305,11 +285,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000007",
   "name" : "Overhand Punch",
@@ -318,7 +298,6 @@
   "basePower" : 50,
   "baseAccuracy" : 0.84,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : true,
   "potency" : 1,
@@ -337,11 +316,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "strength" : 55,
     "speed" : 0,
@@ -351,11 +326,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000008",
   "name" : "Reinforced Jab",
@@ -364,7 +339,6 @@
   "basePower" : 35,
   "baseAccuracy" : 0.98,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -402,11 +376,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000009",
   "name" : "Reinforced Elbow",
@@ -415,7 +389,6 @@
   "basePower" : 64,
   "baseAccuracy" : 0.97,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -434,11 +407,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "strength" : 20,
     "speed" : 25,
@@ -451,11 +420,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000010",
   "name" : "Reinforced Knee",
@@ -464,7 +433,6 @@
   "basePower" : 65,
   "baseAccuracy" : 0.91,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -502,11 +470,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000011",
   "name" : "Cursed Energy Burst",
@@ -515,7 +483,6 @@
   "basePower" : 30,
   "baseAccuracy" : 0.85,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -550,11 +517,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000012",
   "name" : "Cursed Energy Blast",
@@ -563,7 +530,6 @@
   "basePower" : 80,
   "baseAccuracy" : 0.8,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : true,
   "potency" : 2,
@@ -598,11 +564,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000013",
   "name" : "Deflection",
@@ -612,7 +578,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -632,11 +597,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "vitality" : 0,
     "durability" : 0,
@@ -647,11 +608,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000014",
   "name" : "Reinforced Deflection",
@@ -661,7 +622,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -701,11 +661,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000015",
   "name" : "Cross Guard",
@@ -714,7 +674,6 @@
   "basePower" : 0,
   "baseAccuracy" : 1.0,
   "neverMiss" : true,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -734,8 +693,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "vitality" : 0,
     "speed" : 0,
@@ -746,11 +704,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000016",
   "name" : "Reinforced Cross Guard",
@@ -760,7 +718,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -799,11 +756,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000017",
   "name" : "Braced Guard",
@@ -813,7 +770,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : true,
   "potency" : 1,
@@ -833,11 +789,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "vitality" : 50,
     "speed" : 0,
@@ -848,11 +800,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : true,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : true
+  "dodge" : false
 }, {
   "id" : "000018",
   "name" : "Reinforced Braced Guard",
@@ -862,7 +814,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : true,
   "potency" : 1,
@@ -900,11 +851,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : true,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : true
+  "dodge" : false
 }, {
   "id" : "000019",
   "name" : "Reinforced Basic Block",
@@ -914,7 +865,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -952,11 +902,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000020",
   "name" : "Cursed Energy Focus",
@@ -966,7 +916,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1013,11 +962,11 @@
   "moveCap" : 2,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000021",
   "name" : "Cursed Energy Surge",
@@ -1027,7 +976,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1074,11 +1022,11 @@
   "moveCap" : 2,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000022",
   "name" : "Miracle Creation",
@@ -1088,7 +1036,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1150,11 +1097,11 @@
   "moveCap" : 2,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000023",
   "name" : "Sword Slash",
@@ -1163,7 +1110,6 @@
   "basePower" : 42,
   "baseAccuracy" : 0.88,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1182,11 +1128,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "strength" : 20,
     "speed" : 30,
@@ -1196,11 +1138,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000024",
   "name" : "Sword Throw",
@@ -1209,7 +1151,6 @@
   "basePower" : 51,
   "baseAccuracy" : 0.82,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1228,11 +1169,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "speed" : 40,
     "combatAbility" : 45,
@@ -1242,11 +1179,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000025",
   "name" : "Ratio Mark",
@@ -1256,7 +1193,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1351,11 +1287,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000026",
   "name" : "Ratio Strike",
@@ -1364,7 +1300,6 @@
   "basePower" : 42,
   "baseAccuracy" : 0.94,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1413,11 +1348,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000027",
   "name" : "Batto Sword Drawing",
@@ -1467,11 +1402,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000028",
   "name" : "Simple Domain",
@@ -1481,7 +1416,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1527,11 +1461,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000029",
   "name" : "Sidestep",
@@ -1541,7 +1475,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1560,11 +1493,7 @@
   "dodgeChance" : 40,
   "dodgeScope" : "MELEE",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "speed" : 30,
     "combatAbility" : 25
@@ -1573,11 +1502,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : true
 }, {
   "id" : "000030",
   "name" : "Weapon Parry",
@@ -1587,7 +1516,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1607,11 +1535,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 4,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "speed" : 50,
     "strength" : 20,
@@ -1621,11 +1545,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : true,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000031",
   "name" : "Evasive Dash",
@@ -1635,7 +1559,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1654,11 +1577,7 @@
   "dodgeChance" : 75,
   "dodgeScope" : "RANGED",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "speed" : 70,
     "combatAbility" : 65
@@ -1667,11 +1586,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : true
 }, {
   "id" : "000032",
   "name" : "Divergent Fist",
@@ -1695,7 +1614,6 @@
   } ],
   "baseAccuracy" : 0.94,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1733,11 +1651,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000033",
   "name" : "Summon White Dog",
@@ -1747,7 +1665,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1792,11 +1709,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000034",
   "name" : "Summon Black Dog",
@@ -1806,7 +1723,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1851,11 +1767,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000035",
   "name" : "Katana Combination",
@@ -1868,28 +1784,24 @@
     "delayTicks" : 0,
     "requiresPreviousConnection" : false,
     "avoidable" : true,
-    "baseAccuracy" : 0.2,
-    "onHitEffects" : [ ]
+    "baseAccuracy" : 0.2
   }, {
     "basePower" : 20,
     "tags" : [ "PHYSICAL" ],
     "delayTicks" : 0,
     "requiresPreviousConnection" : false,
     "avoidable" : true,
-    "baseAccuracy" : -1.0,
-    "onHitEffects" : [ ]
+    "baseAccuracy" : -1.0
   }, {
     "basePower" : 20,
     "tags" : [ "PHYSICAL" ],
     "delayTicks" : 0,
     "requiresPreviousConnection" : false,
     "avoidable" : true,
-    "baseAccuracy" : -1.0,
-    "onHitEffects" : [ ]
+    "baseAccuracy" : -1.0
   } ],
   "baseAccuracy" : 0.93,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1908,11 +1820,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "strength" : 40,
     "combatAbility" : 80,
@@ -1922,11 +1830,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000036",
   "name" : "Cursed Sword Slash",
@@ -1935,7 +1843,6 @@
   "basePower" : 60,
   "baseAccuracy" : 0.88,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -1973,11 +1880,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000037",
   "name" : "Cursed Tool Deflection",
@@ -1987,7 +1894,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2021,11 +1927,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : true,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000038",
   "name" : "Keen Observation",
@@ -2035,7 +1941,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : true,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2086,11 +1991,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000039",
   "name" : "Summon Nue",
@@ -2100,7 +2005,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2145,11 +2049,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000040",
   "name" : "Summon Toad",
@@ -2159,7 +2063,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2204,11 +2107,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000041",
   "name" : "Summon Great Serpent",
@@ -2218,7 +2121,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2263,11 +2165,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000042",
   "name" : "Summon Divine Dog Totality",
@@ -2277,7 +2179,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2322,11 +2223,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000043",
   "name" : "Summon Toad/Nue Fusion",
@@ -2336,7 +2237,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2381,11 +2281,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000044",
   "name" : "Summon Max Elephant",
@@ -2395,7 +2295,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2440,11 +2339,11 @@
   "moveCap" : 1,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000045",
   "name" : "Dog Ambush",
@@ -2468,7 +2367,6 @@
   } ],
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2520,11 +2418,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000046",
   "name" : "Nue Lightning Strike",
@@ -2581,11 +2479,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000047",
   "name" : "Toad Pull",
@@ -2595,7 +2493,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2639,11 +2536,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : true
 }, {
   "id" : "000048",
   "name" : "Serpent Snare",
@@ -2700,11 +2597,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000049",
   "name" : "Totality Rush",
@@ -2713,7 +2610,6 @@
   "basePower" : 70,
   "baseAccuracy" : 0.95,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2757,11 +2653,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000050",
   "name" : "Winged Toad Snare",
@@ -2839,11 +2735,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000051",
   "name" : "Elephant Drop",
@@ -2852,7 +2748,6 @@
   "basePower" : 80,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : true,
   "heavy" : true,
   "potency" : 2,
@@ -2897,11 +2792,11 @@
   "aoeType" : "ALL_ENEMIES",
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000052",
   "name" : "Shadow Movement",
@@ -2911,7 +2806,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2947,11 +2841,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : true
 }, {
   "id" : "000053",
   "name" : "Desummon",
@@ -2961,7 +2855,6 @@
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
   "neverMiss" : true,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -2995,11 +2888,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000054",
   "name" : "Divine Dog Bite",
@@ -3008,7 +2901,6 @@
   "basePower" : 42,
   "baseAccuracy" : 0.95,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -3027,11 +2919,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "strength" : 0,
     "speed" : 0,
@@ -3042,11 +2930,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000055",
   "name" : "Tracking Pounce",
@@ -3055,7 +2943,6 @@
   "basePower" : 40,
   "baseAccuracy" : 1.0,
   "neverMiss" : true,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -3074,11 +2961,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "strength" : 0,
     "speed" : 0,
@@ -3089,11 +2972,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000056",
   "name" : "Rending Pounce",
@@ -3102,7 +2985,6 @@
   "basePower" : 55,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : true,
   "heavy" : false,
   "potency" : 1,
@@ -3137,11 +3019,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000057",
   "name" : "Electrified Talons",
@@ -3150,7 +3032,6 @@
   "basePower" : 40,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -3186,11 +3067,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000058",
   "name" : "Lightning Discharge",
@@ -3239,11 +3120,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000059",
   "name" : "Tongue Lash",
@@ -3252,7 +3133,6 @@
   "basePower" : 24,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -3271,11 +3151,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "strength" : 0,
     "combatAbility" : 0,
@@ -3286,11 +3162,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000060",
   "name" : "Binding Tongue",
@@ -3299,7 +3175,6 @@
   "basePower" : 18,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -3343,11 +3218,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000061",
   "name" : "Serpent Constrict",
@@ -3356,7 +3231,6 @@
   "basePower" : 50,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -3403,11 +3277,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000062",
   "name" : "Devouring Lunge",
@@ -3416,7 +3290,6 @@
   "basePower" : 70,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : true,
   "heavy" : true,
   "potency" : 2,
@@ -3451,11 +3324,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000063",
   "name" : "Totality Claw",
@@ -3464,7 +3337,6 @@
   "basePower" : 70,
   "baseAccuracy" : 0.96,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -3483,11 +3355,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "strength" : 0,
     "speed" : 0,
@@ -3498,11 +3366,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000064",
   "name" : "Predator Rush",
@@ -3515,20 +3383,17 @@
     "delayTicks" : 0,
     "requiresPreviousConnection" : false,
     "avoidable" : true,
-    "baseAccuracy" : -1.0,
-    "onHitEffects" : [ ]
+    "baseAccuracy" : -1.0
   }, {
     "basePower" : 42,
     "tags" : [ "PHYSICAL", "CURSED_ENERGY" ],
     "delayTicks" : 0,
     "requiresPreviousConnection" : false,
     "avoidable" : true,
-    "baseAccuracy" : -1.0,
-    "onHitEffects" : [ ]
+    "baseAccuracy" : -1.0
   } ],
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -3547,11 +3412,7 @@
   "dodgeChance" : 0,
   "dodgeScope" : "BOTH",
   "parryStaggerTicks" : 0,
-  "onHitEffects" : [ ],
-  "selfEffects" : [ ],
-  "onBlockEffects" : [ ],
-  "onParryEffects" : [ ],
-  "onDodgeEffects" : [ ],
+  "effects" : [ ],
   "prerequisites" : {
     "speed" : 0,
     "strength" : 0,
@@ -3562,11 +3423,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000065",
   "name" : "Crushing Stomp",
@@ -3575,7 +3436,6 @@
   "basePower" : 80,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : true,
   "heavy" : true,
   "potency" : 2,
@@ -3612,11 +3472,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000066",
   "name" : "Water Deluge",
@@ -3625,7 +3485,6 @@
   "basePower" : 55,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -3660,11 +3519,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000067",
   "name" : "Winged Tongue Snare",
@@ -3737,11 +3596,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000068",
   "name" : "Aerial Swarm",
@@ -3750,7 +3609,6 @@
   "basePower" : 28,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -3791,11 +3649,11 @@
   "aoeTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000069",
   "name" : "Don't Move",
@@ -3804,7 +3662,6 @@
   "basePower" : 0,
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -3883,11 +3740,11 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000070",
   "name" : "Blast Away",
@@ -3896,7 +3753,6 @@
   "basePower" : 40,
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -3969,11 +3825,11 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000071",
   "name" : "Sleep",
@@ -3982,7 +3838,6 @@
   "basePower" : 0,
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -4061,11 +3916,11 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000072",
   "name" : "Plummet",
@@ -4145,11 +4000,11 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000073",
   "name" : "Get Twisted",
@@ -4158,7 +4013,6 @@
   "basePower" : 90,
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -4225,11 +4079,11 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000074",
   "name" : "Return",
@@ -4238,7 +4092,6 @@
   "basePower" : 0,
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -4313,11 +4166,11 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000075",
   "name" : "Explode",
@@ -4326,7 +4179,6 @@
   "basePower" : 150,
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -4393,11 +4245,11 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000076",
   "name" : "Die",
@@ -4406,7 +4258,6 @@
   "basePower" : 0,
   "baseAccuracy" : 1.0,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -4481,11 +4332,11 @@
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000077",
   "name" : "Reinforced Strike",
@@ -4494,7 +4345,6 @@
   "basePower" : 45,
   "baseAccuracy" : 0.9,
   "neverMiss" : false,
-  "stun" : false,
   "guardBreak" : false,
   "heavy" : false,
   "potency" : 1,
@@ -4528,11 +4378,11 @@
   "moveCap" : 0,
   "aoeTargetCount" : 2,
   "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false
+  "dodge" : false
 }, {
   "id" : "000078",
   "name" : "Grapple",
@@ -4570,7 +4420,12 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
-  "mustBeGranted" : false
+  "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
+  "anyBlock" : false,
+  "parry" : false,
+  "dodge" : false
 }, {
   "id" : "000079",
   "name" : "Triple Kick",
@@ -4623,7 +4478,12 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
-  "mustBeGranted" : false
+  "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
+  "anyBlock" : false,
+  "parry" : false,
+  "dodge" : false
 }, {
   "id" : "000080",
   "name" : "Upper Cut",
@@ -4661,7 +4521,12 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
-  "mustBeGranted" : false
+  "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
+  "anyBlock" : false,
+  "parry" : false,
+  "dodge" : false
 }, {
   "id" : "000081",
   "name" : "Reinforced Triple Kick",
@@ -4719,7 +4584,12 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
-  "mustBeGranted" : false
+  "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
+  "anyBlock" : false,
+  "parry" : false,
+  "dodge" : false
 }, {
   "id" : "000082",
   "name" : "Reinforced Upper Cut",
@@ -4762,5 +4632,10 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
-  "mustBeGranted" : false
+  "mustBeGranted" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false,
+  "anyBlock" : false,
+  "parry" : false,
+  "dodge" : false
 } ]

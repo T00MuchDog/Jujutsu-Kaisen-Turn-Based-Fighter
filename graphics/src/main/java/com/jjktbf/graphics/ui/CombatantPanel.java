@@ -101,10 +101,10 @@ public class CombatantPanel {
     }
 
     public void draw(Batch batch, BitmapFont nameFont, BitmapFont barFont,
-                     String name, String cursedTechnique, float delta) {
+                     String name, float delta) {
         drawPlate(batch);
         drawSprite(batch, delta);
-        drawHud(batch, nameFont, barFont, name, cursedTechnique, delta);
+        drawHud(batch, nameFont, barFont, name, delta);
     }
 
     /** Draws the field plate separately so team layouts can share one plate. */
@@ -148,7 +148,7 @@ public class CombatantPanel {
 
     /** Draws only the resource card so it can be layered above a fighter pair. */
     public void drawHud(Batch batch, BitmapFont nameFont, BitmapFont barFont,
-                        String name, String cursedTechnique, float delta) {
+                        String name, float delta) {
         // Offset dark frame creates the hard lower-right shadow used by the reference HUD.
         ui.palette.draw(batch, hudBounds.x + 7f * hudScale, hudBounds.y - 7f * hudScale,
             hudBounds.width, hudBounds.height);
@@ -180,29 +180,6 @@ public class CombatantPanel {
         barFont.getData().setScale(originalBarScaleX * hudScale, originalBarScaleY * hudScale);
         hpBar.draw(batch, barFont, ui, showResourceValues);
         ceBar.draw(batch, barFont, ui, showResourceValues);
-        drawCursedTechnique(batch, barFont, cursedTechnique);
         barFont.getData().setScale(originalBarScaleX, originalBarScaleY);
-    }
-
-    private void drawCursedTechnique(Batch batch, BitmapFont font, String cursedTechnique) {
-        if (cursedTechnique == null || cursedTechnique.isBlank()) return;
-
-        float availableWidth = hudBounds.width - 28f * hudScale;
-        GlyphLayout layout = new GlyphLayout(font, cursedTechnique);
-        float techniqueScale = Math.min(0.78f, (ceBarY() - hudBounds.y - 2f * hudScale)
-            / Math.max(1f, font.getCapHeight()));
-        if (layout.width * techniqueScale > availableWidth) {
-            techniqueScale = availableWidth / layout.width;
-        }
-        font.getData().setScale(
-            font.getData().scaleX * techniqueScale,
-            font.getData().scaleY * techniqueScale);
-        font.setColor(Color.BLACK);
-        font.draw(batch, cursedTechnique, hudBounds.x + 14f * hudScale,
-            ceBarY() - 2f * hudScale);
-    }
-
-    private float ceBarY() {
-        return hudBounds.y + Math.max(10f * hudScale, hudBounds.height * 0.11f);
     }
 }

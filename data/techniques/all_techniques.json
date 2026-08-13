@@ -348,8 +348,8 @@
     "id" : "node-000020",
     "contentType" : "ABILITY",
     "contentId" : "000034",
-    "x" : 39.0,
-    "y" : 343.0,
+    "x" : 36.00006,
+    "y" : -85.000015,
     "prerequisites" : [ {
       "type" : "NODE",
       "nodeId" : "node-000000",
@@ -400,8 +400,8 @@
     "id" : "node-000010",
     "contentType" : "MOVE",
     "contentId" : "000043",
-    "x" : 1253.9999,
-    "y" : 343.0,
+    "x" : 1233.9998,
+    "y" : -89.999954,
     "prerequisites" : [ {
       "type" : "NODE",
       "nodeId" : "node-000004",
@@ -546,8 +546,8 @@
     "id" : "node-000015",
     "contentType" : "MOVE",
     "contentId" : "000049",
-    "x" : 861.99976,
-    "y" : 44.00009,
+    "x" : 874.99976,
+    "y" : 54.000153,
     "prerequisites" : [ {
       "type" : "NODE",
       "nodeId" : "node-000009",
@@ -572,8 +572,8 @@
     "id" : "node-000016",
     "contentType" : "MOVE",
     "contentId" : "000050",
-    "x" : 1243.0,
-    "y" : 47.000046,
+    "x" : 1235.0,
+    "y" : -230.99994,
     "prerequisites" : [ {
       "type" : "NODE",
       "nodeId" : "node-000010",

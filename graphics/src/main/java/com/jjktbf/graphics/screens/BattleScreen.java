@@ -724,7 +724,7 @@ public class BattleScreen implements Screen, BattleView {
             if (faintAnimationFor(panel) == null) {
                 CombatantHud hud = huds.get(i);
                 panel.drawHud(batch, assets.fontMedium, assets.fontSmall,
-                    hud.name(), hud.cursedTechnique(), frameDelta);
+                    hud.name(), frameDelta);
             }
         }
     }
@@ -3907,25 +3907,21 @@ public class BattleScreen implements Screen, BattleView {
             List<CharacterState> side = playerSide
                 ? renderOnlinePlayerTeam : renderOnlineEnemyTeam;
             return side.stream()
-                .map(character -> new CombatantHud(
-                    character.name(), game.multiplayerCursedTechnique(character.characterId())))
+                .map(character -> new CombatantHud(character.name()))
                 .toList();
         }
         List<BattleCombatant> team = playerSide ? renderPlayerTeam : renderEnemyTeam;
         if (!team.isEmpty()) {
             return team.stream()
-                .map(combatant -> new CombatantHud(
-                    combatant.getCharacter().getName(),
-                    combatant.getCharacter().getInnateTechniqueName()))
+                .map(combatant -> new CombatantHud(combatant.getCharacter().getName()))
                 .toList();
         }
         BattleCombatant primary = playerSide ? renderPlayer : renderEnemy;
-        return primary == null ? List.of() : List.of(new CombatantHud(
-            primary.getCharacter().getName(),
-            primary.getCharacter().getInnateTechniqueName()));
+        return primary == null ? List.of() : List.of(
+            new CombatantHud(primary.getCharacter().getName()));
     }
 
-    private record CombatantHud(String name, String cursedTechnique) { }
+    private record CombatantHud(String name) { }
 
     static List<CharacterState> activeOnlineCombatants(PlayerState player) {
         if (player == null) return List.of();

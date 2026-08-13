@@ -1157,6 +1157,10 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 rebuildSkillTree(cd);
             }
 
+            @Override public void onReorder(MovePool pool, List<String> orderedIds) {
+                reorderLearnedMoves(cd, pool, orderedIds);
+            }
+
             @Override public int learnedCount(MovePool pool) {
                 return SlotBudgetEnforcer.countUsage(getAssignedMovePoolList(cd))
                     .getOrDefault(pool, 0);
@@ -1166,6 +1170,52 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 return SlotBudgetEnforcer.slotBudgetFor(combatStatsWithAbilitySlots(cd), pool);
             }
         }, game.audio()::play, skin);
+    }
+
+    private void reorderLearnedMoves(
+        CharacterData cd,
+        MovePool pool,
+        List<String> orderedIds
+    ) {
+        if (cd.moveIds == null) return;
+        List<Integer> poolIndexes = new ArrayList<>();
+        List<String> currentIds = new ArrayList<>();
+        for (int index = 0; index < cd.moveIds.size(); index++) {
+            String moveId = cd.moveIds.get(index);
+            MoveData move = moveId == null ? null : moveRepo.findById(moveId).orElse(null);
+            MovePool movePool = move == null ? MovePool.COMBAT_ARTS : move.derivedPool();
+            if (movePool != pool) continue;
+            poolIndexes.add(index);
+            currentIds.add(moveId);
+        }
+        if (!replaceIndexedValues(cd.moveIds, poolIndexes, currentIds, orderedIds)) return;
+        markDirty();
+    }
+
+    static boolean replaceIndexedValues(
+        List<String> allIds,
+        List<Integer> indexes,
+        List<String> currentIds,
+        List<String> orderedIds
+    ) {
+        if (allIds == null || indexes == null || currentIds == null || orderedIds == null
+            || currentIds.equals(orderedIds) || indexes.size() != currentIds.size()
+            || currentIds.size() != orderedIds.size()) return false;
+
+        List<String> remaining = new ArrayList<>(currentIds);
+        for (String moveId : orderedIds) {
+            if (!remaining.remove(moveId)) return false;
+        }
+        if (!remaining.isEmpty()) return false;
+
+        for (int index = 0; index < indexes.size(); index++) {
+            int targetIndex = indexes.get(index);
+            if (targetIndex < 0 || targetIndex >= allIds.size()) return false;
+        }
+        for (int index = 0; index < indexes.size(); index++) {
+            allIds.set(indexes.get(index), orderedIds.get(index));
+        }
+        return true;
     }
 
     /** Collect the {@link MovePool} of every assigned non-free move. */

@@ -67,6 +67,8 @@ public class PlanningPanel {
     private static final int PALETTE_ROWS = 2;
     private static final int PALETTE_PAGE_SIZE = PALETTE_COLUMNS * PALETTE_ROWS;
     private static final float DRAG_THRESHOLD = 5f;
+    private static final float ACTOR_NAME_SCALE = 3f;
+    private static final float ACTOR_NAME_RESERVED_HEIGHT = 56f;
 
     private final BattlePlan plan;
     private final int maxCe;
@@ -518,10 +520,11 @@ public class PlanningPanel {
         float labelWidth = compactLayout ? 0f : Math.min(150f, Math.max(108f, width * 0.12f));
         float timelineH = MiraclesMeter.timelineHeightForViewport(height);
         float boardAreaBottom = paletteBounds.y + paletteBounds.height + 26f;
-        float boardAreaTop = headerBounds.y - 24f;
+        float actorNameHeight = actorName.isBlank() ? 24f : ACTOR_NAME_RESERVED_HEIGHT;
+        float boardAreaTop = headerBounds.y - actorNameHeight;
         if (miraclesMeter.isVisible()) {
             float miracleSize = MiraclesMeter.sizeForViewport(height);
-            float miracleY = headerBounds.y - 16f - miracleSize;
+            float miracleY = boardAreaTop - 16f - miracleSize;
             miraclesMeter.setBounds(headerBounds.x, miracleY, miracleSize);
             // Compact timeline labels sit above their bars, so leave them a little more clearance.
             boardAreaTop = miracleY - (compactLayout ? 28f : 16f);
@@ -838,9 +841,18 @@ public class PlanningPanel {
 
     private void drawActorName(Batch batch, BitmapFont font) {
         if (actorName.isBlank()) return;
+        GlyphLayout layout = new GlyphLayout(font, actorName);
+        float availableWidth = Math.max(1f, headerBounds.width - 36f);
+        float scale = Math.min(ACTOR_NAME_SCALE, availableWidth / layout.width);
+        float originalScaleX = font.getData().scaleX;
+        float originalScaleY = font.getData().scaleY;
+        Color originalColor = new Color(font.getColor());
+        font.getData().setScale(originalScaleX * scale, originalScaleY * scale);
         font.setColor(Color.BLACK);
         font.draw(batch, actorName, headerBounds.x + 18f,
             headerBounds.y - 6f);
+        font.getData().setScale(originalScaleX, originalScaleY);
+        font.setColor(originalColor);
     }
 
     private void drawTargetMenu(Batch batch, BitmapFont font) {
