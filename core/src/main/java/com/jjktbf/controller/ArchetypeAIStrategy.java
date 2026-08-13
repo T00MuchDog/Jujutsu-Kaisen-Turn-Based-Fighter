@@ -39,12 +39,14 @@ import java.util.Set;
 public class ArchetypeAIStrategy implements AIStrategy {
 
     private static final String CURSED_SPEECH = "Cursed Speech";
+    private static final String TEN_SHADOWS = "Ten Shadows";
 
     private final GreedyAIStrategy sorcererStrategy = new GreedyAIStrategy();
     private final ShikigamiAIStrategy shikigamiStrategy = new ShikigamiAIStrategy();
     private final AggressiveSorcererAIStrategy aggressiveStrategy = new AggressiveSorcererAIStrategy();
     private final PassiveSorcererAIStrategy passiveStrategy = new PassiveSorcererAIStrategy();
     private final CursedSpeechAIStrategy cursedSpeechStrategy = new CursedSpeechAIStrategy();
+    private final TenShadowsAIStrategy tenShadowsStrategy = new TenShadowsAIStrategy();
 
     /** Hardcoded archetype assignment for the final technique-less sorcerer roster. */
     private static final Set<String> AGGRESSIVE_IDS = Set.of("000003", "000005"); // Yuji Itadori, Maki Zenin
@@ -108,6 +110,9 @@ public class ArchetypeAIStrategy implements AIStrategy {
         if (CURSED_SPEECH.equalsIgnoreCase(character.getInnateTechniqueName())) {
             return cursedSpeechStrategy.buildPlan(state, ai, rng); // state-aware multitarget
         }
+        if (TEN_SHADOWS.equalsIgnoreCase(character.getInnateTechniqueName())) {
+            return tenShadowsStrategy.buildPlan(state, ai, rng); // state-aware summoning
+        }
         return sorcererStrategy.selectPlan(ai, opponent, rng);
     }
 
@@ -142,6 +147,10 @@ public class ArchetypeAIStrategy implements AIStrategy {
         if (CURSED_SPEECH.equalsIgnoreCase(character.getInnateTechniqueName())) {
             // No state here: degrade to single-opponent CS planning.
             return cursedSpeechStrategy.selectPlan(ai, opponent, rng);
+        }
+        if (TEN_SHADOWS.equalsIgnoreCase(character.getInnateTechniqueName())) {
+            // No state here: degrade to single-opponent Ten Shadows planning.
+            return tenShadowsStrategy.selectPlan(ai, opponent, rng);
         }
         return sorcererStrategy.selectPlan(ai, opponent, rng);
     }

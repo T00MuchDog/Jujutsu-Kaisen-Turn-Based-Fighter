@@ -217,6 +217,17 @@ final class AIFixtures {
         return new BattleCombatant(c, List.of());
     }
 
+    /** A Ten Shadows sorcerer with strong CE/CTM so his authored summons are usable. */
+    static BattleCombatant tenShadowsSorcerer(String id, Move... moves) {
+        CharacterStats stats = new CharacterStats.Builder()
+            .vitality(100).speed(80).combatAbility(80).strength(80).durability(80)
+            .cursedEnergyReserves(200).cursedEnergyEfficiency(200).cursedEnergyOutput(200)
+            .jujutsuSkill(200).cursedTechniqueMastery(200).build();
+        SorcererCharacter c = new SorcererCharacter(
+            id, id, stats, "Ten Shadows", List.of(moves), List.of(), false);
+        return new BattleCombatant(c, List.of());
+    }
+
     /** An enemy shikigami (low CE, so recoil against it stays small and predictable). */
     static BattleCombatant shikigamiEnemy(String id) {
         CharacterStats stats = new CharacterStats.Builder()
