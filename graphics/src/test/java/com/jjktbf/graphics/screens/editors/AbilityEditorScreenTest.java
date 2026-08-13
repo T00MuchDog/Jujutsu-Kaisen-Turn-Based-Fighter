@@ -74,6 +74,16 @@ class AbilityEditorScreenTest {
     }
 
     @Test
+    void recordSectionsSeparatePassiveAndActiveAbilities() {
+        AbilityData ability = new AbilityData();
+        ability.category = "PASSIVE";
+        assertEquals("PASSIVE", AbilityEditorScreen.abilityRecordSection(ability));
+
+        ability.category = "active";
+        assertEquals("ACTIVE", AbilityEditorScreen.abilityRecordSection(ability));
+    }
+
+    @Test
     void temporarilySwitchingToPassivePreservesAuthoredConditions() {
         AbilityConditionRuleData rule = AbilityConditionRuleData.allEffects(
             AbilityConditionData.manualActivation());

@@ -81,6 +81,30 @@ public final class CodedAbilities {
         return false;
     }
 
+    /**
+     * Notify every runtime that one of the owner's summons was destroyed. See
+     * {@link CodedAbilityRuntime#onOwnedSummonDestroyed}. Uses the passive-binding
+     * gate: destruction state is a property of a passive technique, not an
+     * activated ability.
+     */
+    public void onOwnedSummonDestroyed(
+        BattleState state, BattleCombatant owner, BattleCombatant destroyedSummon
+    ) {
+        onOwnedSummonDestroyed(state, owner, destroyedSummon, CodedAbilities::passiveBinding);
+    }
+
+    public void onOwnedSummonDestroyed(
+        BattleState state,
+        BattleCombatant owner,
+        BattleCombatant destroyedSummon,
+        Predicate<CodedAbilityBinding> activationGate
+    ) {
+        for (RuntimeEntry entry : runtimes) {
+            entry.runtime().onOwnedSummonDestroyed(
+                state, owner, destroyedSummon, featureGate(entry, activationGate));
+        }
+    }
+
     public CodedHitModifiers onAttackConnected(
         BattleCombatant attacker,
         BattleCombatant defender,

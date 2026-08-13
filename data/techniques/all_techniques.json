@@ -345,6 +345,20 @@
       "minimum" : 50
     } ]
   }, {
+    "id" : "node-000020",
+    "contentType" : "ABILITY",
+    "contentId" : "000034",
+    "x" : 39.0,
+    "y" : 343.0,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000000",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 50
+    } ]
+  }, {
     "id" : "node-000009",
     "contentType" : "MOVE",
     "contentId" : "000042",
@@ -387,7 +401,7 @@
     "contentType" : "MOVE",
     "contentId" : "000043",
     "x" : 1253.9999,
-    "y" : 183.00009,
+    "y" : 343.0,
     "prerequisites" : [ {
       "type" : "NODE",
       "nodeId" : "node-000004",
@@ -398,7 +412,7 @@
       "attached" : true
     }, {
       "type" : "NODE",
-      "nodeId" : "node-000008",
+      "nodeId" : "node-000020",
       "attached" : true
     }, {
       "type" : "MASTERY",

@@ -67,7 +67,7 @@ public class TenShadowsAIStrategy implements AIStrategy {
         "000011", 475, // Great Serpent Orochi
         "000012", 660, // Divine Dog Totality
         "000013", 601, // Max Elephant
-        "000014", 471  // Toad/Nue Totality
+        "000014", 471  // Toad/Nue Fusion (Well's Unknown Abyss)
     );
 
     /** Danger tier derived from an opponent's base-stat total. */

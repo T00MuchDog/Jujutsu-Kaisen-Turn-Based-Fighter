@@ -123,7 +123,7 @@
 }, {
   "id" : "000006",
   "name" : "Megumi Fushiguro (Kyoto Goodwill Event)",
-  "description" : "A more experienced Megumi who combines close combat, fluid shadow movement, stronger shikigami, and Totality to pressure opponents from every range.",
+  "description" : "A more experienced Megumi who combines close combat, fluid shadow movement, stronger shikigami, and both Totality and Well's Unknown Abyss to pressure opponents from every range.",
   "spriteAsset" : "assets/sprites/characters/megumi_frontsprite.png",
   "innateTechniqueName" : "Ten Shadows",
   "hasWeapon" : false,
@@ -139,8 +139,8 @@
   "cursedTechniqueMastery" : 72,
   "moveIds" : [ "000000", "000001", "000002", "000003", "000029", "000042", "000039", "000040", "000044", "000043", "000049", "000046", "000047", "000051", "000050", "000052", "000021", "000020" ],
   "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000029", "000033", "000034", "000039", "000040", "000041", "000042", "000043", "000044", "000045", "000046", "000047", "000048", "000049", "000050", "000051", "000052" ],
-  "abilityIds" : [ "000013", "000014", "000020", "000021" ],
-  "availableAbilityIds" : [ "000013", "000014", "000020", "000021" ]
+  "abilityIds" : [ "000013", "000014", "000020", "000021", "000034" ],
+  "availableAbilityIds" : [ "000013", "000014", "000020", "000021", "000034" ]
 }, {
   "id" : "000007",
   "name" : "Divine Dog White",
@@ -311,10 +311,10 @@
   "availableAbilityIds" : [ "000022", "000029" ]
 }, {
   "id" : "000014",
-  "name" : "Toad/Nue Totality",
-  "description" : "A winged swarm formed by combining Toad and Nue through Totality, binding enemies from above in coordinated attacks.",
+  "name" : "Toad/Nue Fusion",
+  "description" : "A temporary fusion of Toad and Nue summoned through Well's Unknown Abyss — a winged swarm that binds enemies from above. Weaker than a Totality, it may be destroyed without losing its component shikigami.",
   "title" : "SHIKIGAMI",
-  "spriteAsset" : "assets/sprites/shikigami/ToadNueTotality_frontsprite.png",
+  "spriteAsset" : "assets/sprites/shikigami/ToadNueFusion_frontsprite.png",
   "type" : "SHIKIGAMI",
   "directlySelectable" : false,
   "baseCeDrainPerTick" : 0.45,

@@ -1714,11 +1714,11 @@
   "prerequisites" : {
     "strength" : 0,
     "combatAbility" : 50,
-    "speed" : 0,
     "jujutsuSkill" : 10,
     "cursedEnergyReserves" : 20,
     "cursedEnergyEfficiency" : 30,
-    "cursedEnergyOutput" : 20
+    "cursedEnergyOutput" : 20,
+    "speed" : 60
   },
   "isFreeMove" : false,
   "moveCap" : 0,
@@ -2320,8 +2320,8 @@
   "flatBlock" : false
 }, {
   "id" : "000043",
-  "name" : "Summon Toad/Nue Totality",
-  "description" : "Manifest a Toad/Nue Totality swarm from the user's shadow.",
+  "name" : "Summon Toad/Nue Fusion",
+  "description" : "Fuse Toad and Nue through Well's Unknown Abyss into a temporary winged swarm.",
   "tags" : [ "UTILITY", "INNATE_TECHNIQUE", "CURSED_ENERGY" ],
   "basePower" : 0,
   "hitComponents" : [ ],

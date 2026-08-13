@@ -123,6 +123,28 @@ public interface CodedAbilityRuntime {
         return false;
     }
 
+    /**
+     * React when one of the owner's summoned shikigami is destroyed (HP reached
+     * zero) during defeat reconciliation.
+     *
+     * <p>This is the hook a summoning technique uses to record permanent,
+     * rest-of-battle state — e.g. the Ten Shadows technique marks a destroyed
+     * shikigami as unsummonable for the remainder of the fight. Default no-op so
+     * a runtime only overrides what it needs.
+     *
+     * @param state            current battle state
+     * @param owner            the summoner who owns the destroyed summon
+     * @param destroyedSummon  the summon whose HP just reached zero
+     * @param featureActive    gate reporting whether a given coded feature is live
+     */
+    default void onOwnedSummonDestroyed(
+        BattleState state,
+        BattleCombatant owner,
+        BattleCombatant destroyedSummon,
+        Predicate<String> featureActive
+    ) {
+    }
+
     List<CombatEvent> drainPendingEvents(int tick);
 
     CodedAbilityState state();

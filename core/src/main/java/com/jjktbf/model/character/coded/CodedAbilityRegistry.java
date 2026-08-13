@@ -160,6 +160,8 @@ public final class CodedAbilityRegistry {
                 TenShadowsAbility.TECHNIQUE, "Ten Shadows Technique"),
             new AbilityFeature(TenShadowsAbility.KEY,
                 TenShadowsAbility.TOTALITY, "Totality"),
+            new AbilityFeature(TenShadowsAbility.KEY,
+                TenShadowsAbility.WELLS_UNKNOWN_ABYSS, "Well's Unknown Abyss"),
             new AbilityFeature(CursedSpeechAbility.KEY,
                 CursedSpeechAbility.TECHNIQUE, "Cursed Speech"),
             new AbilityFeature(CursedSpeechAbility.KEY,

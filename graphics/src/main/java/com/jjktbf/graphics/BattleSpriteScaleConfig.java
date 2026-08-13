@@ -49,7 +49,7 @@ public final class BattleSpriteScaleConfig {
             "assets/sprites/shikigami/Nue_frontsprite.png",
             Scale.X_1_2),
         Map.entry(
-            "assets/sprites/shikigami/ToadNueTotality_frontsprite.png",
+            "assets/sprites/shikigami/ToadNueFusion_frontsprite.png",
             Scale.X_0_8)
     );
 

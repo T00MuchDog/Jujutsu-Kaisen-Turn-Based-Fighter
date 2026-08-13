@@ -479,8 +479,8 @@
 }, {
   "id" : "000020",
   "name" : "Totality",
-  "flavourText" : "When a shikigami is lost, its strength does not disappear; that power passes into another compatible shadow.",
-  "mechanicText" : "Unlock TOTALITY shikigami formed from inherited or combined power.",
+  "flavourText" : "When a shikigami falls in battle, its essence is not lost — the survivor permanently inherits that power, forging a stronger and lasting fusion that cannot be undone.",
+  "mechanicText" : "Unlock TOTALITY shikigami: permanent fusions born from a destroyed shikigami's inherited essence. Stronger than any living fusion.",
   "category" : "PASSIVE",
   "sourceType" : "TECHNIQUE",
   "sourceValue" : "Ten Shadows",
@@ -530,7 +530,7 @@
   "id" : "000023",
   "name" : "White Dog",
   "flavourText" : "The white Divine Dog pursues cursed traces with exceptional speed and precision.",
-  "mechanicText" : "Unlock DIVINE DOG BITE and TRACKING POUNCE. Drain 0.20 CE from the summoner each active tick.",
+  "mechanicText" : "Unlock DIVINE DOG BITE and TRACKING POUNCE",
   "category" : "PASSIVE",
   "sourceType" : "SHIKIGAMI",
   "effects" : [ {
@@ -547,7 +547,7 @@
   "id" : "000024",
   "name" : "Black Dog",
   "flavourText" : "The black Divine Dog brings greater force to the hunt, ripping apart anything it corners.",
-  "mechanicText" : "Unlock DIVINE DOG BITE and RENDING POUNCE. Drain 0.20 CE from the summoner each active tick.",
+  "mechanicText" : "Unlock DIVINE DOG BITE and RENDING POUNCE",
   "category" : "PASSIVE",
   "sourceType" : "SHIKIGAMI",
   "effects" : [ {
@@ -581,7 +581,7 @@
   "id" : "000026",
   "name" : "Toad",
   "flavourText" : "Toad controls space with a long, powerful tongue suited to striking and binding prey.",
-  "mechanicText" : "Unlock TONGUE LASH and BINDING TONGUE. Drain 0.20 CE from the summoner each active tick.",
+  "mechanicText" : "Unlock TONGUE LASH and BINDING TONGUE",
   "category" : "PASSIVE",
   "sourceType" : "SHIKIGAMI",
   "effects" : [ {
@@ -598,7 +598,7 @@
   "id" : "000027",
   "name" : "Great Serpent",
   "flavourText" : "Great Serpent overwhelms prey with its immense coils before swallowing the opening whole.",
-  "mechanicText" : "Unlock SERPENT CONSTRICT and DEVOURING LUNGE. Drain 0.45 CE from the summoner each active tick.",
+  "mechanicText" : "Unlock SERPENT CONSTRICT and DEVOURING LUNGE",
   "category" : "PASSIVE",
   "sourceType" : "SHIKIGAMI",
   "effects" : [ {
@@ -615,7 +615,7 @@
   "id" : "000028",
   "name" : "Divine Dog Totality",
   "flavourText" : "Totality concentrates the Divine Dogs' inherited power into a predator of extraordinary speed and force.",
-  "mechanicText" : "Unlock TOTALITY CLAW and PREDATOR RUSH. Drain 0.40 CE from the summoner each active tick.",
+  "mechanicText" : "Unlock TOTALITY CLAW and PREDATOR RUSH",
   "category" : "PASSIVE",
   "sourceType" : "SHIKIGAMI",
   "effects" : [ {
@@ -632,7 +632,7 @@
   "id" : "000029",
   "name" : "Max Elephant",
   "flavourText" : "Max Elephant manifests overwhelming mass and a vast volume of water through the user's shadow.",
-  "mechanicText" : "Unlock CRUSHING STOMP and WATER DELUGE. Drain 0.80 CE from the summoner each active tick.",
+  "mechanicText" : "Unlock CRUSHING STOMP and WATER DELUGE",
   "category" : "PASSIVE",
   "sourceType" : "SHIKIGAMI",
   "effects" : [ {
@@ -647,8 +647,8 @@
   "masteryThreshold" : 0
 }, {
   "id" : "000030",
-  "name" : "Toad/Nue Totality",
-  "flavourText" : "A swarm of winged toads combines Nue's mobility with Toad's binding tongue through Totality.",
+  "name" : "Toad/Nue Fusion",
+  "flavourText" : "Through Well's Unknown Abyss, Toad and Nue merge into a winged swarm that binds enemies from above while striking with coordinated tongues and talons.",
   "mechanicText" : "Unlock WINGED TONGUE SNARE and AERIAL SWARM. Drain 0.45 CE from the summoner each active tick.",
   "category" : "PASSIVE",
   "sourceType" : "SHIKIGAMI",
@@ -731,4 +731,19 @@
     "doubleValue" : 0.0
   } ],
   "masteryThreshold" : 0
+}, {
+  "id" : "000034",
+  "name" : "Well's Unknown Abyss",
+  "flavourText" : "Two living shikigami are drawn together into a single composite shadow — a temporary union weaker than any Totality, but one that may be broken apart and reformed freely, for its components never truly die.",
+  "mechanicText" : "Unlock WELLS UNKNOWN ABYSS shikigami: temporary fusions of two living shikigami. Weaker than Totality, but destroyed at no lasting cost.",
+  "category" : "PASSIVE",
+  "sourceType" : "TECHNIQUE",
+  "sourceValue" : "Ten Shadows",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED",
+    "codedAbilityKey" : "TEN_SHADOWS",
+    "codedFeature" : "WELLS_UNKNOWN_ABYSS"
+  } ],
+  "masteryThreshold" : 50
 } ]

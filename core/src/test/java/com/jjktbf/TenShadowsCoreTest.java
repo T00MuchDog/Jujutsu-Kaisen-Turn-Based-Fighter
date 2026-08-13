@@ -17,6 +17,7 @@ import com.jjktbf.model.character.ShikigamiCharacter;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.character.coded.ShikigamiMoveRuntime;
+import com.jjktbf.model.character.coded.TenShadowsAbility;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
@@ -208,7 +209,8 @@ class TenShadowsCoreTest {
 
     @Test
     void destroyedSummonIsBlockedForRestOfBattle() {
-        BattleCombatant summoner = fighter("SUMMONER", List.of(capAbility(2)));
+        BattleCombatant summoner = fighter("SUMMONER",
+            List.of(capAbility(2), tenShadowsTechniqueAbility()));
         BattleState state = state(summoner, fighter("ENEMY", List.of()));
         BattleCombatant dog = summon(state, summoner, "DOG");
 
@@ -222,6 +224,47 @@ class TenShadowsCoreTest {
         assertFalse(MoveAvailability.isAvailable(state, summoner, summonDog));
         state.endRound();
         assertFalse(state.enqueueSummon(summoner, "DOG"));
+    }
+
+    @Test
+    void tenShadowsTechniqueAloneRecordsDestroyedSummon() {
+        // The Ten Shadows technique by itself — with no MAX_ACTIVE_SUMMONS cap —
+        // must still mark a destroyed shikigami unsummonable for the rest of the
+        // battle. Permanence is a property of the technique, not the summon cap.
+        BattleCombatant summoner = fighter("SUMMONER",
+            List.of(tenShadowsTechniqueAbility()));
+        BattleState state = state(summoner, fighter("ENEMY", List.of()));
+        BattleCombatant dog = summon(state, summoner, "DOG");
+
+        dog.receiveInstantKill();
+        state.reconcileDefeats();
+
+        assertTrue(state.isSummonDestroyed(summoner, "DOG"));
+        assertFalse(state.enqueueSummon(summoner, "DOG"),
+            "a destroyed shikigami cannot be resummoned");
+        Move summonDog = utility("SUMMON_DOG", 1).summonCharacterId("DOG").build();
+        assertFalse(MoveAvailability.isAvailable(state, summoner, summonDog),
+            "the summon move stays greyed out");
+        state.endRound();
+        assertFalse(state.enqueueSummon(summoner, "DOG"),
+            "the destruction persists across rounds");
+    }
+
+    @Test
+    void destroyedSummonIsNotLockedWithoutTenShadowsTechnique() {
+        // A summoner with a cap but NOT the Ten Shadows technique does not gain
+        // the permanent-destruction restriction. Guards against re-coupling
+        // permanence to the unrelated maxActiveSummons cap.
+        BattleCombatant summoner = fighter("SUMMONER", List.of(capAbility(2)));
+        BattleState state = state(summoner, fighter("ENEMY", List.of()));
+        BattleCombatant dog = summon(state, summoner, "DOG");
+
+        dog.receiveInstantKill();
+        state.reconcileDefeats();
+
+        assertFalse(state.isSummonDestroyed(summoner, "DOG"));
+        assertTrue(state.enqueueSummon(summoner, "DOG"),
+            "without the Ten Shadows technique a destroyed summon is not locked");
     }
 
     @Test
@@ -494,6 +537,15 @@ class TenShadowsCoreTest {
         AbilityEffectData effect = AbilityEffectType.MAX_ACTIVE_SUMMONS.createDefault();
         effect.intValue = cap;
         return new Ability(abilityData("CAP_" + cap, "Cap", "PASSIVE", "TECHNIQUE",
+            List.of(effect)));
+    }
+
+    private static Ability tenShadowsTechniqueAbility() {
+        AbilityEffectData effect = AbilityEffectType.CODED.createDefault();
+        effect.codedAbilityKey = TenShadowsAbility.KEY;
+        effect.codedFeature = TenShadowsAbility.TECHNIQUE;
+        return new Ability(abilityData(
+            "TEN_SHADOWS", "Ten Shadows Technique", "PASSIVE", "TECHNIQUE",
             List.of(effect)));
     }
 

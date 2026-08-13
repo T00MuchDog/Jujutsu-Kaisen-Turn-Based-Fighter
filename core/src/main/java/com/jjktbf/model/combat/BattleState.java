@@ -515,6 +515,21 @@ public class BattleState {
             summoner.getInstanceId(), Set.of()));
     }
 
+    /**
+     * Mark a shikigami definition as permanently destroyed for this summoner for
+     * the remainder of the battle, so it cannot be resummoned and its summon move
+     * stays greyed out. Recorded by the summoning technique's coded runtime (the
+     * Ten Shadows technique) when one of its owned shikigami is destroyed — not
+     * keyed on the unrelated {@code maxActiveSummons} cap.
+     */
+    public void recordSummonDestroyed(BattleCombatant summoner, String summonCharacterId) {
+        if (summoner == null || summoner.getInstanceId() == null
+            || summonCharacterId == null || summonCharacterId.isBlank()) return;
+        destroyedSummonsByOwner
+            .computeIfAbsent(summoner.getInstanceId(), ignored -> new HashSet<>())
+            .add(summonCharacterId.trim());
+    }
+
     public boolean isSummonOnCooldown(BattleCombatant summoner, String summonCharacterId) {
         Integer availableRound = summonAvailableRound(summoner, summonCharacterId);
         return availableRound != null && roundNumber < availableRound;
@@ -737,10 +752,13 @@ public class BattleState {
             if (c.isDefeated()) {
                 if (c.isSummon() && c.getSummonerId() != null) {
                     BattleCombatant owner = combatant(c.getSummonerId());
-                    if (owner != null && owner.getAbilityFlags().maxActiveSummons != null) {
-                        destroyedSummonsByOwner
-                            .computeIfAbsent(owner.getInstanceId(), ignored -> new HashSet<>())
-                            .add(c.getCharacter().getId());
+                    // Permanence of a destroyed shikigami is a property of the
+                    // summoning technique (e.g. the Ten Shadows technique), not
+                    // of the unrelated maxActiveSummons cap, so the technique's
+                    // coded runtime owns the recording via the lifecycle hook.
+                    if (owner != null) {
+                        owner.getCodedAbilities()
+                            .onOwnedSummonDestroyed(this, owner, c);
                     }
                 }
                 c.markLifecycleDefeated();

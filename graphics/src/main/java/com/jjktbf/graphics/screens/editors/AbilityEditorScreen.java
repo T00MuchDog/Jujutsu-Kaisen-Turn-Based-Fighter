@@ -48,6 +48,10 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
     private static final String SELECT_MOVE = "[select a move]";
     private static final String SELECT_TECHNIQUE = "[select a technique]";
     private static final String SELECT_ABILITY = "[select an ability]";
+    private static final String PASSIVE_SECTION = "PASSIVE";
+    private static final String ACTIVE_SECTION = "ACTIVE";
+    private static final List<String> ABILITY_RECORD_SECTIONS = List.of(
+        PASSIVE_SECTION, ACTIVE_SECTION);
 
     private final AbilityRepository repo;
     private final MoveRepository moveRepo;
@@ -124,8 +128,21 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
 
     @Override
     protected String listLabel(AbilityData record) {
-        String category = record.category != null ? " (" + record.category + ")" : "";
-        return record.name + category;
+        return record.name;
+    }
+
+    @Override
+    protected List<String> recordSections() {
+        return ABILITY_RECORD_SECTIONS;
+    }
+
+    @Override
+    protected String recordSection(AbilityData record) {
+        return abilityRecordSection(record);
+    }
+
+    static String abilityRecordSection(AbilityData record) {
+        return record != null && record.isActive() ? ACTIVE_SECTION : PASSIVE_SECTION;
     }
 
     @Override
