@@ -126,8 +126,18 @@ public class BattleController {
      * compile and behave identically.
      */
     public void runBattle(Character playerCharacter, Character enemyCharacter) {
-        BattleCombatant player = new BattleCombatant(playerCharacter, playerCharacter.getAbilities());
-        BattleCombatant enemy  = new BattleCombatant(enemyCharacter, enemyCharacter.getAbilities());
+        runBattle(playerCharacter, enemyCharacter, BattleStatMode.STANDARD);
+    }
+
+    public void runBattle(
+        Character playerCharacter,
+        Character enemyCharacter,
+        BattleStatMode statMode
+    ) {
+        BattleCombatant player = new BattleCombatant(
+            playerCharacter, playerCharacter.getAbilities(), statMode);
+        BattleCombatant enemy = new BattleCombatant(
+            enemyCharacter, enemyCharacter.getAbilities(), statMode);
         BattleState state = new BattleState(
             BattleState.teamOfFighters(com.jjktbf.model.combat.BattleTeamId.PLAYER, List.of(player)),
             BattleState.teamOfFighters(com.jjktbf.model.combat.BattleTeamId.ENEMY, List.of(enemy)));

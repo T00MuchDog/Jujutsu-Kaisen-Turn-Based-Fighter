@@ -1,6 +1,13 @@
 package com.jjktbf.model.combat;
 
 import com.jjktbf.model.character.CharacterStats;
+import com.jjktbf.model.character.ShikigamiCharacter;
+import com.jjktbf.model.character.SorcererCharacter;
+import com.jjktbf.model.character.StatKey;
+
+import java.util.List;
+import java.util.Optional;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -36,6 +43,14 @@ class SummonStatScalerTest {
     }
 
     @Test
+    void equalizedModeBlendsTheSummoningFactorInputs() {
+        assertEquals(1.5,
+            SummonStatScaler.factorFor(300, 300, BattleStatMode.EQUALIZED), 1e-9);
+        assertEquals(0.75,
+            SummonStatScaler.factorFor(10, 10, BattleStatMode.EQUALIZED), 1e-9);
+    }
+
+    @Test
     void factorClampsAboveMinEvenWhenGoverningStatBelowTen() {
         // CTM=0, Output=0 -> governing 0 -> would dip below 0.5, but clamped
         assertEquals(0.5, SummonStatScaler.factorFor(0, 0), 1e-9);
@@ -62,6 +77,39 @@ class SummonStatScalerTest {
         assertEquals(200, scaled.getVitality(), "VIT 100 x2 = 200");
         assertEquals(1800, baseStatTotal(scaled), "BST 900 x2 = 1800");
         assertEquals(0, scaled.getCursedTechniqueMastery(), "CTM stays 0");
+    }
+
+    @Test
+    void equalizedSummonUsesBlendedFactorBeforeItsOwnRuntimeScaling() {
+        CharacterStats scaled = SummonStatScaler.scale(
+            allStats(300), summonStats(), true, BattleStatMode.EQUALIZED);
+
+        assertEquals(150, scaled.getVitality(), "peak equalized factor is 1.5x");
+        assertEquals(115, BattleStatMode.EQUALIZED.scale(scaled.getVitality()),
+            "the summon then receives the same second-layer runtime stat blend");
+    }
+
+    @Test
+    void materializedShikigamiInheritsTheSummonersStatMode() {
+        BattleCombatant summoner = new BattleCombatant(
+            new SorcererCharacter("summoner", "Summoner", allStats(300), null, List.of()),
+            List.of(),
+            BattleStatMode.EQUALIZED);
+        BattleCombatant enemy = new BattleCombatant(new SorcererCharacter(
+            "enemy", "Enemy", allStats(80), null, List.of()));
+        BattleState state = new BattleState(summoner, enemy);
+        ShikigamiCharacter definition = new ShikigamiCharacter(
+            "summon", "Summon", summonStats(), null, List.of());
+
+        assertTrue(state.enqueueSummon(summoner, definition.getId(), true));
+        BattleCombatant summon = state.drainPendingSummons(
+            id -> definition.getId().equals(id) ? Optional.of(definition) : Optional.empty())
+            .get(0);
+
+        assertEquals(BattleStatMode.EQUALIZED, summon.getStatMode());
+        assertEquals(150, summon.getEffectiveStats().getVitality());
+        assertEquals(115, summon.getRuntimeStat(StatKey.VITALITY));
+        assertEquals(403, summon.getMaxHp());
     }
 
     @Test

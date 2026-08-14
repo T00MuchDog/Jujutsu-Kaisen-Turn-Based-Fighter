@@ -80,10 +80,23 @@ public final class SummonStatScaler {
         CharacterStats shikigamiBaseStats,
         boolean innateTechniqueBased
     ) {
+        return scale(
+            summonerStats,
+            shikigamiBaseStats,
+            innateTechniqueBased,
+            BattleStatMode.STANDARD);
+    }
+
+    public static CharacterStats scale(
+        CharacterStats summonerStats,
+        CharacterStats shikigamiBaseStats,
+        boolean innateTechniqueBased,
+        BattleStatMode statMode
+    ) {
         int primary = innateTechniqueBased
             ? summonerStats.getCursedTechniqueMastery()
             : summonerStats.getJujutsuSkill();
-        double factor = factorFor(primary, summonerStats.getCursedEnergyOutput());
+        double factor = factorFor(primary, summonerStats.getCursedEnergyOutput(), statMode);
         return scaleStats(shikigamiBaseStats, factor);
     }
 
@@ -98,8 +111,16 @@ public final class SummonStatScaler {
      * @return             scale factor in {@code [MIN_FACTOR, MAX_FACTOR]}
      */
     static double factorFor(int primaryStat, int outputStat) {
+        return factorFor(primaryStat, outputStat, BattleStatMode.STANDARD);
+    }
+
+    static double factorFor(
+        int primaryStat,
+        int outputStat,
+        BattleStatMode statMode
+    ) {
         int governingRaw    = (int) Math.round((2.0 * primaryStat + outputStat) / 3.0);
-        int governingScaled = StatScale.scale(governingRaw);
+        int governingScaled = statMode.scale(governingRaw);
 
         double factor;
         if (governingScaled <= SCALED_BASELINE) {

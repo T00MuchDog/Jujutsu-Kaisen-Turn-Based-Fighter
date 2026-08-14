@@ -134,8 +134,7 @@ final class ChallengeRepository {
         Connection connection,
         String playerId,
         String gameVersion,
-        int protocolVersion,
-        String ruleset
+        int protocolVersion
     ) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
             "SELECT c.id, c.creator_player_id, c.creator_display_name, c.status, "
@@ -145,7 +144,7 @@ final class ChallengeRepository {
                 + "c.accepted_player_id, c.accepted_character_ids, c.accepted_at, "
                 + "c.accepted_join_request_id, c.match_id FROM challenge c "
                 + "LEFT JOIN match_record m ON m.id = c.match_id "
-                + "WHERE c.game_version = ? AND c.protocol_version = ? AND c.ruleset = ? AND ("
+                + "WHERE c.game_version = ? AND c.protocol_version = ? AND ("
                 + "(c.status = 'OPEN' AND c.requested_player_id = ?) "
                 + "OR (c.status = 'ACCEPTED' AND c.accepted_player_id = ? "
                 + "AND c.accepted_join_request_id IS NOT NULL "
@@ -153,9 +152,8 @@ final class ChallengeRepository {
                 + "ORDER BY COALESCE(c.accepted_at, c.requested_at) DESC, c.id DESC")) {
             statement.setString(1, gameVersion);
             statement.setInt(2, protocolVersion);
-            statement.setString(3, ruleset);
+            statement.setString(3, playerId);
             statement.setString(4, playerId);
-            statement.setString(5, playerId);
             statement.setMaxRows(1);
             try (ResultSet result = statement.executeQuery()) {
                 return result.next() ? Optional.of(map(result)) : Optional.empty();
@@ -167,8 +165,7 @@ final class ChallengeRepository {
         Connection connection,
         String playerId,
         String gameVersion,
-        int protocolVersion,
-        String ruleset
+        int protocolVersion
     ) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
             "SELECT c.id, c.creator_player_id, c.creator_display_name, c.status, "
@@ -179,14 +176,13 @@ final class ChallengeRepository {
                 + "c.accepted_join_request_id, c.match_id FROM challenge c "
                 + "LEFT JOIN match_record m ON m.id = c.match_id "
                 + "WHERE c.creator_player_id = ? AND c.game_version = ? "
-                + "AND c.protocol_version = ? AND c.ruleset = ? AND (c.status = 'OPEN' "
+                + "AND c.protocol_version = ? AND (c.status = 'OPEN' "
                 + "OR (c.status = 'ACCEPTED' AND c.accepted_join_request_id IS NOT NULL "
                 + "AND m.status IN ('WAITING', 'ACTIVE'))) "
                 + "ORDER BY COALESCE(c.accepted_at, c.created_at) DESC, c.id DESC")) {
             statement.setString(1, playerId);
             statement.setString(2, gameVersion);
             statement.setInt(3, protocolVersion);
-            statement.setString(4, ruleset);
             statement.setMaxRows(1);
             try (ResultSet result = statement.executeQuery()) {
                 return result.next() ? Optional.of(map(result)) : Optional.empty();
@@ -227,20 +223,18 @@ final class ChallengeRepository {
         String excludedPlayerId,
         String gameVersion,
         int protocolVersion,
-        String ruleset,
         long now
     ) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
             "SELECT " + SELECT_COLUMNS + "FROM challenge "
                 + "WHERE status = 'OPEN' AND requested_player_id IS NULL AND expires_at > ? "
                 + "AND creator_player_id <> ? AND game_version = ? "
-                + "AND protocol_version = ? AND ruleset = ? "
+                + "AND protocol_version = ? "
                 + "ORDER BY created_at ASC, id ASC")) {
             statement.setLong(1, now);
             statement.setString(2, excludedPlayerId);
             statement.setString(3, gameVersion);
             statement.setInt(4, protocolVersion);
-            statement.setString(5, ruleset);
             statement.setMaxRows(MAX_LISTED_CHALLENGES);
             try (ResultSet result = statement.executeQuery()) {
                 List<ChallengeRecord> challenges = new ArrayList<>();

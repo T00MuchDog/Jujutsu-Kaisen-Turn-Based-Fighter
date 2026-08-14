@@ -10,7 +10,10 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.jjktbf.AppPaths;
 import com.jjktbf.controller.BattleController;
 import com.jjktbf.model.combat.BattleCombatant;
+import com.jjktbf.model.combat.BattleConfiguration;
+import com.jjktbf.model.combat.BattleFormat;
 import com.jjktbf.model.combat.BattleState;
+import com.jjktbf.model.combat.BattleStatMode;
 import com.jjktbf.model.combat.BattleTeamId;
 import com.jjktbf.graphics.audio.GameAudio;
 import com.jjktbf.graphics.audio.MusicTrack;
@@ -117,6 +120,7 @@ public class JJKGame extends Game {
     // exposed via getSelectedMultiplayerCharacterId() for older callers.
     private com.jjktbf.model.combat.BattleFormat selectedMultiplayerFormat =
         com.jjktbf.model.combat.BattleFormat.ONE_V_ONE;
+    private BattleStatMode selectedMultiplayerStatMode = BattleStatMode.STANDARD;
     private List<String> selectedMultiplayerCharacterIds =
         List.of(DEFAULT_MULTIPLAYER_CHARACTER_ID);
 
@@ -289,11 +293,12 @@ public class JJKGame extends Game {
     }
 
     public void showCharacterSelect() {
-        showCharacterSelect(com.jjktbf.model.combat.BattleFormat.ONE_V_ONE);
+        showCharacterSelect(BattleFormat.ONE_V_ONE);
     }
 
-    public void showCharacterSelect(com.jjktbf.model.combat.BattleFormat format) {
-        showCharacterSelect(format, BattleController.ControlMode.PLAYER_VS_AI);
+    public void showCharacterSelect(BattleFormat format) {
+        showCharacterSelect(
+            BattleConfiguration.standard(format), BattleController.ControlMode.PLAYER_VS_AI);
     }
 
     /** Opens the local-play format choice before character selection. */
@@ -302,10 +307,11 @@ public class JJKGame extends Game {
     }
 
     private void showCharacterSelect(
-        com.jjktbf.model.combat.BattleFormat format,
+        BattleConfiguration configuration,
         BattleController.ControlMode controlMode
     ) {
-        characterSelectScreen.prepare(format, controlMode);
+        characterSelectScreen.prepare(
+            configuration.format(), configuration.statMode(), controlMode);
         showScreen(characterSelectScreen, MusicTrack.MENU);
     }
 
@@ -315,7 +321,8 @@ public class JJKGame extends Game {
     }
 
     private void showBattleFormatSelection(BattleController.ControlMode controlMode) {
-        battleFormatScreen.prepare(format -> showCharacterSelect(format, controlMode));
+        battleFormatScreen.prepare(configuration ->
+            showCharacterSelect(configuration, controlMode));
         showScreen(battleFormatScreen, MusicTrack.MENU);
     }
 
@@ -413,6 +420,15 @@ public class JJKGame extends Game {
 
     public com.jjktbf.model.combat.BattleFormat getSelectedMultiplayerFormat() {
         return selectedMultiplayerFormat;
+    }
+
+    public BattleStatMode getSelectedMultiplayerStatMode() {
+        return selectedMultiplayerStatMode;
+    }
+
+    public void setSelectedMultiplayerStatMode(BattleStatMode statMode) {
+        selectedMultiplayerStatMode = statMode == null
+            ? BattleStatMode.STANDARD : statMode;
     }
 
     public void setSelectedMultiplayerFormat(
@@ -542,13 +558,22 @@ public class JJKGame extends Game {
                             MoveRepository moveRepo, AbilityRepository abilityRepo,
                             TechniqueRepository techniqueRepo) {
         startBattle(playerData, cpuData, moveRepo, abilityRepo, techniqueRepo,
-            BattleController.ControlMode.PLAYER_VS_AI);
+            BattleController.ControlMode.PLAYER_VS_AI, BattleStatMode.STANDARD);
     }
 
     public void startBattle(CharacterData playerData, CharacterData cpuData,
                             MoveRepository moveRepo, AbilityRepository abilityRepo,
                             TechniqueRepository techniqueRepo,
                             BattleController.ControlMode controlMode) {
+        startBattle(playerData, cpuData, moveRepo, abilityRepo, techniqueRepo,
+            controlMode, BattleStatMode.STANDARD);
+    }
+
+    public void startBattle(CharacterData playerData, CharacterData cpuData,
+                            MoveRepository moveRepo, AbilityRepository abilityRepo,
+                            TechniqueRepository techniqueRepo,
+                            BattleController.ControlMode controlMode,
+                            BattleStatMode statMode) {
         requireAuthorControlMode(controlMode);
         battleScreen.prepareLocal();
         battleScreen.setCombatantSprites(
@@ -566,7 +591,7 @@ public class JJKGame extends Game {
                         .map(data -> data.toCharacter(moveRepo, abilityRepo, techniqueRepo)),
                     controlMode
                 );
-                controller.runBattle(player, cpu);
+                controller.runBattle(player, cpu, statMode);
             } catch (Throwable t) {
                 // The battle runs on a daemon thread; an uncaught throw would
                 // otherwise die silently. Write the stack trace to the per-user
@@ -603,7 +628,7 @@ public class JJKGame extends Game {
         TechniqueRepository techniqueRepo
     ) {
         startTeamBattle(playerTeam, cpuTeam, moveRepo, abilityRepo, techniqueRepo,
-            BattleController.ControlMode.PLAYER_VS_AI);
+            BattleController.ControlMode.PLAYER_VS_AI, BattleStatMode.STANDARD);
     }
 
     public void startTeamBattle(
@@ -612,6 +637,18 @@ public class JJKGame extends Game {
         MoveRepository moveRepo, AbilityRepository abilityRepo,
         TechniqueRepository techniqueRepo,
         BattleController.ControlMode controlMode
+    ) {
+        startTeamBattle(playerTeam, cpuTeam, moveRepo, abilityRepo, techniqueRepo,
+            controlMode, BattleStatMode.STANDARD);
+    }
+
+    public void startTeamBattle(
+        java.util.List<CharacterData> playerTeam,
+        java.util.List<CharacterData> cpuTeam,
+        MoveRepository moveRepo, AbilityRepository abilityRepo,
+        TechniqueRepository techniqueRepo,
+        BattleController.ControlMode controlMode,
+        BattleStatMode statMode
     ) {
         requireAuthorControlMode(controlMode);
         battleScreen.prepareLocal();
@@ -630,11 +667,11 @@ public class JJKGame extends Game {
             try {
                 java.util.List<BattleCombatant> playerFighters = playerTeam.stream()
                     .map(d -> d.toCharacter(moveRepo, abilityRepo, techniqueRepo))
-                    .map(c -> new BattleCombatant(c, c.getAbilities()))
+                    .map(c -> new BattleCombatant(c, c.getAbilities(), statMode))
                     .toList();
                 java.util.List<BattleCombatant> cpuFighters = cpuTeam.stream()
                     .map(d -> d.toCharacter(moveRepo, abilityRepo, techniqueRepo))
-                    .map(c -> new BattleCombatant(c, c.getAbilities()))
+                    .map(c -> new BattleCombatant(c, c.getAbilities(), statMode))
                     .toList();
                 BattleState state = new BattleState(
                     BattleState.teamOfFighters(BattleTeamId.PLAYER, playerFighters),

@@ -48,7 +48,14 @@ public final class SummonUpkeepScaler {
      * @return the upkeep-rate multiplier, clamped to [0.2, 2.0]
      */
     public static double upkeepMultiplier(int rawCeEfficiency) {
-        int scaled = StatScale.scale(Math.max(0, rawCeEfficiency));
+        return upkeepMultiplier(rawCeEfficiency, BattleStatMode.STANDARD);
+    }
+
+    public static double upkeepMultiplier(
+        int rawCeEfficiency,
+        BattleStatMode statMode
+    ) {
+        int scaled = statMode.scale(Math.max(0, rawCeEfficiency));
         double eff = scaled;
         double multiplier = (eff <= NEUTRAL_STAT)
             ? lerp(LOW_STAT, LOW_MULTIPLIER, NEUTRAL_STAT, NEUTRAL_MULTIPLIER, eff)

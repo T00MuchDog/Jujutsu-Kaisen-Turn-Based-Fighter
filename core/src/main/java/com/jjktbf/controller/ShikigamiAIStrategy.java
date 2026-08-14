@@ -183,7 +183,8 @@ public class ShikigamiAIStrategy implements AIStrategy {
      */
     static double scoreAttack(Move move, BattleCombatant ai, OpponentDefenses defenses) {
         int basePower = Math.max(1, move.getTotalBasePower());
-        int power = Math.max(1, PowerCalculator.compute(move.getCategory(), ai.getEffectiveStats()));
+        int power = Math.max(1, PowerCalculator.compute(
+            move.getCategory(), ai.getEffectiveStats(), ai.getStatMode()));
         double score = (double) basePower * power;
         if (hasMeaningfulEffects(move)) {
             score *= EFFECT_BONUS;

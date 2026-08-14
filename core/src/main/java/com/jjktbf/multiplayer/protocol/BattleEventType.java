@@ -12,6 +12,7 @@ public enum BattleEventType {
     MOVE_STUNNED,
     MOVE_SUMMON,
     TARGET_RETARGETED,
+    DEFENSE_GRANTED,
     DAMAGE_DEALT,
     DAMAGE_IGNORED,
     HP_RESTORED,

@@ -535,12 +535,16 @@ public class EffectListEditor extends Table {
             SelectBox<String> targetBox = new DynamicSelectBox<>(skin);
             String self = moveEffectEditor ? "Move user" : AbilityEffectTarget.SELF.name();
             String enemy = moveEffectEditor ? "Move target" : AbilityEffectTarget.ENEMY.name();
+            String ally = moveEffectEditor ? "Move ally" : AbilityEffectTarget.ALLY.name();
             String both = moveEffectEditor ? "User and target" : AbilityEffectTarget.BOTH.name();
-            targetBox.setItems(self, enemy, both);
+            String selfAndAlly = moveEffectEditor ? "User and ally" : AbilityEffectTarget.SELF_AND_ALLY.name();
+            targetBox.setItems(self, enemy, ally, both, selfAndAlly);
             targetBox.setSelected(switch (safeTarget(effect.target)) {
                 case SELF -> self;
                 case ENEMY -> enemy;
+                case ALLY -> ally;
                 case BOTH -> both;
+                case SELF_AND_ALLY -> selfAndAlly;
             });
             effect.target = targetFromLabel(targetBox.getSelected()).name();
             targetBox.addListener(new ChangeListener() {
@@ -1000,8 +1004,14 @@ public class EffectListEditor extends Table {
         if ("Move target".equals(label) || AbilityEffectTarget.ENEMY.name().equals(label)) {
             return AbilityEffectTarget.ENEMY;
         }
+        if ("Move ally".equals(label) || AbilityEffectTarget.ALLY.name().equals(label)) {
+            return AbilityEffectTarget.ALLY;
+        }
         if ("User and target".equals(label) || AbilityEffectTarget.BOTH.name().equals(label)) {
             return AbilityEffectTarget.BOTH;
+        }
+        if ("User and ally".equals(label) || AbilityEffectTarget.SELF_AND_ALLY.name().equals(label)) {
+            return AbilityEffectTarget.SELF_AND_ALLY;
         }
         return AbilityEffectTarget.SELF;
     }

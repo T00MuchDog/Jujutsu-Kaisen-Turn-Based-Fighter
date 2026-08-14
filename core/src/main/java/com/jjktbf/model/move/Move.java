@@ -171,6 +171,22 @@ public class Move {
      */
     private final int parryStaggerTicks;
 
+    /**
+     * Whose timeline this defensive move's active-defense window is conferred
+     * to at fire time. {@link DefenseTargeting#SELF} (the default) preserves the
+     * historical behaviour of protecting the caster; the ally modes grant a fired
+     * copy of the segment to the selected/allied combatants instead. Only
+     * meaningful on defensive moves.
+     */
+    private final DefenseTargeting defenseTargeting;
+
+    /**
+     * Number of allies protected by a {@link DefenseTargeting#MULTIPLE_ALLIES}
+     * move. Ignored for the other targeting modes. Defaults to 2; must be at
+     * least 2 when used.
+     */
+    private final int defenseTargetCount;
+
     // On-hit status effects live per {@link HitComponent} (applied when that
     // specific component connects). There is no move-level onHitEffects field.
 
@@ -282,6 +298,8 @@ public class Move {
         this.dodgeChance          = b.dodgeChance;
         this.dodgeScope           = b.dodgeScope;
         this.parryStaggerTicks    = b.parryStaggerTicks;
+        this.defenseTargeting     = resolveDefenseTargeting(b);
+        this.defenseTargetCount   = b.defenseTargetCount;
         this.selfEffects         = Collections.unmodifiableList(b.selfEffects);
         this.onBlockEffects      = Collections.unmodifiableList(b.onBlockEffects);
         this.onParryEffects      = Collections.unmodifiableList(b.onParryEffects);
@@ -324,6 +342,17 @@ public class Move {
         if (!aoe) return null;
         if (b.aoeType != null) return b.aoeType;
         return effective.contains(MoveTag.FRIENDLY_FIRE) ? AoeType.ALL_OTHERS : AoeType.ALL_ENEMIES;
+    }
+
+    /**
+     * Resolve the authoritative {@link DefenseTargeting} from the builder state.
+     * A non-defensive move never carries a targeting mode (always SELF); a
+     * defensive move with no authored targeting also defaults to SELF, preserving
+     * the pre-DefenseTargeting behaviour for old data.
+     */
+    private static DefenseTargeting resolveDefenseTargeting(Builder b) {
+        if (b.category != MoveCategory.DEFENSIVE) return DefenseTargeting.SELF;
+        return b.defenseTargeting != null ? b.defenseTargeting : DefenseTargeting.SELF;
     }
 
     private static List<HitComponent> buildHitComponents(Builder builder) {
@@ -396,6 +425,10 @@ public class Move {
     public int getDodgeChance()                   { return dodgeChance; }
     public String getDodgeScope()                 { return dodgeScope; }
     public int getParryStaggerTicks()             { return parryStaggerTicks; }
+    /** Whose timeline this defensive move's window is conferred to (SELF for non-defensive moves). */
+    public DefenseTargeting getDefenseTargeting() { return defenseTargeting; }
+    /** Ally count for {@link DefenseTargeting#MULTIPLE_ALLIES}; ignored otherwise. */
+    public int getDefenseTargetCount()            { return defenseTargetCount; }
     /**
      * On-hit status effects aggregated across all hit components (in authored
      * order). On-hit effects live per {@link HitComponent}; this convenience
@@ -773,6 +806,8 @@ public class Move {
         private int dodgeChance                = 0;
         private String dodgeScope              = "BOTH";
         private int parryStaggerTicks          = 0;
+        private DefenseTargeting defenseTargeting = DefenseTargeting.SELF;
+        private int defenseTargetCount          = 2;
         /**
          * On-hit effects for the legacy single-component authoring path. When a
          * move is built with {@link #basePower} (no explicit {@link #hitComponents}),
@@ -829,6 +864,10 @@ public class Move {
         public Builder dodgeChance(int v)                  { this.dodgeChance = v; return this; }
         public Builder dodgeScope(String v)                { this.dodgeScope = v; return this; }
         public Builder parryStaggerTicks(int v)            { this.parryStaggerTicks = v; return this; }
+        /** Set whose timeline this defensive move's window is conferred to. Only meaningful on defensive moves. */
+        public Builder defenseTargeting(DefenseTargeting v) { this.defenseTargeting = v; return this; }
+        /** Set the ally count for {@link DefenseTargeting#MULTIPLE_ALLIES}. Must be ≥ 2 when used. */
+        public Builder defenseTargetCount(int v)           { this.defenseTargetCount = v; return this; }
         /**
          * On-hit effects for the legacy single-component path only (seeds the
          * synthesized fallback component). For multi-hit moves, author effects
@@ -881,6 +920,17 @@ public class Move {
             if (aoeType == AoeType.MULTIPLE && aoeTargetCount < 2) {
                 throw new IllegalStateException(
                     "MULTIPLE AOE type requires aoeTargetCount >= 2 (name='" + name + "')");
+            }
+
+            // Defensive targeting is only meaningful on defensive moves; reject
+            // an authored ally mode elsewhere so a slip can't silently take effect.
+            if (category != MoveCategory.DEFENSIVE && defenseTargeting != DefenseTargeting.SELF) {
+                throw new IllegalStateException(
+                    "defenseTargeting may only be set on a defensive move (name='" + name + "')");
+            }
+            if (defenseTargeting == DefenseTargeting.MULTIPLE_ALLIES && defenseTargetCount < 2) {
+                throw new IllegalStateException(
+                    "MULTIPLE_ALLIES defense targeting requires defenseTargetCount >= 2 (name='" + name + "')");
             }
 
             validateHitComponents();

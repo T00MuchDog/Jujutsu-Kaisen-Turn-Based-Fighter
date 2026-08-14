@@ -27,6 +27,7 @@ public class CombatEvent {
 
         // Targeting
         TARGET_RETARGETED,  // a single-target move's invalid target was retargeted at fire time
+        DEFENSE_GRANTED,    // a defensive move's active-defense window was conferred to an ally
 
         // Summoning
         MOVE_SUMMON,        // a move effect row enqueued a shikigami summon (pre-materialization)

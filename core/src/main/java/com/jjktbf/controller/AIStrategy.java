@@ -71,7 +71,8 @@ public interface AIStrategy {
             for (com.jjktbf.model.combat.ActionSegment segment
                 : new java.util.ArrayList<>(plan.allSegments())) {
                 if (com.jjktbf.model.combat.MoveAvailability.restrictionReason(
-                    state, ai, segment.getMove(), alreadyPlannedMoves) != null) {
+                    state, ai, segment.getMove(), alreadyPlannedMoves) != null
+                    || isAiUnsupported(segment.getMove())) {
                     plan.remove(segment);
                 } else {
                     alreadyPlannedMoves.add(segment.getMove());
@@ -169,5 +170,18 @@ public interface AIStrategy {
     /** Compatibility overload for callers that still supply {@link Random}. */
     default BattlePlan selectPlan(BattleCombatant ai, BattleCombatant opponent, Random rng) {
         return selectPlan(ai, opponent, new SeededRandomSource(rng));
+    }
+
+    /**
+     * Defensive moves that target an ally (any non-SELF {@link Move#getDefenseTargeting()
+     * defense targeting}) are player-only for now: the AI does not yet aim them,
+     * so it skips them entirely rather than place a segment it cannot resolve.
+     * This keeps AI behaviour predictable and avoids the AI "wasting" such a move
+     * by letting it fall back to self-protection.
+     */
+    static boolean isAiUnsupported(Move move) {
+        return move != null
+            && move.isDefensive()
+            && move.getDefenseTargeting() != com.jjktbf.model.move.DefenseTargeting.SELF;
     }
 }

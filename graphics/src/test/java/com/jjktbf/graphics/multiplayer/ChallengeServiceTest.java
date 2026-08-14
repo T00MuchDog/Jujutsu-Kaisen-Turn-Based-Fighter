@@ -1,5 +1,7 @@
 package com.jjktbf.graphics.multiplayer;
 
+import com.jjktbf.model.combat.BattleFormat;
+import com.jjktbf.model.combat.BattleStatMode;
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeCreateRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -60,6 +63,22 @@ class ChallengeServiceTest {
         assertEquals(rejected,
             service.rejectJoinRequest(pending).get(5, TimeUnit.SECONDS));
         assertEquals(pending, service.currentChallenge().orElseThrow());
+    }
+
+    @Test
+    void sendsEqualizedModeIndependentlyFromTwoOnTwoFormat() throws Exception {
+        ChallengeSummary created = summary(ChallengeStatus.OPEN, null, null, null, null);
+        api.createResult = CompletableFuture.completedFuture(created);
+
+        assertSame(created, service.createChallenge(
+            BattleFormat.TWO_V_TWO,
+            BattleStatMode.EQUALIZED,
+            List.of("fighter-one", "fighter-two")).get(5, TimeUnit.SECONDS));
+
+        assertEquals(BattleFormat.TWO_V_TWO, api.lastCreateRequest.format());
+        assertEquals(BattleStatMode.EQUALIZED.rulesetId(), api.lastCreateRequest.ruleset());
+        assertEquals(List.of("fighter-one", "fighter-two"),
+            api.lastCreateRequest.characterIds());
     }
 
     @Test
@@ -189,6 +208,7 @@ class ChallengeServiceTest {
 
     private static final class FakeApi implements MultiplayerApi {
         private CompletableFuture<ChallengeSummary> joinResult = unexpected();
+        private CompletableFuture<ChallengeSummary> createResult = unexpected();
         private CompletableFuture<MatchSetup> acceptResult = unexpected();
         private CompletableFuture<MatchSetup> acceptRecoveryResult = unexpected();
         private CompletableFuture<ChallengeSummary> rejectResult = unexpected();
@@ -201,6 +221,7 @@ class ChallengeServiceTest {
         private String lastToken;
         private String lastChallengeId;
         private ChallengeAcceptRequest lastJoinRequest;
+        private ChallengeCreateRequest lastCreateRequest;
 
         @Override
         public CompletableFuture<GuestCreateResponse> createGuest(GuestCreateRequest request) {
@@ -217,7 +238,9 @@ class ChallengeServiceTest {
             String token,
             ChallengeCreateRequest request
         ) {
-            return unexpected();
+            lastToken = token;
+            lastCreateRequest = request;
+            return createResult;
         }
 
         @Override

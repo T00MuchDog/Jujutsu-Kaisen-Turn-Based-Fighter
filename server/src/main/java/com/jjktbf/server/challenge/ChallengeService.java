@@ -165,7 +165,6 @@ public final class ChallengeService {
                     caller.playerId(),
                     ProtocolVersion.GAME_VERSION,
                     ProtocolVersion.PROTOCOL_VERSION,
-                    ProtocolVersion.STANDARD_RULESET,
                     now
                 ).stream()
                 .map(this::toSummary)
@@ -193,8 +192,7 @@ public final class ChallengeService {
                 connection,
                 requester.playerId(),
                 ProtocolVersion.GAME_VERSION,
-                ProtocolVersion.PROTOCOL_VERSION,
-                ProtocolVersion.STANDARD_RULESET
+                ProtocolVersion.PROTOCOL_VERSION
             ).orElseThrow(ChallengeService::challengeNotFound));
         });
     }
@@ -208,8 +206,7 @@ public final class ChallengeService {
                 connection,
                 host.playerId(),
                 ProtocolVersion.GAME_VERSION,
-                ProtocolVersion.PROTOCOL_VERSION,
-                ProtocolVersion.STANDARD_RULESET
+                ProtocolVersion.PROTOCOL_VERSION
             ).orElseThrow(ChallengeService::challengeNotFound));
         });
     }
@@ -289,6 +286,9 @@ public final class ChallengeService {
             // The joiner must field the same format as the host.
             if (challenge.format() != request.format()) {
                 throw formatMismatch(challenge.format(), request.format());
+            }
+            if (!Objects.equals(challenge.ruleset(), request.ruleset())) {
+                throw rulesetMismatch(challenge.ruleset(), request.ruleset());
             }
             List<String> characterIds = validateRoster(challenge.format(), request.characterIds());
             if (challenge.creatorPlayerId().equals(requester.playerId())) {
@@ -747,6 +747,14 @@ public final class ChallengeService {
             ServiceErrorCode.INCOMPATIBLE_VERSION,
             "This challenge is " + expected + "; switch formats to join it.",
             Map.of("expected", expected.name(), "requested", requested.name())
+        );
+    }
+
+    private static ServiceException rulesetMismatch(String expected, String requested) {
+        return new ServiceException(
+            ServiceErrorCode.INCOMPATIBLE_VERSION,
+            "This challenge uses a different stat mode; switch modes to join it.",
+            Map.of("expected", expected, "requested", requested)
         );
     }
 

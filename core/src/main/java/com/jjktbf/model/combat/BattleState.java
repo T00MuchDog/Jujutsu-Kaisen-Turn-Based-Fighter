@@ -440,6 +440,25 @@ public class BattleState {
         return enemies.isEmpty() ? null : enemies.get(0);
     }
 
+    /**
+     * The active enemy of {@code combatant} currently holding the strongest
+     * active Taunt, or {@code null} if none of its enemies are taunting. Stable
+     * roster order is the tie-break between equal-strength taunts. Used to
+     * redirect single-target MELEE attacks onto the taunter at fire time.
+     */
+    public BattleCombatant taunterOf(BattleCombatant combatant) {
+        BattleCombatant strongest = null;
+        int strongestTicks = 0;
+        for (BattleCombatant enemy : activeEnemiesOf(combatant)) {
+            int ticks = enemy.getActiveTauntRemainingTicks();
+            if (ticks > strongestTicks) {
+                strongestTicks = ticks;
+                strongest = enemy;
+            }
+        }
+        return strongest;
+    }
+
     // -------------------------------------------------------------------------
     // Summon creation and recursive dismissal
     // -------------------------------------------------------------------------
@@ -620,9 +639,11 @@ public class BattleState {
             CharacterStats scaledBase = SummonStatScaler.scale(
                 pending.summoner().getEffectiveStats(),
                 definition.get().getBaseStats(),
-                pending.innateTechniqueBased());
+                pending.innateTechniqueBased(),
+                pending.summoner().getStatMode());
             BattleCombatant summon = new BattleCombatant(
-                definition.get(), definition.get().getAbilities(), scaledBase);
+                definition.get(), definition.get().getAbilities(), scaledBase,
+                pending.summoner().getStatMode());
             CombatantId instanceId = nextInstanceId(team.id());
             summon.assignIdentity(instanceId, team.id(), team.size(),
                 CombatantRole.SUMMON, pending.summoner().getInstanceId());

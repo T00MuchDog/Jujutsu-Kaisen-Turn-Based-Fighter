@@ -7,6 +7,7 @@ import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.BattleStatKey;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.CombatStats;
+import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.character.coded.CodedAbilities;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 // Explicit import to avoid ambiguity with java.lang.Character
@@ -43,6 +44,7 @@ public class BattleCombatant {
     public static final double DEFAULT_CURSED_ENERGY_REGENERATION_PER_TICK = 0.05;
 
     private final Character character;
+    private final BattleStatMode statMode;
 
     // --- Battle-instance identity (assigned by BattleState at creation) ---
     /**
@@ -141,7 +143,16 @@ public class BattleCombatant {
      * been loaded. Base stats come from {@link Character#getBaseStats()}.
      */
     public BattleCombatant(Character character, List<Ability> abilities) {
-        this(character, abilities, character.getBaseStats());
+        this(character, abilities, character.getBaseStats(), BattleStatMode.STANDARD);
+    }
+
+    /** Construct a fighter under an explicit battle-time stat mode. */
+    public BattleCombatant(
+        Character character,
+        List<Ability> abilities,
+        BattleStatMode statMode
+    ) {
+        this(character, abilities, character.getBaseStats(), statMode);
     }
 
     /**
@@ -154,17 +165,27 @@ public class BattleCombatant {
      *                   (normally {@code character.getBaseStats()})
      */
     public BattleCombatant(Character character, List<Ability> abilities, CharacterStats baseStats) {
+        this(character, abilities, baseStats, BattleStatMode.STANDARD);
+    }
+
+    public BattleCombatant(
+        Character character,
+        List<Ability> abilities,
+        CharacterStats baseStats,
+        BattleStatMode statMode
+    ) {
         this.character = character;
+        this.statMode = Objects.requireNonNull(statMode, "statMode");
         this.abilities = abilities == null ? List.of() : List.copyOf(abilities);
         this.codedAbilities = CodedAbilityRegistry.create(this, this.abilities);
 
         // Apply passive ability effects to produce modified stats + flags
         AbilityApplicator.ApplicationResult result =
-            AbilityApplicator.apply(baseStats, abilities);
+            AbilityApplicator.apply(baseStats, abilities, statMode);
 
         this.effectiveStats      = result.modifiedStats;
         this.effectiveCombatStats= new CombatStats(
-            effectiveStats, result.flags.jujutsuArtSlots);
+            effectiveStats, result.flags.jujutsuArtSlots, statMode);
         this.abilityFlags        = result.flags;
 
         // HP and CE derived from effective (ability-modified) stats
@@ -688,6 +709,26 @@ public class BattleCombatant {
         return consumeFirst(AbilityEffectType.CANCEL_NEXT_MOVE);
     }
 
+    /** True while this combatant holds an active Taunt that can draw enemy attacks. */
+    public boolean hasActiveTaunt() {
+        return getActiveTauntRemainingTicks() > 0;
+    }
+
+    /**
+     * Remaining AP-tick duration of the strongest active Taunt on this combatant.
+     * Round-based or permanent taunts count as {@link Integer#MAX_VALUE}; returns
+     * 0 when no Taunt is active.
+     */
+    public int getActiveTauntRemainingTicks() {
+        return runtimeAbilityEffects.stream()
+            .filter(runtime -> AbilityEffectType.TAUNT.name().equalsIgnoreCase(runtime.effect.type))
+            .mapToInt(runtime -> runtime.remainingRounds != 0
+                ? Integer.MAX_VALUE
+                : Math.max(0, runtime.remainingTicks))
+            .max()
+            .orElse(0);
+    }
+
     /** Cancel every active, not-yet-fired action on this tick. */
     public boolean stunCurrentAction(int tick) {
         if (timeline == null) return false;
@@ -769,7 +810,8 @@ public class BattleCombatant {
             move,
             getEffectiveStats().getCursedEnergyEfficiency(),
             getEffectiveStats().getCursedEnergyOutput(),
-            flags);
+            flags,
+            statMode);
         return Math.max(0, (int) Math.round(modifyBattleStat(BattleStatKey.CE_COST, cost)));
     }
 
@@ -1019,6 +1061,7 @@ public class BattleCombatant {
     // -------------------------------------------------------------------------
 
     public Character getCharacter()                        { return character; }
+    public BattleStatMode getStatMode()                    { return statMode; }
     public CharacterStats getEffectiveStats() {
         List<AbilityEffectData> modifiers = runtimeAbilityEffects.stream()
             .map(runtime -> runtime.effect)
@@ -1048,7 +1091,12 @@ public class BattleCombatant {
             .sum();
     }
     public CombatStats getEffectiveCombatStats() {
-        return new CombatStats(getEffectiveStats(), getAbilityFlags().jujutsuArtSlots);
+        return new CombatStats(
+            getEffectiveStats(), getAbilityFlags().jujutsuArtSlots, statMode);
+    }
+    /** Current base-stat value after the normal scale and this battle's runtime mode. */
+    public int getRuntimeStat(StatKey stat) {
+        return statMode.scale(Objects.requireNonNull(stat, "stat").get(getEffectiveStats()));
     }
     public AbilityApplicator.AbilityFlags getAbilityFlags(){
         AbilityApplicator.AbilityFlags flags = abilityFlags.copy();
@@ -1099,10 +1147,10 @@ public class BattleCombatant {
             ? CombatStats.computeDefense(
                 getEffectiveStats(),
                 currentCe,
-                getMaxCursedEnergy())
+                getMaxCursedEnergy(),
+                statMode)
             : (int) Math.round(
-                com.jjktbf.model.character.StatScale.scale(
-                    getEffectiveStats().getDurability())
+                statMode.scale(getEffectiveStats().getDurability())
                     * flags.defenseFromDurabilityMultiplier);
         double modified = baseDefense * flags.defenseMultiplier;
         return Math.max(0, (int) Math.round(modifyBattleStat(BattleStatKey.DEFENSE, modified)));

@@ -1,8 +1,9 @@
 package com.jjktbf.model.combat;
 
 import com.jjktbf.model.character.CharacterStats;
-import com.jjktbf.model.character.StatScale;
 import com.jjktbf.model.move.MoveCategory;
+
+import java.util.Objects;
 
 /**
  * Computes the Power value for a move based on the user's stats and the move category.
@@ -26,16 +27,26 @@ public final class PowerCalculator {
      * @return          power value (raw integer, fed into damage formula)
      */
     public static int compute(MoveCategory category, CharacterStats cs) {
+        return compute(category, cs, BattleStatMode.STANDARD);
+    }
+
+    public static int compute(
+        MoveCategory category,
+        CharacterStats cs,
+        BattleStatMode statMode
+    ) {
+        Objects.requireNonNull(statMode, "statMode");
         return switch (category) {
-            case PHYSICAL                         -> physical(cs);
-            case CURSED_ENERGY                    -> cursedEnergyBase(cs);
-            case INNATE_TECHNIQUE                 -> innateTechnique(cs);
-            case NON_INNATE_TECHNIQUE             -> nonInnateTechnique(cs);
-            case PHYSICAL_CURSED_ENERGY           -> physicalCursedEnergy(cs);
-            case PHYSICAL_INNATE_TECHNIQUE        -> physicalInnate(cs);
-            case PHYSICAL_NON_INNATE_TECHNIQUE    -> physicalNonInnate(cs);
-            case INNATE_NON_INNATE_TECHNIQUE      -> innateNonInnate(cs);
-            case PHYSICAL_INNATE_NON_INNATE_TECHNIQUE -> physicalInnateNonInnate(cs);
+            case PHYSICAL                         -> physical(cs, statMode);
+            case CURSED_ENERGY                    -> cursedEnergyBase(cs, statMode);
+            case INNATE_TECHNIQUE                 -> innateTechnique(cs, statMode);
+            case NON_INNATE_TECHNIQUE             -> nonInnateTechnique(cs, statMode);
+            case PHYSICAL_CURSED_ENERGY           -> physicalCursedEnergy(cs, statMode);
+            case PHYSICAL_INNATE_TECHNIQUE        -> physicalInnate(cs, statMode);
+            case PHYSICAL_NON_INNATE_TECHNIQUE    -> physicalNonInnate(cs, statMode);
+            case INNATE_NON_INNATE_TECHNIQUE      -> innateNonInnate(cs, statMode);
+            case PHYSICAL_INNATE_NON_INNATE_TECHNIQUE ->
+                physicalInnateNonInnate(cs, statMode);
             case UTILITY, DEFENSIVE               -> 0; // no damage component
         };
     }
@@ -49,8 +60,12 @@ public final class PowerCalculator {
      * Power = (S(STR)*4 + S(CA)) / 5
      */
     public static int physical(CharacterStats cs) {
-        return (StatScale.scale(cs.getStrength()) * 4
-              + StatScale.scale(cs.getCombatAbility())) / 5;
+        return physical(cs, BattleStatMode.STANDARD);
+    }
+
+    public static int physical(CharacterStats cs, BattleStatMode statMode) {
+        return (statMode.scale(cs.getStrength()) * 4
+              + statMode.scale(cs.getCombatAbility())) / 5;
     }
 
     /**
@@ -59,25 +74,30 @@ public final class PowerCalculator {
      * = (S(OUT)*3 + S(RES)*2 + S(EFF)) / 6
      */
     public static int cursedEnergyBase(CharacterStats cs) {
-        return (StatScale.scale(cs.getCursedEnergyOutput()) * 3
-              + StatScale.scale(cs.getCursedEnergyReserves()) * 2
-              + StatScale.scale(cs.getCursedEnergyEfficiency())) / 6;
+        return cursedEnergyBase(cs, BattleStatMode.STANDARD);
+    }
+
+    public static int cursedEnergyBase(CharacterStats cs, BattleStatMode statMode) {
+        return (statMode.scale(cs.getCursedEnergyOutput()) * 3
+              + statMode.scale(cs.getCursedEnergyReserves()) * 2
+              + statMode.scale(cs.getCursedEnergyEfficiency())) / 6;
     }
 
     /**
      * INNATE_TECHNIQUE: 50:50 CE_base and CursedTechniqueMastery.
      * Power = (CE_base + S(CTM)) / 2
      */
-    private static int innateTechnique(CharacterStats cs) {
-        return (cursedEnergyBase(cs) + StatScale.scale(cs.getCursedTechniqueMastery())) / 2;
+    private static int innateTechnique(CharacterStats cs, BattleStatMode statMode) {
+        return (cursedEnergyBase(cs, statMode)
+            + statMode.scale(cs.getCursedTechniqueMastery())) / 2;
     }
 
     /**
      * NON_INNATE_TECHNIQUE: 50:50 CE_base and JujutsuSkill.
      * Power = (CE_base + S(JS)) / 2
      */
-    private static int nonInnateTechnique(CharacterStats cs) {
-        return (cursedEnergyBase(cs) + StatScale.scale(cs.getJujutsuSkill())) / 2;
+    private static int nonInnateTechnique(CharacterStats cs, BattleStatMode statMode) {
+        return (cursedEnergyBase(cs, statMode) + statMode.scale(cs.getJujutsuSkill())) / 2;
     }
 
     // -------------------------------------------------------------------------
@@ -88,39 +108,41 @@ public final class PowerCalculator {
      * PHYSICAL + CURSED_ENERGY: 3:1 CE : Physical
      * Power = (CE_base*3 + Physical) / 4
      */
-    private static int physicalCursedEnergy(CharacterStats cs) {
-        return (cursedEnergyBase(cs) * 3 + physical(cs)) / 4;
+    private static int physicalCursedEnergy(CharacterStats cs, BattleStatMode statMode) {
+        return (cursedEnergyBase(cs, statMode) * 3 + physical(cs, statMode)) / 4;
     }
 
     /**
      * PHYSICAL + INNATE_TECHNIQUE: 4:1 InnateT : Physical
      * Power = (InnateT*4 + Physical) / 5
      */
-    private static int physicalInnate(CharacterStats cs) {
-        return (innateTechnique(cs) * 4 + physical(cs)) / 5;
+    private static int physicalInnate(CharacterStats cs, BattleStatMode statMode) {
+        return (innateTechnique(cs, statMode) * 4 + physical(cs, statMode)) / 5;
     }
 
     /**
      * PHYSICAL + NON_INNATE_TECHNIQUE: 3:1 NonInnateT : Physical
      * Power = (NonInnateT*3 + Physical) / 4
      */
-    private static int physicalNonInnate(CharacterStats cs) {
-        return (nonInnateTechnique(cs) * 3 + physical(cs)) / 4;
+    private static int physicalNonInnate(CharacterStats cs, BattleStatMode statMode) {
+        return (nonInnateTechnique(cs, statMode) * 3 + physical(cs, statMode)) / 4;
     }
 
     /**
      * INNATE_TECHNIQUE + NON_INNATE_TECHNIQUE: 3:2 InnateT : NonInnateT
      * Power = (InnateT*3 + NonInnateT*2) / 5
      */
-    private static int innateNonInnate(CharacterStats cs) {
-        return (innateTechnique(cs) * 3 + nonInnateTechnique(cs) * 2) / 5;
+    private static int innateNonInnate(CharacterStats cs, BattleStatMode statMode) {
+        return (innateTechnique(cs, statMode) * 3
+            + nonInnateTechnique(cs, statMode) * 2) / 5;
     }
 
     /**
      * PHYSICAL + INNATE_TECHNIQUE + NON_INNATE_TECHNIQUE: 1:3:2 Physical:InnateT:NonInnateT
      * Power = (Physical + InnateT*3 + NonInnateT*2) / 6
      */
-    private static int physicalInnateNonInnate(CharacterStats cs) {
-        return (physical(cs) + innateTechnique(cs) * 3 + nonInnateTechnique(cs) * 2) / 6;
+    private static int physicalInnateNonInnate(CharacterStats cs, BattleStatMode statMode) {
+        return (physical(cs, statMode) + innateTechnique(cs, statMode) * 3
+            + nonInnateTechnique(cs, statMode) * 2) / 6;
     }
 }

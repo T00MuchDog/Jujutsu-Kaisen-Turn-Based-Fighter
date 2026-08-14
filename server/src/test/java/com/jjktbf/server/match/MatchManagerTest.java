@@ -1,5 +1,8 @@
 package com.jjktbf.server.match;
 
+import com.jjktbf.model.combat.BattleCombatant;
+import com.jjktbf.model.combat.BattleFormat;
+import com.jjktbf.model.combat.BattleStatMode;
 import com.jjktbf.model.combat.MoveTargeting;
 import com.jjktbf.multiplayer.protocol.ActionCommand;
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
@@ -107,6 +110,55 @@ class MatchManagerTest {
 
         assertEquals(state, manager.createMatch(accepted));
         assertEquals(1, manager.managedMatchCount());
+    }
+
+    @Test
+    void equalizedRulesReachTheAuthoritativeRuntimeAndSocketSetup() {
+        manager.close();
+        String firstCharacter = accepted.playerOne().primaryCharacterId();
+        String secondCharacter = accepted.playerTwo().primaryCharacterId();
+        ChallengeService challenges = fixture.challengeService();
+        var challenge = challenges.createChallenge(
+            playerOne,
+            ChallengeCreateRequest.forBattle(
+                BattleFormat.ONE_V_ONE,
+                BattleStatMode.EQUALIZED,
+                List.of(firstCharacter)));
+        var pending = challenges.requestJoin(
+            playerTwo,
+            challenge.challengeId(),
+            ChallengeAcceptRequest.forBattle(
+                BattleFormat.ONE_V_ONE,
+                BattleStatMode.EQUALIZED,
+                List.of(secondCharacter)));
+        accepted = challenges.acceptChallenge(
+            playerOne, challenge.challengeId(), ChallengeDecisionRequest.forChallenge(pending));
+
+        manager = new MatchManager(
+            fixture.database(), GRACE_PERIOD, RETENTION, fixture.clock());
+        MatchState state = manager.createMatch(accepted);
+        BattleCombatant expected = new BattleCombatant(
+            accepted.playerOne().primaryCharacter(),
+            accepted.playerOne().primaryCharacter().getAbilities(),
+            BattleStatMode.EQUALIZED);
+
+        assertEquals(BattleStatMode.EQUALIZED.rulesetId(), state.ruleset());
+        assertEquals(expected.getMaxHp(), state.players().get(0).character().maxHp());
+        assertEquals(expected.getMaxCursedEnergy(), state.players().get(0).character().maxCe());
+        assertEquals(expected.getCharacter().getKnownMoves().size(),
+            state.players().get(0).character().knownMoves().size());
+
+        FakeMatchConnection connection = new FakeMatchConnection("equalized-connection");
+        MatchSetup setup = manager.joinMatch(
+            playerOne,
+            accepted.matchId(),
+            ProtocolVersion.GAME_VERSION,
+            ProtocolVersion.PROTOCOL_VERSION,
+            BattleStatMode.EQUALIZED.rulesetId(),
+            connection);
+        assertEquals(BattleStatMode.EQUALIZED.rulesetId(), setup.ruleset());
+        assertEquals(BattleStatMode.EQUALIZED.rulesetId(),
+            connection.only(MessageType.MATCH_JOINED).ruleset());
     }
 
     @Test

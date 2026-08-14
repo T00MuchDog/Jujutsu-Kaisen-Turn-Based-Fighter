@@ -1,6 +1,6 @@
 package com.jjktbf.controller;
 
-import com.jjktbf.model.character.CharacterStats;
+import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
@@ -204,11 +204,9 @@ public class TenShadowsAIStrategy implements AIStrategy {
     /** Sum of a combatant's 10 effective base stats. */
     private static int baseStatTotal(BattleCombatant c) {
         if (c == null) return 0;
-        CharacterStats s = c.getEffectiveStats();
-        return s.getVitality() + s.getStrength() + s.getDurability() + s.getSpeed()
-            + s.getCursedEnergyReserves() + s.getCursedEnergyEfficiency()
-            + s.getCursedEnergyOutput() + s.getJujutsuSkill()
-            + s.getCombatAbility() + s.getCursedTechniqueMastery();
+        int total = 0;
+        for (StatKey stat : StatKey.values()) total += c.getRuntimeStat(stat);
+        return total;
     }
 
     /** Highest base-stat total among active enemies (the danger driver). */
@@ -270,7 +268,8 @@ public class TenShadowsAIStrategy implements AIStrategy {
         Move move, BattleCombatant ai, OpponentIntel intel, boolean isTechnique, boolean shikigamiOut
     ) {
         double basePower = Math.max(1, move.getTotalBasePower());
-        double power = Math.max(1, PowerCalculator.compute(move.getCategory(), ai.getEffectiveStats()));
+        double power = Math.max(1, PowerCalculator.compute(
+            move.getCategory(), ai.getEffectiveStats(), ai.getStatMode()));
         double weight = basePower * power;
         weight *= SmartAIScoring.effectMultiplier(move);
         weight *= SmartAIScoring.dodgeExposureMultiplier(move, intel);

@@ -1,5 +1,6 @@
 package com.jjktbf.model.character;
 
+import com.jjktbf.model.combat.BattleStatMode;
 import com.jjktbf.model.progression.TechniqueMasteryResolver;
 
 import java.util.EnumMap;
@@ -31,6 +32,14 @@ public final class AbilityApplicator {
     private AbilityApplicator() {}
 
     public static ApplicationResult apply(CharacterStats baseStats, List<Ability> abilities) {
+        return apply(baseStats, abilities, BattleStatMode.STANDARD);
+    }
+
+    public static ApplicationResult apply(
+        CharacterStats baseStats,
+        List<Ability> abilities,
+        BattleStatMode statMode
+    ) {
 
         // Use EnumMap — one entry per StatKey. No parallel variable arrays.
         Map<StatKey, Integer> overrides   = new EnumMap<>(StatKey.class);
@@ -44,7 +53,8 @@ public final class AbilityApplicator {
         }
 
         AbilityFlags flags = new AbilityFlags();
-        int progressionMastery = passiveMastery(baseStats, abilities);
+        int progressionMastery = statMode.masteryForProgression(
+            passiveMastery(baseStats, abilities));
 
         for (Ability ability : abilities == null ? List.<Ability>of() : abilities) {
             if (ability == null) continue;

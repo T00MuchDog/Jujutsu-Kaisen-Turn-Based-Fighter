@@ -9,6 +9,7 @@ import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.ui.editor.AxisLockedScrollPane;
 import com.jjktbf.graphics.multiplayer.ChallengeService;
 import com.jjktbf.graphics.multiplayer.GuestAccountService;
+import com.jjktbf.model.combat.BattleStatMode;
 import com.jjktbf.multiplayer.protocol.ChallengeListResponse;
 import com.jjktbf.multiplayer.protocol.ChallengeStatus;
 import com.jjktbf.multiplayer.protocol.ChallengeSummary;
@@ -275,7 +276,7 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
             assets.editorSkin);
         Label fighter = wrappedLabel(hostFighterLine(challenge), "small");
         Label metadata = wrappedLabel(
-            "RULESET: " + challenge.ruleset()
+            "STAT MODE: " + BattleStatMode.fromRuleset(challenge.ruleset())
                 + "  |  CREATED: " + CREATED_TIME.format(Instant.ofEpochMilli(challenge.createdAt()))
                 + "\nGAME: " + challenge.gameVersion()
                 + "  |  PROTOCOL: " + challenge.protocolVersion(),
@@ -310,6 +311,15 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
                 StatusTone.ERROR);
             return;
         }
+        BattleStatMode localStatMode = game.getSelectedMultiplayerStatMode();
+        BattleStatMode challengeStatMode = BattleStatMode.fromRuleset(challenge.ruleset());
+        if (localStatMode != challengeStatMode) {
+            setStatus(statusLabel,
+                "That challenge uses " + challengeStatMode
+                    + ". Switch stat mode on the multiplayer menu to join it.",
+                StatusTone.ERROR);
+            return;
+        }
         long expectedGeneration = generation();
         requestedChallengeId = challenge.challengeId();
         requestedFormat = localFormat;
@@ -324,7 +334,7 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
         refreshActions();
 
         challengeService.requestJoin(
-            requestedChallengeId, localFormat, requestedCharacterIds
+            requestedChallengeId, localFormat, localStatMode, requestedCharacterIds
         ).whenComplete((requested, failure) -> postIfCurrent(expectedGeneration, () -> {
             requestingJoin = false;
             if (failure != null) {

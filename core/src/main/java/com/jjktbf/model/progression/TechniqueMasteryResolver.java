@@ -18,7 +18,8 @@ public final class TechniqueMasteryResolver {
     public static int masteryOf(BattleCombatant combatant) {
         if (combatant == null || combatant.getEffectiveStats() == null) return 0;
         return Math.max(0, Math.min(300,
-            combatant.getEffectiveStats().getCursedTechniqueMastery()));
+            combatant.getStatMode().masteryForProgression(
+                combatant.getEffectiveStats().getCursedTechniqueMastery())));
     }
 
     public static AbilityEffectData resolve(AbilityEffectData source, int mastery) {

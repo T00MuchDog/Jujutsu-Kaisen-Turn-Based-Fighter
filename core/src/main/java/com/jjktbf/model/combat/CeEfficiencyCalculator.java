@@ -99,12 +99,23 @@ public final class CeEfficiencyCalculator {
         int ceOutput,
         AbilityApplicator.AbilityFlags flags
     ) {
+        return computeActualCost(
+            move, ceEfficiency, ceOutput, flags, BattleStatMode.STANDARD);
+    }
+
+    public static int computeActualCost(
+        Move move,
+        int ceEfficiency,
+        int ceOutput,
+        AbilityApplicator.AbilityFlags flags,
+        BattleStatMode statMode
+    ) {
         if (!move.hasCeCost()) return 0;
 
         // Scale each raw stat exactly once into the combat-scale (10–~472) the
         // formulas expect. Callers pass raw CharacterStats values.
-        int scaledEfficiency = StatScale.scale(Math.max(0, ceEfficiency));
-        int scaledOutput     = StatScale.scale(Math.max(0, ceOutput));
+        int scaledEfficiency = statMode.scale(Math.max(0, ceEfficiency));
+        int scaledOutput     = statMode.scale(Math.max(0, ceOutput));
 
         double rawCost = move.getBaseCeCost()
                        * efficiencyMultiplier(scaledEfficiency)

@@ -64,6 +64,8 @@ public class CharacterSelectScreen implements Screen {
      */
     private com.jjktbf.model.combat.BattleFormat format =
         com.jjktbf.model.combat.BattleFormat.ONE_V_ONE;
+    private com.jjktbf.model.combat.BattleStatMode statMode =
+        com.jjktbf.model.combat.BattleStatMode.STANDARD;
     private BattleController.ControlMode controlMode =
         BattleController.ControlMode.PLAYER_VS_AI;
 
@@ -137,8 +139,21 @@ public class CharacterSelectScreen implements Screen {
         com.jjktbf.model.combat.BattleFormat format,
         BattleController.ControlMode controlMode
     ) {
+        prepare(
+            format,
+            com.jjktbf.model.combat.BattleStatMode.STANDARD,
+            controlMode);
+    }
+
+    public void prepare(
+        com.jjktbf.model.combat.BattleFormat format,
+        com.jjktbf.model.combat.BattleStatMode statMode,
+        BattleController.ControlMode controlMode
+    ) {
         this.format = format != null ? format
             : com.jjktbf.model.combat.BattleFormat.ONE_V_ONE;
+        this.statMode = statMode != null ? statMode
+            : com.jjktbf.model.combat.BattleStatMode.STANDARD;
         this.controlMode = controlMode != null ? controlMode
             : BattleController.ControlMode.PLAYER_VS_AI;
     }
@@ -329,12 +344,12 @@ public class CharacterSelectScreen implements Screen {
             game.startTeamBattle(
                 new java.util.ArrayList<>(playerPicks),
                 new java.util.ArrayList<>(cpuPicks),
-                moveRepo, abilityRepo, techniqueRepo, controlMode);
+                moveRepo, abilityRepo, techniqueRepo, controlMode, statMode);
         } else {
             // ONE_V_ONE (or any single-fighter format): use the legacy entry point.
             game.startBattle(
                 playerPicks.get(0), cpuPicks.get(0),
-                moveRepo, abilityRepo, techniqueRepo, controlMode);
+                moveRepo, abilityRepo, techniqueRepo, controlMode, statMode);
         }
     }
 
@@ -391,8 +406,8 @@ public class CharacterSelectScreen implements Screen {
         assets.fontMedium.draw(batch, title, headerBounds.x + 18f, headerBounds.y + 39f);
         assets.fontSmall.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
         String state = phase == Phase.CPU && !playerPicks.isEmpty()
-            ? picksSummary("PLAYER", playerPicks) + "  |  ENTER: START"
-            : "UP/DOWN: SELECT  |  ENTER: CONFIRM";
+            ? picksSummary("PLAYER", playerPicks) + "  |  " + statMode + "  |  ENTER: START"
+            : "UP/DOWN: SELECT  |  ENTER: CONFIRM  |  " + statMode;
         assets.fontSmall.draw(batch, state, headerBounds.x + 20f, headerBounds.y + 17f);
     }
 
@@ -500,8 +515,8 @@ public class CharacterSelectScreen implements Screen {
         float barGap = 8f;
         boolean hasCursedTechnique = character.innateTechniqueName != null
             && !character.innateTechniqueName.isBlank();
-        float techniqueGap = hasCursedTechnique ? 8f : 0f;
-        float techniqueHeight = hasCursedTechnique ? assets.fontSmall.getCapHeight() : 0f;
+        float techniqueGap = hasCursedTechnique ? 16f : 0f;
+        float techniqueHeight = hasCursedTechnique ? assets.fontSmall.getCapHeight() * 2f : 0f;
         float barsAndSpacing = 24f + barHeight * 2f + barGap + techniqueGap + techniqueHeight;
         float spriteSize = Math.min(leftWidth, Math.max(0f, infoHeight - barsAndSpacing));
         spriteSize = Math.min(spriteSize, 336f); // ~3x the original 112px display width
@@ -517,7 +532,7 @@ public class CharacterSelectScreen implements Screen {
             float barX = leftCenterX - barWidth / 2f;
             float hpY = spriteY - 24f - barHeight;
             float ceY = hpY - barGap - barHeight;
-            CombatStats combat = character.toCombatStats();
+            CombatStats combat = new CombatStats(character.toCharacterStats(), statMode);
             StatusBar hp = new StatusBar("HP", new Color(0.260f, 0.820f, 0.360f, 1f));
             hp.setBounds(barX, hpY, barWidth, barHeight);
             hp.setValues(combat.getMaxHp(), combat.getMaxHp());
@@ -528,8 +543,14 @@ public class CharacterSelectScreen implements Screen {
             ce.draw(batch, assets.fontMedium, assets.battleUi, true);
             if (hasCursedTechnique) {
                 assets.fontSmall.setColor(Color.BLACK);
-                drawFittedText(assets.fontSmall, character.innateTechniqueName, barX,
-                    ceY - techniqueGap, barWidth);
+                float originalScaleX = assets.fontSmall.getData().scaleX;
+                float originalScaleY = assets.fontSmall.getData().scaleY;
+                assets.fontSmall.getData().setScale(originalScaleX * 2f, originalScaleY * 2f);
+                float techniqueX = leftCenterX - textWidth(assets.fontSmall,
+                    character.innateTechniqueName) / 2f;
+                assets.fontSmall.draw(batch, character.innateTechniqueName, techniqueX,
+                    ceY - techniqueGap);
+                assets.fontSmall.getData().setScale(originalScaleX, originalScaleY);
             }
         }
 

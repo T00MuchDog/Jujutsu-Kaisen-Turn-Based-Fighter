@@ -35,6 +35,7 @@ public class ActionSegment {
     private final int    fireTick;       // absolute tick: startTick + unleashPoint - 1
     private boolean      stunned;        // set true when interrupted or hit by a stun effect
     private boolean      fired;          // set true once the resolver actually executes this move
+    private boolean      transferred;    // set true when a defensive segment's protection has been conferred onto another combatant's timeline (ally targeting)
 
     /**
      * The CE cost actually charged for this segment (after efficiency scaling).
@@ -75,6 +76,7 @@ public class ActionSegment {
         setTargets(targets);
         this.stunned       = false;
         this.fired         = false;
+        this.transferred   = false;
     }
 
     public Move    getMove()          { return move; }
@@ -124,6 +126,36 @@ public class ActionSegment {
      * cancelled by a later stun or interrupt on the same tick.
      */
     public void markFired()           { this.fired = true; }
+
+    /**
+     * True once this defensive segment's protection has been conferred onto one
+     * or more other combatants' timelines (defensive ally targeting). A
+     * transferred segment is skipped by {@code Timeline.activeDefenseAt}, so it
+     * no longer protects its own caster — the protection now lives on the
+     * beneficiaries' timelines via {@link #cloneFired()} copies.
+     */
+    public boolean isTransferred()    { return transferred; }
+
+    /**
+     * Mark this segment as transferred (protection conferred to allies). Called
+     * by the resolver when granting a defensive move's window to a non-self
+     * beneficiary; the original stops protecting the caster from that point on.
+     */
+    public void markTransferred()     { this.transferred = true; }
+
+    /**
+     * Create a fired, non-transferred copy of this segment, sharing its move
+     * and timing. Used to confer a defensive segment onto another combatant's
+     * timeline: the original is {@link #markTransferred() transferred} (so the
+     * caster loses the protection) and this copy is inserted into the
+     * beneficiary's timeline as an already-fired active defense with the same
+     * window and defense parameters.
+     */
+    public ActionSegment cloneFired() {
+        ActionSegment copy = new ActionSegment(move, startTick, actualCeCost);
+        copy.fired = true;
+        return copy;
+    }
 
     /**
      * Mark this segment as stunned (removed from the timeline).

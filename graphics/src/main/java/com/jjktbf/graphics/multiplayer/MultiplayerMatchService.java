@@ -151,7 +151,7 @@ public final class MultiplayerMatchService implements AutoCloseable {
             session.setMatchSetup(setup);
             connectionListener = new SocketListener(++connectionGeneration);
             connection = socket.connect(
-                credentials.token(), setup.matchId(), connectionListener);
+                credentials.token(), setup.matchId(), setup.ruleset(), connectionListener);
         }
         completePending(
             replaced,

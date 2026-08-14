@@ -1,5 +1,6 @@
 package com.jjktbf.server.match;
 
+import com.jjktbf.model.combat.BattleStatMode;
 import com.jjktbf.multiplayer.engine.HeadlessBattleSession;
 import com.jjktbf.multiplayer.engine.MatchParticipant;
 import com.jjktbf.multiplayer.protocol.ActionCommand;
@@ -142,7 +143,8 @@ public final class MatchManager implements AutoCloseable {
                 playerTwo,
                 setup.serverSeed(),
                 clock,
-                summonLookup
+                summonLookup,
+                BattleStatMode.fromRuleset(setup.ruleset())
             )
         );
         ActiveMatch existing = matches.putIfAbsent(setup.matchId(), candidate);

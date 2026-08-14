@@ -41,7 +41,8 @@ public final class TeamPlanningPanel {
         int activeSummonCount,
         Map<String, String> moveRestrictions,
         List<PlanningPanel.TargetOption> targets,
-        PlanState restoredPlan
+        PlanState restoredPlan,
+        List<PlanningPanel.TargetOption> allies
     ) {
         public PageSpec(
             String actorId,
@@ -57,7 +58,7 @@ public final class TeamPlanningPanel {
             PlanState restoredPlan
         ) {
             this(actorId, name, moves, ceCosts, apBudget, ceBudget, maxCe, miraclesState,
-                null, 0, moveRestrictions, targets, restoredPlan);
+                null, 0, moveRestrictions, targets, restoredPlan, List.of());
         }
     }
 
@@ -98,6 +99,7 @@ public final class TeamPlanningPanel {
                 screenWidth,
                 screenHeight);
             panel.setBattleState(state);
+            panel.setAllyTargets(state.activeAlliesOf(actor));
             addPage(actor.getCharacter().getName(), panel);
         }
         resize(screenWidth, screenHeight);
@@ -134,6 +136,7 @@ public final class TeamPlanningPanel {
                 screenWidth,
                 screenHeight);
             panel.setMoveRestrictions(spec.moveRestrictions());
+            panel.setAllyOptions(spec.allies());
             restorePlan(panel, spec);
             addPage(spec.name(), panel);
         }

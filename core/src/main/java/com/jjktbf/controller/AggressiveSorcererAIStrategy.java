@@ -131,7 +131,8 @@ public class AggressiveSorcererAIStrategy implements AIStrategy {
         Move move, BattleCombatant ai, BattlePlan plan, OpponentIntel intel, boolean lowHpOpponent
     ) {
         double basePower = Math.max(1, move.getTotalBasePower());
-        double power = Math.max(1, PowerCalculator.compute(move.getCategory(), ai.getEffectiveStats()));
+        double power = Math.max(1, PowerCalculator.compute(
+            move.getCategory(), ai.getEffectiveStats(), ai.getStatMode()));
         double weight = basePower * power;
 
         weight *= SmartAIScoring.effectMultiplier(move);

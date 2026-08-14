@@ -43,6 +43,7 @@ import com.jjktbf.model.character.coded.NewShadowStyleAbility;
 import com.jjktbf.model.character.coded.RatioAbility;
 import com.jjktbf.model.move.AoeType;
 import com.jjktbf.model.move.BlockStyle;
+import com.jjktbf.model.move.DefenseTargeting;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.DodgeScope;
 import com.jjktbf.model.move.HitComponent;
@@ -101,6 +102,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     // Handles to dynamically-shown/hidden widgets, refreshed in rebuildDetail.
     private Container<Actor> categorySectionsContainer;
     private Container<Actor> defenseFieldsContainer;
+    private Container<Actor> defenseTargetingContainer;
     private Container<Actor> ceMinMaxContainer;
     private Container<Actor> powerFieldsContainer;
     private Container<Actor> aoeFieldsContainer;
@@ -821,6 +823,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         // detached actors.
         categorySectionsContainer = null;
         defenseFieldsContainer = null;
+        defenseTargetingContainer = null;
         ceMinMaxContainer = null;
         powerFieldsContainer = null;
         weaponRequiredCheckbox = null;
@@ -1034,6 +1037,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         sections.pad(0f);
         powerFieldsContainer = null;
         defenseFieldsContainer = null;
+        defenseTargetingContainer = null;
         aoeFieldsContainer = null;
 
         if (hasTag(d, MoveTag.ATTACK)) {
@@ -1085,6 +1089,10 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             defenseFieldsContainer = new Container<>();
             defenseFieldsContainer.setActor(buildDefenseFields(d));
             defense.add(defenseFieldsContainer).growX().row();
+
+            defenseTargetingContainer = new Container<>();
+            defenseTargetingContainer.setActor(buildDefenseTargetingFields(d));
+            defense.add(defenseTargetingContainer).growX().row();
             defense.add(new Label("ON-FIRE EFFECTS", skin, "small")).padTop(8f).left().row();
             defense.add(buildMoveEffectsEditor(
                 d, MoveEffectTrigger.ON_FIRE, null)).growX().row();
@@ -2732,6 +2740,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     private void refreshConditionalFields(MoveData d) {
         markDirty();
         if (defenseFieldsContainer != null) defenseFieldsContainer.setActor(buildDefenseFields(d));
+        if (defenseTargetingContainer != null) {
+            defenseTargetingContainer.setActor(buildDefenseTargetingFields(d));
+        }
         if (ceMinMaxContainer  != null) ceMinMaxContainer.setActor(buildCeMinMax(d));
         if (powerFieldsContainer != null) powerFieldsContainer.setActor(buildPowerFields(d));
         if (aoeFieldsContainer != null) {
@@ -2742,6 +2753,38 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 aoeFieldsContainer.setActor(new Table());
             }
         }
+    }
+
+    /**
+     * Build the defensive targeting sub-section (inside the DEFENSE card): whose
+     * timeline the active-defense window is conferred to (Self / Single Ally /
+     * Multiple Allies / All Allies Except Self / All Allies Including Self), and
+     * for MULTIPLE_ALLIES a target-count field. Mirrors {@link #buildAoeFields}
+     * for attacks.
+     */
+    private Actor buildDefenseTargetingFields(MoveData d) {
+        Table t = new Table(skin);
+        t.defaults().left().pad(4);
+        t.add(new Label("DEFENSE TARGETING", skin, "small")).padTop(8f).left().row();
+
+        DefenseTargeting current = DefenseTargeting.fromName(d.defenseTargeting);
+        d.defenseTargeting = current.name();
+        if (d.defenseTargetCount < 2) d.defenseTargetCount = 2;
+
+        EnumSelectBox<DefenseTargeting> targetingSelect = new EnumSelectBox<>(
+            DefenseTargeting.class, current.name(), false,
+            name -> {
+                d.defenseTargeting = name;
+                game.audio().play(SoundCue.UI_NAVIGATE);
+                refreshConditionalFields(d);
+            }, skin);
+        t.add(labelledRow("Targeting (" + current.displayName() + ")", targetingSelect)).growX().row();
+
+        if (current == DefenseTargeting.MULTIPLE_ALLIES) {
+            t.add(labelledIntField("Target Count", d.defenseTargetCount, 2, 99,
+                    v -> { d.defenseTargetCount = v; })).growX().row();
+        }
+        return t;
     }
 
     /**

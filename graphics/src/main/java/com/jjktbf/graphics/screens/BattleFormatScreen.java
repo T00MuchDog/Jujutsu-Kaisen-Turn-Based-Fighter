@@ -20,7 +20,9 @@ import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.HoverScrollStage;
+import com.jjktbf.model.combat.BattleConfiguration;
 import com.jjktbf.model.combat.BattleFormat;
+import com.jjktbf.model.combat.BattleStatMode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,10 +38,13 @@ public final class BattleFormatScreen implements Screen {
     private final Stage stage;
     private final Table root;
     private final Table formatPanel;
+    private final TextButton statModeButton;
+    private final Label statModeDescription;
     private final List<FormatButton> formatButtons = new ArrayList<>();
     private final List<Cell<FormatButton>> formatButtonCells = new ArrayList<>();
 
-    private Consumer<BattleFormat> onFormatSelected;
+    private Consumer<BattleConfiguration> onFormatSelected;
+    private BattleStatMode statMode = BattleStatMode.STANDARD;
     private int selectedButtonIndex = -1;
     private int hoveredButtonIndex = -1;
     private boolean keyboardNavigation;
@@ -71,12 +76,27 @@ public final class BattleFormatScreen implements Screen {
         formatPanel.add(formatTitle).left().padBottom(6f).row();
 
         Label instructions = new Label(
-            "LEFT/RIGHT: SELECT  |  ENTER: CONFIRM  |  ESC: BACK",
+            "LEFT/RIGHT: SELECT  |  E: TOGGLE STATS  |  ENTER: CONFIRM  |  ESC: BACK",
             assets.editorSkin,
             "small-white"
         );
         instructions.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
         formatPanel.add(instructions).left().padBottom(14f).row();
+
+        statModeButton = new TextButton("", assets.editorSkin, "default");
+        statModeButton.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                toggleStatMode();
+            }
+        });
+        formatPanel.add(statModeButton).growX().height(48f).padBottom(6f).row();
+
+        statModeDescription = new Label("", assets.editorSkin, "small-white");
+        statModeDescription.setWrap(true);
+        statModeDescription.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
+        formatPanel.add(statModeDescription).growX().left().padBottom(12f).row();
+        updateStatModeText();
 
         Table buttonRow = new Table();
         FormatButton oneOnOne = makeFormatButton("1V1", BattleFormat.ONE_V_ONE);
@@ -103,6 +123,8 @@ public final class BattleFormatScreen implements Screen {
                     moveSelection(1);
                 } else if (keycode == Input.Keys.ENTER) {
                     activateSelection();
+                } else if (keycode == Input.Keys.E) {
+                    toggleStatMode();
                 } else if (keycode == Input.Keys.ESCAPE || keycode == Input.Keys.BACK) {
                     game.audio().play(SoundCue.UI_BACK);
                     game.showMainMenu();
@@ -118,14 +140,18 @@ public final class BattleFormatScreen implements Screen {
     }
 
     /** Sets the local battle route to run after a format is chosen. */
-    public void prepare(Consumer<BattleFormat> onFormatSelected) {
+    public void prepare(Consumer<BattleConfiguration> onFormatSelected) {
         this.onFormatSelected = Objects.requireNonNull(onFormatSelected, "onFormatSelected");
+        statMode = BattleStatMode.STANDARD;
+        updateStatModeText();
     }
 
     private FormatButton makeFormatButton(String label, BattleFormat format) {
         FormatButton button = new FormatButton(label, assets, () -> {
             game.audio().play(SoundCue.UI_CONFIRM);
-            if (onFormatSelected != null) onFormatSelected.accept(format);
+            if (onFormatSelected != null) {
+                onFormatSelected.accept(new BattleConfiguration(format, statMode));
+            }
         });
         button.addListener(new ClickListener() {
             @Override
@@ -153,6 +179,20 @@ public final class BattleFormatScreen implements Screen {
             % formatButtons.size();
         updateHighlights();
         game.audio().play(SoundCue.UI_NAVIGATE);
+    }
+
+    private void toggleStatMode() {
+        statMode = statMode == BattleStatMode.STANDARD
+            ? BattleStatMode.EQUALIZED : BattleStatMode.STANDARD;
+        updateStatModeText();
+        game.audio().play(SoundCue.UI_NAVIGATE);
+    }
+
+    private void updateStatModeText() {
+        statModeButton.setText("STAT MODE: " + statMode.toString().toUpperCase());
+        statModeDescription.setText(statMode == BattleStatMode.EQUALIZED
+            ? "Runtime stats are blended halfway toward 80. Move and ability loadouts stay unchanged."
+            : "Runtime stats use their normal scaled values.");
     }
 
     private void activateSelection() {

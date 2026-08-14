@@ -107,6 +107,27 @@ public final class AbilityActivationEngine {
         int componentIndex,
         int tick
     ) {
+        return processMoveEffects(state, owner, currentTargets, move, moveTrigger,
+            componentIndex, tick, List.of());
+    }
+
+    /**
+     * Execute one move trigger against its complete resolved target set, with an
+     * explicit set of allied {@code moveAllies} that {@link AbilityEffectTarget#ALLY}
+     * / {@link AbilityEffectTarget#SELF_AND_ALLY} effect rows resolve to. For a
+     * defensive move this is the set of allies its active-defense window is
+     * conferred to; callers pass it so on-fire effects can buff those same allies.
+     */
+    public List<CombatEvent> processMoveEffects(
+        BattleState state,
+        BattleCombatant owner,
+        List<BattleCombatant> currentTargets,
+        Move move,
+        MoveEffectTrigger moveTrigger,
+        int componentIndex,
+        int tick,
+        List<BattleCombatant> moveAllies
+    ) {
         if (state == null || owner == null || move == null || !move.usesUnifiedEffects()) {
             return List.of();
         }
@@ -137,7 +158,7 @@ public final class AbilityActivationEngine {
                         authored, mastery);
                     selfEffect.target = AbilityEffectTarget.SELF.name();
                     applyEffect(state, owner, currentTarget, selfEffect,
-                        tick, events, followUps, true, move, component, List.of());
+                        tick, events, followUps, true, move, component, List.of(), List.of());
                 }
                 for (BattleCombatant target : moveTargets) {
                     AbilityTrigger targetTrigger = moveEffectTrigger(
@@ -149,7 +170,7 @@ public final class AbilityActivationEngine {
                         authored, mastery);
                     targetEffect.target = AbilityEffectTarget.ENEMY.name();
                     applyEffect(state, owner, target, targetEffect,
-                        tick, events, followUps, true, move, component, List.of(target));
+                        tick, events, followUps, true, move, component, List.of(target), List.of());
                 }
                 continue;
             }
@@ -159,7 +180,7 @@ public final class AbilityActivationEngine {
 
             AbilityEffectData effect = TechniqueMasteryResolver.resolve(authored, mastery);
             applyEffect(state, owner, currentTarget, effect, tick, events, followUps,
-                true, move, component, moveTargets);
+                true, move, component, moveTargets, moveAllies);
         }
         while (!followUps.isEmpty()) {
             events.addAll(process(state, followUps.removeFirst()));
@@ -603,7 +624,7 @@ public final class AbilityActivationEngine {
         ArrayDeque<AbilityTrigger> followUps
     ) {
         applyEffect(state, owner, enemy, effect, tick, events, followUps,
-            false, null, null, List.of());
+            false, null, null, List.of(), List.of());
     }
 
     private void applyEffect(
@@ -617,13 +638,14 @@ public final class AbilityActivationEngine {
         boolean moveContext,
         Move move,
         HitComponent component,
-        List<BattleCombatant> moveTargets
+        List<BattleCombatant> moveTargets,
+        List<BattleCombatant> moveAllies
     ) {
         AbilityEffectType type = safeType(effect);
         Integer effectComponentIndex = move == null || component == null
             ? null : move.getHitComponents().indexOf(component);
         List<BattleCombatant> targets = targets(
-            effect, owner, enemy, state, moveContext, moveTargets);
+            effect, owner, enemy, state, moveContext, moveTargets, moveAllies);
         switch (type) {
             case HEAL_HP, HEAL_HP_PERCENT -> {
                 for (BattleCombatant target : targets) {
@@ -784,6 +806,13 @@ public final class AbilityActivationEngine {
                  TEMP_LOCK_MOVE_TAG -> {
                 for (BattleCombatant target : targets) {
                     addRuntimeEffect(state, owner, target, effect, tick, events);
+                }
+            }
+            case TAUNT -> {
+                // Refreshing group: re-taunting resets the duration instead of
+                // stacking parallel Taunt effects on the same combatant.
+                for (BattleCombatant target : targets) {
+                    addRuntimeEffect(state, owner, target, effect, tick, events, "TAUNT");
                 }
             }
             case STUN_CURRENT_ACTION -> {
@@ -1006,6 +1035,11 @@ public final class AbilityActivationEngine {
      * Resolve the combatants an ability effect hits. {@code SELF} targets the
      * owner; {@code ENEMY} fans out to every active enemy of the owner (multi-
      * combatant); {@code BOTH} is the union of self and all active enemies.
+     *
+     * <p>{@code ALLY} resolves, in move context, to the defensive move's conferred
+     * beneficiaries ({@code moveAllies}) — i.e. exactly the allies its active-defense
+     * window is granted to — or, in ability context, to every active ally of the
+     * owner. {@code SELF_AND_ALLY} is the owner plus those allies.
      */
     private static List<BattleCombatant> targets(
         AbilityEffectData effect,
@@ -1013,17 +1047,22 @@ public final class AbilityActivationEngine {
         BattleCombatant currentTarget,
         BattleState state,
         boolean moveContext,
-        List<BattleCombatant> moveTargets
+        List<BattleCombatant> moveTargets,
+        List<BattleCombatant> moveAllies
     ) {
         if (owner == null || state == null) return List.of();
         AbilityEffectTarget target;
         try { target = AbilityEffectTarget.valueOf(effect.target); }
         catch (Exception ex) { target = AbilityEffectTarget.SELF; }
+        List<BattleCombatant> allies = moveContext
+            ? (moveAllies == null ? List.of() : moveAllies)
+            : state.activeAlliesOf(owner);
         return switch (target) {
             case SELF -> List.of(owner);
             case ENEMY -> moveContext
                 ? moveTargets
                 : state.activeEnemiesOf(owner);
+            case ALLY -> allies;
             case BOTH -> {
                 List<BattleCombatant> out = new ArrayList<>();
                 out.add(owner);
@@ -1033,6 +1072,13 @@ public final class AbilityActivationEngine {
                 } else {
                     out.addAll(state.activeEnemiesOf(owner));
                 }
+                yield out;
+            }
+            case SELF_AND_ALLY -> {
+                List<BattleCombatant> out = new ArrayList<>();
+                out.add(owner);
+                allies.stream().filter(targetCombatant -> targetCombatant != owner)
+                    .forEach(out::add);
                 yield out;
             }
         };
@@ -1121,9 +1167,22 @@ public final class AbilityActivationEngine {
         int tick,
         List<CombatEvent> events
     ) {
+        addRuntimeEffect(state, source, target, effect, tick, events, null);
+    }
+
+    private static void addRuntimeEffect(
+        BattleState state,
+        BattleCombatant source,
+        BattleCombatant target,
+        AbilityEffectData effect,
+        int tick,
+        List<CombatEvent> events,
+        String refreshGroup
+    ) {
         int previousMaxHp = target.getMaxHp();
         int previousMaxCe = target.getMaxCursedEnergy();
-        target.addRuntimeAbilityEffect(effect, state.getRoundNumber(), state.getCurrentPhase());
+        target.addRuntimeAbilityEffect(
+            effect, state.getRoundNumber(), state.getCurrentPhase(), refreshGroup);
         appendResourceMaximumEvents(
             source, target, previousMaxHp, previousMaxCe, tick, events);
     }
@@ -1200,7 +1259,7 @@ public final class AbilityActivationEngine {
     }
 
     private static int statValue(BattleCombatant combatant, String stat) {
-        try { return StatKey.fromString(stat).get(combatant.getEffectiveStats()); }
+        try { return combatant.getRuntimeStat(StatKey.fromString(stat)); }
         catch (Exception ex) { return 0; }
     }
 

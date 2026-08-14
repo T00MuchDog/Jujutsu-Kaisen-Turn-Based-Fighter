@@ -1,5 +1,7 @@
 package com.jjktbf.server.challenge;
 
+import com.jjktbf.model.combat.BattleFormat;
+import com.jjktbf.model.combat.BattleStatMode;
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeCreateRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
@@ -66,6 +68,52 @@ class ChallengeServiceTest {
             host, ChallengeCreateRequest.standard(firstCharacter)));
         assertEquals(challenge, fixture.challengeService().getHostedChallenge(host));
         assertEquals(1, count("challenge"));
+    }
+
+    @Test
+    void equalizedRulesPersistAndPairWithTwoOnTwo() {
+        SessionIdentity host = fixture.createGuest("Equalized Host");
+        SessionIdentity requester = fixture.createGuest("Equalized Requester");
+        List<String> hostRoster = List.of(firstCharacter, secondCharacter);
+        List<String> requesterRoster = List.of(secondCharacter, firstCharacter);
+
+        ChallengeSummary challenge = fixture.challengeService().createChallenge(
+            host,
+            ChallengeCreateRequest.forBattle(
+                BattleFormat.TWO_V_TWO,
+                BattleStatMode.EQUALIZED,
+                hostRoster));
+
+        assertEquals(BattleFormat.TWO_V_TWO, challenge.format());
+        assertEquals(BattleStatMode.EQUALIZED.rulesetId(), challenge.ruleset());
+        assertEquals(hostRoster, challenge.hostCharacterIds());
+        assertTrue(fixture.challengeService().listOpenChallenges(requester).challenges()
+            .stream().anyMatch(item -> item.challengeId().equals(challenge.challengeId())));
+
+        ServiceException mismatch = assertThrows(ServiceException.class, () ->
+            fixture.challengeService().requestJoin(
+                requester,
+                challenge.challengeId(),
+                ChallengeAcceptRequest.standard(BattleFormat.TWO_V_TWO, requesterRoster)));
+        assertEquals("INCOMPATIBLE_VERSION", mismatch.code());
+
+        ChallengeSummary pending = fixture.challengeService().requestJoin(
+            requester,
+            challenge.challengeId(),
+            ChallengeAcceptRequest.forBattle(
+                BattleFormat.TWO_V_TWO,
+                BattleStatMode.EQUALIZED,
+                requesterRoster));
+        AcceptedMatchSetup accepted = fixture.challengeService().acceptChallenge(
+            host, challenge.challengeId(), ChallengeDecisionRequest.forChallenge(pending));
+
+        assertEquals(BattleStatMode.EQUALIZED.rulesetId(), accepted.ruleset());
+        assertEquals(BattleFormat.TWO_V_TWO, accepted.format());
+        assertEquals(2, accepted.playerOne().characters().size());
+        assertEquals(2, accepted.playerTwo().characters().size());
+        ChallengeSummary recovered = fixture.challengeService().getHostedChallenge(host);
+        assertEquals(challenge.challengeId(), recovered.challengeId());
+        assertEquals(BattleStatMode.EQUALIZED.rulesetId(), recovered.ruleset());
     }
 
     @Test

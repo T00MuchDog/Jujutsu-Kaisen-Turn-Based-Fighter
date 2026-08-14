@@ -314,6 +314,10 @@ public enum AbilityEffectType {
         "Temporarily lock move tag",
         "Prevents the target from planning moves with one tag for the duration.",
         TARGET, MOVE_SCOPE, DURATION),
+    TAUNT(
+        "Taunt",
+        "Draws enemies' single-target MELEE attacks onto the target for the configured rounds and ticks. Area-of-effect attacks are unaffected.",
+        TARGET, DURATION),
     MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE(
         "Block while shikigami is active",
         "Prevents this move from being used while the selected owned shikigami is active on the field.",
@@ -345,7 +349,7 @@ public enum AbilityEffectType {
             BATTLE_STAT_ADD, BATTLE_STAT_MULTIPLY, BATTLE_STAT_PERCENT,
             IGNORE_DAMAGE, DAMAGE_SHIELD, SURVIVE_FATAL_DAMAGE,
             GUARANTEE_NEXT_HIT, GUARANTEE_NEXT_DODGE, GUARANTEE_NEXT_BLACK_FLASH,
-            CANCEL_NEXT_MOVE, STUN_CURRENT_ACTION, TEMP_LOCK_MOVE_TAG, SUMMON_CHARACTER,
+            CANCEL_NEXT_MOVE, STUN_CURRENT_ACTION, TEMP_LOCK_MOVE_TAG, TAUNT, SUMMON_CHARACTER,
             DESUMMON_OWNED_SHIKIGAMI, DESUMMON_TARGET_SHIKIGAMI,
             CODED_MOVE_ACTION);
 
@@ -546,6 +550,11 @@ public enum AbilityEffectType {
                 effect.moveTag = MoveTag.CURSED_ENERGY.name();
                 effect.durationRounds = 1;
             }
+            case TAUNT -> {
+                effect.target = AbilityEffectTarget.SELF.name();
+                effect.durationRounds = 0;
+                effect.durationTicks = 20;
+            }
             case SUMMON_CHARACTER -> {
                 // No target needed — the summon joins the owner's team.
                 effect.characterId = null;
@@ -698,7 +707,7 @@ public enum AbilityEffectType {
             try {
                 AbilityEffectTarget.valueOf(effect.target);
             } catch (Exception ex) {
-                return "Choose SELF, ENEMY, or BOTH as the effect target.";
+                return "Choose SELF, ENEMY, ALLY, BOTH, or SELF_AND_ALLY as the effect target.";
             }
         }
         if (uses(TIMING)) {

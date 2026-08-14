@@ -57,7 +57,8 @@ public record SocketMessage(
             matchId,
             ProtocolVersion.GAME_VERSION,
             ProtocolVersion.PROTOCOL_VERSION,
-            ProtocolVersion.STANDARD_RULESET,
+            state == null || state.ruleset() == null
+                ? ProtocolVersion.STANDARD_RULESET : state.ruleset(),
             null,
             null,
             state == null ? null : state.stateVersion(),

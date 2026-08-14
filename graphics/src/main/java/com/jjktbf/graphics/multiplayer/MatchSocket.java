@@ -11,6 +11,15 @@ interface MatchSocket extends AutoCloseable {
         MatchWebSocketClient.Listener listener
     );
 
+    default CompletableFuture<Void> connect(
+        String guestToken,
+        String matchId,
+        String ruleset,
+        MatchWebSocketClient.Listener listener
+    ) {
+        return connect(guestToken, matchId, listener);
+    }
+
     CompletableFuture<Void> send(SocketMessage message);
 
     void disconnect();

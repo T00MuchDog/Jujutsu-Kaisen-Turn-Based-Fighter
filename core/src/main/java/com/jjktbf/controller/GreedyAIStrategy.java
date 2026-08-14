@@ -1,5 +1,6 @@
 package com.jjktbf.controller;
 
+import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
@@ -183,8 +184,8 @@ public class GreedyAIStrategy implements AIStrategy {
         List<ActionSegment> offense = plan.offensiveTimeline().getSegments();
         if (offense.isEmpty()) return false;
 
-        int aiSpeed = ai.getEffectiveStats().getSpeed();
-        int opponentSpeed = opponent.getEffectiveStats().getSpeed();
+        int aiSpeed = ai.getRuntimeStat(StatKey.SPEED);
+        int opponentSpeed = opponent.getRuntimeStat(StatKey.SPEED);
         if (aiSpeed < opponentSpeed) return false;
 
         ActionSegment anchor = offense.get(rng.nextInt(offense.size()));

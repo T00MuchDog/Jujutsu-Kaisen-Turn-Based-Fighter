@@ -1,6 +1,7 @@
 package com.jjktbf.multiplayer.protocol;
 
 import com.jjktbf.model.combat.BattleFormat;
+import com.jjktbf.model.combat.BattleStatMode;
 
 import java.util.List;
 import java.util.Objects;
@@ -41,12 +42,21 @@ public record ChallengeCreateRequest(
      * Standard host request carrying an ordered roster for the given format.
      */
     public static ChallengeCreateRequest standard(BattleFormat format, List<String> characterIds) {
+        return forBattle(format, BattleStatMode.STANDARD, characterIds);
+    }
+
+    /** Host request for independent roster-size and runtime-stat choices. */
+    public static ChallengeCreateRequest forBattle(
+        BattleFormat format,
+        BattleStatMode statMode,
+        List<String> characterIds
+    ) {
         return new ChallengeCreateRequest(
             characterIds,
             format,
             ProtocolVersion.GAME_VERSION,
             ProtocolVersion.PROTOCOL_VERSION,
-            ProtocolVersion.STANDARD_RULESET
+            Objects.requireNonNull(statMode, "statMode").rulesetId()
         );
     }
 }

@@ -165,6 +165,21 @@ public class MoveData {
      */
     public int aoeTargetCount = 2;
 
+    /**
+     * {@link com.jjktbf.model.move.DefenseTargeting} enum name for a defensive
+     * move's authoritative targeting shape (whose timeline the active-defense
+     * window is conferred to). Blank/null/invalid resolves to SELF at load time,
+     * preserving legacy defensive moves.
+     */
+    public String defenseTargeting = "SELF";
+
+    /**
+     * Ally count for {@link com.jjktbf.model.move.DefenseTargeting#MULTIPLE_ALLIES}
+     * defensive moves. Ignored for the other shapes. Defaults to 2; must be ≥ 2
+     * when used.
+     */
+    public int defenseTargetCount = 2;
+
     /** Cannot be assigned directly; an ability must add this move to the character. */
     public boolean mustBeGranted = false;
 
@@ -511,7 +526,9 @@ public class MoveData {
             .moveCap(moveCap)
             .summonCharacterId(summonCharacterId)
             .aoeType(AoeType.fromName(aoeType))
-            .aoeTargetCount(aoeTargetCount >= 2 ? aoeTargetCount : 2);
+            .aoeTargetCount(aoeTargetCount >= 2 ? aoeTargetCount : 2)
+            .defenseTargeting(DefenseTargeting.fromName(defenseTargeting))
+            .defenseTargetCount(defenseTargetCount >= 2 ? defenseTargetCount : 2);
 
         if (effects != null) {
             java.util.ArrayList<MoveEffectData> copiedEffects = effects.stream()
@@ -831,6 +848,8 @@ public class MoveData {
             d.aoeType         = move.getAoeType().name();
             d.aoeTargetCount  = move.getAoeTargetCount();
         }
+        d.defenseTargeting    = move.getDefenseTargeting().name();
+        d.defenseTargetCount  = move.getDefenseTargetCount();
         d.prerequisites       = move.getPrerequisites().isEmpty() ? null
                                     : new java.util.LinkedHashMap<>(move.getPrerequisites());
 

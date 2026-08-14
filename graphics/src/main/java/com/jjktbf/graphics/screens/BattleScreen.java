@@ -2152,6 +2152,14 @@ public class BattleScreen implements Screen, BattleView {
         List<TeamPlanningPanel.PageSpec> pages = new ArrayList<>();
         for (CharacterState character : local.combatants()) {
             if (!isActiveCombatant(character)) continue;
+            List<PlanningPanel.TargetOption> allies = local.combatants().stream()
+                .filter(BattleScreen::isActiveCombatant)
+                .filter(candidate -> !character.instanceId().equals(candidate.instanceId()))
+                .map(combatant -> new PlanningPanel.TargetOption(
+                    combatant.instanceId(),
+                    combatant.name() + " #" + (combatant.rosterOrder() + 1),
+                    "SUMMON".equalsIgnoreCase(combatant.role())))
+                .toList();
             Map<String, Integer> ceCosts = new HashMap<>();
             Map<String, String> moveRestrictions = new HashMap<>();
             List<Move> availableMoves = new ArrayList<>();
@@ -2185,7 +2193,8 @@ public class BattleScreen implements Screen, BattleView {
                     .count(),
                 moveRestrictions,
                 targets,
-                character.plan()));
+                character.plan(),
+                allies));
         }
         if (pages.isEmpty()) return;
         teamPlanningPanel = new TeamPlanningPanel(

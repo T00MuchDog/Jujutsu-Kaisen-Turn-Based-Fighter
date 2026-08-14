@@ -1,6 +1,7 @@
 package com.jjktbf.graphics.multiplayer;
 
 import com.jjktbf.model.combat.BattleFormat;
+import com.jjktbf.model.combat.BattleStatMode;
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeCreateRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
@@ -39,8 +40,16 @@ public final class ChallengeService {
         BattleFormat format,
         List<String> characterIds
     ) {
+        return createChallenge(format, BattleStatMode.STANDARD, characterIds);
+    }
+
+    public CompletableFuture<ChallengeSummary> createChallenge(
+        BattleFormat format,
+        BattleStatMode statMode,
+        List<String> characterIds
+    ) {
         return withToken(token -> api.createChallenge(
-            token, ChallengeCreateRequest.standard(format, characterIds)));
+            token, ChallengeCreateRequest.forBattle(format, statMode, characterIds)));
     }
 
     public CompletableFuture<ChallengeListResponse> listChallenges() {
@@ -75,10 +84,20 @@ public final class ChallengeService {
         BattleFormat format,
         List<String> characterIds
     ) {
+        return requestJoin(
+            challengeId, format, BattleStatMode.STANDARD, characterIds);
+    }
+
+    public CompletableFuture<ChallengeSummary> requestJoin(
+        String challengeId,
+        BattleFormat format,
+        BattleStatMode statMode,
+        List<String> characterIds
+    ) {
         CompletableFuture<ChallengeSummary> attempt = withToken(token -> api.requestJoin(
             token,
             challengeId,
-            ChallengeAcceptRequest.standard(format, characterIds)
+            ChallengeAcceptRequest.forBattle(format, statMode, characterIds)
         ));
         return attempt.handle((challenge, failure) -> {
             if (failure == null) return CompletableFuture.completedFuture(challenge);

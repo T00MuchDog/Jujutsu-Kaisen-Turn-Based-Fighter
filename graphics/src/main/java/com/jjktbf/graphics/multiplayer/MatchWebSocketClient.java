@@ -102,6 +102,7 @@ public final class MatchWebSocketClient implements MatchSocket {
     private Listener listener = NO_OP_LISTENER;
     private String guestToken;
     private String matchId;
+    private String ruleset;
     private Attempt activeAttempt;
     private ScheduledFuture<?> heartbeatTask;
     private ScheduledFuture<?> reconnectTask;
@@ -148,8 +149,23 @@ public final class MatchWebSocketClient implements MatchSocket {
         String matchId,
         Listener listener
     ) {
+        return connect(
+            guestToken,
+            matchId,
+            com.jjktbf.multiplayer.protocol.ProtocolVersion.STANDARD_RULESET,
+            listener);
+    }
+
+    @Override
+    public CompletableFuture<Void> connect(
+        String guestToken,
+        String matchId,
+        String ruleset,
+        Listener listener
+    ) {
         requireText(guestToken, "guestToken");
         requireText(matchId, "matchId");
+        requireText(ruleset, "ruleset");
         Objects.requireNonNull(listener, "listener");
 
         WebSocket previousSocket;
@@ -172,6 +188,7 @@ public final class MatchWebSocketClient implements MatchSocket {
             this.listener = listener;
             this.guestToken = guestToken;
             this.matchId = matchId;
+            this.ruleset = ruleset;
             this.activeAttempt = null;
             this.reconnectAttempts = 0;
             this.initialConnection = new CompletableFuture<>();
@@ -226,12 +243,12 @@ public final class MatchWebSocketClient implements MatchSocket {
         URI uri;
         String token;
         synchronized (lock) {
-            if (closed.get() || guestToken == null || matchId == null
+            if (closed.get() || guestToken == null || matchId == null || ruleset == null
                 || generationSequence.get() != expectedGeneration) {
                 return;
             }
             attempt = new Attempt(
-                expectedGeneration, matchId, listener, initialConnection);
+                expectedGeneration, matchId, ruleset, listener, initialConnection);
             activeAttempt = attempt;
             uri = config.webSocketUri();
             token = guestToken;
@@ -321,6 +338,7 @@ public final class MatchWebSocketClient implements MatchSocket {
                 delay = Duration.ZERO;
                 guestToken = null;
                 matchId = null;
+                ruleset = null;
             } else {
                 exhausted = false;
                 nextAttempt = ++reconnectAttempts;
@@ -337,6 +355,7 @@ public final class MatchWebSocketClient implements MatchSocket {
                     nextAttempt = -1;
                     guestToken = null;
                     matchId = null;
+                    ruleset = null;
                     attempt.connectionFuture.completeExceptionally(exception);
                 }
             }
@@ -443,6 +462,7 @@ public final class MatchWebSocketClient implements MatchSocket {
             activeAttempt = null;
             guestToken = null;
             matchId = null;
+            ruleset = null;
             reconnectAttempts = 0;
             unfinished = initialConnection;
             initialConnection = null;
@@ -704,6 +724,7 @@ public final class MatchWebSocketClient implements MatchSocket {
     private final class Attempt implements WebSocket.Listener {
         private final long generation;
         private final String expectedMatchId;
+        private final String expectedRuleset;
         private final Listener connectionListener;
         private final CompletableFuture<Void> connectionFuture;
         private final AtomicBoolean terminal = new AtomicBoolean();
@@ -717,11 +738,13 @@ public final class MatchWebSocketClient implements MatchSocket {
         private Attempt(
             long generation,
             String expectedMatchId,
+            String expectedRuleset,
             Listener connectionListener,
             CompletableFuture<Void> connectionFuture
         ) {
             this.generation = generation;
             this.expectedMatchId = expectedMatchId;
+            this.expectedRuleset = expectedRuleset;
             this.connectionListener = connectionListener;
             this.connectionFuture = connectionFuture;
         }
@@ -735,7 +758,11 @@ public final class MatchWebSocketClient implements MatchSocket {
             try {
                 webSocket.request(1);
                 scheduleJoinTimeout(this);
-                send(SocketMessage.joinMatch(expectedMatchId)).whenComplete((ignored, failure) -> {
+                send(SocketMessage.joinMatch(
+                    expectedMatchId,
+                    com.jjktbf.multiplayer.protocol.ProtocolVersion.GAME_VERSION,
+                    com.jjktbf.multiplayer.protocol.ProtocolVersion.PROTOCOL_VERSION,
+                    expectedRuleset)).whenComplete((ignored, failure) -> {
                     if (failure != null) {
                         fail(
                             "CONNECTION_FAILED",

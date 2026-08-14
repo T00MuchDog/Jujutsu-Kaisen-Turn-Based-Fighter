@@ -1,5 +1,6 @@
 package com.jjktbf.model.combat;
 
+import com.jjktbf.model.move.DefenseTargeting;
 import com.jjktbf.model.move.Move;
 
 import java.util.ArrayList;
@@ -176,12 +177,14 @@ public class BattlePlan {
     }
 
     /**
-     * Does this move require an explicit single-enemy target to be locked/submitted?
-     * Only hostile single-target moves need a target; defensive, self-only utility,
-     * AOE, and summon-only moves do not.
+     * Does this move require an explicit selected target to be locked/submitted?
+     * Hostile single-/multi-target moves need an enemy target; defensive moves
+     * with an ally targeting mode (SINGLE_ALLY / MULTIPLE_ALLIES) need an ally
+     * target. Self-only defenses, AOE/auto-targeted moves, and summon-only moves do not.
      */
     public static boolean requiresTarget(Move move) {
-        return MoveTargeting.forMove(move).requiresSelectedTargets();
+        return MoveTargeting.forMove(move).requiresSelectedTargets()
+            || DefenseTargeting.forMove(move).requiresSelectedTargets();
     }
 
     /**
@@ -200,6 +203,15 @@ public class BattlePlan {
                 && (count < 1 || count > s.getMove().getAoeTargetCount())) {
                 return "Move '" + s.getMove().getName() + "' requires between 1 and "
                     + s.getMove().getAoeTargetCount() + " targets";
+            }
+            DefenseTargeting defense = DefenseTargeting.forMove(s.getMove());
+            if (defense == DefenseTargeting.SINGLE_ALLY && count != 1) {
+                return "Move '" + s.getMove().getName() + "' requires exactly one ally target";
+            }
+            if (defense == DefenseTargeting.MULTIPLE_ALLIES
+                && (count < 1 || count > s.getMove().getDefenseTargetCount())) {
+                return "Move '" + s.getMove().getName() + "' requires between 1 and "
+                    + s.getMove().getDefenseTargetCount() + " ally targets";
             }
         }
         return null;

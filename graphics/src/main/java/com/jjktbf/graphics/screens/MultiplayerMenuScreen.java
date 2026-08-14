@@ -14,6 +14,7 @@ import com.jjktbf.graphics.multiplayer.GuestAccountService;
 import com.jjktbf.graphics.multiplayer.GuestCredentials;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.model.combat.BattleFormat;
+import com.jjktbf.model.combat.BattleStatMode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +26,7 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
     private final Label statusLabel;
     private final Label rosterStatusLabel;
     private final SelectBox<BattleFormat> formatSelect;
+    private final SelectBox<BattleStatMode> statModeSelect;
     private final SelectBox<JJKGame.MultiplayerFighter> fighterOneSelect;
     private final SelectBox<JJKGame.MultiplayerFighter> fighterTwoSelect;
     private final Label fighterTwoLabel;
@@ -73,6 +75,19 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
             }
         });
         panel.add(formatSelect).growX().height(44f).padBottom(12f).row();
+
+        Label statModeTitle = new Label("STAT MODE", assets.editorSkin, "white");
+        panel.add(statModeTitle).growX().left().padBottom(5f).row();
+        statModeSelect = new DynamicSelectBox<>(assets.editorSkin);
+        statModeSelect.setItems(BattleStatMode.STANDARD, BattleStatMode.EQUALIZED);
+        statModeSelect.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                BattleStatMode selected = statModeSelect.getSelected();
+                if (selected != null) game.setSelectedMultiplayerStatMode(selected);
+            }
+        });
+        panel.add(statModeSelect).growX().height(44f).padBottom(12f).row();
 
         Label fighterOneLabel = new Label("FIGHTER 1", assets.editorSkin, "white");
         panel.add(fighterOneLabel).growX().left().padBottom(5f).row();
@@ -134,6 +149,8 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
 
     private void refreshRoster() {
         game.reloadMultiplayerRoster();
+        BattleStatMode statMode = game.getSelectedMultiplayerStatMode();
+        statModeSelect.setSelected(statMode == null ? BattleStatMode.STANDARD : statMode);
         Array<JJKGame.MultiplayerFighter> items = new Array<>();
         items.addAll(game.getMultiplayerRoster().toArray(JJKGame.MultiplayerFighter[]::new));
         if (items.isEmpty()) {
@@ -197,6 +214,7 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
             return;
         }
         game.setSelectedMultiplayerFormat(format);
+        game.setSelectedMultiplayerStatMode(statModeSelect.getSelected());
         List<String> ids = new ArrayList<>(format.fightersPerSide());
         ids.add(fighterId(fighterOneSelect));
         if (format == BattleFormat.TWO_V_TWO) {
@@ -276,6 +294,7 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
         hostButton.setDisabled(!enabled);
         searchButton.setDisabled(!enabled);
         formatSelect.setDisabled(false);
+        statModeSelect.setDisabled(false);
         fighterOneSelect.setDisabled(false);
         fighterTwoSelect.setDisabled(false);
     }

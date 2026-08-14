@@ -410,7 +410,8 @@ public class CombatResolver {
                 // summed upkeep rate by the summoner's (scaled) CE Efficiency
                 // before fractional accumulation.
                 rate *= SummonUpkeepScaler.upkeepMultiplier(
-                    summoner.getEffectiveStats().getCursedEnergyEfficiency());
+                    summoner.getEffectiveStats().getCursedEnergyEfficiency(),
+                    summoner.getStatMode());
             }
             int due = summoner.accrueSummonCeUpkeep(rate);
             if (due <= 0) continue;
@@ -753,8 +754,8 @@ public class CombatResolver {
     private int comparePriority(FiringEntry a, FiringEntry b) {
         int instantComparison = Boolean.compare(b.segment.isInstant(), a.segment.isInstant());
         if (instantComparison != 0) return instantComparison;
-        int aSpeed = a.attacker.getEffectiveStats().getSpeed();
-        int bSpeed = b.attacker.getEffectiveStats().getSpeed();
+        int aSpeed = a.attacker.getRuntimeStat(StatKey.SPEED);
+        int bSpeed = b.attacker.getRuntimeStat(StatKey.SPEED);
         return Integer.compare(bSpeed, aSpeed);
     }
 
@@ -829,6 +830,26 @@ public class CombatResolver {
             case SINGLE_ENEMY: {
                 CombatantId selected = entry.segment.getTarget();
                 BattleCombatant resolved = selected == null ? null : state.combatant(selected);
+
+                // Taunt: a single-target MELEE attack is pulled onto any active
+                // enemy holding a Taunt. Area-of-effect moves are resolved by
+                // their own cases (ALL_ENEMIES / MULTIPLE_ENEMIES / ALL_OTHERS)
+                // and are never redirected here, so a Taunt cannot pull an AOE.
+                if (move.isMelee()) {
+                    BattleCombatant taunter = state.taunterOf(attacker);
+                    if (taunter != null && taunter.isActive() && !taunter.isAlliedWith(attacker)
+                        && (resolved == null
+                            || !taunter.getInstanceId().equals(resolved.getInstanceId()))) {
+                        events.add(CombatEvent.of(CombatEvent.Type.TARGET_RETARGETED)
+                            .source(attacker).target(taunter).move(move).tick(tick)
+                            .message(attacker.getCharacter().getName() + "'s "
+                                + move.getName() + " is drawn to "
+                                + taunter.getCharacter().getName() + "!")
+                            .build());
+                        return TargetSet.single(taunter);
+                    }
+                }
+
                 if (resolved == null || !resolved.isActive() || resolved.isAlliedWith(attacker)) {
                     // Retarget deterministically to the first living enemy.
                     BattleCombatant retarget = state.firstActiveEnemyOf(attacker);
@@ -880,6 +901,81 @@ public class CombatResolver {
             default:
                 return TargetSet.empty();
         }
+    }
+
+    /**
+     * Confer a defensive move's active-defense window onto its beneficiaries at
+     * fire time. {@link DefenseTargeting#SELF} (the default) leaves the segment
+     * on the caster's own timeline — the historical behaviour, so nothing to do.
+     * The ally modes insert a fired clone into each non-caster beneficiary's
+     * timeline and mark the original transferred so it stops protecting the
+     * caster — <em>unless</em> the caster is itself a beneficiary (e.g.
+     * {@link DefenseTargeting#ALL_ALLIES_INCLUDING_SELF}), in which case the
+     * caster keeps its own protection and only the allies receive clones. If no
+     * ally beneficiary can be resolved (e.g. none selected, or all defeated),
+     * the protection simply remains on the caster.
+     */
+    private void grantDefense(
+        BattleState state, BattleCombatant caster, ActionSegment segment,
+        Move move, int tick, List<CombatEvent> events,
+        List<BattleCombatant> beneficiaries
+    ) {
+        if (move.getDefenseTargeting() == DefenseTargeting.SELF) return;
+
+        boolean casterIsBeneficiary = false;
+        boolean grantedToAlly = false;
+        for (BattleCombatant beneficiary : beneficiaries) {
+            if (beneficiary == caster) {
+                casterIsBeneficiary = true;
+                continue;
+            }
+            if (beneficiary == null || !beneficiary.isActive()) continue;
+            Timeline timeline = beneficiary.getTimeline();
+            if (timeline == null) continue;
+            timeline.insertGrantedDefense(segment.cloneFired());
+            grantedToAlly = true;
+            events.add(CombatEvent.of(CombatEvent.Type.DEFENSE_GRANTED)
+                .source(caster)
+                .target(beneficiary)
+                .move(move)
+                .tick(tick)
+                .message(caster.getCharacter().getName() + " granted "
+                    + move.getName() + " to " + beneficiary.getCharacter().getName() + ".")
+                .build());
+        }
+        // Only relinquish the caster's own protection when the window was
+        // actually conferred to at least one ally AND the caster is not itself a
+        // beneficiary (so ALL_ALLIES_INCLUDING_SELF keeps protecting the caster).
+        if (grantedToAlly && !casterIsBeneficiary) segment.markTransferred();
+    }
+
+    /**
+     * Resolve the combatants a defensive move protects, per its
+     * {@link DefenseTargeting}. Explicit modes read the segment's planned
+     * targets (validated active + allied); the auto modes fan out over the
+     * caster's living allies.
+     */
+    private List<BattleCombatant> resolveDefenseBeneficiaries(
+        BattleState state, BattleCombatant caster, ActionSegment segment, Move move
+    ) {
+        return switch (move.getDefenseTargeting()) {
+            case SINGLE_ALLY, MULTIPLE_ALLIES -> {
+                List<BattleCombatant> out = new ArrayList<>();
+                for (CombatantId id : segment.getTargets()) {
+                    BattleCombatant c = state.combatant(id);
+                    if (c != null && c.isActive() && c.isAlliedWith(caster)) out.add(c);
+                }
+                yield out;
+            }
+            case ALL_ALLIES_EXCEPT_SELF -> new ArrayList<>(state.activeAlliesOf(caster));
+            case ALL_ALLIES_INCLUDING_SELF -> {
+                List<BattleCombatant> out = new ArrayList<>();
+                out.add(caster);
+                out.addAll(state.activeAlliesOf(caster));
+                yield out;
+            }
+            default -> List.of();
+        };
     }
 
     private void resolveReactionMove(
@@ -971,14 +1067,24 @@ public class CombatResolver {
             AbilityTrigger.Type.MOVE_USED, attacker, targets.primary(), move, tick)));
         if (finishBattleIfNeeded(state, events, tick)) return;
 
+        // --- Resolve this defensive move's beneficiaries once: the on-fire
+        // effect rows may target them (ALLY / SELF_AND_ALLY), and the grant
+        // below confers the active-defense window to them. ---
+        List<BattleCombatant> defenseBeneficiaries = move.isDefensive()
+            ? resolveDefenseBeneficiaries(state, attacker, segment, move)
+            : List.of();
+        List<BattleCombatant> defenseAllies = defenseBeneficiaries.stream()
+            .filter(ally -> ally != attacker).toList();
+
         // --- Self-effects apply on unleash, for every move type (damaging,
         // defensive, and utility alike). A move that buffs its user when cast
         // (e.g. a CE strike that raises Power) fires the buff here, regardless
         // of whether the attack later hits, misses, or is blocked. Charged once.
+        // For a defensive move, ALLY effect rows resolve to the conferred allies.
         if (move.usesUnifiedEffects()) {
             events.addAll(abilityActivations.processMoveEffects(
                 state, attacker, targets.all(), move,
-                MoveEffectTrigger.ON_FIRE, -1, tick));
+                MoveEffectTrigger.ON_FIRE, -1, tick, defenseAllies));
         } else {
             applySelfEffects(state, attacker, targets.primary(), move, tick, events);
         }
@@ -994,8 +1100,15 @@ public class CombatResolver {
                 move.getTags().contains(MoveTag.INNATE_TECHNIQUE));
         }
 
-        // --- Defensive moves: apply buff or register full block ---
-        if (move.isDefensive()) return;
+        // --- Defensive moves: confer the active-defense window onto the
+        // beneficiaries (self by default; an ally targeting mode grants a fired
+        // copy to each selected/allied combatant's timeline and marks the
+        // original transferred so it no longer protects the caster — unless the
+        // caster is itself a beneficiary, e.g. ALL_ALLIES_INCLUDING_SELF). ---
+        if (move.isDefensive()) {
+            grantDefense(state, attacker, segment, move, tick, events, defenseBeneficiaries);
+            return;
+        }
 
         // --- Non-damaging utility moves (including summon-only moves) ---
         if (move.getHitComponents().isEmpty()) {

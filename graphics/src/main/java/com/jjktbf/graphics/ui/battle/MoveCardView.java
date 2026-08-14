@@ -257,14 +257,15 @@ public class MoveCardView {
         statFont.setColor(ink);
         drawStatColumn(batch, statFont, textX, y + 55f + extraActionBarHeight,
             y + 35f + extraActionBarHeight,
-            accuracyLabel(), powerLabel(move));
+            accuracyLabel(move), powerLabel(move));
         if (move.hasCeCost()) {
             drawCeCostBar(batch, statFont, ui, x + w - 48f, y + 24f + extraActionBarHeight,
                 actualCeCost);
         }
     }
 
-    private String accuracyLabel() {
+    static String accuracyLabel(Move move) {
+        if (move == null || move.getHitComponents().isEmpty()) return null;
         return move.isNeverMiss()
             ? "ACC N/A"
             : "ACC " + (int) Math.round(move.getBaseAccuracy() * 100d) + "%";

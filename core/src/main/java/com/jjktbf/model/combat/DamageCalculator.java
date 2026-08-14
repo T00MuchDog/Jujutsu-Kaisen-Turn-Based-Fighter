@@ -273,7 +273,8 @@ public final class DamageCalculator {
         // physical moves are weaker than CE/technique moves at equal base power.
         // The multiplier applies to the raw PowerCalculator output before
         // POWER battle-stat modifiers, so ability Power buffs compose on top.
-        double power = PowerCalculator.compute(component.getCategory(), acs);
+        double power = PowerCalculator.compute(
+            component.getCategory(), acs, attacker.getStatMode());
         if (component.getCategory() == MoveCategory.PHYSICAL) {
             power *= CombatStats.PHYSICAL_POWER_MULTIPLIER;
         }

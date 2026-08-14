@@ -2,6 +2,7 @@ package com.jjktbf.controller;
 
 import com.jjktbf.model.character.CombatStats;
 import com.jjktbf.model.character.BattleStatKey;
+import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.character.coded.CursedSpeechAbility;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
@@ -306,7 +307,8 @@ final class SmartAIScoring {
         if (move == null || attacker == null || target == null) return 0;
         long total = 0;
         for (HitComponent component : move.getHitComponents()) {
-            double power = PowerCalculator.compute(component.getCategory(), attacker.getEffectiveStats());
+            double power = PowerCalculator.compute(
+                component.getCategory(), attacker.getEffectiveStats(), attacker.getStatMode());
             if (component.getCategory() == MoveCategory.PHYSICAL) {
                 power *= CombatStats.PHYSICAL_POWER_MULTIPLIER;
             }
@@ -515,7 +517,7 @@ final class SmartAIScoring {
         BattleCombatant ai, BattleCombatant opponent
     ) {
         if (opponent != null
-            && ai.getEffectiveStats().getSpeed() < opponent.getEffectiveStats().getSpeed()) {
+            && ai.getRuntimeStat(StatKey.SPEED) < opponent.getRuntimeStat(StatKey.SPEED)) {
             return null;
         }
         int start = Math.max(1, threatFireTick - defense.getUnleashPoint() + 1);

@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MoveCardViewTest {
@@ -109,6 +110,17 @@ class MoveCardViewTest {
             component(35, "CURSED_ENERGY"));
 
         assertEquals("PWR 75 | 2 HITS", MoveCardView.powerLabel(data.toMove()));
+    }
+
+    @Test
+    void accuracyLabelOnlyAppearsForMovesWithHitChecks() {
+        Move attack = moveWithTags("ATTACK", "PHYSICAL");
+        Move defensive = moveWithTags("DEFENSIVE", "PHYSICAL");
+        Move utility = moveWithTags("UTILITY", "CURSED_ENERGY");
+
+        assertEquals("ACC 100%", MoveCardView.accuracyLabel(attack));
+        assertNull(MoveCardView.accuracyLabel(defensive));
+        assertNull(MoveCardView.accuracyLabel(utility));
     }
 
     private static Move moveWithTags(String... tags) {

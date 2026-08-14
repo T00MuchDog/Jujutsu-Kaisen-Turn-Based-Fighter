@@ -7,6 +7,7 @@ import com.jjktbf.model.combat.BattleCharacterLookup;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
+import com.jjktbf.model.combat.BattleStatMode;
 import com.jjktbf.model.combat.BattleTeam;
 import com.jjktbf.model.combat.BattleTeamId;
 import com.jjktbf.model.combat.CeEfficiencyCalculator;
@@ -92,6 +93,7 @@ public final class HeadlessBattleSession {
     private final long seed;
     private final int maxRounds;
     private final Clock clock;
+    private final BattleStatMode statMode;
     private final BattleState battleState;
     private final CombatResolver resolver;
     /**
@@ -160,6 +162,18 @@ public final class HeadlessBattleSession {
 
     public HeadlessBattleSession(
         String matchId,
+        MatchParticipant first,
+        MatchParticipant second,
+        long seed,
+        Clock clock,
+        BattleCharacterLookup summonLookup,
+        BattleStatMode statMode
+    ) {
+        this(matchId, first, second, seed, DEFAULT_MAX_ROUNDS, clock, summonLookup, statMode);
+    }
+
+    public HeadlessBattleSession(
+        String matchId,
         List<MatchParticipant> participants,
         long seed
     ) {
@@ -203,6 +217,28 @@ public final class HeadlessBattleSession {
         Clock clock,
         BattleCharacterLookup summonLookup
     ) {
+        this(
+            matchId,
+            first,
+            second,
+            seed,
+            maxRounds,
+            clock,
+            summonLookup,
+            BattleStatMode.STANDARD
+        );
+    }
+
+    public HeadlessBattleSession(
+        String matchId,
+        MatchParticipant first,
+        MatchParticipant second,
+        long seed,
+        int maxRounds,
+        Clock clock,
+        BattleCharacterLookup summonLookup,
+        BattleStatMode statMode
+    ) {
         if (matchId == null || matchId.isBlank()) {
             throw new IllegalArgumentException("matchId cannot be blank");
         }
@@ -223,16 +259,19 @@ public final class HeadlessBattleSession {
         this.seed = seed;
         this.maxRounds = maxRounds;
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.statMode = Objects.requireNonNull(statMode, "statMode");
 
         MatchParticipant playerOne = first.side() == PlayerSide.PLAYER_ONE ? first : second;
         MatchParticipant playerTwo = first.side() == PlayerSide.PLAYER_TWO ? first : second;
         ParticipantRuntime playerOneRuntime = new ParticipantRuntime(
             playerOne,
-            BattleTeamId.PLAYER
+            BattleTeamId.PLAYER,
+            statMode
         );
         ParticipantRuntime playerTwoRuntime = new ParticipantRuntime(
             playerTwo,
-            BattleTeamId.ENEMY
+            BattleTeamId.ENEMY,
+            statMode
         );
         participantsBySide.put(PlayerSide.PLAYER_ONE, playerOneRuntime);
         participantsBySide.put(PlayerSide.PLAYER_TWO, playerTwoRuntime);
@@ -666,7 +705,8 @@ public final class HeadlessBattleSession {
             || participantsBySide.values().stream().anyMatch(runtime -> runtime.planSubmitted)) {
             throw new IllegalStateException("Test fighters can only be added before planning starts");
         }
-        BattleCombatant fighter = new BattleCombatant(character, character.getAbilities());
+        BattleCombatant fighter = new BattleCombatant(
+            character, character.getAbilities(), statMode);
         battleState.addFighter(participant.teamId, fighter);
         roundStartCharacterStates = captureRoundStartCharacterStates();
         return fighter.getInstanceId().value();
@@ -689,7 +729,7 @@ public final class HeadlessBattleSession {
             status,
             ProtocolVersion.GAME_VERSION,
             ProtocolVersion.PROTOCOL_VERSION,
-            ProtocolVersion.STANDARD_RULESET,
+            statMode.rulesetId(),
             currentPhase(),
             wireRoundNumber,
             wireCurrentTick,
@@ -1665,11 +1705,16 @@ public final class HeadlessBattleSession {
         private Map<CombatantId, BattlePlan> plans = Map.of();
         private Map<CombatantId, List<SegmentRuntime>> segments = Map.of();
 
-        private ParticipantRuntime(MatchParticipant participant, BattleTeamId teamId) {
+        private ParticipantRuntime(
+            MatchParticipant participant,
+            BattleTeamId teamId,
+            BattleStatMode statMode
+        ) {
             this.participant = participant;
             this.teamId = teamId;
             this.combatants = participant.characters().stream()
-                .map(character -> new BattleCombatant(character, character.getAbilities()))
+                .map(character -> new BattleCombatant(
+                    character, character.getAbilities(), statMode))
                 .toList();
             this.primaryCombatant = this.combatants.get(0);
         }

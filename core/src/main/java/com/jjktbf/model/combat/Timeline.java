@@ -154,6 +154,20 @@ public class Timeline {
         segments.add(segment);
     }
 
+    /**
+     * Append a defensive segment granted to this combatant by an ally's
+     * defensive move (defensive ally targeting). Bypasses the single-board
+     * no-overlap rule, exactly like the board merge: a granted defense is
+     * intentionally allowed to coexist with this combatant's own planned
+     * segments. The granted clone is expected to already be fired so it can
+     * contest same-tick attacks under the normal {@code requireFiredDefense}
+     * gate. Granted defenses are cleared naturally at round reset, when each
+     * combatant's timeline is rebuilt from their own plan.
+     */
+    public void insertGrantedDefense(ActionSegment granted) {
+        if (granted != null) segments.add(granted);
+    }
+
     /** Remove a placed segment. No-op if not present. */
     public boolean remove(ActionSegment segment) {
         return segments.remove(segment);
@@ -248,7 +262,7 @@ public class Timeline {
     ) {
         for (ActionSegment s : segments) {
             Move move = s.getMove();
-            if (s.isStunned() || (requireFired && !s.hasFired())
+            if (s.isStunned() || s.isTransferred() || (requireFired && !s.hasFired())
                 || move.getDefenseType() != type) continue;
             if (incomingMove != null) {
                 if ((type == com.jjktbf.model.move.DefenseType.BLOCK
@@ -276,7 +290,7 @@ public class Timeline {
     public ActionSegment activeDefenseAt(int tick, Move incomingMove) {
         for (ActionSegment s : segments) {
             Move move = s.getMove();
-            if (s.isStunned() || !move.isActiveDefense()) continue;
+            if (s.isStunned() || s.isTransferred() || !move.isActiveDefense()) continue;
             if (incomingMove != null) {
                 com.jjktbf.model.move.DefenseType dt = move.getDefenseType();
                 if ((dt == com.jjktbf.model.move.DefenseType.BLOCK

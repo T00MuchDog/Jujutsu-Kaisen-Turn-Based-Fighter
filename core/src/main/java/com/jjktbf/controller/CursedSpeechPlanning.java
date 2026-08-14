@@ -82,10 +82,12 @@ final class CursedSpeechPlanning {
         if (baseRecoil <= 0 || target == null) return 0;
         double userReinforcedCe = Math.min(
             Math.max(0, userCePostCost),
-            CombatStats.computeCeReinforcementCap(user.getEffectiveStats()));
+            CombatStats.computeCeReinforcementCap(
+                user.getEffectiveStats(), user.getStatMode()));
         double targetReinforcedCe = Math.min(
             target.getCurrentCe(),
-            CombatStats.computeCeReinforcementCap(target.getEffectiveStats()));
+            CombatStats.computeCeReinforcementCap(
+                target.getEffectiveStats(), target.getStatMode()));
         return (int) Math.round(baseRecoil * targetReinforcedCe / Math.max(1.0, userReinforcedCe));
     }
 }

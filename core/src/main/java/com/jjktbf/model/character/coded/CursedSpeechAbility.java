@@ -211,7 +211,7 @@ public final class CursedSpeechAbility implements CodedAbilityRuntime {
 
     private static double reinforcedCe(BattleCombatant combatant) {
         double reinforcementCap = CombatStats.computeCeReinforcementCap(
-            combatant.getEffectiveStats());
+            combatant.getEffectiveStats(), combatant.getStatMode());
         return Math.min(combatant.getCurrentCe(), reinforcementCap);
     }
 

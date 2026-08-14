@@ -1,5 +1,9 @@
 package com.jjktbf.model.character;
 
+import com.jjktbf.model.combat.BattleStatMode;
+
+import java.util.Objects;
+
 /**
  * Derived combat stats — computed from CharacterStats via the agreed formulae.
  * These values are read-only snapshots; they are recomputed whenever base stats change.
@@ -242,16 +246,31 @@ public class CombatStats {
     // -------------------------------------------------------------------------
 
     public CombatStats(CharacterStats cs) {
-        this(cs, null);
+        this(cs, null, BattleStatMode.STANDARD);
     }
 
     /** Build derived stats with an optional passive override for Jujutsu Art slots. */
     public CombatStats(CharacterStats cs, Integer jujutsuArtSlotsOverride) {
-        this.maxHp                    = computeMaxHp(cs);
-        this.maxApBar                 = computeMaxApBar(cs);
-        this.accuracy                 = computeAccuracy(cs);
-        this.evasion                  = computeEvasion(cs);
-        this.maxCursedEnergy          = computeMaxCursedEnergy(cs);
+        this(cs, jujutsuArtSlotsOverride, BattleStatMode.STANDARD);
+    }
+
+    /** Build battle-time derived stats under the selected runtime stat policy. */
+    public CombatStats(CharacterStats cs, BattleStatMode statMode) {
+        this(cs, null, statMode);
+    }
+
+    /** Build battle-time derived stats with an optional Jujutsu Art slot override. */
+    public CombatStats(
+        CharacterStats cs,
+        Integer jujutsuArtSlotsOverride,
+        BattleStatMode statMode
+    ) {
+        BattleStatMode mode = Objects.requireNonNull(statMode, "statMode");
+        this.maxHp                    = computeMaxHp(cs, mode);
+        this.maxApBar                 = computeMaxApBar(cs, mode);
+        this.accuracy                 = computeAccuracy(cs, mode);
+        this.evasion                  = computeEvasion(cs, mode);
+        this.maxCursedEnergy          = computeMaxCursedEnergy(cs, mode);
         this.combatArtsSlots         = computeCombatArtsSlots(cs);
         this.jujutsuArtsSlots        = jujutsuArtSlotsOverride == null
             ? computeJujutsuArtsSlots(cs)
@@ -262,29 +281,30 @@ public class CombatStats {
     // Formula implementations
     // -------------------------------------------------------------------------
 
-    private static int computeMaxHp(CharacterStats cs) {
-        return (int) Math.round(StatScale.scale(cs.getVitality()) * HP_PER_VIT);
+    private static int computeMaxHp(CharacterStats cs, BattleStatMode statMode) {
+        return (int) Math.round(statMode.scale(cs.getVitality()) * HP_PER_VIT);
     }
 
-    private static int computeMaxApBar(CharacterStats cs) {
+    private static int computeMaxApBar(CharacterStats cs, BattleStatMode statMode) {
         // AP uses StatScale.scaleForAp (a lower-baseline curve than S) so that
         // 80/80 → 60 and 300/300 → 300. Speed weighted 15:3 over Combat Ability.
-        return (StatScale.scaleForAp(cs.getSpeed()) * 15
-              + StatScale.scaleForAp(cs.getCombatAbility()) * 3) / AP_DIVISOR;
+        return (statMode.scaleForAp(cs.getSpeed()) * 15
+              + statMode.scaleForAp(cs.getCombatAbility()) * 3) / AP_DIVISOR;
     }
 
-    private static int computeAccuracy(CharacterStats cs) {
-        return (StatScale.scale(cs.getCombatAbility()) * 4
-              + StatScale.scale(cs.getSpeed())) / 5;
+    private static int computeAccuracy(CharacterStats cs, BattleStatMode statMode) {
+        return (statMode.scale(cs.getCombatAbility()) * 4
+              + statMode.scale(cs.getSpeed())) / 5;
     }
 
-    private static int computeEvasion(CharacterStats cs) {
-        return (StatScale.scale(cs.getSpeed()) * 4
-              + StatScale.scale(cs.getCombatAbility())) / 5;
+    private static int computeEvasion(CharacterStats cs, BattleStatMode statMode) {
+        return (statMode.scale(cs.getSpeed()) * 4
+              + statMode.scale(cs.getCombatAbility())) / 5;
     }
 
-    private static int computeMaxCursedEnergy(CharacterStats cs) {
-        return (int) Math.round(StatScale.scale(cs.getCursedEnergyReserves()) * (double) CE_POOL_SCALE);
+    private static int computeMaxCursedEnergy(CharacterStats cs, BattleStatMode statMode) {
+        return (int) Math.round(statMode.scale(cs.getCursedEnergyReserves())
+            * (double) CE_POOL_SCALE);
     }
 
     private static int computeCombatArtsSlots(CharacterStats cs) {
@@ -331,21 +351,37 @@ public class CombatStats {
      * @param maxCe        the character's max CE pool units
      */
     public static int computeDefense(CharacterStats cs, int currentCe, int maxCe) {
+        return computeDefense(cs, currentCe, maxCe, BattleStatMode.STANDARD);
+    }
+
+    public static int computeDefense(
+        CharacterStats cs,
+        int currentCe,
+        int maxCe,
+        BattleStatMode statMode
+    ) {
         // 6:2 CE reinforcement : Durability; CE reinforcement capped by CE Output.
         // All stat inputs are SCALED via StatScale.
-        int scaledCeReserves = StatScale.scale(cs.getCursedEnergyReserves());
-        int scaledDurability = StatScale.scale(cs.getDurability());
+        int scaledCeReserves = statMode.scale(cs.getCursedEnergyReserves());
+        int scaledDurability = statMode.scale(cs.getDurability());
         double ceFromPool       = (maxCe > 0)
             ? scaledCeReserves * ((double) currentCe / maxCe)
             : 0.0;
-        double reinforcementCap = computeCeReinforcementCap(cs);
+        double reinforcementCap = computeCeReinforcementCap(cs, statMode);
         double ceReinforcement  = Math.min(ceFromPool, reinforcementCap);
         return (int) Math.round((ceReinforcement * 6 + scaledDurability * 2) / 6.0);
     }
 
     /** Maximum CE that CE Output allows a combatant to reinforce with at once. */
     public static double computeCeReinforcementCap(CharacterStats cs) {
-        return StatScale.scale(cs.getCursedEnergyOutput()) * DEFENSE_CE_CAP_FACTOR;
+        return computeCeReinforcementCap(cs, BattleStatMode.STANDARD);
+    }
+
+    public static double computeCeReinforcementCap(
+        CharacterStats cs,
+        BattleStatMode statMode
+    ) {
+        return statMode.scale(cs.getCursedEnergyOutput()) * DEFENSE_CE_CAP_FACTOR;
     }
 
     /**

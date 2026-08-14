@@ -28,6 +28,7 @@ import com.jjktbf.model.combat.MoveAvailability;
 import com.jjktbf.model.combat.Timeline;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.AoeType;
+import com.jjktbf.model.move.DefenseTargeting;
 import com.jjktbf.multiplayer.protocol.PlanPlacement;
 
 import java.util.ArrayList;
@@ -75,6 +76,12 @@ public class PlanningPanel {
     private final String actorId;
     private String actorName = "";
     private final List<TargetOption> targetOptions;
+    /**
+     * Pickable ALLIED combatants for defensive moves that target an ally
+     * (DefenseTargeting SINGLE_ALLY / MULTIPLE_ALLIES). Empty by default; the
+     * battle flow populates it from the team (local) or planning spec (online).
+     */
+    private List<TargetOption> allyOptions = List.of();
     private final List<Move> knownMoves = new ArrayList<>();
     private final int ceEfficiency;
     private final int ceOutput;
@@ -318,6 +325,23 @@ public class PlanningPanel {
     public String getLockError() { return lockError; }
     public List<TargetOption> getTargetOptions() { return targetOptions; }
 
+    /**
+     * Set the pickable allied combatants for defensive ally-targeting moves,
+     * from a team snapshot. Used by the local battle flow, which has the team
+     * combatants in hand.
+     */
+    public void setAllyTargets(List<BattleCombatant> allies) {
+        this.allyOptions = targetOptions(allies);
+    }
+
+    /**
+     * Set the pickable allied combatants as pre-built target options. Used by
+     * the online planning flow, which receives options from the server spec.
+     */
+    public void setAllyOptions(List<TargetOption> allies) {
+        this.allyOptions = allies == null ? List.of() : List.copyOf(allies);
+    }
+
     /** Sets the character name displayed beneath the planning header. */
     public void setActorName(String actorName) {
         this.actorName = actorName == null ? "" : actorName;
@@ -467,7 +491,9 @@ public class PlanningPanel {
     }
 
     private static boolean isMultipleTargetMove(Move move) {
-        return move != null && move.getAoeType() == AoeType.MULTIPLE;
+        return move != null
+            && (move.getAoeType() == AoeType.MULTIPLE
+                || DefenseTargeting.forMove(move) == DefenseTargeting.MULTIPLE_ALLIES);
     }
 
     private static boolean requiresExplicitTargets(Move move) {
@@ -475,6 +501,9 @@ public class PlanningPanel {
     }
 
     private static int targetCap(Move move) {
+        if (DefenseTargeting.forMove(move) == DefenseTargeting.MULTIPLE_ALLIES) {
+            return Math.max(1, move.getDefenseTargetCount());
+        }
         return isMultipleTargetMove(move) ? Math.max(1, move.getAoeTargetCount()) : 1;
     }
 
@@ -987,6 +1016,11 @@ public class PlanningPanel {
     }
 
     private List<TargetOption> eligibleTargetOptions(Move move) {
+        // Defensive ally-targeting moves pick from allies instead of enemies.
+        if (move != null
+            && DefenseTargeting.forMove(move).requiresSelectedTargets()) {
+            return allyOptions;
+        }
         if (!CursedSpeechAbility.RETURN.equalsIgnoreCase(
             CursedSpeechAbility.commandMode(move))) {
             return targetOptions;

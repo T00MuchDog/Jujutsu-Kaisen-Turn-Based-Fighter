@@ -11,6 +11,7 @@ import com.jjktbf.graphics.ui.editor.AxisLockedScrollPane;
 import com.jjktbf.graphics.multiplayer.ChallengeService;
 import com.jjktbf.graphics.multiplayer.GuestAccountService;
 import com.jjktbf.model.combat.BattleFormat;
+import com.jjktbf.model.combat.BattleStatMode;
 import com.jjktbf.multiplayer.protocol.ChallengeStatus;
 import com.jjktbf.multiplayer.protocol.ChallengeSummary;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
@@ -46,6 +47,7 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
     private volatile long pollCycle;
     private ChallengeSummary challenge;
     private BattleFormat selectedFormat;
+    private BattleStatMode selectedStatMode;
     private List<String> selectedCharacterIds;
     private boolean ensuringGuest;
     private boolean creating;
@@ -112,6 +114,7 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         stopPolling();
         challenge = null;
         selectedFormat = game.getSelectedMultiplayerFormat();
+        selectedStatMode = game.getSelectedMultiplayerStatMode();
         selectedCharacterIds = List.copyOf(game.getSelectedMultiplayerCharacterIds());
         ensuringGuest = true;
         creating = false;
@@ -121,7 +124,8 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         fetchingMatch = false;
 
         guestLabel.setText("GUEST: CONNECTING");
-        fighterLabel.setText(fighterSummary(selectedFormat, selectedCharacterIds));
+        fighterLabel.setText(fighterSummary(
+            selectedFormat, selectedStatMode, selectedCharacterIds));
         challengeLabel.setText("CHALLENGE: --");
         challengeStatusLabel.setText("STATUS: PREPARING");
         setStatus(messageLabel, "Validating guest identity...", StatusTone.NORMAL);
@@ -195,7 +199,8 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         setStatus(messageLabel, "Publishing challenge to the server...", StatusTone.NORMAL);
         refreshButtons();
 
-        challengeService.createChallenge(selectedFormat, selectedCharacterIds)
+        challengeService.createChallenge(
+            selectedFormat, selectedStatMode, selectedCharacterIds)
             .whenComplete((created, failure) ->
             postIfCurrentOrElse(expectedGeneration, () -> {
                 creating = false;
@@ -224,8 +229,10 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         challenge = current;
         challengeService.rememberChallenge(current);
         selectedFormat = current.format();
+        selectedStatMode = BattleStatMode.fromRuleset(current.ruleset());
         selectedCharacterIds = List.copyOf(current.hostCharacterIds());
-        fighterLabel.setText(fighterSummary(selectedFormat, selectedCharacterIds));
+        fighterLabel.setText(fighterSummary(
+            selectedFormat, selectedStatMode, selectedCharacterIds));
         challengeLabel.setText("CHALLENGE: " + current.challengeId());
         challengeStatusLabel.setText("STATUS: " + current.status());
         switch (current.status()) {
@@ -448,7 +455,11 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
     }
 
     /** Format the fighter roster for the header label, e.g. "FIGHTERS: A, B [1, 2]". */
-    private String fighterSummary(BattleFormat format, List<String> characterIds) {
+    private String fighterSummary(
+        BattleFormat format,
+        BattleStatMode statMode,
+        List<String> characterIds
+    ) {
         List<String> names = new ArrayList<>();
         List<String> ids = characterIds == null ? List.of() : characterIds;
         for (String id : ids) {
@@ -458,7 +469,7 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
             names.add("--");
         }
         String label = (format == BattleFormat.TWO_V_TWO ? "FIGHTERS: " : "FIGHTER: ");
-        return label + String.join(", ", names);
+        return label + String.join(", ", names) + "  |  " + statMode;
     }
 
     private void stopPolling() {

@@ -1,5 +1,6 @@
 package com.jjktbf.graphics.multiplayer;
 
+import com.jjktbf.model.combat.BattleStatMode;
 import com.jjktbf.multiplayer.protocol.ErrorResponse;
 import com.jjktbf.multiplayer.protocol.CommandType;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
@@ -21,6 +22,28 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MultiplayerMatchServiceTest {
+    @Test
+    void passesMatchRulesetToTheSocket() throws Exception {
+        MultiplayerSession session = new MultiplayerSession();
+        session.setGuestCredentials(MultiplayerTestData.credentials("token"));
+        FakeSocket socket = new FakeSocket();
+        MultiplayerMatchService service = new MultiplayerMatchService(session, socket);
+        MatchSetup standard = MultiplayerTestData.setup(1);
+        MatchSetup equalized = new MatchSetup(
+            standard.matchId(), standard.challengeId(), standard.status(),
+            standard.playerSide(), standard.playerId(), standard.opponentPlayerId(),
+            standard.opponentDisplayName(), standard.playerCharacterIds(),
+            standard.opponentCharacterIds(), standard.format(), standard.gameVersion(),
+            standard.protocolVersion(), BattleStatMode.EQUALIZED.rulesetId(),
+            standard.state(), standard.serverTimestamp());
+        try {
+            service.connect(equalized).get(2, TimeUnit.SECONDS);
+            assertEquals(BattleStatMode.EQUALIZED.rulesetId(), socket.ruleset);
+        } finally {
+            service.close();
+        }
+    }
+
     @Test
     void replacedSocketListenerCannotMutateTheNewMatchGeneration() throws Exception {
         MultiplayerSession session = new MultiplayerSession();
@@ -263,6 +286,7 @@ class MultiplayerMatchServiceTest {
         private MatchWebSocketClient.Listener listener;
         private boolean closed;
         private int disconnects;
+        private String ruleset;
 
         @Override
         public CompletableFuture<Void> connect(
@@ -274,6 +298,17 @@ class MultiplayerMatchServiceTest {
             listener.onConnecting();
             listener.onConnected();
             return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CompletableFuture<Void> connect(
+            String guestToken,
+            String matchId,
+            String ruleset,
+            MatchWebSocketClient.Listener listener
+        ) {
+            this.ruleset = ruleset;
+            return connect(guestToken, matchId, listener);
         }
 
         @Override

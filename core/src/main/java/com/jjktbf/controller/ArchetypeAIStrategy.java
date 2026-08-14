@@ -1,7 +1,7 @@
 package com.jjktbf.controller;
 
 import com.jjktbf.model.character.Character;
-import com.jjktbf.model.character.CharacterStats;
+import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.character.CharacterType;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
@@ -105,7 +105,7 @@ public class ArchetypeAIStrategy implements AIStrategy {
             return shikigamiStrategy.selectPlan(ai, opponent, rng);
         }
         if (character.getType() == CharacterType.SORCERER && !character.hasInnateTechnique()) {
-            return archetypeFor(character).selectPlan(ai, opponent, rng);
+            return archetypeFor(ai).selectPlan(ai, opponent, rng);
         }
         if (CURSED_SPEECH.equalsIgnoreCase(character.getInnateTechniqueName())) {
             return cursedSpeechStrategy.buildPlan(state, ai, rng); // state-aware multitarget
@@ -142,7 +142,7 @@ public class ArchetypeAIStrategy implements AIStrategy {
             return shikigamiStrategy.selectPlan(ai, opponent, rng);
         }
         if (character.getType() == CharacterType.SORCERER && !character.hasInnateTechnique()) {
-            return archetypeFor(character).selectPlan(ai, opponent, rng);
+            return archetypeFor(ai).selectPlan(ai, opponent, rng);
         }
         if (CURSED_SPEECH.equalsIgnoreCase(character.getInnateTechniqueName())) {
             // No state here: degrade to single-opponent CS planning.
@@ -160,17 +160,21 @@ public class ArchetypeAIStrategy implements AIStrategy {
      * for the known roster; any unmapped technique-less sorcerer falls back to a
      * stat-derived pick (offense-leaning → Aggressive, defense-leaning → Passive).
      */
-    private AIStrategy archetypeFor(Character character) {
+    private AIStrategy archetypeFor(BattleCombatant combatant) {
+        Character character = combatant.getCharacter();
         String id = character.getId();
         if (AGGRESSIVE_IDS.contains(id)) return aggressiveStrategy;
         if (PASSIVE_IDS.contains(id)) return passiveStrategy;
-        return statLeansAggressive(character) ? aggressiveStrategy : passiveStrategy;
+        return statLeansAggressive(combatant) ? aggressiveStrategy : passiveStrategy;
     }
 
-    private static boolean statLeansAggressive(Character character) {
-        CharacterStats s = character.getBaseStats();
-        int offense = s.getStrength() + s.getCombatAbility() + s.getCursedEnergyOutput();
-        int defense = s.getDurability() + s.getVitality() + s.getJujutsuSkill();
+    private static boolean statLeansAggressive(BattleCombatant combatant) {
+        int offense = combatant.getRuntimeStat(StatKey.STRENGTH)
+            + combatant.getRuntimeStat(StatKey.COMBAT_ABILITY)
+            + combatant.getRuntimeStat(StatKey.CURSED_ENERGY_OUTPUT);
+        int defense = combatant.getRuntimeStat(StatKey.DURABILITY)
+            + combatant.getRuntimeStat(StatKey.VITALITY)
+            + combatant.getRuntimeStat(StatKey.JUJUTSU_SKILL);
         return offense >= defense;
     }
 }

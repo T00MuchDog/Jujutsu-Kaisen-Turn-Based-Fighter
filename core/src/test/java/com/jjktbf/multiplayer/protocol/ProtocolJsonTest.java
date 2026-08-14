@@ -3,6 +3,7 @@ package com.jjktbf.multiplayer.protocol;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jjktbf.model.character.coded.CodedAbilityState;
+import com.jjktbf.model.combat.BattleStatMode;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -218,6 +219,14 @@ class ProtocolJsonTest {
             joined.gameVersion(), joined.protocolVersion(), joined.ruleset()));
         assertFalse(ProtocolVersion.isCompatible(
             joined.gameVersion(), 11, joined.ruleset()));
+        assertTrue(ProtocolVersion.isCompatible(
+            ProtocolVersion.GAME_VERSION,
+            ProtocolVersion.PROTOCOL_VERSION,
+            BattleStatMode.EQUALIZED.rulesetId()));
+        assertFalse(ProtocolVersion.isCompatible(
+            ProtocolVersion.GAME_VERSION,
+            ProtocolVersion.PROTOCOL_VERSION,
+            "UNKNOWN_RULESET"));
     }
 
     private static MatchState completeMatchState() {

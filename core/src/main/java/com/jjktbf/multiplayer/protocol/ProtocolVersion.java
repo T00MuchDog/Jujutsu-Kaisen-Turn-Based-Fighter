@@ -1,5 +1,7 @@
 package com.jjktbf.multiplayer.protocol;
 
+import com.jjktbf.model.combat.BattleStatMode;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
@@ -14,7 +16,8 @@ public final class ProtocolVersion {
      * cannot identify the technique behind an innate move.
      */
     public static final int PROTOCOL_VERSION = 13;
-    public static final String STANDARD_RULESET = "STANDARD";
+    public static final String STANDARD_RULESET = BattleStatMode.STANDARD.rulesetId();
+    public static final String EQUALIZED_STATS_RULESET = BattleStatMode.EQUALIZED.rulesetId();
 
     private ProtocolVersion() {
     }
@@ -41,6 +44,6 @@ public final class ProtocolVersion {
     public static boolean isCompatible(String gameVersion, int protocolVersion, String ruleset) {
         return GAME_VERSION.equals(gameVersion)
             && PROTOCOL_VERSION == protocolVersion
-            && STANDARD_RULESET.equals(ruleset);
+            && BattleStatMode.supportsRuleset(ruleset);
     }
 }

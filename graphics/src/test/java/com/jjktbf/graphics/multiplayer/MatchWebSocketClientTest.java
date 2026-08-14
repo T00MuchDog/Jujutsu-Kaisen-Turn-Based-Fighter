@@ -1,6 +1,7 @@
 package com.jjktbf.graphics.multiplayer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jjktbf.model.combat.BattleStatMode;
 import com.jjktbf.multiplayer.protocol.ErrorResponse;
 import com.jjktbf.multiplayer.protocol.MessageType;
 import com.jjktbf.multiplayer.protocol.PlayerSide;
@@ -29,6 +30,33 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MatchWebSocketClientTest {
+    @Test
+    void joinsAndReconnectsWithTheSelectedStatRuleset() throws Exception {
+        SocketFixture fixture = new SocketFixture();
+        try {
+            fixture.connector.secondConnection = new CountDownLatch(1);
+            fixture.client.connect(
+                "token",
+                MultiplayerTestData.MATCH_ID,
+                BattleStatMode.EQUALIZED.rulesetId(),
+                new RecordingListener()).get(2, TimeUnit.SECONDS);
+
+            SocketMessage join = fixture.mapper.readValue(
+                fixture.connector.sockets.get(0).sentText.get(0), SocketMessage.class);
+            assertEquals(MessageType.JOIN_MATCH, join.type());
+            assertEquals(BattleStatMode.EQUALIZED.rulesetId(), join.ruleset());
+
+            fixture.connector.listeners.get(0).onError(
+                fixture.connector.sockets.get(0), new IOException("offline"));
+            assertTrue(fixture.connector.secondConnection.await(2, TimeUnit.SECONDS));
+            SocketMessage reconnectJoin = fixture.mapper.readValue(
+                fixture.connector.sockets.get(1).sentText.get(0), SocketMessage.class);
+            assertEquals(BattleStatMode.EQUALIZED.rulesetId(), reconnectJoin.ruleset());
+        } finally {
+            fixture.close();
+        }
+    }
+
     @Test
     void assemblesFragmentedTextAndRecordsPong() throws Exception {
         SocketFixture fixture = new SocketFixture();
