@@ -17,6 +17,9 @@ import com.jjktbf.model.combat.BattleStatMode;
 import com.jjktbf.model.combat.BattleTeamId;
 import com.jjktbf.graphics.audio.GameAudio;
 import com.jjktbf.graphics.audio.MusicTrack;
+import com.jjktbf.graphics.launch.DesktopLaunchOptions;
+import com.jjktbf.graphics.launch.DesktopPlatform;
+import com.jjktbf.graphics.launch.GameLaunchMode;
 import com.jjktbf.graphics.multiplayer.ChallengeService;
 import com.jjktbf.graphics.multiplayer.ClientNetworkConfig;
 import com.jjktbf.graphics.multiplayer.GuestAccountService;
@@ -34,9 +37,13 @@ import com.jjktbf.graphics.screens.MainMenuScreen;
 import com.jjktbf.graphics.screens.MultiplayerDisconnectedScreen;
 import com.jjktbf.graphics.screens.MultiplayerMenuScreen;
 import com.jjktbf.graphics.screens.editors.AbilityEditorScreen;
+import com.jjktbf.graphics.screens.editors.BattleUiEditorScreen;
 import com.jjktbf.graphics.screens.editors.CharacterEditorScreen;
 import com.jjktbf.graphics.screens.editors.MoveEditorScreen;
 import com.jjktbf.graphics.screens.editors.TechniqueEditorScreen;
+import com.jjktbf.graphics.ui.profile.BattleUiLayout;
+import com.jjktbf.graphics.ui.profile.BattleUiLayoutStore;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterRepository;
 import com.jjktbf.model.character.CharacterData;
@@ -62,6 +69,11 @@ import java.util.List;
 public class JJKGame extends Game {
 
     public static final String DEFAULT_MULTIPLAYER_CHARACTER_ID = "000000";
+
+    private final DesktopLaunchOptions launchOptions;
+    private BattleUiLayoutStore battleUiLayoutStore;
+    private BattleUiLayout battleUiLayout;
+    private String battleUiLayoutLoadWarning;
 
     // Optional one-shot action run at the very end of create(), once assets and
     // screens are set up but before the first frame. Used by the desktop
@@ -139,6 +151,21 @@ public class JJKGame extends Game {
     private HostChallengeScreen hostChallengeScreen;
     private ChallengeBrowserScreen challengeBrowserScreen;
     private MultiplayerDisconnectedScreen multiplayerDisconnectedScreen;
+    private BattleUiEditorScreen battleUiEditorScreen;
+
+    public JJKGame() {
+        this(new DesktopLaunchOptions(
+            DesktopPlatform.OTHER,
+            GameLaunchMode.NORMAL_GAME,
+            UiProfile.MAC,
+            false,
+            1280,
+            720));
+    }
+
+    public JJKGame(DesktopLaunchOptions launchOptions) {
+        this.launchOptions = java.util.Objects.requireNonNull(launchOptions, "launchOptions");
+    }
 
     // -------------------------------------------------------------------------
     // LibGDX lifecycle
@@ -146,11 +173,33 @@ public class JJKGame extends Game {
 
     @Override
     public void create() {
+        battleUiLayoutStore = new BattleUiLayoutStore();
+        try {
+            battleUiLayout = battleUiLayoutStore.load(launchOptions.uiProfile());
+        } catch (IOException | IllegalArgumentException failure) {
+            battleUiLayoutLoadWarning = "Could not load " + launchOptions.uiProfile()
+                + ": " + failure.getMessage() + ". Factory defaults are active; save to repair it.";
+            System.err.println("Warning: " + battleUiLayoutLoadWarning);
+            battleUiLayout = BattleUiLayout.defaults(launchOptions.uiProfile());
+        }
         assets = new AssetLoader();
         assets.load();
         audio = new GameAudio();
         if (AppPaths.isAuthoringMode()) {
             overlayBatch = new SpriteBatch();
+        }
+
+        if (launchOptions.battleUiEditor()) {
+            battleUiEditorScreen = new BattleUiEditorScreen(
+                this,
+                assets,
+                battleUiLayoutStore,
+                launchOptions.uiProfile(),
+                battleUiLayout,
+                battleUiLayoutLoadWarning);
+            setScreen(battleUiEditorScreen);
+            runOnCreatedAction();
+            return;
         }
 
         try {
@@ -179,7 +228,7 @@ public class JJKGame extends Game {
         mainMenuScreen        = new MainMenuScreen(this, assets);
         battleFormatScreen    = new BattleFormatScreen(this, assets);
         characterSelectScreen = new CharacterSelectScreen(this, assets);
-        battleScreen          = new BattleScreen(this, assets);
+        battleScreen          = new BattleScreen(this, assets, battleUiLayout);
         moveEditorScreen      = new MoveEditorScreen(this, assets);
         characterEditorScreen = new CharacterEditorScreen(this, assets);
         abilityEditorScreen   = new AbilityEditorScreen(this, assets);
@@ -203,10 +252,13 @@ public class JJKGame extends Game {
         // Run the launcher's one-shot startup action (e.g. entering native
         // fullscreen on macOS) now that everything — including the GLFW
         // window — is initialized.
-        if (onCreatedAction != null) {
-            onCreatedAction.run();
-            onCreatedAction = null;
-        }
+        runOnCreatedAction();
+    }
+
+    private void runOnCreatedAction() {
+        if (onCreatedAction == null) return;
+        onCreatedAction.run();
+        onCreatedAction = null;
     }
 
     /**
@@ -219,6 +271,9 @@ public class JJKGame extends Game {
     @Override
     public void render() {
         super.render();
+        // The editor already shows authoring/profile diagnostics. Omitting this
+        // badge also gives F1 a completely clean logical-canvas preview.
+        if (launchOptions.battleUiEditor()) return;
         if (overlayBatch == null) return;
         int w = Gdx.graphics.getWidth();
         int h = Gdx.graphics.getHeight();
@@ -278,6 +333,7 @@ public class JJKGame extends Game {
         if (hostChallengeScreen != null) hostChallengeScreen.dispose();
         if (challengeBrowserScreen != null) challengeBrowserScreen.dispose();
         if (multiplayerDisconnectedScreen != null) multiplayerDisconnectedScreen.dispose();
+        if (battleUiEditorScreen != null) battleUiEditorScreen.dispose();
         if (audio != null) audio.dispose();
         if (assets != null) assets.dispose();
     }
@@ -378,6 +434,10 @@ public class JJKGame extends Game {
     /** Shared audio entry point for screens and other presentation-layer code. */
     public GameAudio audio() {
         return audio;
+    }
+
+    public UiProfile activeUiProfile() {
+        return launchOptions.uiProfile();
     }
 
     private void showScreen(Screen screen, MusicTrack musicTrack) {
@@ -525,7 +585,7 @@ public class JJKGame extends Game {
 
     /** Returns bundled visual metadata for an authoritative character ID. */
     public String multiplayerSpriteAsset(String characterId) {
-        if (characterId == null) return null;
+        if (characterId == null || multiplayerCharacterRepository == null) return null;
         return multiplayerCharacterRepository.getAll().stream()
             .filter(character -> characterId.equals(character.id))
             .map(character -> character.spriteAsset)

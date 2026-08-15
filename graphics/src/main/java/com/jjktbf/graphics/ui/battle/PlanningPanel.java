@@ -13,6 +13,7 @@ import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.multiplayer.TargetListSupport;
 import com.jjktbf.graphics.ui.MiraclesMeter;
+import com.jjktbf.graphics.ui.profile.BattleUiLayout;
 import com.jjktbf.graphics.ui.text.KeywordPopupPosition;
 import com.jjktbf.graphics.ui.text.KeywordTextLayout;
 import com.jjktbf.model.character.coded.CodedAbilityState;
@@ -53,7 +54,6 @@ public class PlanningPanel {
         }
     }
 
-    private static final float MARGIN = 34f;
     /** Fixed gap between a timeline icon and the left edge of its bar. */
     private static final float LABEL_LEFT_GAP = 8f;
     private static final float TIMELINE_ICON_SIZE = 16f;
@@ -69,7 +69,6 @@ public class PlanningPanel {
     private static final int PALETTE_PAGE_SIZE = PALETTE_COLUMNS * PALETTE_ROWS;
     private static final float DRAG_THRESHOLD = 5f;
     private static final float ACTOR_NAME_SCALE = 3f;
-    private static final float ACTOR_NAME_RESERVED_HEIGHT = 56f;
 
     private final BattlePlan plan;
     private final int maxCe;
@@ -94,6 +93,8 @@ public class PlanningPanel {
     private Map<String, String> moveRestrictions = Map.of();
     private final BattleUiAssets ui;
     private final MiraclesMeter miraclesMeter = new MiraclesMeter();
+    private BattleUiLayout.Planner layout = new BattleUiLayout.Planner();
+    private BattleUiViewport renderViewport;
 
     /**
      * Battle-wide timeline grid length (dot count), derived from the stronger
@@ -313,6 +314,23 @@ public class PlanningPanel {
         this.moveRestrictions = restrictions == null ? Map.of() : Map.copyOf(restrictions);
     }
 
+    /** Replaces only the presentation state shown by the planner's shared meter. */
+    public void setMiraclesState(CodedAbilityState state) {
+        miraclesMeter.setState(state);
+        if (screenWidth > 0f && screenHeight > 0f) resize(screenWidth, screenHeight);
+    }
+
+    /** Applies profile metrics and immediately reflows the production planner. */
+    public void setLayout(BattleUiLayout battleLayout) {
+        if (battleLayout == null) return;
+        this.layout = battleLayout.copy().planner;
+        if (screenWidth > 0f && screenHeight > 0f) resize(screenWidth, screenHeight);
+    }
+
+    public void setRenderViewport(BattleUiViewport renderViewport) {
+        this.renderViewport = renderViewport;
+    }
+
     /** Builds the two bars at the fight's battle-wide grid length (placeholder bounds; set in {@link #resize}). */
     private void createBars() {
         offensiveBar = new TimelineBar(TimelineBar.Kind.OFFENSIVE, 0f, 0f, 1f, 1f, gridLength);
@@ -528,15 +546,27 @@ public class PlanningPanel {
     public void resize(float width, float height) {
         screenWidth = width;
         screenHeight = height;
-        compactLayout = width < 700f;
+        compactLayout = width < layout.compactWidthThreshold;
 
-        float margin = Math.min(MARGIN, Math.max(18f, width * 0.045f));
-        float headerH = compactLayout ? 118f : 58f;
+        float margin = Math.min(layout.marginMax,
+            Math.max(layout.marginMin, width * layout.marginFraction));
+        float headerH = compactLayout ? layout.compactHeaderHeight : layout.headerHeight;
         headerBounds.set(margin, height - margin - headerH, width - margin * 2f, headerH);
         if (compactLayout) {
-            lockInBounds.set(headerBounds.x + headerBounds.width - 104f, headerBounds.y + 78f, 92f, 28f);
+            lockInBounds.set(
+                headerBounds.x + headerBounds.width
+                    - layout.compactLockButtonRightInset - layout.compactLockButtonWidth,
+                headerBounds.y + headerBounds.height
+                    - layout.compactLockButtonTopInset - layout.compactLockButtonHeight,
+                layout.compactLockButtonWidth,
+                layout.compactLockButtonHeight);
         } else {
-            lockInBounds.set(headerBounds.x + headerBounds.width - 156f, headerBounds.y + 10f, 142f, headerH - 20f);
+            lockInBounds.set(
+                headerBounds.x + headerBounds.width
+                    - layout.lockButtonHorizontalInset - layout.lockButtonWidth,
+                headerBounds.y + layout.lockButtonVerticalInset,
+                layout.lockButtonWidth,
+                Math.max(1f, headerH - layout.lockButtonVerticalInset * 2f));
         }
 
         int rows = paletteRowCount(knownMoves.size());
@@ -546,17 +576,22 @@ public class PlanningPanel {
         paletteBounds.set((width - paletteWidth) / 2f, margin, paletteWidth, paletteHeight);
         buildPalette(rows);
 
-        float labelWidth = compactLayout ? 0f : Math.min(150f, Math.max(108f, width * 0.12f));
+        float labelWidth = compactLayout ? 0f : Math.min(
+            layout.timelineLabelWidthMax,
+            Math.max(layout.timelineLabelWidthMin,
+                width * layout.timelineLabelWidthFraction));
         float timelineH = MiraclesMeter.timelineHeightForViewport(height);
-        float boardAreaBottom = paletteBounds.y + paletteBounds.height + 26f;
-        float actorNameHeight = actorName.isBlank() ? 24f : ACTOR_NAME_RESERVED_HEIGHT;
+        float boardAreaBottom = paletteBounds.y + paletteBounds.height + layout.paletteBoardGap;
+        float actorNameHeight = actorName.isBlank()
+            ? layout.emptyActorNameReservedHeight : layout.actorNameReservedHeight;
         float boardAreaTop = headerBounds.y - actorNameHeight;
         if (miraclesMeter.isVisible()) {
             float miracleSize = MiraclesMeter.sizeForViewport(height);
-            float miracleY = boardAreaTop - 16f - miracleSize;
+            float miracleY = boardAreaTop - layout.miraclesTopGap - miracleSize;
             miraclesMeter.setBounds(headerBounds.x, miracleY, miracleSize);
             // Compact timeline labels sit above their bars, so leave them a little more clearance.
-            boardAreaTop = miracleY - (compactLayout ? 28f : 16f);
+            boardAreaTop = miracleY - (compactLayout
+                ? layout.compactMiraclesBottomGap : layout.miraclesBottomGap);
         }
 
         // The bar grows with the fight's AP tier while keeping the dot spacing
@@ -572,7 +607,7 @@ public class PlanningPanel {
         float groupWidth = labelWidth + timelineW;
         float timelineX = (width - groupWidth) / 2f + labelWidth;
 
-        float boardGap = compactLayout ? 30f : 18f;
+        float boardGap = compactLayout ? layout.compactBoardGap : layout.boardGap;
         float boardGroupHeight = timelineH * 2f + boardGap;
         float defensiveY = boardAreaBottom + Math.max(0f, (boardAreaTop - boardAreaBottom - boardGroupHeight) / 2f);
         defensiveBar.setBounds(timelineX, defensiveY, timelineW, timelineH);
@@ -767,19 +802,70 @@ public class PlanningPanel {
 
     private void beginPaletteClip(Batch batch) {
         batch.flush();
-        float scaleX = Gdx.graphics.getBackBufferWidth() / (float) Gdx.graphics.getWidth();
-        float scaleY = Gdx.graphics.getBackBufferHeight() / (float) Gdx.graphics.getHeight();
+        BattleUiViewport viewport = renderViewport == null
+            ? BattleUiViewport.fullScreen() : renderViewport;
+        Rectangle scissor = viewport.scissor(paletteViewportBounds);
         Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);
         Gdx.gl.glScissor(
-            Math.round(paletteViewportBounds.x * scaleX),
-            Math.round(paletteViewportBounds.y * scaleY),
-            Math.round(paletteViewportBounds.width * scaleX),
-            Math.round(paletteViewportBounds.height * scaleY));
+            Math.round(scissor.x),
+            Math.round(scissor.y),
+            Math.round(scissor.width),
+            Math.round(scissor.height));
     }
 
     private void endPaletteClip(Batch batch) {
         batch.flush();
         Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
+    }
+
+    /** Development-only outlines for the immediate-mode planner hierarchy. */
+    public void drawDebug(Batch batch) {
+        batch.begin();
+        drawOutline(batch, headerBounds, new Color(1f, 0.82f, 0.1f, 0.9f));
+        drawOutline(batch, lockInBounds, new Color(0.2f, 1f, 0.4f, 0.9f));
+        drawOutline(batch, paletteBounds, new Color(0.2f, 0.8f, 1f, 0.9f));
+        drawOutline(batch, paletteViewportBounds, new Color(0.8f, 0.4f, 1f, 0.9f));
+        drawOutline(batch, offensiveBar.getBounds(), new Color(1f, 0.25f, 0.25f, 0.9f));
+        drawOutline(batch, defensiveBar.getBounds(), new Color(0.2f, 0.55f, 1f, 0.9f));
+        for (MoveCardView card : cards) {
+            drawOutline(batch, card.getBounds(), new Color(1f, 0.55f, 0.15f, 0.75f));
+        }
+        batch.end();
+    }
+
+    public String debugComponentAt(float x, float y) {
+        if (lockInBounds.contains(x, y)) return "Planner / Lock button " + describe(lockInBounds);
+        if (headerBounds.contains(x, y)) return "Planner / Header " + describe(headerBounds);
+        if (offensiveBar.getBounds().contains(x, y)) {
+            return "Planner / Offense timeline " + describe(offensiveBar.getBounds());
+        }
+        if (defensiveBar.getBounds().contains(x, y)) {
+            return "Planner / Defense timeline " + describe(defensiveBar.getBounds());
+        }
+        for (int index = 0; index < cards.size(); index++) {
+            if (cards.get(index).getBounds().contains(x, y)) {
+                return "Planner / Move card " + (index + 1) + " "
+                    + describe(cards.get(index).getBounds());
+            }
+        }
+        if (paletteBounds.contains(x, y)) return "Planner / Move palette " + describe(paletteBounds);
+        return "Planner canvas";
+    }
+
+    private void drawOutline(Batch batch, Rectangle bounds, Color color) {
+        if (bounds == null || bounds.width <= 0f || bounds.height <= 0f) return;
+        float edge = 2f;
+        batch.setColor(color);
+        batch.draw(ui.pixel, bounds.x, bounds.y, bounds.width, edge);
+        batch.draw(ui.pixel, bounds.x, bounds.y + bounds.height - edge, bounds.width, edge);
+        batch.draw(ui.pixel, bounds.x, bounds.y, edge, bounds.height);
+        batch.draw(ui.pixel, bounds.x + bounds.width - edge, bounds.y, edge, bounds.height);
+        batch.setColor(Color.WHITE);
+    }
+
+    private static String describe(Rectangle bounds) {
+        return String.format(java.util.Locale.ROOT, "x=%.1f y=%.1f w=%.1f h=%.1f",
+            bounds.x, bounds.y, bounds.width, bounds.height);
     }
 
     private void drawPaletteScrollbar(Batch batch) {

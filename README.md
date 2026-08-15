@@ -23,44 +23,160 @@ JJKTBF/
 
 ---
 
-## How to Build and Run
+## Build And Run
 
-### Build everything
+This is a Maven project, not a Gradle project. Run commands from the repository
+root. Build the desktop fat JAR with:
+
 ```bash
-mvn clean verify
+mvn -Drevision=1.4.1 -pl graphics -am package
 ```
 
-### Run graphics mode (macOS — ALWAYS include -XstartOnFirstThread)
+The resulting launcher is `graphics/target/graphics-1.4.1.jar`.
 
-**From IntelliJ / source — always authoring mode.** This is the development
-command. Edits save directly to the tracked source `data/` files (the ones
-bundled into releases), so your changes become the next release's defaults.
+### Normal game
+
+The launcher selects one UI profile at startup. macOS defaults to `MAC` and
+Windows defaults to `WINDOWS`. The game, battle state, rules, networking, and
+all other gameplay code remain shared.
+
+Both profile files intentionally begin with the existing Mac-tuned geometry.
+The Windows profile is an independent `2560 x 1440` design surface ready for the
+later redesign; this infrastructure phase does not invent that redesign early.
+
+macOS (normal game, default `MAC` profile):
+
 ```bash
-mvn -Drevision=1.4.1 -pl core,graphics -am clean verify
-java -XstartOnFirstThread -Djjktbf.authoring=true -jar graphics/target/graphics-1.4.1.jar
+java -XstartOnFirstThread -jar graphics/target/graphics-1.4.1.jar
 ```
 
+Windows PowerShell or Command Prompt (normal game, default `WINDOWS` profile):
 
-> **macOS rule:** Every time you run the graphics JAR on macOS, the
-> `-XstartOnFirstThread` flag is required. GLFW (the windowing library) must
-> run on the main thread on Mac. This is permanent and non-negotiable.
-> (The packaged `.app`/`.dmg` sets this automatically — see Packaging below.)
+```bash
+java -jar graphics/target/graphics-1.4.1.jar
+```
+
+The profile can be overridden independently of the host OS. For example, this
+launches the normal game with the Windows presentation on a Mac:
+
+```bash
+java -XstartOnFirstThread -jar graphics/target/graphics-1.4.1.jar --ui-profile=WINDOWS
+```
+
+This launches the normal game with the Mac presentation on Windows:
+
+```bash
+java -jar graphics/target/graphics-1.4.1.jar --ui-profile=MAC
+```
+
+Use `--windowed --width=1600 --height=900` when a windowed normal-game launch is
+more convenient. The equivalent persistent JVM override is
+`-Djjktbf.ui.profile=MAC` or `-Djjktbf.ui.profile=WINDOWS`.
+
+> **macOS rule:** Every Java launch of the graphics JAR on macOS requires
+> `-XstartOnFirstThread`. The packaged `.app`/`.dmg` supplies it automatically.
+> Do not pass this option on Windows.
+
+### Battle UI Editor
+
+The Battle UI Editor is one cross-platform authoring environment. It launches
+directly into deterministic representative battle data and draws the production
+`BattleScreen`, `CombatantPanel`, status bars, meters, battle controls, move
+cards, and planning timelines. It does not start a controller, AI, network
+session, or simulated battle.
+
+Build the JAR once with the command above, then launch either profile.
+
+macOS - edit the `MAC` profile:
+
+```bash
+java -XstartOnFirstThread -jar graphics/target/graphics-1.4.1.jar --battle-ui-editor --ui-profile=MAC
+```
+
+macOS - edit the `WINDOWS` profile in its `2560 x 1440` logical design space:
+
+```bash
+java -XstartOnFirstThread -jar graphics/target/graphics-1.4.1.jar --battle-ui-editor --ui-profile=WINDOWS
+```
+
+Windows - edit the `WINDOWS` profile:
+
+```bash
+java -jar graphics/target/graphics-1.4.1.jar --battle-ui-editor --ui-profile=WINDOWS
+```
+
+Windows - optionally inspect the `MAC` profile:
+
+```bash
+java -jar graphics/target/graphics-1.4.1.jar --battle-ui-editor --ui-profile=MAC
+```
+
+The editor automatically enables source authoring and must be run from a source
+checkout. If it is launched from another working directory, pin the checkout:
+
+```bash
+java -XstartOnFirstThread -Djjktbf.authoring.root=/path/to/JJKTBF \
+  -jar /path/to/JJKTBF/graphics/target/graphics-1.4.1.jar \
+  --battle-ui-editor --ui-profile=WINDOWS
+```
+
+Editor behavior:
+
+- Profile and `EXECUTION` / `PLANNING` selectors update the preview immediately.
+- Formation scenarios switch between 1v1, 2v2, 3v3, and 4v4 production layouts.
+- Meter scenarios expose Miracles, Ratio, or no meter without simulating combat.
+- Sliders and numeric fields live-update profile-backed production geometry.
+- `SAVE MAC` writes only `mac.json`; `SAVE WINDOWS` writes only `windows.json`.
+- Unsaved drafts remain separate when switching profiles.
+- `RELOAD` discards the selected profile's draft and reloads its file.
+- `FACTORY DEFAULTS` resets only the selected in-memory draft; press Save to persist.
+- `UI bounds` outlines immediate-mode production components.
+- `Grid` overlays logical 100-pixel coordinates.
+- `Scene2D` outlines the editor's tables, containers, and actors.
+- Click the preview to retain component/bounds information in the diagnostics.
+- `F1` hides or restores all editor controls; `F2` toggles production bounds.
+- `Escape` exits.
+
+Saving updates source resources immediately for this running editor and future
+editor launches. Rebuild the JAR before checking the result in an ordinary
+non-authoring game launch. Alternatively, a development normal-game launch with
+`-Djjktbf.authoring=true` reads the source profile directly.
+
+The tracked profile files are:
+
+```text
+graphics/src/main/resources/assets/ui/battle-layouts/mac.json
+graphics/src/main/resources/assets/ui/battle-layouts/windows.json
+```
+
+On a Windows desktop, the editor defaults to the current display mode. A
+`2560 x 1440` display therefore shows the Windows logical canvas at 1:1 when the
+controls are hidden with `F1`. On macOS the editor opens a resizable `1440 x 900`
+window and letterboxes/scales the same `2560 x 1440` logical canvas. Layout math
+still runs at the Windows reference resolution; the smaller host window does not
+become the design resolution.
+
+To force a windowed editor on Windows, append for example:
+
+```powershell
+--windowed --width=1600 --height=900
+```
 
 ### Run multiplayer locally
 
 The server runs with an embedded persistent H2 database by default:
 
 ```bash
-mvn -Drevision=1.2.11 -pl server -am package
-java -jar server/target/server-1.2.11.jar
+mvn -Drevision=1.4.1 -pl server -am package
+java -jar server/target/server-1.4.1.jar
 ```
 
 Build the desktop client and launch two instances with separate guest profiles:
 
 ```bash
-mvn -Drevision=1.2.11 -pl graphics -am package
-java -XstartOnFirstThread -Djjktbf.data.root="$PWD/.local/client-a" -jar graphics/target/graphics-1.2.11.jar
-java -XstartOnFirstThread -Djjktbf.data.root="$PWD/.local/client-b" -jar graphics/target/graphics-1.2.11.jar
+mvn -Drevision=1.4.1 -pl graphics -am package
+java -XstartOnFirstThread -Djjktbf.data.root="$PWD/.local/client-a" -jar graphics/target/graphics-1.4.1.jar
+java -XstartOnFirstThread -Djjktbf.data.root="$PWD/.local/client-b" -jar graphics/target/graphics-1.4.1.jar
 ```
 
 The `-XstartOnFirstThread` option is macOS-only. PostgreSQL/Docker setup, non-macOS commands, production configuration, and the complete two-client flow are documented in **[`MULTIPLAYER.md`](MULTIPLAYER.md)**. The design and protocol are documented in **[`MULTIPLAYER_ARCHITECTURE.md`](MULTIPLAYER_ARCHITECTURE.md)**.
@@ -223,11 +339,11 @@ BattleScreen (render)
 
 ## Graphics Module Notes
 
-- **Library**: LibGDX 1.12.1, LWJGL3 backend
-- **Font**: Press Start 2P (FreeType, generated at runtime from `assets/fonts/PressStart2P-Regular.ttf`)
+- **Library**: LibGDX 1.13.5, LWJGL3 backend
+- **Font**: Atlantis International (FreeType, generated at runtime from `assets/fonts/AtlantisInternational-jen0.ttf`)
 - **Battle planner**: `BattleScreen` implements `BattleView`; the 150-dot planning UI uses runtime-generated nearest-neighbour pixel textures from `ui/battle/BattleUiAssets`.
 - **Thread model**: `BattleController.runBattle()` runs on a daemon background thread (`battle-thread`). All LibGDX render-thread mutations go through `Gdx.app.postRunnable()`.
-- **Editors (Scene2D)**: The three editors (`MoveEditorScreen`, `CharacterEditorScreen`, `AbilityEditorScreen`) and the main menu are Scene2D Stage-based UIs with full CRUD. UI textures are generated in code by `PixelSkin` (no binary assets) using the battle planner's framed navy, parchment-card, and green-action visual language. The shared chrome lives in `EditorScreenBase<D>`; reusable field widgets (`StatField`, `TagPicker`, `EnumSelectBox`, `AssignmentPanel`, `EffectListEditor`) live in `com.jjktbf.graphics.ui.editor`. Edits are held in an in-memory draft; Save validates and persists, Cancel discards.
+- **Editors (Scene2D)**: The move, character, ability, and technique editors plus the Battle UI Editor are Scene2D Stage-based tools. UI textures are generated in code by `PixelSkin` using the battle planner's framed navy, parchment-card, and green-action visual language. CRUD editor chrome lives in `EditorScreenBase<D>`; the Battle UI Editor uses independent Scene2D controls around the production immediate-mode battle renderer.
 - **Screen background**: All screens clear to `#CDDCFA` (light blue). Button text turns bright yellow (`#FFE32E`) on hover to signal clickability.
 
 ---
@@ -236,6 +352,6 @@ BattleScreen (render)
 
 - Java 17 (source + target in both `<properties>` and `maven-compiler-plugin`)
 - Jackson 2.15.2 (JSON serialization for all data DTOs)
-- JUnit Jupiter 5.10.0 (test scope, core module only)
-- LibGDX 1.12.1 (graphics module only — `gdx`, `gdx-backend-lwjgl3`, `gdx-platform natives-desktop`, `gdx-freetype`, `gdx-freetype-platform natives-desktop`)
+- JUnit Jupiter 5.10.0 (test scope in all three modules)
+- LibGDX 1.13.5 (graphics module only - `gdx`, `gdx-backend-lwjgl3`, `gdx-platform natives-desktop`, `gdx-freetype`, `gdx-freetype-platform natives-desktop`)
 - The graphics module uses `maven-shade-plugin` to produce a fat JAR with all dependencies bundled.

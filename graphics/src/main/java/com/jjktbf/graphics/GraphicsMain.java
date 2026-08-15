@@ -5,26 +5,43 @@ import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Graphics;
 import com.jjktbf.AppPaths;
+import com.jjktbf.graphics.launch.DesktopLaunchOptions;
+import com.jjktbf.graphics.launch.DesktopPlatform;
 
 /**
  * Desktop entry point for the graphics mode.
  *
  * Configures the LibGDX LWJGL3 window and launches JJKGame.
  *
- * To run from source (always authoring mode — run from the repo root):
- *   mvn -Drevision=1.2.12 -pl core,graphics -am clean verify
- *   java -XstartOnFirstThread -Djjktbf.authoring=true -jar graphics/target/graphics-1.2.12.jar   (macOS)
- *   java -Djjktbf.authoring=true -jar graphics/target/graphics-1.2.12.jar                        (Windows/Linux)
+ * Build from the repository root with:
+ *   mvn -Drevision=1.4.1 -pl graphics -am package
  *
- * The authoring flag makes editors save to the tracked source data/ files so
- * changes ship in the next release; a yellow AUTHORING badge in the top-right
- * corner confirms it is active. There is intentionally no separate player-mode
- * command from source — to play, run the downloaded release app, whose data
- * lives in the per-user folder separate from the repository.
+ * See README.md for normal-game and Battle UI Editor launch commands on macOS
+ * and Windows. UI profile overrides are parsed centrally by DesktopLaunchOptions.
  */
 public class GraphicsMain {
 
     public static void main(String[] args) {
+        DesktopLaunchOptions launchOptions;
+        try {
+            launchOptions = DesktopLaunchOptions.parse(args);
+        } catch (IllegalArgumentException invalidOptions) {
+            System.err.println("Could not launch: " + invalidOptions.getMessage());
+            return;
+        }
+
+        // The battle UI editor is source-authoring infrastructure, never a
+        // player-facing mode. Enable source paths before seeding/repositories.
+        if (launchOptions.battleUiEditor()) {
+            System.setProperty(AppPaths.AUTHORING_SYSTEM_PROPERTY, "true");
+            if (AppPaths.authoringDataDir() == null) {
+                System.err.println("Could not launch the Battle UI Editor: no source checkout was found. "
+                    + "Run from the repository root or set -D"
+                    + AppPaths.AUTHORING_ROOT_SYSTEM_PROPERTY + "=/path/to/JJKTBF.");
+                return;
+            }
+        }
+
         // First-run / upgrade-safe seeding: copy bundled game-data JSON into the
         // per-user data directory. Editor data persists for a game version and
         // is replaced only after launching a newer release.
@@ -54,7 +71,9 @@ public class GraphicsMain {
 
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
 
-        config.setTitle(AppPaths.APP_NAME);
+        config.setTitle(launchOptions.battleUiEditor()
+            ? AppPaths.APP_NAME + " - Battle UI Editor [" + launchOptions.uiProfile() + "]"
+            : AppPaths.APP_NAME);
         // Launch in fullscreen. The mechanism differs by OS because the
         // *native* fullscreen experience differs:
         //   - macOS: the "green traffic-light" fullscreen is a distinct native
@@ -67,18 +86,28 @@ public class GraphicsMain {
         //   - Windows/Linux: there is no "separate Space" concept; the
         //     standard fullscreen is exclusive fullscreen, which setFullscreen
         //     Mode(...) already does correctly at creation time.
-        boolean mac = System.getProperty("os.name").toLowerCase().contains("mac");
-        if (!mac) {
+        boolean mac = launchOptions.hostPlatform() == DesktopPlatform.MAC;
+        boolean macNativeFullscreen = mac
+            && !launchOptions.battleUiEditor()
+            && !launchOptions.windowed();
+        boolean editorWindowedOnMac = mac && launchOptions.battleUiEditor();
+        if (launchOptions.windowed() || editorWindowedOnMac) {
+            config.setWindowedMode(launchOptions.windowWidth(), launchOptions.windowHeight());
+        } else if (!mac) {
             config.setFullscreenMode(Lwjgl3ApplicationConfiguration.getDisplayMode());
         } else {
             // Start windowed; the green-button toggle needs a real window.
             config.setWindowedMode(1024, 600);
         }
+        // Cocoa native fullscreen requires a resizable NSWindow. Keep the old
+        // normal-Mac behavior while still allowing explicit fixed policies later.
+        config.setResizable(macNativeFullscreen
+            || launchOptions.battleUiEditor() || launchOptions.windowed());
         config.setForegroundFPS(60);
         config.useVsync(true);
 
-        JJKGame game = new JJKGame();
-        if (mac) {
+        JJKGame game = new JJKGame(launchOptions);
+        if (macNativeFullscreen) {
             // toggleFullScreen: must be called on the UI/render thread AFTER
             // the GLFW window exists. Hooking the end of create() and posting
             // a runnable defers the call to the next render frame, by which
@@ -87,8 +116,7 @@ public class GraphicsMain {
                 GraphicsMain::enterMacNativeFullscreen));
         }
 
-        // macOS: LibGDX requires the render loop to run on the main thread.
-        // This is handled automatically by Lwjgl3Application on macOS.
+        // The launching JVM still requires -XstartOnFirstThread on macOS.
         new Lwjgl3Application(game, config);
     }
 

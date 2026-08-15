@@ -22,8 +22,11 @@ import com.jjktbf.graphics.ui.CombatantPanel;
 import com.jjktbf.graphics.ui.MiraclesMeter;
 import com.jjktbf.graphics.ui.RatioMeter;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
+import com.jjktbf.graphics.ui.battle.BattleUiViewport;
 import com.jjktbf.graphics.ui.battle.PlanningPanel;
 import com.jjktbf.graphics.ui.battle.TeamPlanningPanel;
+import com.jjktbf.graphics.ui.profile.BattleUiLayout;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.graphics.multiplayer.TargetListSupport;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.coded.CodedAbilityState;
@@ -96,6 +99,8 @@ public class BattleScreen implements Screen, BattleView {
 
     private enum BattleMode { LOCAL, MULTIPLAYER }
 
+    public enum EditorMeterPreview { MIRACLES, RATIO, NONE }
+
     /** Max raw messages retained in the battle log; older ones are dropped. */
     private static final int   LOG_MAX_STORED = 50;
     /**
@@ -153,6 +158,20 @@ public class BattleScreen implements Screen, BattleView {
     private final JJKGame     game;
     private final AssetLoader assets;
     private final SpriteBatch batch;
+    private BattleUiLayout uiLayout;
+    private BattleUiViewport renderViewport;
+    private float lastLayoutWidth = -1f;
+    private float lastLayoutHeight = -1f;
+    private boolean editorPreview;
+    private boolean editorDebugBounds;
+    private boolean editorDebugGrid;
+    private CodedAbilityState editorPreviewMiracles;
+    private CodedAbilityState editorPreviewRatio;
+    private EditorMeterPreview editorMeterPreview = EditorMeterPreview.MIRACLES;
+    private List<BattleCombatant> editorAllPlayerTeam = List.of();
+    private List<BattleCombatant> editorAllEnemyTeam = List.of();
+    private List<Texture> editorAllPlayerSprites = List.of();
+    private List<Texture> editorAllEnemySprites = List.of();
 
     /** Guards against double-dispose of native batch resources. */
     private boolean disposed;
@@ -332,11 +351,161 @@ public class BattleScreen implements Screen, BattleView {
         new HashMap<>();
 
     public BattleScreen(JJKGame game, AssetLoader assets) {
+        this(game, assets, BattleUiLayout.defaults(UiProfile.MAC));
+    }
+
+    public BattleScreen(JJKGame game, AssetLoader assets, BattleUiLayout uiLayout) {
         this.game   = game;
         this.assets = assets;
         this.batch  = new SpriteBatch();
+        this.uiLayout = Objects.requireNonNull(uiLayout, "uiLayout").copy();
         this.playerSprite = assets.playerSprite;
         this.enemySprite = assets.enemySprite;
+    }
+
+    /** Replaces presentation metrics without replacing battle state or rendering components. */
+    public void setUiLayout(BattleUiLayout layout) {
+        uiLayout = Objects.requireNonNull(layout, "layout").copy();
+        if (planningPanel != null) planningPanel.setLayout(uiLayout);
+        if (teamPlanningPanel != null) teamPlanningPanel.setLayout(uiLayout);
+        float width = renderViewport == null ? uiLayout.referenceWidth : renderViewport.logicalWidth();
+        float height = renderViewport == null ? uiLayout.referenceHeight : renderViewport.logicalHeight();
+        layoutExecutionUi(width, height);
+        if (planningPanel != null) planningPanel.resize(width, height);
+        if (teamPlanningPanel != null) teamPlanningPanel.resize(width, height);
+    }
+
+    /**
+     * Binds deterministic development data to this production renderer. No
+     * controller, AI, networking, or battle thread is started.
+     */
+    public void prepareEditorPreview(
+        BattleState state,
+        List<Texture> playerSprites,
+        List<Texture> enemySprites
+    ) {
+        editorPreview = true;
+        mode = BattleMode.LOCAL;
+        renderLocalState = Objects.requireNonNull(state, "state");
+        editorAllPlayerTeam = List.copyOf(visibleCombatants(state.playerTeam()));
+        editorAllEnemyTeam = List.copyOf(visibleCombatants(state.enemyTeam()));
+        editorAllPlayerSprites = List.copyOf(playerSprites);
+        editorAllEnemySprites = List.copyOf(enemySprites);
+        executionUiActive = true;
+        awaitingNextRound = true;
+        playbackControlsOpen = true;
+        battleOver = false;
+        editorPreviewMiracles = new CodedAbilityState(
+            MiraclesAbility.KEY, "Miracles", 4, MiraclesAbility.MAX_MIRACLES);
+        editorPreviewRatio = new CodedAbilityState(
+            RatioAbility.KEY, "Ratio", 3, 7);
+        setEditorPreviewTeamSize(4);
+        logLines.clear();
+        addLogLine("Round 3 begins. Both teams are ready to resolve their plans.");
+        addLogLine("A status effect changes the active fighter's battle resources.");
+        addLogLine("A multi-hit technique connects while the opponent prepares a defense.");
+        addLogLine("Use the editor controls to tune the real production battle layout live.");
+        setEditorPreviewPlanning(false);
+    }
+
+    public void setEditorPreviewTeamSize(int requestedSize) {
+        if (!editorPreview || editorAllPlayerTeam.isEmpty() || editorAllEnemyTeam.isEmpty()) return;
+        int playerCount = Math.max(1, Math.min(requestedSize, editorAllPlayerTeam.size()));
+        int enemyCount = Math.max(1, Math.min(requestedSize, editorAllEnemyTeam.size()));
+        renderPlayerTeam = List.copyOf(editorAllPlayerTeam.subList(0, playerCount));
+        renderEnemyTeam = List.copyOf(editorAllEnemyTeam.subList(0, enemyCount));
+        playerTeamSprites = List.copyOf(editorAllPlayerSprites.subList(0, playerCount));
+        enemyTeamSprites = List.copyOf(editorAllEnemySprites.subList(0, enemyCount));
+        renderPlayer = renderPlayerTeam.get(0);
+        renderEnemy = renderEnemyTeam.get(0);
+        playerSprite = playerTeamSprites.get(0);
+        enemySprite = enemyTeamSprites.get(0);
+        syncLocalHpFromModel();
+        boolean planning = teamPlanningPanel != null;
+        if (planning) setEditorPreviewPlanning(true);
+        else layoutExecutionUi(uiLayout.referenceWidth, uiLayout.referenceHeight);
+    }
+
+    public void setEditorPreviewMeter(EditorMeterPreview meterPreview) {
+        editorMeterPreview = meterPreview == null ? EditorMeterPreview.NONE : meterPreview;
+        updatePanels();
+        if (teamPlanningPanel != null) {
+            teamPlanningPanel.activePlanningPanel().setMiraclesState(
+                editorMeterPreview == EditorMeterPreview.MIRACLES
+                    ? editorPreviewMiracles : null);
+        }
+    }
+
+    /** Switches the shared preview between production execution and planning compositions. */
+    public void setEditorPreviewPlanning(boolean planning) {
+        if (!editorPreview) return;
+        planningPanel = null;
+        teamPlanningPanel = null;
+        awaitingNextRound = !planning;
+        playbackControlsOpen = true;
+        if (planning && renderLocalState != null && !renderPlayerTeam.isEmpty()) {
+            teamPlanningPanel = new TeamPlanningPanel(
+                renderLocalState.getTimelineGridLength(),
+                renderPlayerTeam,
+                renderLocalState,
+                assets.battleUi,
+                uiLayout.referenceWidth,
+                uiLayout.referenceHeight);
+            teamPlanningPanel.setLayout(uiLayout);
+            teamPlanningPanel.activePlanningPanel().setMiraclesState(
+                editorMeterPreview == EditorMeterPreview.MIRACLES
+                    ? editorPreviewMiracles : null);
+            seedEditorPlanningPanel(
+                teamPlanningPanel.activePlanningPanel(), renderPlayerTeam.get(0));
+        }
+        layoutExecutionUi(uiLayout.referenceWidth, uiLayout.referenceHeight);
+    }
+
+    /** Draws one editor frame into a fixed logical canvas fitted by the caller. */
+    public void renderEditorPreview(
+        float delta,
+        BattleUiViewport viewport,
+        boolean debugBounds,
+        boolean debugGrid
+    ) {
+        if (!editorPreview) {
+            throw new IllegalStateException("BattleScreen is not configured as an editor preview");
+        }
+        renderViewport = Objects.requireNonNull(viewport, "viewport");
+        editorDebugBounds = debugBounds;
+        editorDebugGrid = debugGrid;
+        renderViewport.apply(batch);
+        if (lastLayoutWidth != viewport.logicalWidth()
+            || lastLayoutHeight != viewport.logicalHeight()) {
+            layoutExecutionUi(viewport.logicalWidth(), viewport.logicalHeight());
+            if (planningPanel != null) {
+                planningPanel.resize(viewport.logicalWidth(), viewport.logicalHeight());
+            }
+            if (teamPlanningPanel != null) {
+                teamPlanningPanel.resize(viewport.logicalWidth(), viewport.logicalHeight());
+            }
+        }
+        frameDelta = 0f;
+        drawAll();
+    }
+
+    public String describeUiAt(float x, float y) {
+        if (planningPanel != null) return planningPanel.debugComponentAt(x, y);
+        if (teamPlanningPanel != null) return teamPlanningPanel.debugComponentAt(x, y);
+        if (nextRoundBounds.contains(x, y)) return "Execution / Next round " + describe(nextRoundBounds);
+        if (fastForwardBounds.contains(x, y)) return "Execution / Fast forward " + describe(fastForwardBounds);
+        if (skipBounds.contains(x, y)) return "Execution / Skip " + describe(skipBounds);
+        if (miraclesMeter.isVisible() && miraclesMeter.bounds().contains(x, y)) {
+            return "Execution / Miracles meter " + describe(miraclesMeter.bounds());
+        }
+        if (ratioMeter.isVisible() && ratioMeter.bounds().contains(x, y)) {
+            return "Execution / Ratio meter " + describe(ratioMeter.bounds());
+        }
+        if (logBounds.contains(x, y)) return "Execution / Battle log " + describe(logBounds);
+        String combatant = combatantComponentAt(playerPanels, "Player", x, y);
+        if (combatant != null) return combatant;
+        combatant = combatantComponentAt(enemyPanels, "Enemy", x, y);
+        return combatant == null ? "Execution / Battlefield" : combatant;
     }
 
     /** Selects the blocking local controller path before this reusable screen is shown. */
@@ -491,6 +660,8 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public void render(float delta) {
+        renderViewport = BattleUiViewport.fullScreen();
+        renderViewport.apply(batch);
         float realDelta = Math.max(0f, delta);
         skipActiveFlashRemaining = Math.max(0f, skipActiveFlashRemaining - realDelta);
         float presentationDelta = realDelta * playbackSpeedMultiplier();
@@ -661,16 +832,24 @@ public class BattleScreen implements Screen, BattleView {
         // Planning is a dedicated workspace. Drawing the combat HUD behind it
         // made both the board and the move cards compete for attention.
         if (planningPanel != null) {
+            planningPanel.setRenderViewport(renderViewport);
             planningPanel.draw(batch, assets.fontSmall, assets.fontMedium, assets.fontLarge);
+            drawPlanningGridIfEnabled();
+            if (editorDebugBounds) planningPanel.drawDebug(batch);
             return;
         }
         if (teamPlanningPanel != null) {
+            teamPlanningPanel.setRenderViewport(renderViewport);
             teamPlanningPanel.draw(batch, assets.fontSmall, assets.fontMedium, assets.fontLarge);
+            drawPlanningGridIfEnabled();
+            if (editorDebugBounds) teamPlanningPanel.drawDebug(batch);
             return;
         }
 
-        float sw = Gdx.graphics.getWidth();
-        float sh = Gdx.graphics.getHeight();
+        float sw = renderViewport == null
+            ? Gdx.graphics.getWidth() : renderViewport.logicalWidth();
+        float sh = renderViewport == null
+            ? Gdx.graphics.getHeight() : renderViewport.logicalHeight();
 
         batch.begin();
         drawExecutionBackground(sw, sh);
@@ -694,6 +873,8 @@ public class BattleScreen implements Screen, BattleView {
         if (SHOW_TICK_COUNTER) drawTickCounter(sw, sh);
         drawMoveUnleashAnimation(sw, sh);
         drawHitFlashes(sw, sh);
+        if (editorDebugGrid) drawDebugGrid(sw, sh);
+        if (editorDebugBounds) drawExecutionDebugBounds();
         batch.end();
 
     }
@@ -787,7 +968,7 @@ public class BattleScreen implements Screen, BattleView {
             lines.addAll(wrapText(logFont, typingLine.substring(0, shown), textWidth));
         }
 
-        float lineStep = logFont.getCapHeight() * LOG_LINE_SPACING;
+        float lineStep = logFont.getCapHeight() * uiLayout.execution.logLineSpacing;
         // Drawable band inside the panel (below the title, above the baseplate).
         float bottomY = logBounds.y + 25f;
         float topY = logBounds.y + logBounds.height - 34f + lineStep;
@@ -805,13 +986,17 @@ public class BattleScreen implements Screen, BattleView {
         // drawn after this method returns, so neither is affected.
         Rectangle clip = new Rectangle(logBounds.x + 6f, logBounds.y + 6f,
             logBounds.width - 12f, logBounds.height - 12f);
-        Rectangle scissors = new Rectangle();
-        com.badlogic.gdx.graphics.OrthographicCamera clipCamera = new com.badlogic.gdx.graphics.OrthographicCamera();
-        clipCamera.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-        com.badlogic.gdx.scenes.scene2d.utils.ScissorStack.calculateScissors(
-            clipCamera, batch.getProjectionMatrix(), clip, scissors);
-        boolean pushed = scissors.width > 0 && scissors.height > 0
-            && com.badlogic.gdx.scenes.scene2d.utils.ScissorStack.pushScissors(scissors);
+        BattleUiViewport viewport = renderViewport == null
+            ? BattleUiViewport.fullScreen() : renderViewport;
+        Rectangle scissors = viewport.scissor(clip);
+        boolean pushed = scissors.width > 0f && scissors.height > 0f;
+        if (pushed) {
+            batch.flush();
+            Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);
+            Gdx.gl.glScissor(
+                Math.round(scissors.x), Math.round(scissors.y),
+                Math.round(scissors.width), Math.round(scissors.height));
+        }
 
         // Bottom-anchor: walk newest → oldest, shifted down by the scroll
         // offset so older lines enter from the top. Lines scrolled below the
@@ -827,7 +1012,7 @@ public class BattleScreen implements Screen, BattleView {
             }
             if (pushed) batch.flush();
         } finally {
-            if (pushed) com.badlogic.gdx.scenes.scene2d.utils.ScissorStack.popScissors();
+            if (pushed) Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
         }
     }
 
@@ -850,7 +1035,7 @@ public class BattleScreen implements Screen, BattleView {
     private void adjustLogScroll(float rows) {
         if (rows == 0f) return;
         BitmapFont logFont = assets.fontLog;
-        float lineStep = logFont.getCapHeight() * LOG_LINE_SPACING;
+        float lineStep = logFont.getCapHeight() * uiLayout.execution.logLineSpacing;
         float bottomY = logBounds.y + 25f;
         float topY = logBounds.y + logBounds.height - 34f + lineStep;
         float visibleHeight = topY - bottomY;
@@ -1465,6 +1650,7 @@ public class BattleScreen implements Screen, BattleView {
             planningPanel = new com.jjktbf.graphics.ui.battle.PlanningPanel(
                 gridLength, combatant, List.of(opponent), assets.battleUi,
                 Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+            planningPanel.setLayout(uiLayout);
             planningPanel.setSoundPlayer(game.audio()::play);
             planningPanel.setOnConfirm(() -> {
                 game.audio().play(SoundCue.UI_PLAN_LOCK);
@@ -1545,6 +1731,7 @@ public class BattleScreen implements Screen, BattleView {
                 assets.battleUi,
                 Gdx.graphics.getWidth(),
                 Gdx.graphics.getHeight());
+            teamPlanningPanel.setLayout(uiLayout);
             teamPlanningPanel.setSoundPlayer(game.audio()::play);
             teamPlanningPanel.setOnConfirm(() -> {
                 game.audio().play(SoundCue.UI_PLAN_LOCK);
@@ -2205,6 +2392,7 @@ public class BattleScreen implements Screen, BattleView {
             Gdx.graphics.getWidth(),
             Gdx.graphics.getHeight()
         );
+        teamPlanningPanel.setLayout(uiLayout);
         teamPlanningPanel.setSoundPlayer(game.audio()::play);
         teamPlanningPanel.setOnConfirm(this::submitOnlinePlan);
         Gdx.input.setInputProcessor(teamPlanningPanel.inputProcessor());
@@ -3403,67 +3591,96 @@ public class BattleScreen implements Screen, BattleView {
 
     /** Recreates all execution widgets from the live viewport after a resize. */
     private void layoutExecutionUi(float width, float height) {
-        float margin = Math.min(32f, Math.max(16f, Math.min(width, height) * 0.035f));
+        lastLayoutWidth = width;
+        lastLayoutHeight = height;
+        BattleUiLayout.Execution layout = uiLayout.execution;
+        float margin = Math.min(layout.outerMarginMax,
+            Math.max(layout.outerMarginMin,
+                Math.min(width, height) * layout.outerMarginFraction));
         List<Texture> visibleEnemySprites = visibleTeamSprites(enemyTeamSprites);
         List<Texture> visiblePlayerSprites = visibleTeamSprites(playerTeamSprites);
         int enemyCount = visibleEnemySprites.size();
         int playerCount = visiblePlayerSprites.size();
 
-        float logHeight = Math.min(145f, Math.max(100f, height * 0.22f));
+        float logHeight = Math.min(layout.logHeightMax,
+            Math.max(layout.logHeightMin, height * layout.logHeightFraction));
         float logTop = margin + logHeight;
         logBounds.set(0f, 3f, width, logTop - 3f);
 
-        float fieldBottom = logBounds.y + logBounds.height + 12f;
+        float fieldBottom = logBounds.y + logBounds.height + layout.fieldLogGap;
         float fieldTop = height - margin;
         float fieldHeight = Math.max(1f, fieldTop - fieldBottom);
 
-        float fullHudWidth = Math.min(430f, Math.max(150f, width * 0.40f));
+        float fullHudWidth = Math.min(layout.hudWidthMax,
+            Math.max(layout.hudWidthMin, width * layout.hudWidthFraction));
         fullHudWidth = Math.min(fullHudWidth,
-            Math.max(1f, (width - margin * 2f - 12f) / 2f));
-        fullHudWidth *= COMBATANT_HUD_SCALE;
-        float hudHeight = Math.min(108f,
-            Math.max(82f, fieldHeight * 0.29f)) * COMBATANT_HUD_SCALE;
-        float playerHudY = fieldBottom + fieldHeight * 0.08f;
-        float playerBottomHudY = logBounds.y + logBounds.height + 12f;
+            Math.max(1f, (width - margin * 2f - layout.hudCenterGap) / 2f));
+        fullHudWidth *= layout.hudScale;
+        float hudHeight = Math.min(layout.hudHeightMax,
+            Math.max(layout.hudHeightMin,
+                fieldHeight * layout.hudHeightFraction)) * layout.hudScale;
+        float playerHudY = fieldBottom + fieldHeight * layout.playerHudYOffsetFraction;
+        float playerBottomHudY = logBounds.y + logBounds.height + layout.fieldLogGap;
         float hudVerticalNudge = Math.max(0f, playerHudY - playerBottomHudY);
         float availableCenterGap = width - margin * 2f - fullHudWidth * 2f;
-        float hudShift = Math.min(Math.min(70f, width * 0.035f),
-            Math.max(0f, (availableCenterGap - 12f) / 2f));
-        float hudHorizontalNudge = Math.min(30f, width * 0.018f);
-        float enemyHudWidth = fullHudWidth * hudWidthScale(enemyCount);
-        float playerHudWidth = fullHudWidth * hudWidthScale(playerCount);
-        float enemyHudColumnGap = Math.max(10f, enemyHudWidth * 0.05f);
-        float playerHudColumnGap = Math.max(10f, playerHudWidth * 0.05f);
-        float hudRowGap = Math.max(8f, hudHeight * 0.07f);
+        float hudShift = Math.min(
+            Math.min(layout.hudSideShiftMax, width * layout.hudSideShiftFraction),
+            Math.max(0f, (availableCenterGap - layout.hudCenterGap) / 2f));
+        float hudHorizontalNudge = Math.min(
+            layout.hudHorizontalNudgeMax,
+            width * layout.hudHorizontalNudgeFraction);
+        float enemyHudWidth = fullHudWidth * (enemyCount <= 2
+            ? 1f : layout.multiCombatantHudWidthScale);
+        float playerHudWidth = fullHudWidth * (playerCount <= 2
+            ? 1f : layout.multiCombatantHudWidthScale);
+        float enemyHudColumnGap = Math.max(
+            layout.hudColumnGapMin, enemyHudWidth * layout.hudColumnGapFraction);
+        float playerHudColumnGap = Math.max(
+            layout.hudColumnGapMin, playerHudWidth * layout.hudColumnGapFraction);
+        float hudRowGap = Math.max(
+            layout.hudRowGapMin, hudHeight * layout.hudRowGapFraction);
         float playerHudGroupWidth = hudGroupWidth(
             playerCount, playerHudWidth, playerHudColumnGap);
 
-        float enemyPlateBaseSize = Math.min(fieldHeight * 0.84f, width * 0.38f);
-        float playerPlateBaseSize = Math.min(fieldHeight * 1.08f, width * 0.46f);
+        float enemyPlateBaseSize = Math.min(
+            fieldHeight * layout.enemyPlateHeightFraction,
+            width * layout.enemyPlateWidthFraction);
+        float playerPlateBaseSize = Math.min(
+            fieldHeight * layout.playerPlateHeightFraction,
+            width * layout.playerPlateWidthFraction);
         float enemyPlateSize = enemyPlateBaseSize * plateScale(enemyCount);
         float playerPlateSize = playerPlateBaseSize * plateScale(playerCount);
-        float enemyCenterX = width - margin - width * 0.22f;
-        float playerCenterX = margin + width * 0.22f;
+        float enemyCenterX = width - margin - width * layout.sideCenterInsetFraction;
+        float playerCenterX = margin + width * layout.sideCenterInsetFraction;
         float expandedPlayerCenterX = Math.max(
-            playerCenterX + Math.min(28f, width * 0.018f),
+            playerCenterX + Math.min(
+                layout.expandedPlayerCenterNudgeMax,
+                width * layout.expandedPlayerCenterNudgeFraction),
             playerPlateBaseSize);
         float enemyFourFighterLeftShift = enemyFourFighterLeftShift(
             margin, playerPlateBaseSize * 2f, expandedPlayerCenterX);
         if (enemyCount == 4) enemyCenterX -= enemyFourFighterLeftShift;
 
-        float enemySpriteSize = Math.min(fieldHeight * 0.50f, width * 0.20f);
-        float playerSpriteSize = Math.min(fieldHeight * 0.58f, width * 0.23f);
+        float enemySpriteSize = Math.min(
+            fieldHeight * layout.enemySpriteHeightFraction,
+            width * layout.enemySpriteWidthFraction);
+        float playerSpriteSize = Math.min(
+            fieldHeight * layout.playerSpriteHeightFraction,
+            width * layout.playerSpriteWidthFraction);
         // Drop both complete fighter groups by the player's former gap to the log.
-        float fighterDrop = 12f + fieldHeight * 0.12f;
+        float fighterDrop = layout.fighterDrop + fieldHeight * layout.fighterDropFraction;
         float enemySpriteY = fieldTop - enemySpriteSize - fighterDrop;
-        float playerSpriteY = fieldBottom + fieldHeight * 0.12f - fighterDrop;
+        float playerSpriteY = fieldBottom
+            + fieldHeight * layout.playerSpriteBottomFraction - fighterDrop;
         // Then lower each plate again relative to its sprite, matching the authored footing.
-        float plateDrop = fieldHeight * 0.045f;
+        float plateDrop = fieldHeight * layout.plateDropFraction;
         // The visible stone ellipse occupies about 28% of its square texture.
         // Seven percent of the texture is therefore roughly one quarter of the visible height.
-        float enemyPlateCenterY = enemySpriteY + enemySpriteSize * 0.13f
-            - plateDrop + enemyPlateBaseSize * 0.07f;
-        float playerPlateCenterY = playerSpriteY + playerSpriteSize * 0.13f - plateDrop;
+        float enemyPlateCenterY = enemySpriteY
+            + enemySpriteSize * layout.spriteFootFraction
+            - plateDrop + enemyPlateBaseSize * layout.enemyPlateLiftFraction;
+        float playerPlateCenterY = playerSpriteY
+            + playerSpriteSize * layout.spriteFootFraction - plateDrop;
 
         float enemyHudY = enemySpriteY + enemySpriteSize - hudHeight;
         float playerTopHudY = playerHudY + hudHeight + hudRowGap;
@@ -3473,7 +3690,9 @@ public class BattleScreen implements Screen, BattleView {
 
         Rectangle enemyPlate = new Rectangle(
             enemyCenterX - enemyPlateSize / 2f,
-            enemyPlateCenterY - enemyPlateBaseSize * 0.016f - enemyPlateSize / 2f,
+            enemyPlateCenterY
+                - enemyPlateBaseSize * layout.plateTextureYOffsetFraction
+                - enemyPlateSize / 2f,
             enemyPlateSize,
             enemyPlateSize
         );
@@ -3501,7 +3720,9 @@ public class BattleScreen implements Screen, BattleView {
             playerHud.x += playerRightShift;
             playerCenterX += playerRightShift;
         }
-        if (playerCount == 3 && enemyCount == 3) playerCenterX += 48f;
+        if (playerCount == 3 && enemyCount == 3) {
+            playerCenterX += layout.threeVsThreePlayerShift;
+        }
 
         if (enemyCount == 4) {
             float playerHudTop = playerHud.y + playerHud.height;
@@ -3513,7 +3734,9 @@ public class BattleScreen implements Screen, BattleView {
 
         Rectangle playerPlate = new Rectangle(
             playerCenterX - playerPlateSize / 2f,
-            playerPlateCenterY - playerPlateBaseSize * 0.016f - playerPlateSize / 2f,
+            playerPlateCenterY
+                - playerPlateBaseSize * layout.plateTextureYOffsetFraction
+                - playerPlateSize / 2f,
             playerPlateSize,
             playerPlateSize
         );
@@ -3529,26 +3752,29 @@ public class BattleScreen implements Screen, BattleView {
         remapFaintAnimationPanels();
 
         float miracleSize = Math.min(MiraclesMeter.sizeForViewport(height),
-            Math.min(hudHeight, width * 0.11f));
+            Math.min(hudHeight, width * layout.miraclesWidthFraction));
         miraclesMeter.setBounds(
-            Math.max(margin, playerHud.x - miracleSize - 14f),
+            Math.max(margin, playerHud.x - miracleSize - layout.meterHudGap),
             playerHud.y + (playerHud.height - miracleSize) / 2f,
             miracleSize
         );
         float ratioHeight = Math.min(RatioMeter.heightForViewport(height),
-            Math.min(hudHeight * 0.75f, width * 0.12f));
+            Math.min(hudHeight * 0.75f, width * layout.ratioWidthFraction));
         float ratioWidth = RatioMeter.widthForHeight(ratioHeight);
         ratioMeter.setBounds(
-            Math.max(margin, playerHud.x - ratioWidth - 14f),
+            Math.max(margin, playerHud.x - ratioWidth - layout.meterHudGap),
             playerHud.y + (playerHud.height - ratioHeight) / 2f,
             ratioHeight
         );
 
-        float nextRoundWidth = Math.min(210f, Math.max(150f, width * 0.20f));
-        float nextRoundHeight = Math.min(54f, logBounds.height - 24f);
+        float nextRoundWidth = Math.min(layout.nextRoundWidthMax,
+            Math.max(layout.nextRoundWidthMin, width * layout.nextRoundWidthFraction));
+        float nextRoundHeight = Math.min(
+            layout.nextRoundHeightMax,
+            Math.max(1f, logBounds.height - layout.nextRoundVerticalPadding));
         nextRoundBounds.set(
-            logBounds.x + logBounds.width - nextRoundWidth - 14f,
-            logBounds.y + 14f,
+            logBounds.x + logBounds.width - nextRoundWidth - layout.nextRoundInset,
+            logBounds.y + layout.nextRoundInset,
             nextRoundWidth,
             nextRoundHeight
         );
@@ -3602,7 +3828,7 @@ public class BattleScreen implements Screen, BattleView {
                 primaryHud.height);
             panels.add(new CombatantPanel(spriteTexture,
                 i == 0 ? assets.stoneBasePlate : null,
-                assets.battleUi, plate, sprite, hud, COMBATANT_HUD_SCALE, !opponent));
+                assets.battleUi, plate, sprite, hud, uiLayout.execution.hudScale, !opponent));
         }
         return List.copyOf(panels);
     }
@@ -3709,6 +3935,109 @@ public class BattleScreen implements Screen, BattleView {
         return new Rectangle(centerX - scaledSize / 2f, bottomY, scaledSize, scaledSize);
     }
 
+    private void drawDebugGrid(float width, float height) {
+        for (float x = 0f; x <= width; x += 100f) {
+            boolean major = ((int) x) % 500 == 0;
+            batch.setColor(1f, 0.85f, 0.15f, major ? 0.34f : 0.16f);
+            batch.draw(assets.battleUi.pixel, x, 0f, major ? 2f : 1f, height);
+        }
+        for (float y = 0f; y <= height; y += 100f) {
+            boolean major = ((int) y) % 500 == 0;
+            batch.setColor(1f, 0.85f, 0.15f, major ? 0.34f : 0.16f);
+            batch.draw(assets.battleUi.pixel, 0f, y, width, major ? 2f : 1f);
+        }
+        batch.setColor(Color.WHITE);
+    }
+
+    private void drawPlanningGridIfEnabled() {
+        if (!editorDebugGrid || renderViewport == null) return;
+        batch.begin();
+        drawDebugGrid(renderViewport.logicalWidth(), renderViewport.logicalHeight());
+        batch.end();
+    }
+
+    private static void seedEditorPlanningPanel(
+        PlanningPanel panel,
+        BattleCombatant combatant
+    ) {
+        if (panel == null || combatant == null) return;
+        int placed = 0;
+        for (Move move : combatant.getCharacter().getKnownMoves()) {
+            int ceCost = combatant.computeMoveCeCost(move);
+            for (int tick = 1; tick <= panel.getPlan().gridLength(); tick++) {
+                if (panel.restorePlacement(move, tick, ceCost, List.of()) != null) {
+                    placed++;
+                    break;
+                }
+            }
+            if (placed >= 3) return;
+        }
+    }
+
+    private void drawExecutionDebugBounds() {
+        drawOutline(logBounds, new Color(1f, 0.82f, 0.1f, 0.95f));
+        drawOutline(nextRoundBounds, new Color(0.2f, 1f, 0.4f, 0.95f));
+        drawOutline(fastForwardBounds, new Color(0.2f, 0.8f, 1f, 0.95f));
+        drawOutline(skipBounds, new Color(0.2f, 0.8f, 1f, 0.95f));
+        if (miraclesMeter.isVisible()) {
+            drawOutline(miraclesMeter.bounds(), new Color(1f, 0.45f, 0.85f, 0.95f));
+        }
+        if (ratioMeter.isVisible()) {
+            drawOutline(ratioMeter.bounds(), new Color(1f, 0.45f, 0.85f, 0.95f));
+        }
+        for (CombatantPanel panel : enemyPanels) drawPanelOutlines(panel);
+        for (CombatantPanel panel : playerPanels) drawPanelOutlines(panel);
+    }
+
+    private void drawPanelOutlines(CombatantPanel panel) {
+        drawOutline(panel.plateBounds(), new Color(0.8f, 0.4f, 1f, 0.9f));
+        drawOutline(panel.spriteBounds(), new Color(1f, 0.3f, 0.3f, 0.9f));
+        drawOutline(panel.hudBounds(), new Color(0.2f, 1f, 0.5f, 0.9f));
+    }
+
+    private void drawOutline(Rectangle bounds, Color color) {
+        if (bounds == null || bounds.width <= 0f || bounds.height <= 0f) return;
+        float edge = 2f;
+        batch.setColor(color);
+        batch.draw(assets.battleUi.pixel, bounds.x, bounds.y, bounds.width, edge);
+        batch.draw(assets.battleUi.pixel,
+            bounds.x, bounds.y + bounds.height - edge, bounds.width, edge);
+        batch.draw(assets.battleUi.pixel, bounds.x, bounds.y, edge, bounds.height);
+        batch.draw(assets.battleUi.pixel,
+            bounds.x + bounds.width - edge, bounds.y, edge, bounds.height);
+        batch.setColor(Color.WHITE);
+    }
+
+    private static String combatantComponentAt(
+        List<CombatantPanel> panels,
+        String side,
+        float x,
+        float y
+    ) {
+        for (int index = panels.size() - 1; index >= 0; index--) {
+            CombatantPanel panel = panels.get(index);
+            Rectangle hud = panel.hudBounds();
+            if (hud.contains(x, y)) {
+                return "Execution / " + side + " HUD " + (index + 1) + " " + describe(hud);
+            }
+            Rectangle sprite = panel.spriteBounds();
+            if (sprite.contains(x, y)) {
+                return "Execution / " + side + " sprite " + (index + 1) + " "
+                    + describe(sprite);
+            }
+            Rectangle plate = panel.plateBounds();
+            if (plate.contains(x, y)) {
+                return "Execution / " + side + " plate " + describe(plate);
+            }
+        }
+        return null;
+    }
+
+    private static String describe(Rectangle bounds) {
+        return String.format(java.util.Locale.ROOT, "x=%.1f y=%.1f w=%.1f h=%.1f",
+            bounds.x, bounds.y, bounds.width, bounds.height);
+    }
+
     /**
      * Seed the LOCAL deferred HP ints from the live model. Called at round
      * boundaries so the bars start each round accurate and end-of-round
@@ -3800,6 +4129,15 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     private void updatePanels() {
+        if (editorPreview) {
+            miraclesMeter.setState(editorMeterPreview == EditorMeterPreview.MIRACLES
+                ? editorPreviewMiracles : null);
+            ratioMeter.setState(editorMeterPreview == EditorMeterPreview.RATIO
+                ? editorPreviewRatio : null);
+            updateLocalTeamPanels(playerPanels, renderPlayerTeam);
+            updateLocalTeamPanels(enemyPanels, renderEnemyTeam);
+            return;
+        }
         if (mode == BattleMode.MULTIPLAYER) {
             miraclesMeter.setState(onlinePlayerMiracles);
             ratioMeter.setState(onlinePlayerRatio);

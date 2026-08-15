@@ -100,6 +100,11 @@ public class CombatantPanel {
         return spriteBounds.y + spriteBounds.height / 2f;
     }
 
+    /** Read-only copies used by battle-layout diagnostics. */
+    public Rectangle plateBounds() { return new Rectangle(plateBounds); }
+    public Rectangle spriteBounds() { return new Rectangle(spriteBounds); }
+    public Rectangle hudBounds() { return new Rectangle(hudBounds); }
+
     public void draw(Batch batch, BitmapFont nameFont, BitmapFont barFont,
                      String name, float delta) {
         drawPlate(batch);

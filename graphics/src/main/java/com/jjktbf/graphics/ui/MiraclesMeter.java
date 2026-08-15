@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
+import com.badlogic.gdx.math.Rectangle;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 import com.jjktbf.model.character.coded.CodedAbilityState;
 import com.jjktbf.model.character.coded.MiraclesAbility;
@@ -59,6 +60,10 @@ public final class MiraclesMeter {
 
     public boolean isVisible() {
         return visible;
+    }
+
+    public Rectangle bounds() {
+        return new Rectangle(x, y, size, size);
     }
 
     int imageIndex() {
