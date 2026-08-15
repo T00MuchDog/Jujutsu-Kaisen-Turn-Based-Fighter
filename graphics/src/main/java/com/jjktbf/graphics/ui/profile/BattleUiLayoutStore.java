@@ -1,28 +1,21 @@
 package com.jjktbf.graphics.ui.profile;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.jjktbf.AppPaths;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 
-/** Loads shipped profile layouts and atomically saves authoring edits to source. */
+/** Loads a selected layout from source authoring files or bundled resources. */
 public final class BattleUiLayoutStore {
 
     private static final String RESOURCE_DIRECTORY = "assets/ui/battle-layouts";
     private static final String SOURCE_DIRECTORY =
         "graphics/src/main/resources/" + RESOURCE_DIRECTORY;
 
-    private final ObjectMapper mapper = new ObjectMapper()
-        .enable(SerializationFeature.INDENT_OUTPUT);
+    private final ObjectMapper mapper = new ObjectMapper();
     private final ClassLoader classLoader;
     private final Path sourceRoot;
 
@@ -53,38 +46,7 @@ public final class BattleUiLayoutStore {
         return layout;
     }
 
-    public Path save(UiProfile profile, BattleUiLayout layout) throws IOException {
-        if (sourceRoot == null) {
-            throw new IOException(
-                "Battle UI layouts can only be saved from an authoring source checkout");
-        }
-        layout.validate(profile);
-        Path target = sourcePath(profile);
-        Files.createDirectories(target.getParent());
-        byte[] json = mapper.writeValueAsBytes(layout);
-        Path temporary = Files.createTempFile(target.getParent(), ".battle-ui-", ".tmp");
-        boolean moved = false;
-        try {
-            try (FileChannel channel = FileChannel.open(
-                temporary, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
-                ByteBuffer buffer = ByteBuffer.wrap(json);
-                while (buffer.hasRemaining()) channel.write(buffer);
-                channel.force(true);
-            }
-            try {
-                Files.move(temporary, target,
-                    StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException unsupported) {
-                Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
-            }
-            moved = true;
-            return target;
-        } finally {
-            if (!moved) Files.deleteIfExists(temporary);
-        }
-    }
-
-    public Path sourcePath(UiProfile profile) {
+    private Path sourcePath(UiProfile profile) {
         return sourceRoot == null
             ? null
             : sourceRoot.resolve(SOURCE_DIRECTORY).resolve(profile.fileStem() + ".json");

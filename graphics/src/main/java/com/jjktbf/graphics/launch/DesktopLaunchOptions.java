@@ -7,14 +7,12 @@ import java.util.Properties;
 /** Centralized parsing for host defaults and development overrides. */
 public record DesktopLaunchOptions(
     DesktopPlatform hostPlatform,
-    GameLaunchMode mode,
     UiProfile uiProfile,
     boolean windowed,
     int windowWidth,
     int windowHeight
 ) {
     public static final String UI_PROFILE_PROPERTY = "jjktbf.ui.profile";
-    public static final String EDITOR_PROPERTY = "jjktbf.battleUiEditor";
     public static final String WINDOWED_PROPERTY = "jjktbf.windowed";
     public static final String WINDOW_WIDTH_PROPERTY = "jjktbf.window.width";
     public static final String WINDOW_HEIGHT_PROPERTY = "jjktbf.window.height";
@@ -29,9 +27,6 @@ public record DesktopLaunchOptions(
         Properties properties,
         DesktopPlatform platform
     ) {
-        GameLaunchMode mode = Boolean.parseBoolean(properties.getProperty(EDITOR_PROPERTY))
-            ? GameLaunchMode.BATTLE_UI_EDITOR
-            : GameLaunchMode.NORMAL_GAME;
         String configuredProfile = properties.getProperty(UI_PROFILE_PROPERTY);
         UiProfile profile = configuredProfile == null || configuredProfile.isBlank()
             ? platform.defaultUiProfile()
@@ -43,9 +38,7 @@ public record DesktopLaunchOptions(
         String[] args = arguments == null ? new String[0] : arguments;
         for (int index = 0; index < args.length; index++) {
             String argument = args[index];
-            if ("--battle-ui-editor".equals(argument)) {
-                mode = GameLaunchMode.BATTLE_UI_EDITOR;
-            } else if ("--windowed".equals(argument)) {
+            if ("--windowed".equals(argument)) {
                 windowed = true;
             } else if ("--fullscreen".equals(argument)) {
                 windowed = false;
@@ -70,18 +63,14 @@ public record DesktopLaunchOptions(
             }
         }
 
-        int defaultWidth = mode == GameLaunchMode.BATTLE_UI_EDITOR ? 1440 : 1280;
-        int defaultHeight = mode == GameLaunchMode.BATTLE_UI_EDITOR ? 900 : 720;
+        int defaultWidth = 1280;
+        int defaultHeight = 720;
         int resolvedWidth = width == null ? defaultWidth : width;
         int resolvedHeight = height == null ? defaultHeight : height;
         validateDimension("width", resolvedWidth, 640, 7680);
         validateDimension("height", resolvedHeight, 480, 4320);
         return new DesktopLaunchOptions(
-            platform, mode, profile, windowed, resolvedWidth, resolvedHeight);
-    }
-
-    public boolean battleUiEditor() {
-        return mode == GameLaunchMode.BATTLE_UI_EDITOR;
+            platform, profile, windowed, resolvedWidth, resolvedHeight);
     }
 
     private static Integer integerProperty(Properties properties, String name) {

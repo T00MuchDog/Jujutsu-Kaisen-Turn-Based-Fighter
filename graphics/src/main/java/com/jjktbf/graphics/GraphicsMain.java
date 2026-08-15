@@ -16,8 +16,8 @@ import com.jjktbf.graphics.launch.DesktopPlatform;
  * Build from the repository root with:
  *   mvn -Drevision=1.4.1 -pl graphics -am package
  *
- * See README.md for normal-game and Battle UI Editor launch commands on macOS
- * and Windows. UI profile overrides are parsed centrally by DesktopLaunchOptions.
+ * See README.md for profile-specific launch commands on macOS and Windows.
+ * UI profile overrides are parsed centrally by DesktopLaunchOptions.
  */
 public class GraphicsMain {
 
@@ -28,18 +28,6 @@ public class GraphicsMain {
         } catch (IllegalArgumentException invalidOptions) {
             System.err.println("Could not launch: " + invalidOptions.getMessage());
             return;
-        }
-
-        // The battle UI editor is source-authoring infrastructure, never a
-        // player-facing mode. Enable source paths before seeding/repositories.
-        if (launchOptions.battleUiEditor()) {
-            System.setProperty(AppPaths.AUTHORING_SYSTEM_PROPERTY, "true");
-            if (AppPaths.authoringDataDir() == null) {
-                System.err.println("Could not launch the Battle UI Editor: no source checkout was found. "
-                    + "Run from the repository root or set -D"
-                    + AppPaths.AUTHORING_ROOT_SYSTEM_PROPERTY + "=/path/to/JJKTBF.");
-                return;
-            }
         }
 
         // First-run / upgrade-safe seeding: copy bundled game-data JSON into the
@@ -71,9 +59,7 @@ public class GraphicsMain {
 
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
 
-        config.setTitle(launchOptions.battleUiEditor()
-            ? AppPaths.APP_NAME + " - Battle UI Editor [" + launchOptions.uiProfile() + "]"
-            : AppPaths.APP_NAME);
+        config.setTitle(AppPaths.APP_NAME);
         // Launch in fullscreen. The mechanism differs by OS because the
         // *native* fullscreen experience differs:
         //   - macOS: the "green traffic-light" fullscreen is a distinct native
@@ -87,11 +73,8 @@ public class GraphicsMain {
         //     standard fullscreen is exclusive fullscreen, which setFullscreen
         //     Mode(...) already does correctly at creation time.
         boolean mac = launchOptions.hostPlatform() == DesktopPlatform.MAC;
-        boolean macNativeFullscreen = mac
-            && !launchOptions.battleUiEditor()
-            && !launchOptions.windowed();
-        boolean editorWindowedOnMac = mac && launchOptions.battleUiEditor();
-        if (launchOptions.windowed() || editorWindowedOnMac) {
+        boolean macNativeFullscreen = mac && !launchOptions.windowed();
+        if (launchOptions.windowed()) {
             config.setWindowedMode(launchOptions.windowWidth(), launchOptions.windowHeight());
         } else if (!mac) {
             config.setFullscreenMode(Lwjgl3ApplicationConfiguration.getDisplayMode());
@@ -101,8 +84,7 @@ public class GraphicsMain {
         }
         // Cocoa native fullscreen requires a resizable NSWindow. Keep the old
         // normal-Mac behavior while still allowing explicit fixed policies later.
-        config.setResizable(macNativeFullscreen
-            || launchOptions.battleUiEditor() || launchOptions.windowed());
+        config.setResizable(macNativeFullscreen || launchOptions.windowed());
         config.setForegroundFPS(60);
         config.useVsync(true);
 

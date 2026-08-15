@@ -223,10 +223,6 @@ public final class TeamPlanningPanel {
         for (Page page : pages) page.panel().setLayout(layout);
     }
 
-    public void setRenderViewport(BattleUiViewport renderViewport) {
-        for (Page page : pages) page.panel().setRenderViewport(renderViewport);
-    }
-
     public void draw(Batch batch, BitmapFont font, BitmapFont titleFont, BitmapFont statFont) {
         active().draw(batch, font, titleFont, statFont);
         if (pages.size() <= 1) return;
@@ -243,31 +239,6 @@ public final class TeamPlanningPanel {
             + "/" + pages.size(), nextBounds.x + nextBounds.width + 10f,
             nextBounds.y + 21f);
         batch.end();
-    }
-
-    public void drawDebug(Batch batch) {
-        active().drawDebug(batch);
-        if (pages.size() <= 1) return;
-        batch.begin();
-        drawDebugOutline(batch, previousBounds);
-        drawDebugOutline(batch, nextBounds);
-        batch.end();
-    }
-
-    public String debugComponentAt(float x, float y) {
-        if (previousBounds.contains(x, y)) return "Team planner / Previous page";
-        if (nextBounds.contains(x, y)) return "Team planner / Next page";
-        return active().debugComponentAt(x, y);
-    }
-
-    private void drawDebugOutline(Batch batch, Rectangle bounds) {
-        float edge = 2f;
-        batch.setColor(new Color(0.2f, 1f, 0.5f, 0.9f));
-        batch.draw(ui.pixel, bounds.x, bounds.y, bounds.width, edge);
-        batch.draw(ui.pixel, bounds.x, bounds.y + bounds.height - edge, bounds.width, edge);
-        batch.draw(ui.pixel, bounds.x, bounds.y, edge, bounds.height);
-        batch.draw(ui.pixel, bounds.x + bounds.width - edge, bounds.y, edge, bounds.height);
-        batch.setColor(Color.WHITE);
     }
 
     public InputAdapter inputProcessor() {

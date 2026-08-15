@@ -22,7 +22,6 @@ import com.jjktbf.graphics.ui.CombatantPanel;
 import com.jjktbf.graphics.ui.MiraclesMeter;
 import com.jjktbf.graphics.ui.RatioMeter;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
-import com.jjktbf.graphics.ui.battle.BattleUiViewport;
 import com.jjktbf.graphics.ui.battle.PlanningPanel;
 import com.jjktbf.graphics.ui.battle.TeamPlanningPanel;
 import com.jjktbf.graphics.ui.profile.BattleUiLayout;
@@ -99,8 +98,6 @@ public class BattleScreen implements Screen, BattleView {
 
     private enum BattleMode { LOCAL, MULTIPLAYER }
 
-    public enum EditorMeterPreview { MIRACLES, RATIO, NONE }
-
     /** Max raw messages retained in the battle log; older ones are dropped. */
     private static final int   LOG_MAX_STORED = 50;
     /**
@@ -159,19 +156,6 @@ public class BattleScreen implements Screen, BattleView {
     private final AssetLoader assets;
     private final SpriteBatch batch;
     private BattleUiLayout uiLayout;
-    private BattleUiViewport renderViewport;
-    private float lastLayoutWidth = -1f;
-    private float lastLayoutHeight = -1f;
-    private boolean editorPreview;
-    private boolean editorDebugBounds;
-    private boolean editorDebugGrid;
-    private CodedAbilityState editorPreviewMiracles;
-    private CodedAbilityState editorPreviewRatio;
-    private EditorMeterPreview editorMeterPreview = EditorMeterPreview.MIRACLES;
-    private List<BattleCombatant> editorAllPlayerTeam = List.of();
-    private List<BattleCombatant> editorAllEnemyTeam = List.of();
-    private List<Texture> editorAllPlayerSprites = List.of();
-    private List<Texture> editorAllEnemySprites = List.of();
 
     /** Guards against double-dispose of native batch resources. */
     private boolean disposed;
@@ -363,151 +347,6 @@ public class BattleScreen implements Screen, BattleView {
         this.enemySprite = assets.enemySprite;
     }
 
-    /** Replaces presentation metrics without replacing battle state or rendering components. */
-    public void setUiLayout(BattleUiLayout layout) {
-        uiLayout = Objects.requireNonNull(layout, "layout").copy();
-        if (planningPanel != null) planningPanel.setLayout(uiLayout);
-        if (teamPlanningPanel != null) teamPlanningPanel.setLayout(uiLayout);
-        float width = renderViewport == null ? uiLayout.referenceWidth : renderViewport.logicalWidth();
-        float height = renderViewport == null ? uiLayout.referenceHeight : renderViewport.logicalHeight();
-        layoutExecutionUi(width, height);
-        if (planningPanel != null) planningPanel.resize(width, height);
-        if (teamPlanningPanel != null) teamPlanningPanel.resize(width, height);
-    }
-
-    /**
-     * Binds deterministic development data to this production renderer. No
-     * controller, AI, networking, or battle thread is started.
-     */
-    public void prepareEditorPreview(
-        BattleState state,
-        List<Texture> playerSprites,
-        List<Texture> enemySprites
-    ) {
-        editorPreview = true;
-        mode = BattleMode.LOCAL;
-        renderLocalState = Objects.requireNonNull(state, "state");
-        editorAllPlayerTeam = List.copyOf(visibleCombatants(state.playerTeam()));
-        editorAllEnemyTeam = List.copyOf(visibleCombatants(state.enemyTeam()));
-        editorAllPlayerSprites = List.copyOf(playerSprites);
-        editorAllEnemySprites = List.copyOf(enemySprites);
-        executionUiActive = true;
-        awaitingNextRound = true;
-        playbackControlsOpen = true;
-        battleOver = false;
-        editorPreviewMiracles = new CodedAbilityState(
-            MiraclesAbility.KEY, "Miracles", 4, MiraclesAbility.MAX_MIRACLES);
-        editorPreviewRatio = new CodedAbilityState(
-            RatioAbility.KEY, "Ratio", 3, 7);
-        setEditorPreviewTeamSize(4);
-        logLines.clear();
-        addLogLine("Round 3 begins. Both teams are ready to resolve their plans.");
-        addLogLine("A status effect changes the active fighter's battle resources.");
-        addLogLine("A multi-hit technique connects while the opponent prepares a defense.");
-        addLogLine("Use the editor controls to tune the real production battle layout live.");
-        setEditorPreviewPlanning(false);
-    }
-
-    public void setEditorPreviewTeamSize(int requestedSize) {
-        if (!editorPreview || editorAllPlayerTeam.isEmpty() || editorAllEnemyTeam.isEmpty()) return;
-        int playerCount = Math.max(1, Math.min(requestedSize, editorAllPlayerTeam.size()));
-        int enemyCount = Math.max(1, Math.min(requestedSize, editorAllEnemyTeam.size()));
-        renderPlayerTeam = List.copyOf(editorAllPlayerTeam.subList(0, playerCount));
-        renderEnemyTeam = List.copyOf(editorAllEnemyTeam.subList(0, enemyCount));
-        playerTeamSprites = List.copyOf(editorAllPlayerSprites.subList(0, playerCount));
-        enemyTeamSprites = List.copyOf(editorAllEnemySprites.subList(0, enemyCount));
-        renderPlayer = renderPlayerTeam.get(0);
-        renderEnemy = renderEnemyTeam.get(0);
-        playerSprite = playerTeamSprites.get(0);
-        enemySprite = enemyTeamSprites.get(0);
-        syncLocalHpFromModel();
-        boolean planning = teamPlanningPanel != null;
-        if (planning) setEditorPreviewPlanning(true);
-        else layoutExecutionUi(uiLayout.referenceWidth, uiLayout.referenceHeight);
-    }
-
-    public void setEditorPreviewMeter(EditorMeterPreview meterPreview) {
-        editorMeterPreview = meterPreview == null ? EditorMeterPreview.NONE : meterPreview;
-        updatePanels();
-        if (teamPlanningPanel != null) {
-            teamPlanningPanel.activePlanningPanel().setMiraclesState(
-                editorMeterPreview == EditorMeterPreview.MIRACLES
-                    ? editorPreviewMiracles : null);
-        }
-    }
-
-    /** Switches the shared preview between production execution and planning compositions. */
-    public void setEditorPreviewPlanning(boolean planning) {
-        if (!editorPreview) return;
-        planningPanel = null;
-        teamPlanningPanel = null;
-        awaitingNextRound = !planning;
-        playbackControlsOpen = true;
-        if (planning && renderLocalState != null && !renderPlayerTeam.isEmpty()) {
-            teamPlanningPanel = new TeamPlanningPanel(
-                renderLocalState.getTimelineGridLength(),
-                renderPlayerTeam,
-                renderLocalState,
-                assets.battleUi,
-                uiLayout.referenceWidth,
-                uiLayout.referenceHeight);
-            teamPlanningPanel.setLayout(uiLayout);
-            teamPlanningPanel.activePlanningPanel().setMiraclesState(
-                editorMeterPreview == EditorMeterPreview.MIRACLES
-                    ? editorPreviewMiracles : null);
-            seedEditorPlanningPanel(
-                teamPlanningPanel.activePlanningPanel(), renderPlayerTeam.get(0));
-        }
-        layoutExecutionUi(uiLayout.referenceWidth, uiLayout.referenceHeight);
-    }
-
-    /** Draws one editor frame into a fixed logical canvas fitted by the caller. */
-    public void renderEditorPreview(
-        float delta,
-        BattleUiViewport viewport,
-        boolean debugBounds,
-        boolean debugGrid
-    ) {
-        if (!editorPreview) {
-            throw new IllegalStateException("BattleScreen is not configured as an editor preview");
-        }
-        renderViewport = Objects.requireNonNull(viewport, "viewport");
-        editorDebugBounds = debugBounds;
-        editorDebugGrid = debugGrid;
-        renderViewport.apply(batch);
-        if (lastLayoutWidth != viewport.logicalWidth()
-            || lastLayoutHeight != viewport.logicalHeight()) {
-            layoutExecutionUi(viewport.logicalWidth(), viewport.logicalHeight());
-            if (planningPanel != null) {
-                planningPanel.resize(viewport.logicalWidth(), viewport.logicalHeight());
-            }
-            if (teamPlanningPanel != null) {
-                teamPlanningPanel.resize(viewport.logicalWidth(), viewport.logicalHeight());
-            }
-        }
-        frameDelta = 0f;
-        drawAll();
-    }
-
-    public String describeUiAt(float x, float y) {
-        if (planningPanel != null) return planningPanel.debugComponentAt(x, y);
-        if (teamPlanningPanel != null) return teamPlanningPanel.debugComponentAt(x, y);
-        if (nextRoundBounds.contains(x, y)) return "Execution / Next round " + describe(nextRoundBounds);
-        if (fastForwardBounds.contains(x, y)) return "Execution / Fast forward " + describe(fastForwardBounds);
-        if (skipBounds.contains(x, y)) return "Execution / Skip " + describe(skipBounds);
-        if (miraclesMeter.isVisible() && miraclesMeter.bounds().contains(x, y)) {
-            return "Execution / Miracles meter " + describe(miraclesMeter.bounds());
-        }
-        if (ratioMeter.isVisible() && ratioMeter.bounds().contains(x, y)) {
-            return "Execution / Ratio meter " + describe(ratioMeter.bounds());
-        }
-        if (logBounds.contains(x, y)) return "Execution / Battle log " + describe(logBounds);
-        String combatant = combatantComponentAt(playerPanels, "Player", x, y);
-        if (combatant != null) return combatant;
-        combatant = combatantComponentAt(enemyPanels, "Enemy", x, y);
-        return combatant == null ? "Execution / Battlefield" : combatant;
-    }
-
     /** Selects the blocking local controller path before this reusable screen is shown. */
     public void prepareLocal() {
         abortRequested = true;
@@ -660,8 +499,6 @@ public class BattleScreen implements Screen, BattleView {
 
     @Override
     public void render(float delta) {
-        renderViewport = BattleUiViewport.fullScreen();
-        renderViewport.apply(batch);
         float realDelta = Math.max(0f, delta);
         skipActiveFlashRemaining = Math.max(0f, skipActiveFlashRemaining - realDelta);
         float presentationDelta = realDelta * playbackSpeedMultiplier();
@@ -832,24 +669,16 @@ public class BattleScreen implements Screen, BattleView {
         // Planning is a dedicated workspace. Drawing the combat HUD behind it
         // made both the board and the move cards compete for attention.
         if (planningPanel != null) {
-            planningPanel.setRenderViewport(renderViewport);
             planningPanel.draw(batch, assets.fontSmall, assets.fontMedium, assets.fontLarge);
-            drawPlanningGridIfEnabled();
-            if (editorDebugBounds) planningPanel.drawDebug(batch);
             return;
         }
         if (teamPlanningPanel != null) {
-            teamPlanningPanel.setRenderViewport(renderViewport);
             teamPlanningPanel.draw(batch, assets.fontSmall, assets.fontMedium, assets.fontLarge);
-            drawPlanningGridIfEnabled();
-            if (editorDebugBounds) teamPlanningPanel.drawDebug(batch);
             return;
         }
 
-        float sw = renderViewport == null
-            ? Gdx.graphics.getWidth() : renderViewport.logicalWidth();
-        float sh = renderViewport == null
-            ? Gdx.graphics.getHeight() : renderViewport.logicalHeight();
+        float sw = Gdx.graphics.getWidth();
+        float sh = Gdx.graphics.getHeight();
 
         batch.begin();
         drawExecutionBackground(sw, sh);
@@ -873,8 +702,6 @@ public class BattleScreen implements Screen, BattleView {
         if (SHOW_TICK_COUNTER) drawTickCounter(sw, sh);
         drawMoveUnleashAnimation(sw, sh);
         drawHitFlashes(sw, sh);
-        if (editorDebugGrid) drawDebugGrid(sw, sh);
-        if (editorDebugBounds) drawExecutionDebugBounds();
         batch.end();
 
     }
@@ -986,16 +813,15 @@ public class BattleScreen implements Screen, BattleView {
         // drawn after this method returns, so neither is affected.
         Rectangle clip = new Rectangle(logBounds.x + 6f, logBounds.y + 6f,
             logBounds.width - 12f, logBounds.height - 12f);
-        BattleUiViewport viewport = renderViewport == null
-            ? BattleUiViewport.fullScreen() : renderViewport;
-        Rectangle scissors = viewport.scissor(clip);
-        boolean pushed = scissors.width > 0f && scissors.height > 0f;
+        float scaleX = Gdx.graphics.getBackBufferWidth() / (float) Gdx.graphics.getWidth();
+        float scaleY = Gdx.graphics.getBackBufferHeight() / (float) Gdx.graphics.getHeight();
+        boolean pushed = clip.width > 0f && clip.height > 0f;
         if (pushed) {
             batch.flush();
             Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);
             Gdx.gl.glScissor(
-                Math.round(scissors.x), Math.round(scissors.y),
-                Math.round(scissors.width), Math.round(scissors.height));
+                Math.round(clip.x * scaleX), Math.round(clip.y * scaleY),
+                Math.round(clip.width * scaleX), Math.round(clip.height * scaleY));
         }
 
         // Bottom-anchor: walk newest → oldest, shifted down by the scroll
@@ -3591,8 +3417,6 @@ public class BattleScreen implements Screen, BattleView {
 
     /** Recreates all execution widgets from the live viewport after a resize. */
     private void layoutExecutionUi(float width, float height) {
-        lastLayoutWidth = width;
-        lastLayoutHeight = height;
         BattleUiLayout.Execution layout = uiLayout.execution;
         float margin = Math.min(layout.outerMarginMax,
             Math.max(layout.outerMarginMin,
@@ -3935,109 +3759,6 @@ public class BattleScreen implements Screen, BattleView {
         return new Rectangle(centerX - scaledSize / 2f, bottomY, scaledSize, scaledSize);
     }
 
-    private void drawDebugGrid(float width, float height) {
-        for (float x = 0f; x <= width; x += 100f) {
-            boolean major = ((int) x) % 500 == 0;
-            batch.setColor(1f, 0.85f, 0.15f, major ? 0.34f : 0.16f);
-            batch.draw(assets.battleUi.pixel, x, 0f, major ? 2f : 1f, height);
-        }
-        for (float y = 0f; y <= height; y += 100f) {
-            boolean major = ((int) y) % 500 == 0;
-            batch.setColor(1f, 0.85f, 0.15f, major ? 0.34f : 0.16f);
-            batch.draw(assets.battleUi.pixel, 0f, y, width, major ? 2f : 1f);
-        }
-        batch.setColor(Color.WHITE);
-    }
-
-    private void drawPlanningGridIfEnabled() {
-        if (!editorDebugGrid || renderViewport == null) return;
-        batch.begin();
-        drawDebugGrid(renderViewport.logicalWidth(), renderViewport.logicalHeight());
-        batch.end();
-    }
-
-    private static void seedEditorPlanningPanel(
-        PlanningPanel panel,
-        BattleCombatant combatant
-    ) {
-        if (panel == null || combatant == null) return;
-        int placed = 0;
-        for (Move move : combatant.getCharacter().getKnownMoves()) {
-            int ceCost = combatant.computeMoveCeCost(move);
-            for (int tick = 1; tick <= panel.getPlan().gridLength(); tick++) {
-                if (panel.restorePlacement(move, tick, ceCost, List.of()) != null) {
-                    placed++;
-                    break;
-                }
-            }
-            if (placed >= 3) return;
-        }
-    }
-
-    private void drawExecutionDebugBounds() {
-        drawOutline(logBounds, new Color(1f, 0.82f, 0.1f, 0.95f));
-        drawOutline(nextRoundBounds, new Color(0.2f, 1f, 0.4f, 0.95f));
-        drawOutline(fastForwardBounds, new Color(0.2f, 0.8f, 1f, 0.95f));
-        drawOutline(skipBounds, new Color(0.2f, 0.8f, 1f, 0.95f));
-        if (miraclesMeter.isVisible()) {
-            drawOutline(miraclesMeter.bounds(), new Color(1f, 0.45f, 0.85f, 0.95f));
-        }
-        if (ratioMeter.isVisible()) {
-            drawOutline(ratioMeter.bounds(), new Color(1f, 0.45f, 0.85f, 0.95f));
-        }
-        for (CombatantPanel panel : enemyPanels) drawPanelOutlines(panel);
-        for (CombatantPanel panel : playerPanels) drawPanelOutlines(panel);
-    }
-
-    private void drawPanelOutlines(CombatantPanel panel) {
-        drawOutline(panel.plateBounds(), new Color(0.8f, 0.4f, 1f, 0.9f));
-        drawOutline(panel.spriteBounds(), new Color(1f, 0.3f, 0.3f, 0.9f));
-        drawOutline(panel.hudBounds(), new Color(0.2f, 1f, 0.5f, 0.9f));
-    }
-
-    private void drawOutline(Rectangle bounds, Color color) {
-        if (bounds == null || bounds.width <= 0f || bounds.height <= 0f) return;
-        float edge = 2f;
-        batch.setColor(color);
-        batch.draw(assets.battleUi.pixel, bounds.x, bounds.y, bounds.width, edge);
-        batch.draw(assets.battleUi.pixel,
-            bounds.x, bounds.y + bounds.height - edge, bounds.width, edge);
-        batch.draw(assets.battleUi.pixel, bounds.x, bounds.y, edge, bounds.height);
-        batch.draw(assets.battleUi.pixel,
-            bounds.x + bounds.width - edge, bounds.y, edge, bounds.height);
-        batch.setColor(Color.WHITE);
-    }
-
-    private static String combatantComponentAt(
-        List<CombatantPanel> panels,
-        String side,
-        float x,
-        float y
-    ) {
-        for (int index = panels.size() - 1; index >= 0; index--) {
-            CombatantPanel panel = panels.get(index);
-            Rectangle hud = panel.hudBounds();
-            if (hud.contains(x, y)) {
-                return "Execution / " + side + " HUD " + (index + 1) + " " + describe(hud);
-            }
-            Rectangle sprite = panel.spriteBounds();
-            if (sprite.contains(x, y)) {
-                return "Execution / " + side + " sprite " + (index + 1) + " "
-                    + describe(sprite);
-            }
-            Rectangle plate = panel.plateBounds();
-            if (plate.contains(x, y)) {
-                return "Execution / " + side + " plate " + describe(plate);
-            }
-        }
-        return null;
-    }
-
-    private static String describe(Rectangle bounds) {
-        return String.format(java.util.Locale.ROOT, "x=%.1f y=%.1f w=%.1f h=%.1f",
-            bounds.x, bounds.y, bounds.width, bounds.height);
-    }
-
     /**
      * Seed the LOCAL deferred HP ints from the live model. Called at round
      * boundaries so the bars start each round accurate and end-of-round
@@ -4129,15 +3850,6 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     private void updatePanels() {
-        if (editorPreview) {
-            miraclesMeter.setState(editorMeterPreview == EditorMeterPreview.MIRACLES
-                ? editorPreviewMiracles : null);
-            ratioMeter.setState(editorMeterPreview == EditorMeterPreview.RATIO
-                ? editorPreviewRatio : null);
-            updateLocalTeamPanels(playerPanels, renderPlayerTeam);
-            updateLocalTeamPanels(enemyPanels, renderEnemyTeam);
-            return;
-        }
         if (mode == BattleMode.MULTIPLAYER) {
             miraclesMeter.setState(onlinePlayerMiracles);
             ratioMeter.setState(onlinePlayerRatio);

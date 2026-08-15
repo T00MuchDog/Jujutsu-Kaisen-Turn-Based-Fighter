@@ -41,8 +41,8 @@ Windows defaults to `WINDOWS`. The game, battle state, rules, networking, and
 all other gameplay code remain shared.
 
 Both profile files intentionally begin with the existing Mac-tuned geometry.
-The Windows profile is an independent `2560 x 1440` design surface ready for the
-later redesign; this infrastructure phase does not invent that redesign early.
+The Windows profile is independent and carries `2560 x 1440` target-resolution
+metadata ready for a later redesign; normal rendering still uses the live window.
 
 macOS (normal game, default `MAC` profile):
 
@@ -77,70 +77,9 @@ more convenient. The equivalent persistent JVM override is
 > `-XstartOnFirstThread`. The packaged `.app`/`.dmg` supplies it automatically.
 > Do not pass this option on Windows.
 
-### Battle UI Editor
+### Battle UI profiles
 
-The Battle UI Editor is one cross-platform authoring environment. It launches
-directly into deterministic representative battle data and draws the production
-`BattleScreen`, `CombatantPanel`, status bars, meters, battle controls, move
-cards, and planning timelines. It does not start a controller, AI, network
-session, or simulated battle.
-
-Build the JAR once with the command above, then launch either profile.
-
-macOS - edit the `MAC` profile:
-
-```bash
-java -XstartOnFirstThread -jar graphics/target/graphics-1.4.1.jar --battle-ui-editor --ui-profile=MAC
-```
-
-macOS - edit the `WINDOWS` profile in its `2560 x 1440` logical design space:
-
-```bash
-java -XstartOnFirstThread -jar graphics/target/graphics-1.4.1.jar --battle-ui-editor --ui-profile=WINDOWS
-```
-
-Windows - edit the `WINDOWS` profile:
-
-```bash
-java -jar graphics/target/graphics-1.4.1.jar --battle-ui-editor --ui-profile=WINDOWS
-```
-
-Windows - optionally inspect the `MAC` profile:
-
-```bash
-java -jar graphics/target/graphics-1.4.1.jar --battle-ui-editor --ui-profile=MAC
-```
-
-The editor automatically enables source authoring and must be run from a source
-checkout. If it is launched from another working directory, pin the checkout:
-
-```bash
-java -XstartOnFirstThread -Djjktbf.authoring.root=/path/to/JJKTBF \
-  -jar /path/to/JJKTBF/graphics/target/graphics-1.4.1.jar \
-  --battle-ui-editor --ui-profile=WINDOWS
-```
-
-Editor behavior:
-
-- Profile and `EXECUTION` / `PLANNING` selectors update the preview immediately.
-- Formation scenarios switch between 1v1, 2v2, 3v3, and 4v4 production layouts.
-- Meter scenarios expose Miracles, Ratio, or no meter without simulating combat.
-- Sliders and numeric fields live-update profile-backed production geometry.
-- `SAVE MAC` writes only `mac.json`; `SAVE WINDOWS` writes only `windows.json`.
-- Unsaved drafts remain separate when switching profiles.
-- `RELOAD` discards the selected profile's draft and reloads its file.
-- `FACTORY DEFAULTS` resets only the selected in-memory draft; press Save to persist.
-- `UI bounds` outlines immediate-mode production components.
-- `Grid` overlays logical 100-pixel coordinates.
-- `Scene2D` outlines the editor's tables, containers, and actors.
-- Click the preview to retain component/bounds information in the diagnostics.
-- `F1` hides or restores all editor controls; `F2` toggles production bounds.
-- `Escape` exits.
-
-Saving updates source resources immediately for this running editor and future
-editor launches. Rebuild the JAR before checking the result in an ordinary
-non-authoring game launch. Alternatively, a development normal-game launch with
-`-Djjktbf.authoring=true` reads the source profile directly.
+Battle layout values are edited manually in two independent tracked files:
 
 The tracked profile files are:
 
@@ -149,18 +88,27 @@ graphics/src/main/resources/assets/ui/battle-layouts/mac.json
 graphics/src/main/resources/assets/ui/battle-layouts/windows.json
 ```
 
-On a Windows desktop, the editor defaults to the current display mode. A
-`2560 x 1440` display therefore shows the Windows logical canvas at 1:1 when the
-controls are hidden with `F1`. On macOS the editor opens a resizable `1440 x 900`
-window and letterboxes/scales the same `2560 x 1440` logical canvas. Layout math
-still runs at the Windows reference resolution; the smaller host window does not
-become the design resolution.
+Edit only the selected profile, then relaunch the normal game to inspect it. A
+development launch with `-Djjktbf.authoring=true` reads the source JSON directly,
+so the JAR does not need to be rebuilt after every layout change.
 
-To force a windowed editor on Windows, append for example:
+macOS, from the repository root:
+
+```bash
+java -XstartOnFirstThread -Djjktbf.authoring=true \
+  -jar graphics/target/graphics-1.4.1.jar --ui-profile=MAC
+```
+
+Windows, from the repository root:
 
 ```powershell
---windowed --width=1600 --height=900
+java -Djjktbf.authoring=true -jar graphics/target/graphics-1.4.1.jar --ui-profile=WINDOWS
 ```
+
+Use the opposite `--ui-profile` value to inspect either profile on either host.
+If launching outside the checkout, add
+`-Djjktbf.authoring.root=/absolute/path/to/JJKTBF`. Rebuild the JAR before a
+non-authoring launch or packaging a profile change.
 
 ### Run multiplayer locally
 
@@ -343,7 +291,7 @@ BattleScreen (render)
 - **Font**: Atlantis International (FreeType, generated at runtime from `assets/fonts/AtlantisInternational-jen0.ttf`)
 - **Battle planner**: `BattleScreen` implements `BattleView`; the 150-dot planning UI uses runtime-generated nearest-neighbour pixel textures from `ui/battle/BattleUiAssets`.
 - **Thread model**: `BattleController.runBattle()` runs on a daemon background thread (`battle-thread`). All LibGDX render-thread mutations go through `Gdx.app.postRunnable()`.
-- **Editors (Scene2D)**: The move, character, ability, and technique editors plus the Battle UI Editor are Scene2D Stage-based tools. UI textures are generated in code by `PixelSkin` using the battle planner's framed navy, parchment-card, and green-action visual language. CRUD editor chrome lives in `EditorScreenBase<D>`; the Battle UI Editor uses independent Scene2D controls around the production immediate-mode battle renderer.
+- **Editors (Scene2D)**: The move, character, ability, and technique editors are Scene2D Stage-based tools. UI textures are generated in code by `PixelSkin` using the battle planner's framed navy, parchment-card, and green-action visual language. CRUD editor chrome lives in `EditorScreenBase<D>`.
 - **Screen background**: All screens clear to `#CDDCFA` (light blue). Button text turns bright yellow (`#FFE32E`) on hover to signal clickability.
 
 ---

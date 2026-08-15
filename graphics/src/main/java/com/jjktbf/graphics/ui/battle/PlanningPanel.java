@@ -94,7 +94,6 @@ public class PlanningPanel {
     private final BattleUiAssets ui;
     private final MiraclesMeter miraclesMeter = new MiraclesMeter();
     private BattleUiLayout.Planner layout = new BattleUiLayout.Planner();
-    private BattleUiViewport renderViewport;
 
     /**
      * Battle-wide timeline grid length (dot count), derived from the stronger
@@ -314,21 +313,11 @@ public class PlanningPanel {
         this.moveRestrictions = restrictions == null ? Map.of() : Map.copyOf(restrictions);
     }
 
-    /** Replaces only the presentation state shown by the planner's shared meter. */
-    public void setMiraclesState(CodedAbilityState state) {
-        miraclesMeter.setState(state);
-        if (screenWidth > 0f && screenHeight > 0f) resize(screenWidth, screenHeight);
-    }
-
     /** Applies profile metrics and immediately reflows the production planner. */
     public void setLayout(BattleUiLayout battleLayout) {
         if (battleLayout == null) return;
         this.layout = battleLayout.copy().planner;
         if (screenWidth > 0f && screenHeight > 0f) resize(screenWidth, screenHeight);
-    }
-
-    public void setRenderViewport(BattleUiViewport renderViewport) {
-        this.renderViewport = renderViewport;
     }
 
     /** Builds the two bars at the fight's battle-wide grid length (placeholder bounds; set in {@link #resize}). */
@@ -802,15 +791,14 @@ public class PlanningPanel {
 
     private void beginPaletteClip(Batch batch) {
         batch.flush();
-        BattleUiViewport viewport = renderViewport == null
-            ? BattleUiViewport.fullScreen() : renderViewport;
-        Rectangle scissor = viewport.scissor(paletteViewportBounds);
+        float scaleX = Gdx.graphics.getBackBufferWidth() / (float) Gdx.graphics.getWidth();
+        float scaleY = Gdx.graphics.getBackBufferHeight() / (float) Gdx.graphics.getHeight();
         Gdx.gl.glEnable(GL20.GL_SCISSOR_TEST);
         Gdx.gl.glScissor(
-            Math.round(scissor.x),
-            Math.round(scissor.y),
-            Math.round(scissor.width),
-            Math.round(scissor.height));
+            Math.round(paletteViewportBounds.x * scaleX),
+            Math.round(paletteViewportBounds.y * scaleY),
+            Math.round(paletteViewportBounds.width * scaleX),
+            Math.round(paletteViewportBounds.height * scaleY));
     }
 
     private void endPaletteClip(Batch batch) {
@@ -818,55 +806,6 @@ public class PlanningPanel {
         Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
     }
 
-    /** Development-only outlines for the immediate-mode planner hierarchy. */
-    public void drawDebug(Batch batch) {
-        batch.begin();
-        drawOutline(batch, headerBounds, new Color(1f, 0.82f, 0.1f, 0.9f));
-        drawOutline(batch, lockInBounds, new Color(0.2f, 1f, 0.4f, 0.9f));
-        drawOutline(batch, paletteBounds, new Color(0.2f, 0.8f, 1f, 0.9f));
-        drawOutline(batch, paletteViewportBounds, new Color(0.8f, 0.4f, 1f, 0.9f));
-        drawOutline(batch, offensiveBar.getBounds(), new Color(1f, 0.25f, 0.25f, 0.9f));
-        drawOutline(batch, defensiveBar.getBounds(), new Color(0.2f, 0.55f, 1f, 0.9f));
-        for (MoveCardView card : cards) {
-            drawOutline(batch, card.getBounds(), new Color(1f, 0.55f, 0.15f, 0.75f));
-        }
-        batch.end();
-    }
-
-    public String debugComponentAt(float x, float y) {
-        if (lockInBounds.contains(x, y)) return "Planner / Lock button " + describe(lockInBounds);
-        if (headerBounds.contains(x, y)) return "Planner / Header " + describe(headerBounds);
-        if (offensiveBar.getBounds().contains(x, y)) {
-            return "Planner / Offense timeline " + describe(offensiveBar.getBounds());
-        }
-        if (defensiveBar.getBounds().contains(x, y)) {
-            return "Planner / Defense timeline " + describe(defensiveBar.getBounds());
-        }
-        for (int index = 0; index < cards.size(); index++) {
-            if (cards.get(index).getBounds().contains(x, y)) {
-                return "Planner / Move card " + (index + 1) + " "
-                    + describe(cards.get(index).getBounds());
-            }
-        }
-        if (paletteBounds.contains(x, y)) return "Planner / Move palette " + describe(paletteBounds);
-        return "Planner canvas";
-    }
-
-    private void drawOutline(Batch batch, Rectangle bounds, Color color) {
-        if (bounds == null || bounds.width <= 0f || bounds.height <= 0f) return;
-        float edge = 2f;
-        batch.setColor(color);
-        batch.draw(ui.pixel, bounds.x, bounds.y, bounds.width, edge);
-        batch.draw(ui.pixel, bounds.x, bounds.y + bounds.height - edge, bounds.width, edge);
-        batch.draw(ui.pixel, bounds.x, bounds.y, edge, bounds.height);
-        batch.draw(ui.pixel, bounds.x + bounds.width - edge, bounds.y, edge, bounds.height);
-        batch.setColor(Color.WHITE);
-    }
-
-    private static String describe(Rectangle bounds) {
-        return String.format(java.util.Locale.ROOT, "x=%.1f y=%.1f w=%.1f h=%.1f",
-            bounds.x, bounds.y, bounds.width, bounds.height);
-    }
 
     private void drawPaletteScrollbar(Batch batch) {
         if (paletteScrollMax <= 0f) return;

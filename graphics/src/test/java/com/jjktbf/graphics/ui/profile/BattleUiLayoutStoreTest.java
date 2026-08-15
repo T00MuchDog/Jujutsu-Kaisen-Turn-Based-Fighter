@@ -1,5 +1,6 @@
 package com.jjktbf.graphics.ui.profile;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -9,7 +10,6 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BattleUiLayoutStoreTest {
 
@@ -32,31 +32,67 @@ class BattleUiLayoutStoreTest {
     }
 
     @Test
-    void saveAndReloadStayWithinTheSelectedProfileFile() throws Exception {
+    void sourceProfilesLoadIndependently() throws Exception {
         BattleUiLayoutStore store = new BattleUiLayoutStore(
             temporaryDirectory, getClass().getClassLoader());
         BattleUiLayout mac = BattleUiLayout.defaults(UiProfile.MAC);
         BattleUiLayout windows = BattleUiLayout.defaults(UiProfile.WINDOWS);
         mac.execution.hudScale = 1.37f;
         windows.execution.hudScale = 1.82f;
+        Path sourceDirectory = temporaryDirectory.resolve(
+            "graphics/src/main/resources/assets/ui/battle-layouts");
+        Files.createDirectories(sourceDirectory);
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.writeValue(sourceDirectory.resolve("mac.json").toFile(), mac);
+        mapper.writeValue(sourceDirectory.resolve("windows.json").toFile(), windows);
 
-        Path macPath = store.save(UiProfile.MAC, mac);
-        Path windowsPath = store.save(UiProfile.WINDOWS, windows);
-
-        assertTrue(Files.isRegularFile(macPath));
-        assertTrue(Files.isRegularFile(windowsPath));
         assertEquals(1.37f, store.load(UiProfile.MAC).execution.hudScale, 0.0001f);
         assertEquals(1.82f, store.load(UiProfile.WINDOWS).execution.hudScale, 0.0001f);
     }
 
     @Test
-    void mismatchedProfileCannotOverwriteAnotherProfile() {
+    void publicStoreFindsPinnedAuthoringCheckout() throws Exception {
+        Path moves = temporaryDirectory.resolve("data/moves/all_moves.json");
+        Path characters = temporaryDirectory.resolve("data/characters/all_characters.json");
+        Files.createDirectories(moves.getParent());
+        Files.createDirectories(characters.getParent());
+        Files.writeString(moves, "{}");
+        Files.writeString(characters, "{}");
+
+        BattleUiLayout mac = BattleUiLayout.defaults(UiProfile.MAC);
+        mac.execution.hudScale = 1.63f;
+        Path sourceDirectory = temporaryDirectory.resolve(
+            "graphics/src/main/resources/assets/ui/battle-layouts");
+        Files.createDirectories(sourceDirectory);
+        new ObjectMapper().writeValue(sourceDirectory.resolve("mac.json").toFile(), mac);
+
+        String previousAuthoring = System.getProperty("jjktbf.authoring");
+        String previousRoot = System.getProperty("jjktbf.authoring.root");
+        try {
+            System.setProperty("jjktbf.authoring", "true");
+            System.setProperty("jjktbf.authoring.root", temporaryDirectory.toString());
+
+            assertEquals(1.63f,
+                new BattleUiLayoutStore().load(UiProfile.MAC).execution.hudScale,
+                0.0001f);
+        } finally {
+            restoreProperty("jjktbf.authoring", previousAuthoring);
+            restoreProperty("jjktbf.authoring.root", previousRoot);
+        }
+    }
+
+    @Test
+    void mismatchedSourceProfileIsRejected() throws Exception {
         BattleUiLayoutStore store = new BattleUiLayoutStore(
             temporaryDirectory, getClass().getClassLoader());
         BattleUiLayout windows = BattleUiLayout.defaults(UiProfile.WINDOWS);
+        Path sourceDirectory = temporaryDirectory.resolve(
+            "graphics/src/main/resources/assets/ui/battle-layouts");
+        Files.createDirectories(sourceDirectory);
+        new ObjectMapper().writeValue(sourceDirectory.resolve("mac.json").toFile(), windows);
 
         assertThrows(IllegalArgumentException.class,
-            () -> store.save(UiProfile.MAC, windows));
+            () -> store.load(UiProfile.MAC));
     }
 
     @Test
@@ -68,5 +104,10 @@ class BattleUiLayoutStoreTest {
 
         assertEquals(1.25f, original.execution.hudScale, 0.0001f);
         assertEquals(58f, original.planner.headerHeight, 0.0001f);
+    }
+
+    private static void restoreProperty(String name, String value) {
+        if (value == null) System.clearProperty(name);
+        else System.setProperty(name, value);
     }
 }

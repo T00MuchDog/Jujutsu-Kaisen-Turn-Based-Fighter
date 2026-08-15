@@ -21,7 +21,6 @@ class DesktopLaunchOptionsTest {
 
         assertEquals(UiProfile.MAC, mac.uiProfile());
         assertEquals(UiProfile.WINDOWS, windows.uiProfile());
-        assertEquals(GameLaunchMode.NORMAL_GAME, mac.mode());
         assertFalse(mac.windowed());
     }
 
@@ -37,16 +36,15 @@ class DesktopLaunchOptionsTest {
     }
 
     @Test
-    void editorAndWindowOverridesAreParsedTogether() {
+    void profileAndWindowOverridesAreParsedTogether() {
         DesktopLaunchOptions options = DesktopLaunchOptions.parse(
             new String[] {
-                "--battle-ui-editor", "--ui-profile", "MAC",
+                "--ui-profile", "MAC",
                 "--width", "1600", "--height=900"
             },
             new Properties(),
             DesktopPlatform.WINDOWS);
 
-        assertTrue(options.battleUiEditor());
         assertTrue(options.windowed());
         assertEquals(1600, options.windowWidth());
         assertEquals(900, options.windowHeight());
