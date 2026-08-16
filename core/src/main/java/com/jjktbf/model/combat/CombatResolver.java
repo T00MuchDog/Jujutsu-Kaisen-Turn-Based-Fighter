@@ -641,6 +641,17 @@ public class CombatResolver {
         private int pendingRecoilDamage;
         private HitComponent recoilComponent;
         private final List<BattleCombatant> recoilTargets = new ArrayList<>();
+        /**
+         * Defenders who already attempted their on-defence counter against this
+         * execution. A multi-hit attack defended component-by-component must
+         * trigger each defender's counter at most once.
+         */
+        private final Set<CombatantId> counterAttemptedBy = new java.util.HashSet<>();
+
+        /** Record a counter attempt; false when this defender already had one. */
+        private boolean markCounterAttempt(CombatantId defenderId) {
+            return counterAttemptedBy.add(defenderId);
+        }
 
         private MoveExecution(
             FiringEntry entry,
@@ -986,50 +997,72 @@ public class CombatResolver {
         int tick,
         List<CombatEvent> events
     ) {
-        if (reactor == null || !reactor.isActive()) return;
-        if ((long) tick + reactionMove.getMaxHitDelayTicks() > cursor.get().gridLimit) {
+        // A reaction move targets the attacker that triggered it.
+        resolveLaunchedMove(
+            reactionMove, reactor,
+            target == null ? TargetSet.empty() : TargetSet.single(target),
+            state, tick, events, true);
+    }
+
+    /**
+     * Launch a move mid-resolution: the launched move's CE cost is paid now
+     * (at launch, not at a planned segment start), a fresh segment is built at
+     * the current tick, and the move resolves against the given targets. This
+     * is the shared path for coded reaction moves, a hybrid's referenced
+     * attack, and on-fire launches.
+     */
+    private void resolveLaunchedMove(
+        Move launchedMove,
+        BattleCombatant launcher,
+        TargetSet targets,
+        BattleState state,
+        int tick,
+        List<CombatEvent> events,
+        boolean reaction
+    ) {
+        if (launcher == null || !launcher.isActive()) return;
+        if ((long) tick + launchedMove.getMaxHitDelayTicks() > cursor.get().gridLimit) {
             return;
         }
         if (stopMoveUnavailableForActiveSummon(
-            state, reactor, reactionMove, null, tick, events)) return;
-        if (reactor.consumeMoveCancellation()) {
+            state, launcher, launchedMove, null, tick, events)) return;
+        if (launcher.consumeMoveCancellation()) {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
-                .target(reactor).move(reactionMove).tick(tick)
-                .message(reactor.getCharacter().getName() + "'s "
-                    + reactionMove.getName() + " was cancelled by an ability!")
+                .target(launcher).move(launchedMove).tick(tick)
+                .message(launcher.getCharacter().getName() + "'s "
+                    + launchedMove.getName() + " was cancelled by an ability!")
                 .build());
             return;
         }
-        int cost = reactor.computeMoveCeCost(reactionMove);
-        if (!reactor.hasCe(cost)) {
+        int cost = launcher.computeMoveCeCost(launchedMove);
+        if (!launcher.hasCe(cost)) {
             events.add(CombatEvent.of(CombatEvent.Type.CE_DEPLETED)
-                .source(reactor).move(reactionMove).tick(tick)
-                .message(reactor.getCharacter().getName() + " does not have enough CE for "
-                    + reactionMove.getName() + "!")
+                .source(launcher).move(launchedMove).tick(tick)
+                .message(launcher.getCharacter().getName() + " does not have enough CE for "
+                    + launchedMove.getName() + "!")
                 .build());
             return;
         }
         if (cost > 0) {
-            int drained = reactor.drainCe(cost);
+            int drained = launcher.drainCe(cost);
             events.add(CombatEvent.of(CombatEvent.Type.CE_DRAINED)
-                .source(reactor).move(reactionMove).intValue(drained).tick(tick)
+                .source(launcher).move(launchedMove).intValue(drained).tick(tick)
                 .build());
             events.addAll(abilityActivations.process(state, AbilityTrigger.amount(
-                AbilityTrigger.Type.CE_SPENT, reactor, null, drained, tick)));
+                AbilityTrigger.Type.CE_SPENT, launcher, null, drained, tick)));
             if (finishBattleIfNeeded(state, events, tick)) return;
-            if (!reactor.hasAnyCe()) {
+            if (!launcher.hasAnyCe()) {
                 events.add(CombatEvent.of(CombatEvent.Type.CE_DEPLETED)
-                    .source(reactor).tick(tick)
+                    .source(launcher).tick(tick)
                     .build());
             }
         }
 
-        ActionSegment reactionSegment = new ActionSegment(reactionMove, tick, cost);
-        // A reaction move targets the attacker that triggered it.
+        ActionSegment launchedSegment = new ActionSegment(launchedMove, tick, cost);
         resolveMove(
-            new FiringEntry(reactionSegment, reactor),
-            target == null ? TargetSet.empty() : TargetSet.single(target),
-            state, tick, events, Map.of(), true);
+            new FiringEntry(launchedSegment, launcher),
+            targets,
+            state, tick, events, Map.of(), reaction);
     }
 
     private void resolveMove(
@@ -1107,7 +1140,23 @@ public class CombatResolver {
         // caster is itself a beneficiary, e.g. ALL_ALLIES_INCLUDING_SELF). ---
         if (move.isDefensive()) {
             grantDefense(state, attacker, segment, move, tick, events, defenseBeneficiaries);
-            return;
+            // A Defensive+Attack hybrid launching on fire resolves its attack
+            // right here: a referenced move launches against the resolved
+            // targets, a custom attack falls through to the normal component
+            // scheduling below. The launch gate (condition + chance) applies
+            // to both variants.
+            if (!move.launchesAttackOnFire()) return;
+            if (!abilityActivations.allowsAttackLaunch(
+                    state, attacker, targets.primary(), move, tick)) return;
+            if (move.referencesAttackMove()) {
+                Move referenced = move.getAttackLaunchMove();
+                if (referenced != null) {
+                    resolveLaunchedMove(referenced, attacker, targets,
+                        state, tick, events, false);
+                }
+                return;
+            }
+            // Custom attack: schedule this move's own components below.
         }
 
         // --- Non-damaging utility moves (including summon-only moves) ---
@@ -1269,7 +1318,7 @@ public class CombatResolver {
             applyDefenseEffects(state, defender, attacker, defenseMove,
                 MoveEffectTrigger.ON_DODGE,
                 defenseMove == null ? List.of() : defenseMove.getOnDodgeEffects(),
-                componentIndex, tick, events);
+                componentIndex, tick, events, execution);
             return false;
         }
 
@@ -1295,7 +1344,7 @@ public class CombatResolver {
             applyDefenseEffects(state, defender, attacker, defenseMove,
                 MoveEffectTrigger.ON_PARRY,
                 defenseMove == null ? List.of() : defenseMove.getOnParryEffects(),
-                componentIndex, tick, events);
+                componentIndex, tick, events, execution);
             events.addAll(abilityActivations.process(state, AbilityTrigger.move(
                 AbilityTrigger.Type.MOVE_BLOCKED, attacker, defender, move, tick)));
             return false;
@@ -1311,7 +1360,7 @@ public class CombatResolver {
             applyDefenseEffects(state, defender, attacker, defenseMove,
                 MoveEffectTrigger.ON_BLOCK,
                 defenseMove == null ? List.of() : defenseMove.getOnBlockEffects(),
-                componentIndex, tick, events);
+                componentIndex, tick, events, execution);
             events.addAll(abilityActivations.process(state, AbilityTrigger.move(
                 AbilityTrigger.Type.MOVE_BLOCKED, attacker, defender, move, tick)));
             return true;
@@ -1338,7 +1387,7 @@ public class CombatResolver {
             applyDefenseEffects(state, defender, attacker, defenseMove,
                 MoveEffectTrigger.ON_BLOCK,
                 defenseMove == null ? List.of() : defenseMove.getOnBlockEffects(),
-                componentIndex, tick, events);
+                componentIndex, tick, events, execution);
         }
 
         if (component.getBasePower() > 0 || appliedDamage > 0) {
@@ -1788,7 +1837,8 @@ public class CombatResolver {
      * on-dodge). These fire when the defender's defense resolves the incoming
      * attack. Effects apply to the defender (the move's wielder), mirroring
      * {@link #applySelfEffects}; coded rows are dispatched to the defender's
-     * runtime.
+     * runtime. A Defensive+Attack hybrid with launch mode ON_DEFENCE launches
+     * its attack afterwards (see {@link #launchDefenceCounter}).
      */
     private void applyDefenseEffects(
         BattleState state,
@@ -1799,13 +1849,18 @@ public class CombatResolver {
         List<StatusEffect> effects,
         int componentIndex,
         int tick,
-        List<CombatEvent> events
+        List<CombatEvent> events,
+        MoveExecution incomingExecution
     ) {
         if (move != null && move.usesUnifiedEffects()) {
             events.addAll(abilityActivations.processMoveEffects(
                 state, defender, attacker, move, trigger, -1, tick));
+            launchDefenceCounter(
+                state, defender, attacker, move, trigger, tick, events, incomingExecution);
             return;
         }
+        launchDefenceCounter(
+            state, defender, attacker, move, trigger, tick, events, incomingExecution);
         if (effects == null || effects.isEmpty()) return;
         for (StatusEffect authored : effects) {
             StatusEffect effect = TechniqueMasteryResolver.resolve(
@@ -1840,6 +1895,72 @@ public class CombatResolver {
             events.addAll(abilityActivations.process(state, AbilityTrigger.status(
                 AbilityTrigger.Type.STATUS_APPLIED, defender, effect.getType(), tick)));
         }
+    }
+
+    /**
+     * A Defensive+Attack hybrid with launch mode ON_DEFENCE launches its attack
+     * when its defence successfully resolves an incoming attack, targeting the
+     * attacker it just defended against. A referenced move launches through the
+     * shared mid-resolution launcher (its own CE cost is paid at launch); a
+     * custom attack schedules this move's own hit components against the
+     * attacker without re-granting the defence or re-firing on-fire rows.
+     *
+     * <p>One attempt per defender per incoming execution: a multi-hit attack
+     * defended component-by-component must not trigger the counter repeatedly.</p>
+     */
+    private void launchDefenceCounter(
+        BattleState state,
+        BattleCombatant defender,
+        BattleCombatant attacker,
+        Move move,
+        MoveEffectTrigger trigger,
+        int tick,
+        List<CombatEvent> events,
+        MoveExecution incomingExecution
+    ) {
+        if (move == null || !move.launchesAttackOnDefence()) return;
+        if (attacker == null || !defender.isActive() || !attacker.isActive()) return;
+        if (trigger != defenceResolutionTrigger(move.getDefenseType())) return;
+        if (incomingExecution == null
+            || !incomingExecution.markCounterAttempt(defender.getInstanceId())) return;
+        if (!abilityActivations.allowsAttackLaunch(state, defender, attacker, move, tick)) {
+            return;
+        }
+        if (move.referencesAttackMove()) {
+            Move referenced = move.getAttackLaunchMove();
+            if (referenced != null) {
+                resolveLaunchedMove(
+                    referenced, defender, TargetSet.single(attacker),
+                    state, tick, events, true);
+            }
+            return;
+        }
+        if (move.getHitComponents().isEmpty()) return;
+        if ((long) tick + move.getMaxHitDelayTicks() > cursor.get().gridLimit) return;
+        events.add(CombatEvent.of(CombatEvent.Type.MOVE_FIRED)
+            .source(defender).move(move).tick(tick)
+            .message(defender.getCharacter().getName() + " counterattacked with "
+                + move.getName() + "!")
+            .build());
+        // The counter reuses the move's own already-paid segment cost; a fresh
+        // synthetic segment carries its components against the attacker.
+        ActionSegment counterSegment = new ActionSegment(move, tick, 0);
+        MoveExecution execution = new MoveExecution(
+            new FiringEntry(counterSegment, defender), Map.of(), tick,
+            cursor.get().nextLaunchSequence++, List.of(attacker));
+        scheduleComponents(execution);
+        resolvePendingComponentsAtTick(state, tick, events);
+        finishBattleIfNeeded(state, events, tick);
+    }
+
+    /** The effect trigger that matches a defence type's successful resolution. */
+    private static MoveEffectTrigger defenceResolutionTrigger(DefenseType defenseType) {
+        return switch (defenseType) {
+            case BLOCK -> MoveEffectTrigger.ON_BLOCK;
+            case PARRY -> MoveEffectTrigger.ON_PARRY;
+            case DODGE -> MoveEffectTrigger.ON_DODGE;
+            default    -> null;
+        };
     }
 
     private void applyAbilityOnHitEffects(

@@ -213,7 +213,8 @@ public class CharacterData {
                 var found = moveRepo.findById(moveId);
                 if (found.isPresent()) {
                     try {
-                        moves.add(found.get().toMove());
+                        moves.add(found.get().toMoveResolved(
+                            launchId -> moveRepo.findById(launchId).orElse(null)));
                     } catch (Exception e) {
                         System.err.println("[WARN] Could not build move " + moveId + ": " + e.getMessage());
                     }

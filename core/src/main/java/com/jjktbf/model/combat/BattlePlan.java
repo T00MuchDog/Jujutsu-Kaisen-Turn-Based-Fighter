@@ -22,9 +22,12 @@ import java.util.List;
  * during planning — the combatant's real {@code currentCe} is untouched and
  * carries into the (deferred) execution phase unchanged.
  *
- * <p><b>Bar assignment rule.</b> A move belongs on the offensive timeline iff
- * {@code move.hasTag("ATTACK")} (the basePower+category heuristic); otherwise it
- * belongs on the defensive timeline. This is enforced by {@link #place}.
+ * <p><b>Bar assignment rule.</b> A move belongs on the defensive timeline iff
+ * it is defensive ({@code move.hasTag("DEFENSIVE")}); otherwise it belongs on
+ * the offensive timeline iff {@code move.hasTag("ATTACK")} (the
+ * basePower+category heuristic), with pure utility moves falling back to the
+ * defensive timeline. Defence wins over attack, so a Defensive+Attack hybrid
+ * plans on the defensive board. This is enforced by {@link #place}.
  *
  * <p>{@link #toLegacyTimeline()} merges the two boards into a single old-style
  * {@link Timeline} so today's {@link CombatResolver} can process a two-board
@@ -237,8 +240,14 @@ public class BattlePlan {
     // Board assignment + queries
     // -------------------------------------------------------------------------
 
-    /** Which board a move must live on, per the attack/defense split rule. */
+    /**
+     * Which board a move must live on, per the attack/defence split rule.
+     * Defence wins: a Defensive+Attack hybrid plays on the defensive timeline
+     * (with the defence icon) — its attack launches per its launch mode rather
+     * than claiming the offensive board.
+     */
     public static Board boardFor(Move move) {
+        if (move.hasTag("DEFENSIVE")) return Board.DEFENSIVE;
         return move.hasTag("ATTACK") ? Board.OFFENSIVE : Board.DEFENSIVE;
     }
 

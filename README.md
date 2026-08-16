@@ -44,30 +44,23 @@ Both profile files intentionally begin with the existing Mac-tuned geometry.
 The Windows profile is independent and carries `2560 x 1440` target-resolution
 metadata ready for a later redesign; normal rendering still uses the live window.
 
-macOS (normal game, default `MAC` profile):
+macOS (Author game, default `MAC` profile):
 
 ```bash
-java -XstartOnFirstThread -jar graphics/target/graphics-1.4.1.jar
+mvn -Drevision=1.4.1 -pl core,graphics -am clean verify
+java -XstartOnFirstThread -Djjktbf.authoring=true -jar graphics/target/graphics-1.4.1.jar
 ```
 
-Windows PowerShell or Command Prompt (normal game, default `WINDOWS` profile):
+Windows PowerShell or Command Prompt (Author game, default `WINDOWS` profile):
 
 ```bash
-java -jar graphics/target/graphics-1.4.1.jar
+mvn -Drevision=1.4.1 -pl core,graphics -am clean verify
+java "-Djjktbf.authoring=true" -jar graphics/target/graphics-1.4.1.jar
 ```
 
 The profile can be overridden independently of the host OS. For example, this
 launches the normal game with the Windows presentation on a Mac:
 
-```bash
-java -XstartOnFirstThread -jar graphics/target/graphics-1.4.1.jar --ui-profile=WINDOWS
-```
-
-This launches the normal game with the Mac presentation on Windows:
-
-```bash
-java -jar graphics/target/graphics-1.4.1.jar --ui-profile=MAC
-```
 
 Use `--windowed --width=1600 --height=900` when a windowed normal-game launch is
 more convenient. The equivalent persistent JVM override is
@@ -87,28 +80,6 @@ The tracked profile files are:
 graphics/src/main/resources/assets/ui/battle-layouts/mac.json
 graphics/src/main/resources/assets/ui/battle-layouts/windows.json
 ```
-
-Edit only the selected profile, then relaunch the normal game to inspect it. A
-development launch with `-Djjktbf.authoring=true` reads the source JSON directly,
-so the JAR does not need to be rebuilt after every layout change.
-
-macOS, from the repository root:
-
-```bash
-java -XstartOnFirstThread -Djjktbf.authoring=true \
-  -jar graphics/target/graphics-1.4.1.jar --ui-profile=MAC
-```
-
-Windows, from the repository root:
-
-```powershell
-java -Djjktbf.authoring=true -jar graphics/target/graphics-1.4.1.jar --ui-profile=WINDOWS
-```
-
-Use the opposite `--ui-profile` value to inspect either profile on either host.
-If launching outside the checkout, add
-`-Djjktbf.authoring.root=/absolute/path/to/JJKTBF`. Rebuild the JAR before a
-non-authoring launch or packaging a profile change.
 
 ### Run multiplayer locally
 

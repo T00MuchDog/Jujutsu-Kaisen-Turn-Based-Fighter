@@ -42,6 +42,7 @@ import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.character.coded.NewShadowStyleAbility;
 import com.jjktbf.model.character.coded.RatioAbility;
 import com.jjktbf.model.move.AoeType;
+import com.jjktbf.model.move.AttackLaunchMode;
 import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseTargeting;
 import com.jjktbf.model.move.DefenseType;
@@ -86,7 +87,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     private static final String CURSED_TECHNIQUES_SECTION = "CURSED TECHNIQUES";
     private static final String SHIKIGAMI_SECTION = "SHIKIGAMI";
     private static final List<String> MOVE_PURPOSE_SECTIONS = List.of(
-        "ATTACK", "DEFENSE", "UTILITY");
+        "DEFENSE", "ATTACK", "UTILITY");
 
     private static final List<MoveTag> COMPONENT_DAMAGE_TAGS = List.of(
         MoveTag.PHYSICAL,
@@ -103,9 +104,11 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     private Container<Actor> categorySectionsContainer;
     private Container<Actor> defenseFieldsContainer;
     private Container<Actor> defenseTargetingContainer;
+    private Container<Actor> defenseEffectsContainer;
     private Container<Actor> ceMinMaxContainer;
     private Container<Actor> powerFieldsContainer;
     private Container<Actor> aoeFieldsContainer;
+    private Container<Actor> attackLaunchContainer;
     private CheckBox weaponRequiredCheckbox;
 
     public MoveEditorScreen(JJKGame game, AssetLoader assets) {
@@ -233,6 +236,14 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         d.summonCharacterId     = s.summonCharacterId;
         d.aoeType               = s.aoeType;
         d.aoeTargetCount        = s.aoeTargetCount;
+        d.defenseTargeting      = s.defenseTargeting;
+        d.defenseTargetCount    = s.defenseTargetCount;
+        d.attackLaunchMode      = s.attackLaunchMode;
+        d.attackLaunchCondition = s.attackLaunchCondition != null
+                                  ? s.attackLaunchCondition.copy() : null;
+        d.attackLaunchChanceEnabled = s.attackLaunchChanceEnabled;
+        d.attackLaunchChance    = s.attackLaunchChance;
+        d.attackLaunchMoveId    = s.attackLaunchMoveId;
         return d;
     }
 
@@ -396,11 +407,14 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         return separator < 0 ? section : section.substring(separator + 1);
     }
 
-    /** Assign multi-purpose legacy data by Attack, then Defense, then Utility priority. */
+    /**
+     * Assign multi-purpose data by Defense, then Attack, then Utility priority.
+     * Defence wins over attack, so a Defensive+Attack hybrid lists under DEFENSE.
+     */
     static String moveRecordSection(MoveData record) {
         List<String> tags = record.tags == null ? List.of() : record.tags;
-        if (tags.contains(MoveTag.ATTACK.name())) return "ATTACK";
         if (tags.contains(MoveTag.DEFENSIVE.name())) return "DEFENSE";
+        if (tags.contains(MoveTag.ATTACK.name())) return "ATTACK";
         return "UTILITY";
     }
 
@@ -490,6 +504,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         }
         String tagError = categoryTagValidationError(d);
         if (tagError != null) return ValidationResult.error(tagError);
+        String launchError = attackLaunchReferenceValidationError(d, repo.getAll());
+        if (launchError != null) return ValidationResult.error(launchError);
         String summonError = summonReferenceValidationError(
             d.summonCharacterId, charRepo.getAll());
         if (summonError != null) return ValidationResult.error(summonError);
@@ -565,14 +581,17 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     }
 
     static String categoryTagValidationError(MoveData move) {
-        long purposeCount = List.of(
-            MoveTag.ATTACK, MoveTag.UTILITY, MoveTag.DEFENSIVE).stream()
-            .filter(tag -> move.tags.contains(tag.name()))
-            .count();
-        if (purposeCount != 1) {
-            return "Select exactly one of Attack, Utility, or Defensive.";
+        boolean attack    = move.tags.contains(MoveTag.ATTACK.name());
+        boolean defensive = move.tags.contains(MoveTag.DEFENSIVE.name());
+        boolean utility   = move.tags.contains(MoveTag.UTILITY.name());
+        if (!attack && !defensive && !utility) {
+            return "Select at least one of Attack, Utility, or Defensive.";
         }
-        boolean attack = move.tags.contains(MoveTag.ATTACK.name());
+        // ATTACK combines with DEFENSIVE: the hybrid plays on the defensive
+        // timeline (defence wins) and its attack launches per the attack
+        // section's launch mode. UTILITY combines with either as before: the
+        // hybrid keeps its base category and authors its on-fire effect rows
+        // in the UTILITY section.
         boolean hasAttackTargetingTag = List.of(
             MoveTag.MELEE, MoveTag.RANGED, MoveTag.AOE, MoveTag.FRIENDLY_FIRE).stream()
             .anyMatch(tag -> move.tags.contains(tag.name()));
@@ -824,8 +843,10 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         categorySectionsContainer = null;
         defenseFieldsContainer = null;
         defenseTargetingContainer = null;
+        defenseEffectsContainer = null;
         ceMinMaxContainer = null;
         powerFieldsContainer = null;
+        attackLaunchContainer = null;
         weaponRequiredCheckbox = null;
 
         if (d.hitComponents != null && hasTag(d, MoveTag.ATTACK)) {
@@ -859,6 +880,13 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             if (!tags.contains(MoveTag.INNATE_TECHNIQUE)) {
                 clearMasteryProgression(d);
             }
+            // A newly-formed Defensive+Attack hybrid defaults to launching its
+            // attack on defence (the signature hybrid behaviour).
+            if (tags.contains(MoveTag.DEFENSIVE) && tags.contains(MoveTag.ATTACK)) {
+                if (AttackLaunchMode.fromName(d.attackLaunchMode) == null) {
+                    d.attackLaunchMode = AttackLaunchMode.ON_DEFENCE.name();
+                }
+            }
             if (d.hitComponents != null && tags.contains(MoveTag.ATTACK)) {
                 if (typeTagsChanged && !selectedTypeTags.isEmpty()) {
                     applyMoveDamageTagsToComponents(d, selectedTypeTags);
@@ -891,6 +919,21 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         d.heavy = tagPicker.getSelected().contains(MoveTag.HEAVY);
         synchronizeWeaponRequirement(d);
         tagsSection.add(tagPicker).growX().row();
+        // Derived TIMELINE marker: which battle board this move plans on.
+        // Defence wins over attack, so a Defensive+Attack hybrid shows
+        // DEFENSIVE. Read-only, like the MULTI-HIT chip below.
+        {
+            Table timelineRow = new Table(skin);
+            timelineRow.left().padTop(2f);
+            Label chip = new Label("  TIMELINE  ", skin, "small");
+            chip.setColor(skin.has("text-dim", com.badlogic.gdx.graphics.Color.class)
+                ? skin.getColor("text-dim")
+                : com.badlogic.gdx.graphics.Color.GRAY);
+            timelineRow.add(chip).left();
+            timelineRow.add(new Label("derived — " + derivedTimelineName(d) + " board",
+                skin, "small")).padLeft(6f);
+            tagsSection.add(timelineRow).left().row();
+        }
         if (d.hitComponents != null && hasTag(d, MoveTag.ATTACK)) {
             tagsSection.add(formHint(
                 "Move damage types apply to every hit; refine individual hits below.")).row();
@@ -1038,10 +1081,54 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         powerFieldsContainer = null;
         defenseFieldsContainer = null;
         defenseTargetingContainer = null;
+        defenseEffectsContainer = null;
         aoeFieldsContainer = null;
+        attackLaunchContainer = null;
+
+        // The DEFENSE card sits above the ATTACK card: defence wins over
+        // attack, so a Defensive+Attack hybrid reads top-down as a defence
+        // whose attack section hangs underneath.
+        if (hasTag(d, MoveTag.DEFENSIVE)) {
+            Table defense = formSection(sections, "DEFENSE");
+            defense.add(labelledRow("Type", new EnumSelectBox<>(
+                DefenseType.class, d.defenseType, false,
+                s -> {
+                    d.defenseType = s;
+                    synchronizeWeaponRequirement(d);
+                    refreshConditionalFields(d);
+                }, skin))).growX().row();
+
+            defenseFieldsContainer = new Container<>();
+            defenseFieldsContainer.setActor(buildDefenseFields(d));
+            defense.add(defenseFieldsContainer).growX().row();
+
+            defenseTargetingContainer = new Container<>();
+            defenseTargetingContainer.setActor(buildDefenseTargetingFields(d));
+            defense.add(defenseTargetingContainer).growX().row();
+
+            // Resolution effects fire when this defense actually resolves — when
+            // a block blocks, a dodge dodges, or a parry parries an incoming
+            // hit. On-fire effects are authored in the UTILITY section: tick
+            // UTILITY alongside DEFENSIVE to reveal it for a hybrid move.
+            defenseEffectsContainer = new Container<>();
+            defenseEffectsContainer.setActor(buildDefenseResolutionEffects(d));
+            defense.add(defenseEffectsContainer).growX().row();
+        }
 
         if (hasTag(d, MoveTag.ATTACK)) {
             Table attack = formSection(sections, "ATTACK");
+
+            // A Defensive+Attack hybrid gets an altered attack section on top:
+            // launch mode, launch conditions, and the existing-vs-custom
+            // choice. Referencing an existing move ends the section there.
+            if (d.isDefenceAttackHybrid()) {
+                attackLaunchContainer = new Container<>();
+                attackLaunchContainer.setActor(buildAttackLaunchFields(d));
+                attack.add(attackLaunchContainer).growX().row();
+                if (attackLaunchReferencesMove(d)) {
+                    return finishCategorySections(sections, d);
+                }
+            }
 
             attack.add(new Label("POWER / ACCURACY", skin, "small")).left().row();
             powerFieldsContainer = new Container<>();
@@ -1061,9 +1148,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             aoeFieldsContainer.setActor(hasTag(d, MoveTag.AOE) ? buildAoeFields(d) : new Table());
             attack.add(aoeFieldsContainer).growX().row();
 
-            attack.add(new Label("ON-FIRE EFFECTS", skin, "small")).padTop(8f).left().row();
-            attack.add(buildMoveEffectsEditor(
-                d, MoveEffectTrigger.ON_FIRE, null)).growX().row();
+            // On-fire effects are authored only in the UTILITY section: tick
+            // UTILITY alongside ATTACK to reveal it for a hybrid move.
             if (d.hitComponents == null) {
                 attack.add(new Label("ON-HIT EFFECTS", skin, "small")).padTop(8f).left().row();
                 attack.add(buildMoveEffectsEditor(
@@ -1076,28 +1162,11 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             }
         }
 
-        if (hasTag(d, MoveTag.DEFENSIVE)) {
-            Table defense = formSection(sections, "DEFENSE");
-            defense.add(labelledRow("Type", new EnumSelectBox<>(
-                DefenseType.class, d.defenseType, false,
-                s -> {
-                    d.defenseType = s;
-                    synchronizeWeaponRequirement(d);
-                    refreshConditionalFields(d);
-                }, skin))).growX().row();
+        return finishCategorySections(sections, d);
+    }
 
-            defenseFieldsContainer = new Container<>();
-            defenseFieldsContainer.setActor(buildDefenseFields(d));
-            defense.add(defenseFieldsContainer).growX().row();
-
-            defenseTargetingContainer = new Container<>();
-            defenseTargetingContainer.setActor(buildDefenseTargetingFields(d));
-            defense.add(defenseTargetingContainer).growX().row();
-            defense.add(new Label("ON-FIRE EFFECTS", skin, "small")).padTop(8f).left().row();
-            defense.add(buildMoveEffectsEditor(
-                d, MoveEffectTrigger.ON_FIRE, null)).growX().row();
-        }
-
+    /** Append the tag-independent trailing cards (UTILITY + AVAILABILITY). */
+    private Actor finishCategorySections(Table sections, MoveData d) {
         if (hasTag(d, MoveTag.UTILITY)) {
             Table utility = formSection(sections, "UTILITY");
             utility.add(new Label("ON-FIRE EFFECTS", skin, "small")).left().row();
@@ -1113,6 +1182,168 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             d, MoveEffectTrigger.AVAILABILITY, null)).growX().row();
 
         return sections;
+    }
+
+    /**
+     * The altered attack section of a Defensive+Attack hybrid: when the attack
+     * launches, the conditions (and optional chance roll) gating the launch,
+     * and the attack source — a referenced existing move or a custom attack
+     * defined by the rest of this move's attack fields.
+     */
+    private Actor buildAttackLaunchFields(MoveData d) {
+        Table t = new Table(skin);
+        t.defaults().left().pad(4);
+
+        AttackLaunchMode current = AttackLaunchMode.fromName(d.attackLaunchMode);
+        if (current == null) {
+            current = AttackLaunchMode.ON_DEFENCE;
+            d.attackLaunchMode = current.name();
+        }
+        EnumSelectBox<AttackLaunchMode> modeSelect = new EnumSelectBox<>(
+            AttackLaunchMode.class, current.name(), false,
+            name -> {
+                d.attackLaunchMode = name;
+                game.audio().play(SoundCue.UI_NAVIGATE);
+                markDirty();
+                rebuildDetail();
+            }, skin);
+        t.add(labelledRow("Launch (" + current.displayName() + ")", modeSelect)).growX().row();
+        t.add(formHint(current == AttackLaunchMode.ON_FIRE
+            ? "The attack launches on this move's firing tick, right after the defence is granted."
+            : "The attack launches when this move's defence resolves an incoming attack "
+                + "(block, dodge, or parry), targeting the attacker."))
+            .left().row();
+
+        // Secondary launch conditions — the same condition vocabulary as an
+        // effect row's activation conditions, but gating the launch itself.
+        t.add(new Label("LAUNCH CONDITIONS", skin, "small")).padTop(8f).left().row();
+        if (d.attackLaunchCondition == null) d.attackLaunchCondition = AbilityConditionData.always();
+        t.add(new ConditionTreeEditor(
+            d.attackLaunchCondition,
+            repo.getAll(),
+            this::markDirty,
+            game.audio()::play,
+            masteryEligible(d),
+            skin)).growX().row();
+
+        CheckBox chanceEnabled = new CheckBox(" Roll launch chance", skin);
+        chanceEnabled.setChecked(Boolean.TRUE.equals(d.attackLaunchChanceEnabled));
+        TextField chance = new HoverTextField(
+            d.attackLaunchChance == null ? "100" : String.valueOf(d.attackLaunchChance), skin);
+        chance.setTextFieldFilter((field, character) -> Character.isDigit(character));
+        chance.setDisabled(!chanceEnabled.isChecked());
+        chanceEnabled.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                d.attackLaunchChanceEnabled = chanceEnabled.isChecked() ? Boolean.TRUE : null;
+                if (d.attackLaunchChance == null) d.attackLaunchChance = 100;
+                chance.setDisabled(!chanceEnabled.isChecked());
+                game.audio().play(SoundCue.UI_TOGGLE);
+                markDirty();
+            }
+        });
+        chance.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                Integer parsed = parseWholeNumber(chance.getText());
+                if (parsed != null) {
+                    d.attackLaunchChance = Math.max(0, Math.min(100, parsed));
+                    markDirty();
+                }
+            }
+        });
+        t.add(chanceEnabled).growX().row();
+        t.add(labelledRow("Launch chance %", chance)).growX().row();
+
+        // Attack source: an existing move ends the attack section there; a
+        // custom move reveals the normal attack editors below.
+        t.add(new Label("ATTACK SOURCE", skin, "small")).padTop(8f).left().row();
+        boolean references = attackLaunchReferencesMove(d);
+        SelectBox<String> source = new DynamicSelectBox<>(skin);
+        source.setItems("Custom move", "Existing move");
+        source.setSelected(references ? "Existing move" : "Custom move");
+        source.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                boolean wantReference = "Existing move".equals(source.getSelected());
+                if (wantReference && !attackLaunchReferencesMove(d)) {
+                    d.attackLaunchMoveId = firstLaunchReferenceId(d);
+                } else if (!wantReference) {
+                    d.attackLaunchMoveId = null;
+                }
+                game.audio().play(SoundCue.UI_NAVIGATE);
+                markDirty();
+                rebuildDetail();
+            }
+        });
+        t.add(labelledRow("Source", source)).growX().row();
+
+        if (references) {
+            List<String> options = launchReferenceOptions(d);
+            if (options.isEmpty()) {
+                t.add(formHint("No other moves exist to reference yet.")).left().row();
+            } else {
+                String selectedLabel = launchReferenceLabel(d, options);
+                DynamicSelectBox<String> moveSelect = new DynamicSelectBox<>(skin);
+                moveSelect.setItems(options.toArray(new String[0]));
+                moveSelect.setSelected(selectedLabel);
+                moveSelect.addListener(new ChangeListener() {
+                    @Override public void changed(ChangeEvent event, Actor actor) {
+                        d.attackLaunchMoveId = moveIdFromLabel(moveSelect.getSelected());
+                        game.audio().play(SoundCue.UI_NAVIGATE);
+                        markDirty();
+                    }
+                });
+                t.add(labelledRow("Move", moveSelect)).growX().row();
+                t.add(formHint(
+                    "The referenced move launches as this move's attack — its own CE cost "
+                        + "is paid when it launches."))
+                    .left().row();
+            }
+        } else {
+            t.add(formHint(
+                "The custom attack is defined below: damage types, hits, accuracy, on-hit effects."))
+                .left().row();
+        }
+        return t;
+    }
+
+    static boolean attackLaunchReferencesMove(MoveData d) {
+        return d.attackLaunchMoveId != null && !d.attackLaunchMoveId.isBlank();
+    }
+
+    /** Dropdown labels ("id - name") of every other move that can be launched. */
+    private List<String> launchReferenceOptions(MoveData d) {
+        List<String> options = new ArrayList<>();
+        for (MoveData move : repo.getAll()) {
+            if (move == null || move.id == null || move.id.equals(d.id)) continue;
+            options.add(moveLabel(move));
+        }
+        return options;
+    }
+
+    private String firstLaunchReferenceId(MoveData d) {
+        return launchReferenceOptions(d).stream()
+            .findFirst()
+            .map(MoveEditorScreen::moveIdFromLabel)
+            .orElse(null);
+    }
+
+    /** The label representing the referenced id, or the first option when unset. */
+    private static String launchReferenceLabel(MoveData d, List<String> options) {
+        String id = d.attackLaunchMoveId == null ? null : d.attackLaunchMoveId.trim();
+        if (id != null) {
+            for (String option : options) {
+                if (id.equals(moveIdFromLabel(option))) return option;
+            }
+        }
+        return options.isEmpty() ? null : options.get(0);
+    }
+
+    private static Integer parseWholeNumber(String text) {
+        if (text == null || text.isBlank()) return null;
+        try {
+            return Integer.parseInt(text.trim());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private Actor buildPowerFields(MoveData d) {
@@ -1648,10 +1879,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         // Affected tags — multi-toggle
         t.add(new Label("Affected Tags (blank = all)", skin)).padTop(4).row();
         t.add(buildBlockTagToggles(d)).growX().row();
-
-        t.add(new Label("ON-BLOCK EFFECTS", skin, "small")).padTop(8f).left().row();
-        t.add(buildMoveEffectsEditor(
-            d, MoveEffectTrigger.ON_BLOCK, null)).growX().row();
         return t;
     }
 
@@ -1680,10 +1907,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 d.parryStaggerTicks, 0, 99999,
                 v -> { d.parryStaggerTicks = v; })).growX().row();
         t.add(formHint("Applied only when the parried move lacks the GUARD_BREAK tag.")).row();
-
-        t.add(new Label("ON-PARRY EFFECTS", skin, "small")).padTop(8f).left().row();
-        t.add(buildMoveEffectsEditor(
-            d, MoveEffectTrigger.ON_PARRY, null)).growX().row();
         return t;
     }
 
@@ -1711,11 +1934,46 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 d.blockDuration, -1, 99999,
                 v -> { d.blockDuration = v; })).growX().row();
         t.add(formHint("Dodge is chance-based and ignores potency.")).row();
-
-        t.add(new Label("ON-DODGE EFFECTS", skin, "small")).padTop(8f).left().row();
-        t.add(buildMoveEffectsEditor(
-            d, MoveEffectTrigger.ON_DODGE, null)).growX().row();
         return t;
+    }
+
+    /**
+     * The DEFENSE card's resolution-effects section: effect rows that fire when
+     * this defense resolves a hit. The trigger follows the selected defense
+     * type — On block, On parry, or On dodge — so the section is rebuilt
+     * whenever the DEFENSE Type dropdown changes (via
+     * {@link #refreshConditionalFields}).
+     */
+    private Actor buildDefenseResolutionEffects(MoveData d) {
+        MoveEffectTrigger trigger = defenseResolutionTrigger(d);
+        if (trigger == null) {
+            Table hint = new Table(skin);
+            hint.defaults().left().pad(4);
+            hint.add(formHint(
+                "(no defense — select BLOCK, PARRY, or DODGE to author resolution effects)"))
+                .row();
+            return hint;
+        }
+        Table t = new Table(skin);
+        t.defaults().left().pad(4);
+        t.add(new Label(trigger.displayName()
+            .toUpperCase(java.util.Locale.ROOT).replace(' ', '-') + " EFFECTS",
+            skin, "small")).padTop(8f).left().row();
+        t.add(buildMoveEffectsEditor(d, trigger, null)).growX().row();
+        return t;
+    }
+
+    /** Resolution trigger for the authored defense type, or null when none. */
+    private static MoveEffectTrigger defenseResolutionTrigger(MoveData d) {
+        DefenseType dt;
+        try { dt = DefenseType.valueOf(d.defenseType); }
+        catch (Exception e) { dt = DefenseType.NONE; }
+        return switch (dt) {
+            case BLOCK -> MoveEffectTrigger.ON_BLOCK;
+            case PARRY -> MoveEffectTrigger.ON_PARRY;
+            case DODGE -> MoveEffectTrigger.ON_DODGE;
+            default -> null;
+        };
     }
 
     private Actor buildBlockTagToggles(MoveData d) {
@@ -2743,6 +3001,9 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         if (defenseTargetingContainer != null) {
             defenseTargetingContainer.setActor(buildDefenseTargetingFields(d));
         }
+        if (defenseEffectsContainer != null) {
+            defenseEffectsContainer.setActor(buildDefenseResolutionEffects(d));
+        }
         if (ceMinMaxContainer  != null) ceMinMaxContainer.setActor(buildCeMinMax(d));
         if (powerFieldsContainer != null) powerFieldsContainer.setActor(buildPowerFields(d));
         if (aoeFieldsContainer != null) {
@@ -2840,6 +3101,16 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         return d.tags != null && d.tags.contains(tag.name());
     }
 
+    /**
+     * The battle board this move plans on, mirroring
+     * {@link com.jjktbf.model.combat.BattlePlan#boardFor}: defence wins over
+     * attack; pure utility falls back to the defensive board.
+     */
+    static String derivedTimelineName(MoveData d) {
+        if (hasTag(d, MoveTag.DEFENSIVE)) return "DEFENSIVE";
+        return hasTag(d, MoveTag.ATTACK) ? "OFFENSIVE" : "DEFENSIVE";
+    }
+
     private Actor buildAccuracyPrioritySelector(
         MoveData move,
         AbilityEffectType type,
@@ -2876,6 +3147,24 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     }
 
     private static void discardInactiveCategoryDetails(MoveData d) {
+        // Hybrid attack-launch settings only exist on Defensive+Attack moves.
+        if (!d.isDefenceAttackHybrid()) {
+            d.attackLaunchMode = null;
+            d.attackLaunchCondition = null;
+            d.attackLaunchChanceEnabled = null;
+            d.attackLaunchChance = null;
+            d.attackLaunchMoveId = null;
+        } else if (attackLaunchReferencesMove(d)) {
+            // A referenced move replaces this move's own attack definition.
+            d.basePower = 0;
+            d.hitComponents = new ArrayList<>();
+            d.onHitEffects = new ArrayList<>();
+            removeAccuracyPriority(d, AbilityEffectType.NEVER_MISS);
+            if (d.effects != null) {
+                d.effects.removeIf(effect -> effect != null
+                    && MoveEffectTrigger.ON_HIT.name().equalsIgnoreCase(effect.trigger));
+            }
+        }
         if (!hasTag(d, MoveTag.ATTACK)) {
             d.basePower = 0;
             d.hitComponents = new ArrayList<>();
@@ -2899,6 +3188,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             d.dodgeChance = 0;
             d.dodgeScope = "BOTH";
             d.parryStaggerTicks = 0;
+            d.defenseTargeting = DefenseTargeting.SELF.name();
+            d.defenseTargetCount = 2;
             d.onBlockEffects = new ArrayList<>();
             d.onParryEffects = new ArrayList<>();
             d.onDodgeEffects = new ArrayList<>();
@@ -2986,6 +3277,25 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         if (label == null || "[none]".equals(label)) return null;
         for (String option : options) {
             if (option.equals(label)) return option.substring(0, option.indexOf(' '));
+        }
+        return null;
+    }
+
+    /** A hybrid's referenced attack move must exist and cannot be the move itself. */
+    static String attackLaunchReferenceValidationError(
+        MoveData move,
+        List<MoveData> moves
+    ) {
+        String referencedId = move == null ? null : move.attackLaunchMoveId;
+        if (referencedId == null || referencedId.isBlank()) return null;
+        if (referencedId.trim().equals(move.id)) {
+            return "The attack cannot reference the move itself.";
+        }
+        boolean exists = moves != null && moves.stream()
+            .filter(java.util.Objects::nonNull)
+            .anyMatch(candidate -> referencedId.trim().equals(candidate.id));
+        if (!exists) {
+            return "Referenced attack move " + referencedId + " does not exist.";
         }
         return null;
     }

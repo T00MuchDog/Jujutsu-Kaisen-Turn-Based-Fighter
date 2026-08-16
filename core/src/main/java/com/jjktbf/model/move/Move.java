@@ -1,5 +1,6 @@
 package com.jjktbf.model.move;
 
+import com.jjktbf.model.character.AbilityConditionData;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.progression.TechniqueMasteryResolver;
@@ -258,10 +259,40 @@ public class Move {
     private final AoeType aoeType;
 
     /**
-     * Number of targets hit by an {@link AoeType#MULTIPLE} AOE move. Ignored for
-     * the other AOE shapes. Defaults to 2; must be at least 2 when used.
+     * Number of targets hit when {@link AoeType#MULTIPLE} AOE move. Ignored for
+     * the other shapes. Defaults to 2; must be at least 2 when used.
      */
     private final int aoeTargetCount;
+
+    /**
+     * When a Defensive+Attack hybrid launches its attack portion. Null on
+     * non-hybrids (a hybrid is a DEFENSIVE-category move that also carries the
+     * ATTACK tag — the DEFENSIVE tag wins, so the move plays on the defensive
+     * timeline).
+     */
+    private final AttackLaunchMode attackLaunchMode;
+
+    /** Extra condition tree gating the hybrid attack's launch. Null = always. */
+    private final AbilityConditionData attackLaunchCondition;
+
+    /** Whether the hybrid attack's launch rolls {@link #attackLaunchChance}. */
+    private final boolean attackLaunchChanceEnabled;
+
+    /** Launch chance percent (0-100) rolled when {@link #attackLaunchChanceEnabled}. */
+    private final int attackLaunchChance;
+
+    /**
+     * Referenced move id launched as the hybrid attack instead of this move's
+     * own hit components. Null = custom attack (own components).
+     */
+    private final String attackLaunchMoveId;
+
+    /**
+     * Resolved referenced attack move, injected at build time from the
+     * repository. Null when unreferenced or the id could not be resolved (the
+     * launch then no-ops at runtime).
+     */
+    private final Move attackLaunchMove;
 
     // -------------------------------------------------------------------------
     // Construction via Builder
@@ -319,6 +350,12 @@ public class Move {
         this.summonCharacterId   = b.summonCharacterId;
         this.aoeType             = resolveAoeType(b);
         this.aoeTargetCount      = b.aoeTargetCount;
+        this.attackLaunchMode         = b.attackLaunchMode;
+        this.attackLaunchCondition    = b.attackLaunchCondition;
+        this.attackLaunchChanceEnabled = b.attackLaunchChanceEnabled;
+        this.attackLaunchChance       = b.attackLaunchChance;
+        this.attackLaunchMoveId       = b.attackLaunchMoveId;
+        this.attackLaunchMove         = b.attackLaunchMove;
     }
 
     private static Set<MoveTag> immutableTags(Set<MoveTag> source, MoveCategory category) {
@@ -508,6 +545,35 @@ public class Move {
      */
     public int getAoeTargetCount()                 { return aoeTargetCount; }
 
+    /** When a Defensive+Attack hybrid launches its attack. Null on non-hybrids. */
+    public AttackLaunchMode getAttackLaunchMode()  { return attackLaunchMode; }
+    /** Extra condition tree gating the hybrid attack's launch. Null = always. */
+    public AbilityConditionData getAttackLaunchCondition() { return attackLaunchCondition; }
+    /** Whether the hybrid attack's launch rolls {@link #getAttackLaunchChance()}. */
+    public boolean isAttackLaunchChanceEnabled()   { return attackLaunchChanceEnabled; }
+    /** Launch chance percent (0-100) rolled when the chance gate is enabled. */
+    public int getAttackLaunchChance()             { return attackLaunchChance; }
+    /** Referenced move id launched as the hybrid attack. Null = custom attack. */
+    public String getAttackLaunchMoveId()          { return attackLaunchMoveId; }
+    /** Resolved referenced attack move; null when unreferenced or unresolved. */
+    public Move getAttackLaunchMove()              { return attackLaunchMove; }
+    /** True iff this is a Defensive+Attack hybrid (DEFENSIVE category + ATTACK tag). */
+    public boolean isDefenceAttackHybrid() {
+        return category == MoveCategory.DEFENSIVE && tags.contains(MoveTag.ATTACK);
+    }
+    /** True iff the hybrid launches its attack after its defence resolves an incoming attack. */
+    public boolean launchesAttackOnDefence() {
+        return isDefenceAttackHybrid() && attackLaunchMode == AttackLaunchMode.ON_DEFENCE;
+    }
+    /** True iff the hybrid launches its attack at its own firing tick. */
+    public boolean launchesAttackOnFire() {
+        return isDefenceAttackHybrid() && attackLaunchMode == AttackLaunchMode.ON_FIRE;
+    }
+    /** True iff the attack portion is a referenced move rather than own hit components. */
+    public boolean referencesAttackMove() {
+        return attackLaunchMoveId != null && !attackLaunchMoveId.isBlank();
+    }
+
     public boolean isBlackFlashEligible() {
         return hitComponents.stream().anyMatch(HitComponent::isBlackFlashEligible);
     }
@@ -596,9 +662,18 @@ public class Move {
      * A move is hostile iff it is an attack (the ATTACK tag heuristic) — i.e. it
      * has hit components or the ATTACK tag. Defensive, self-only utility, and
      * summon-only moves are not hostile and require no target selection.
+     *
+     * <p>A counter-attack hybrid (launch mode ON_DEFENCE) is the exception: its
+     * attack targets whoever it just defended against, so planning needs no
+     * target selection for the attack portion.</p>
      */
     public boolean isHostile() {
+        if (launchesAttackOnDefence()) return onFireEnemyRows();
         if (hasTag("ATTACK")) return true;
+        return onFireEnemyRows();
+    }
+
+    private boolean onFireEnemyRows() {
         return unifiedEffects && effects.stream()
             .filter(effect -> MoveEffectTrigger.ON_FIRE.name()
                 .equalsIgnoreCase(effect.trigger))
@@ -829,6 +904,12 @@ public class Move {
         private String summonCharacterId     = null;
         private AoeType aoeType              = null;
         private int aoeTargetCount           = 2;
+        private AttackLaunchMode attackLaunchMode = null;
+        private AbilityConditionData attackLaunchCondition = null;
+        private boolean attackLaunchChanceEnabled = false;
+        private int attackLaunchChance       = 100;
+        private String attackLaunchMoveId    = null;
+        private Move attackLaunchMove        = null;
 
         public Builder(String id) { this.id = id; }
 
@@ -897,6 +978,23 @@ public class Move {
         public Builder aoeType(AoeType v)                   { this.aoeType = v; return this; }
         /** Set the target count for {@link AoeType#MULTIPLE}. Must be ≥ 2 when used. */
         public Builder aoeTargetCount(int v)                { this.aoeTargetCount = v; return this; }
+        /** Set when a Defensive+Attack hybrid launches its attack. */
+        public Builder attackLaunchMode(AttackLaunchMode v) { this.attackLaunchMode = v; return this; }
+        /** Set the extra condition tree gating the hybrid attack's launch. */
+        public Builder attackLaunchCondition(AbilityConditionData v) {
+            this.attackLaunchCondition = v == null ? null : v.copy();
+            return this;
+        }
+        /** Set the optional launch chance roll (percent clamped to [0, 100]). */
+        public Builder attackLaunchChance(boolean enabled, int percent) {
+            this.attackLaunchChanceEnabled = enabled;
+            this.attackLaunchChance = Math.max(0, Math.min(100, percent));
+            return this;
+        }
+        /** Set the referenced move id launched as the hybrid attack. */
+        public Builder attackLaunchMoveId(String v)         { this.attackLaunchMoveId = v; return this; }
+        /** Inject the resolved referenced attack move (built from the repository). */
+        public Builder attackLaunchMove(Move v)             { this.attackLaunchMove = v; return this; }
 
         public Move build() {
             if (id == null || id.isBlank()) throw new IllegalStateException("Move id is required");
@@ -933,6 +1031,7 @@ public class Move {
                     "MULTIPLE_ALLIES defense targeting requires defenseTargetCount >= 2 (name='" + name + "')");
             }
 
+            validateAttackLaunch();
             validateHitComponents();
             validateMoveEffects();
 
@@ -1037,11 +1136,53 @@ public class Move {
             return tags != null ? tags : category.getTags();
         }
 
+        /**
+         * A Defensive+Attack hybrid (DEFENSIVE category + ATTACK tag) must say
+         * when its attack launches, and only hybrids may carry launch settings.
+         */
+        private void validateAttackLaunch() {
+            boolean hybrid = category == MoveCategory.DEFENSIVE
+                && effectiveTags().contains(MoveTag.ATTACK);
+            boolean authored = attackLaunchMode != null
+                || attackLaunchCondition != null
+                || attackLaunchChanceEnabled
+                || (attackLaunchMoveId != null && !attackLaunchMoveId.isBlank());
+            if (!hybrid) {
+                if (authored) {
+                    throw new IllegalStateException(
+                        "Attack launch settings require a Defensive+Attack hybrid (name='"
+                        + name + "')");
+                }
+                return;
+            }
+            if (attackLaunchMode == null) {
+                throw new IllegalStateException(
+                    "A Defensive+Attack hybrid must choose an attack launch mode (name='"
+                    + name + "')");
+            }
+        }
+
         private void validateHitComponents() {
+            boolean hybrid = category == MoveCategory.DEFENSIVE
+                && effectiveTags().contains(MoveTag.ATTACK);
+            if (hybrid) {
+                boolean references = attackLaunchMoveId != null && !attackLaunchMoveId.isBlank();
+                boolean hasComponents = hitComponentsExplicit && !hitComponents.isEmpty();
+                if (references && hasComponents) {
+                    throw new IllegalStateException(
+                        "A hybrid cannot both reference a move and define hit components (name='"
+                        + name + "')");
+                }
+                if (!references && !hasComponents) {
+                    throw new IllegalStateException(
+                        "A Defensive+Attack hybrid must define hit components or reference a move (name='"
+                        + name + "')");
+                }
+            }
             if (!hitComponentsExplicit) return;
             boolean damaging = category != MoveCategory.UTILITY
                 && category != MoveCategory.DEFENSIVE;
-            if (!damaging && !hitComponents.isEmpty()) {
+            if (!damaging && !hybrid && !hitComponents.isEmpty()) {
                 throw new IllegalStateException(
                     "Only attacking moves may define hit components (name='" + name + "')");
             }
@@ -1049,7 +1190,7 @@ public class Move {
                 throw new IllegalStateException(
                     "Attacking moves must define at least one hit component (name='" + name + "')");
             }
-            if (!damaging) return;
+            if (!damaging && !hybrid) return;
 
             EnumSet<MoveTag> componentTags = EnumSet.noneOf(MoveTag.class);
             for (int index = 0; index < hitComponents.size(); index++) {
@@ -1061,20 +1202,32 @@ public class Move {
                 if (index == 0 && component.requiresPreviousConnection()) {
                     throw new IllegalStateException(
                         "The first hit component cannot require a previous connection (name='"
-                            + name + "')");
+                        + name + "')");
                 }
                 if (index > 0 && component.requiresPreviousConnection()
                     && component.getDelayTicks() < hitComponents.get(index - 1).getDelayTicks()) {
                     throw new IllegalStateException(
                         "A dependent hit cannot occur before its prerequisite (name='"
-                            + name + "')");
+                        + name + "')");
                 }
                 componentTags.addAll(component.getTags());
             }
-            if (!componentTags.equals(category.getTags())) {
+            // A hybrid's category is DEFENSIVE (no damage tags of its own), so
+            // its components are checked against the move's damage-nature tags.
+            if (hybrid) {
+                EnumSet<MoveTag> expected = EnumSet.noneOf(MoveTag.class);
+                for (MoveTag tag : effectiveTags()) {
+                    if (MoveTag.TYPE_TAGS.contains(tag)) expected.add(tag);
+                }
+                if (!componentTags.equals(expected)) {
+                    throw new IllegalStateException(
+                        "Hybrid damage tags must match the union of its hit-component tags (name='"
+                        + name + "')");
+                }
+            } else if (!componentTags.equals(category.getTags())) {
                 throw new IllegalStateException(
                     "Move damage tags must match the union of its hit-component tags (name='"
-                        + name + "')");
+                    + name + "')");
             }
         }
 

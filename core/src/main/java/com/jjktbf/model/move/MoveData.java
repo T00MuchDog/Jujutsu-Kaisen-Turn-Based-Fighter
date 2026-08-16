@@ -3,6 +3,7 @@ package com.jjktbf.model.move;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.jjktbf.model.character.AbilityConditionData;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityEffectTarget;
 import com.jjktbf.model.character.AbilityEffectType;
@@ -180,6 +181,33 @@ public class MoveData {
      */
     public int defenseTargetCount = 2;
 
+    /**
+     * {@link AttackLaunchMode} enum name for a Defensive+Attack hybrid: when the
+     * attack portion launches. ON_FIRE launches at the move's firing tick (right
+     * after the defence is granted); ON_DEFENCE launches after this move's
+     * defence successfully resolves an incoming attack. Null on non-hybrids.
+     */
+    public String attackLaunchMode;
+
+    /**
+     * Extra condition tree gating the hybrid attack's launch, evaluated like an
+     * effect row's activation condition. Null = always launch.
+     */
+    public AbilityConditionData attackLaunchCondition;
+
+    /** Whether the hybrid attack's launch rolls {@link #attackLaunchChance}. */
+    public Boolean attackLaunchChanceEnabled;
+
+    /** Hybrid attack launch chance (0-100) rolled when {@link #attackLaunchChanceEnabled}. */
+    public Integer attackLaunchChance;
+
+    /**
+     * Existing move id launched as the hybrid attack instead of this move's own
+     * hit components. Null/blank = custom attack defined by this move's attack
+     * fields (hit components, accuracy, on-hit effects, ...).
+     */
+    public String attackLaunchMoveId;
+
     /** Cannot be assigned directly; an ability must add this move to the character. */
     public boolean mustBeGranted = false;
 
@@ -328,6 +356,12 @@ public class MoveData {
      * Resolve the MoveCategory from the stored tags list.
      * Tags that don't map to MoveCategory slots (ATTACK, UTILITY, DEFENSIVE) are
      * used for BF eligibility and filtering but don't change the power formula.
+     *
+     * <p>UTILITY may combine with DEFENSIVE or ATTACK to author a hybrid whose
+     * on-fire effect rows live in the UTILITY section: a DEFENSIVE+UTILITY move
+     * stays DEFENSIVE, and an ATTACK+UTILITY move keeps its damaging category so
+     * its hit components and power formula are unaffected. UTILITY alone (or with
+     * no ATTACK tag) resolves to UTILITY.</p>
      */
     public MoveCategory derivedCategory() {
         if (tags == null || tags.isEmpty()) return MoveCategory.UTILITY;
@@ -338,9 +372,10 @@ public class MoveData {
         boolean hasCe          = tags.contains("CURSED_ENERGY");
         boolean hasDefensive   = tags.contains("DEFENSIVE");
         boolean hasUtility     = tags.contains("UTILITY");
+        boolean hasAttack      = tags.contains("ATTACK");
 
         if (hasDefensive) return MoveCategory.DEFENSIVE;
-        if (hasUtility)   return MoveCategory.UTILITY;
+        if (hasUtility && !hasAttack) return MoveCategory.UTILITY;
 
         // Triple hybrids
         if (hasPhysical && hasInnate && hasNonInnate)
@@ -412,6 +447,16 @@ public class MoveData {
     /** True if this move carries an active defense window (BLOCK, PARRY, or DODGE). */
     public boolean hasActiveDefense() {
         return isAnyBlock() || isParry() || isDodge();
+    }
+
+    /**
+     * True iff the raw tags contain both DEFENSIVE and ATTACK — a hybrid whose
+     * attack portion launches per {@link #attackLaunchMode}. The DEFENSIVE tag
+     * wins: a hybrid derives to the DEFENSIVE category and plays on the
+     * defensive timeline.
+     */
+    public boolean isDefenceAttackHybrid() {
+        return tags != null && tags.contains("DEFENSIVE") && tags.contains("ATTACK");
     }
 
     /** Highest explicitly authored Never Miss tier. */
@@ -489,6 +534,24 @@ public class MoveData {
     // -------------------------------------------------------------------------
 
     public Move toMove() {
+        return toMoveResolved(null);
+    }
+
+    /**
+     * Build the domain Move, resolving a hybrid's referenced attack move
+     * through the lookup (e.g. {@code moveRepo::findById}). A null lookup — or
+     * an unresolvable id — leaves the reference unresolved; the launch then
+     * no-ops at runtime rather than failing the build. Named distinctly from
+     * {@link #toMove()} so {@code data::toMove} method references stay exact.
+     */
+    public Move toMoveResolved(java.util.function.Function<String, MoveData> attackLaunchMoves) {
+        return toMoveResolved(attackLaunchMoves, new java.util.HashSet<>());
+    }
+
+    private Move toMoveResolved(
+        java.util.function.Function<String, MoveData> attackLaunchMoves,
+        Set<String> seen
+    ) {
         MoveCategory cat = derivedCategory();
         Set<MoveTag> rawTags = parsedTags();
         validateProgressionEligibility(rawTags);
@@ -529,6 +592,27 @@ public class MoveData {
             .aoeTargetCount(aoeTargetCount >= 2 ? aoeTargetCount : 2)
             .defenseTargeting(DefenseTargeting.fromName(defenseTargeting))
             .defenseTargetCount(defenseTargetCount >= 2 ? defenseTargetCount : 2);
+
+        // Defensive+Attack hybrid launch settings. Cleared for non-hybrids so
+        // stale fields can never take effect on an ordinary move.
+        boolean hybrid = isDefenceAttackHybrid();
+        String launchMoveId = hybrid && attackLaunchMoveId != null && !attackLaunchMoveId.isBlank()
+            ? attackLaunchMoveId.trim() : null;
+        b.attackLaunchMode(hybrid ? AttackLaunchMode.fromName(attackLaunchMode) : null)
+            .attackLaunchCondition(
+                hybrid && attackLaunchCondition != null ? attackLaunchCondition.copy() : null)
+            .attackLaunchChance(
+                hybrid && Boolean.TRUE.equals(attackLaunchChanceEnabled),
+                hybrid && attackLaunchChance != null
+                    ? Math.max(0, Math.min(100, attackLaunchChance)) : 100)
+            .attackLaunchMoveId(launchMoveId);
+        // Resolve the referenced attack move eagerly, guarding against cycles.
+        if (launchMoveId != null && attackLaunchMoves != null && seen.add(id)) {
+            MoveData referenced = attackLaunchMoves.apply(launchMoveId);
+            if (referenced != null) {
+                b.attackLaunchMove(referenced.toMoveResolved(attackLaunchMoves, seen));
+            }
+        }
 
         if (effects != null) {
             java.util.ArrayList<MoveEffectData> copiedEffects = effects.stream()
@@ -850,6 +934,15 @@ public class MoveData {
         }
         d.defenseTargeting    = move.getDefenseTargeting().name();
         d.defenseTargetCount  = move.getDefenseTargetCount();
+        d.attackLaunchMode    = move.getAttackLaunchMode() != null
+                                    ? move.getAttackLaunchMode().name() : null;
+        d.attackLaunchCondition = move.getAttackLaunchCondition() != null
+                                    ? move.getAttackLaunchCondition().copy() : null;
+        if (move.isAttackLaunchChanceEnabled()) {
+            d.attackLaunchChanceEnabled = true;
+            d.attackLaunchChance       = move.getAttackLaunchChance();
+        }
+        d.attackLaunchMoveId  = move.getAttackLaunchMoveId();
         d.prerequisites       = move.getPrerequisites().isEmpty() ? null
                                     : new java.util.LinkedHashMap<>(move.getPrerequisites());
 

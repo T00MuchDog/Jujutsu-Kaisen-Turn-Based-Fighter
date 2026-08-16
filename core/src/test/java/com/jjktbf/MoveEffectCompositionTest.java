@@ -72,6 +72,51 @@ class MoveEffectCompositionTest {
     }
 
     @Test
+    void utilityTagCombinesWithOtherPurposesWithoutChangingTheDerivedCategory() {
+        // Hybrid DEFENSIVE+UTILITY: stays defensive, on-fire rows remain in the
+        // unified effect list under the ON_FIRE trigger.
+        MoveData simpleDomain = new MoveData();
+        simpleDomain.id = "000028";
+        simpleDomain.name = "Hybrid Defense";
+        simpleDomain.tags = List.of(
+            "DEFENSIVE", "UTILITY", "NON_INNATE_TECHNIQUE", "CURSED_ENERGY");
+        simpleDomain.apCost = 10;
+        simpleDomain.unleashPoint = 2;
+        simpleDomain.prerequisites = Map.of("jujutsuSkill", 70);
+        MoveEffectData coded = new MoveEffectData();
+        coded.effectId = "effect-000000";
+        coded.type = AbilityEffectType.CODED_MOVE_ACTION.name();
+        coded.codedAbilityKey = "NEW_SHADOW_STYLE";
+        coded.codedAction = "ACTIVATE_SIMPLE_DOMAIN";
+        coded.codedTarget = "000027";
+        coded.target = AbilityEffectTarget.SELF.name();
+        coded.trigger = MoveEffectTrigger.ON_FIRE.name();
+        simpleDomain.effects = new java.util.ArrayList<>(List.of(coded));
+        assertEquals(MoveCategory.DEFENSIVE, simpleDomain.derivedCategory());
+        Move defenseBuilt = simpleDomain.toMove();
+        assertTrue(defenseBuilt.isDefensive());
+        assertEquals(1, defenseBuilt.effectsFor(MoveEffectTrigger.ON_FIRE, -1).size());
+
+        // Hybrid ATTACK+UTILITY: keeps its damaging category so hit components
+        // and the power formula are unaffected by the utility section.
+        MoveData hybridAttack = new MoveData();
+        hybridAttack.id = "hybrid-attack";
+        hybridAttack.name = "Hybrid Attack";
+        hybridAttack.tags = List.of("ATTACK", "UTILITY", "PHYSICAL");
+        hybridAttack.basePower = 10;
+        hybridAttack.baseAccuracy = 1.0;
+        hybridAttack.apCost = 4;
+        hybridAttack.unleashPoint = 2;
+        assertEquals(MoveCategory.PHYSICAL, hybridAttack.derivedCategory());
+        assertEquals(MoveCategory.PHYSICAL, hybridAttack.toMove().getCategory());
+
+        // Pure utility keeps resolving to UTILITY even with damage-nature tags.
+        MoveData pureUtility = new MoveData();
+        pureUtility.tags = List.of("UTILITY", "CURSED_ENERGY");
+        assertEquals(MoveCategory.UTILITY, pureUtility.derivedCategory());
+    }
+
+    @Test
     void tenShadowsAssistedMovesDeclareTheirActiveSummonRestrictions() throws IOException {
         List<MoveData> moves = MAPPER.readValue(movesPath().toFile(), new TypeReference<>() { });
         Map<String, List<String>> expected = Map.of(

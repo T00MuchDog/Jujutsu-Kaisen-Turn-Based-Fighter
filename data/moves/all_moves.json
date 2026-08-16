@@ -28,12 +28,14 @@
   "isFreeMove" : true,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000001",
   "name" : "Basic Block",
@@ -66,12 +68,14 @@
   "isFreeMove" : true,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000002",
   "name" : "Jab",
@@ -112,12 +116,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000003",
   "name" : "Elbow Strike",
@@ -153,12 +159,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000004",
   "name" : "Body Blow",
@@ -194,12 +202,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000005",
   "name" : "Sweeping Kick",
@@ -242,12 +252,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000006",
   "name" : "Knee Strike",
@@ -284,12 +296,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000007",
   "name" : "Overhand Punch",
@@ -325,12 +339,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000008",
   "name" : "Reinforced Jab",
@@ -375,12 +391,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000009",
   "name" : "Reinforced Elbow",
@@ -419,12 +437,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000010",
   "name" : "Reinforced Knee",
@@ -469,12 +489,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000011",
   "name" : "Cursed Energy Burst",
@@ -516,12 +538,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000012",
   "name" : "Cursed Energy Blast",
@@ -563,12 +587,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000013",
   "name" : "Deflection",
@@ -607,12 +633,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000014",
   "name" : "Reinforced Deflection",
@@ -660,12 +688,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000015",
   "name" : "Cross Guard",
@@ -703,12 +733,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000016",
   "name" : "Reinforced Cross Guard",
@@ -755,12 +787,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000017",
   "name" : "Braced Guard",
@@ -799,12 +833,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : true,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : true
 }, {
   "id" : "000018",
   "name" : "Reinforced Braced Guard",
@@ -850,12 +886,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : true,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : true
 }, {
   "id" : "000019",
   "name" : "Reinforced Basic Block",
@@ -901,12 +939,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : true,
-  "flatBlock" : false,
   "anyBlock" : true,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : true,
+  "flatBlock" : false
 }, {
   "id" : "000020",
   "name" : "Cursed Energy Focus",
@@ -961,12 +1001,14 @@
   "isFreeMove" : false,
   "moveCap" : 2,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000021",
   "name" : "Cursed Energy Surge",
@@ -1021,12 +1063,14 @@
   "isFreeMove" : false,
   "moveCap" : 2,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000022",
   "name" : "Miracle Creation",
@@ -1096,12 +1140,14 @@
   "isFreeMove" : false,
   "moveCap" : 2,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000023",
   "name" : "Sword Slash",
@@ -1137,12 +1183,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000024",
   "name" : "Sword Throw",
@@ -1178,12 +1226,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000025",
   "name" : "Ratio Mark",
@@ -1286,12 +1336,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000026",
   "name" : "Ratio Strike",
@@ -1347,12 +1399,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000027",
   "name" : "Batto Sword Drawing",
@@ -1401,17 +1455,19 @@
   "isFreeMove" : false,
   "moveCap" : 1,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000028",
   "name" : "Simple Domain",
   "description" : "Establish a Simple Domain that intercepts the next MELEE or RANGED ATTACK, absorbing RANGED PHYSICAL strikes behind a full BLOCK and countering MELEE assailants with Batto Sword Drawing.",
-  "tags" : [ "DEFENSIVE", "NON_INNATE_TECHNIQUE", "CURSED_ENERGY" ],
+  "tags" : [ "NON_INNATE_TECHNIQUE", "CURSED_ENERGY", "UTILITY" ],
   "basePower" : 0,
   "hitComponents" : [ ],
   "baseAccuracy" : 1.0,
@@ -1460,12 +1516,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000029",
   "name" : "Sidestep",
@@ -1501,12 +1559,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true
+  "dodge" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000030",
   "name" : "Weapon Parry",
@@ -1544,12 +1604,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : true,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000031",
   "name" : "Evasive Dash",
@@ -1585,12 +1647,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true
+  "dodge" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000032",
   "name" : "Divergent Fist",
@@ -1650,12 +1714,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000033",
   "name" : "Summon White Dog",
@@ -1708,12 +1774,14 @@
   "isFreeMove" : true,
   "moveCap" : 1,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000034",
   "name" : "Summon Black Dog",
@@ -1766,12 +1834,14 @@
   "isFreeMove" : true,
   "moveCap" : 1,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000035",
   "name" : "Katana Combination",
@@ -1829,12 +1899,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000036",
   "name" : "Cursed Sword Slash",
@@ -1879,12 +1951,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000037",
   "name" : "Cursed Tool Deflection",
@@ -1926,12 +2000,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : true,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000038",
   "name" : "Keen Observation",
@@ -1990,12 +2066,14 @@
   "isFreeMove" : false,
   "moveCap" : 1,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000039",
   "name" : "Summon Nue",
@@ -2048,12 +2126,14 @@
   "isFreeMove" : true,
   "moveCap" : 1,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000040",
   "name" : "Summon Toad",
@@ -2106,12 +2186,14 @@
   "isFreeMove" : true,
   "moveCap" : 1,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000041",
   "name" : "Summon Great Serpent",
@@ -2164,12 +2246,14 @@
   "isFreeMove" : true,
   "moveCap" : 1,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000042",
   "name" : "Summon Divine Dog Totality",
@@ -2222,12 +2306,14 @@
   "isFreeMove" : true,
   "moveCap" : 1,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000043",
   "name" : "Summon Toad/Nue Fusion",
@@ -2280,12 +2366,14 @@
   "isFreeMove" : true,
   "moveCap" : 1,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000044",
   "name" : "Summon Max Elephant",
@@ -2338,12 +2426,14 @@
   "isFreeMove" : true,
   "moveCap" : 1,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000045",
   "name" : "Dog Ambush",
@@ -2417,12 +2507,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000046",
   "name" : "Nue Lightning Strike",
@@ -2478,12 +2570,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000047",
   "name" : "Toad Pull",
@@ -2535,12 +2629,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true
+  "dodge" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000048",
   "name" : "Serpent Snare",
@@ -2596,12 +2692,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000049",
   "name" : "Totality Rush",
@@ -2652,12 +2750,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000050",
   "name" : "Winged Toad Snare",
@@ -2734,12 +2834,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000051",
   "name" : "Elephant Drop",
@@ -2791,12 +2893,14 @@
   "moveCap" : 0,
   "aoeType" : "ALL_ENEMIES",
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000052",
   "name" : "Shadow Movement",
@@ -2840,12 +2944,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true
+  "dodge" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000053",
   "name" : "Desummon",
@@ -2886,13 +2992,15 @@
   "isFreeMove" : true,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000054",
   "name" : "Divine Dog Bite",
@@ -2928,13 +3036,15 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000055",
   "name" : "Tracking Pounce",
@@ -2970,13 +3080,15 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000056",
   "name" : "Rending Pounce",
@@ -3017,13 +3129,15 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000057",
   "name" : "Electrified Talons",
@@ -3065,13 +3179,15 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000058",
   "name" : "Lightning Discharge",
@@ -3118,13 +3234,15 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000059",
   "name" : "Tongue Lash",
@@ -3160,13 +3278,15 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000060",
   "name" : "Binding Tongue",
@@ -3216,13 +3336,15 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000061",
   "name" : "Serpent Constrict",
@@ -3275,13 +3397,15 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000062",
   "name" : "Devouring Lunge",
@@ -3322,13 +3446,15 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000063",
   "name" : "Totality Claw",
@@ -3364,13 +3490,15 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000064",
   "name" : "Predator Rush",
@@ -3421,13 +3549,15 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000065",
   "name" : "Crushing Stomp",
@@ -3470,13 +3600,15 @@
   "moveCap" : 0,
   "aoeType" : "ALL_ENEMIES",
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000066",
   "name" : "Water Deluge",
@@ -3517,13 +3649,15 @@
   "moveCap" : 0,
   "aoeType" : "ALL_ENEMIES",
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000067",
   "name" : "Winged Tongue Snare",
@@ -3594,13 +3728,15 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000068",
   "name" : "Aerial Swarm",
@@ -3647,13 +3783,15 @@
   "moveCap" : 0,
   "aoeType" : "ALL_ENEMIES",
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : true,
   "shikigamiMove" : true,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000069",
   "name" : "Don't Move",
@@ -3739,12 +3877,14 @@
   "moveCap" : 0,
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000070",
   "name" : "Blast Away",
@@ -3824,12 +3964,14 @@
   "moveCap" : 0,
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000071",
   "name" : "Sleep",
@@ -3915,12 +4057,14 @@
   "moveCap" : 0,
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000072",
   "name" : "Plummet",
@@ -3999,12 +4143,14 @@
   "moveCap" : 0,
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000073",
   "name" : "Get Twisted",
@@ -4078,12 +4224,14 @@
   "moveCap" : 0,
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000074",
   "name" : "Return",
@@ -4165,12 +4313,14 @@
   "moveCap" : 0,
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000075",
   "name" : "Explode",
@@ -4244,12 +4394,14 @@
   "moveCap" : 0,
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000076",
   "name" : "Die",
@@ -4331,12 +4483,14 @@
   "moveCap" : 0,
   "aoeType" : "MULTIPLE",
   "aoeTargetCount" : 3,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000077",
   "name" : "Reinforced Strike",
@@ -4377,12 +4531,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000078",
   "name" : "Grapple",
@@ -4420,12 +4576,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000079",
   "name" : "Triple Kick",
@@ -4478,12 +4636,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000080",
   "name" : "Upper Cut",
@@ -4521,12 +4681,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000081",
   "name" : "Reinforced Triple Kick",
@@ -4584,12 +4746,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000082",
   "name" : "Reinforced Upper Cut",
@@ -4632,12 +4796,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000083",
   "name" : "Taunt",
@@ -4679,12 +4845,14 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : false
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 }, {
   "id" : "000084",
   "name" : "Out of the way",
@@ -4712,8 +4880,11 @@
   "dodgeChance" : 50,
   "dodgeScope" : "RANGED",
   "parryStaggerTicks" : 0,
-  "defenseTargeting" : "SINGLE_ALLY",
-  "defenseTargetCount" : 2,
+  "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
   "effects" : [ ],
   "prerequisites" : {
     "speed" : 30,
@@ -4722,10 +4893,12 @@
   "isFreeMove" : false,
   "moveCap" : 0,
   "aoeTargetCount" : 2,
+  "defenseTargeting" : "SINGLE_ALLY",
+  "defenseTargetCount" : 2,
   "mustBeGranted" : false,
-  "percentageBlock" : false,
-  "flatBlock" : false,
   "anyBlock" : false,
   "parry" : false,
-  "dodge" : true
+  "dodge" : true,
+  "percentageBlock" : false,
+  "flatBlock" : false
 } ]

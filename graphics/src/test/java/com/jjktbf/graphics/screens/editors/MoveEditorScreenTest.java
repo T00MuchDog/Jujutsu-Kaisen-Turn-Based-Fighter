@@ -5,6 +5,7 @@ import com.jjktbf.model.character.CharacterType;
 import com.jjktbf.model.character.AbilityConditionData;
 import com.jjktbf.model.character.AbilityConditionType;
 import com.jjktbf.model.character.AbilityEffectType;
+import com.jjktbf.model.move.AttackLaunchMode;
 import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.MoveData;
@@ -24,6 +25,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -251,6 +253,35 @@ class MoveEditorScreenTest {
     }
 
     @Test
+    void saveCopyPreservesDefenseTargetingAndCount() {
+        MoveData draft = new MoveData();
+        draft.tags = new ArrayList<>(List.of(
+            MoveTag.DEFENSIVE.name(), MoveTag.PHYSICAL.name()));
+        draft.defenseType = DefenseType.DODGE.name();
+        draft.defenseTargeting = "SINGLE_ALLY";
+        draft.defenseTargetCount = 4;
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(draft);
+
+        assertEquals("SINGLE_ALLY", saved.defenseTargeting,
+            "Saving must not reset an authored defense targeting back to SELF.");
+        assertEquals(4, saved.defenseTargetCount);
+
+        // A move without the DEFENSIVE tag is normalized back to SELF.
+        MoveData attack = new MoveData();
+        attack.tags = new ArrayList<>(List.of(
+            MoveTag.ATTACK.name(), MoveTag.PHYSICAL.name()));
+        attack.hitComponents = new ArrayList<>();
+        attack.defenseTargeting = "SINGLE_ALLY";
+        attack.defenseTargetCount = 4;
+
+        MoveData savedAttack = MoveEditorScreen.normalizedCopyForSave(attack);
+
+        assertEquals("SELF", savedAttack.defenseTargeting);
+        assertEquals(2, savedAttack.defenseTargetCount);
+    }
+
+    @Test
     void deepCopyPreservesSummonEffectRow() {
         MoveData draft = new MoveData();
         draft.tags = new ArrayList<>(List.of(MoveTag.UTILITY.name()));
@@ -358,7 +389,7 @@ class MoveEditorScreenTest {
     }
 
     @Test
-    void categoryTagsMustDescribeOneExecutableMovePurpose() {
+    void categoryTagsAllowDefenceAttackAndUtilityHybrids() {
         MoveData attack = new MoveData();
         attack.tags = new ArrayList<>(List.of(MoveTag.ATTACK.name()));
         assertEquals("An Attack needs a Physical, Cursed Energy, or Technique tag.",
@@ -367,13 +398,31 @@ class MoveEditorScreenTest {
         attack.tags.add(MoveTag.PHYSICAL.name());
         assertNull(MoveEditorScreen.categoryTagValidationError(attack));
 
+        // UTILITY combines with ATTACK: the on-fire rows live in the UTILITY section.
         attack.tags.add(MoveTag.UTILITY.name());
-        assertEquals("Select exactly one of Attack, Utility, or Defensive.",
+        assertNull(MoveEditorScreen.categoryTagValidationError(attack));
+
+        // ATTACK combines with DEFENSIVE: the hybrid needs a defence type like
+        // any other defensive move, but the tag combination itself is valid.
+        attack.tags.add(MoveTag.DEFENSIVE.name());
+        assertEquals("A Defensive move needs a defense type (Block, Parry, or Dodge) or a coded self effect.",
             MoveEditorScreen.categoryTagValidationError(attack));
+        attack.defenseType = DefenseType.BLOCK.name();
+        assertNull(MoveEditorScreen.categoryTagValidationError(attack));
+
+        MoveData none = new MoveData();
+        none.tags = new ArrayList<>(List.of(MoveTag.PHYSICAL.name()));
+        assertEquals("Select at least one of Attack, Utility, or Defensive.",
+            MoveEditorScreen.categoryTagValidationError(none));
 
         MoveData defense = new MoveData();
         defense.tags = new ArrayList<>(List.of(MoveTag.DEFENSIVE.name()));
         defense.defenseType = DefenseType.NONE.name();
+        assertEquals("A Defensive move needs a defense type (Block, Parry, or Dodge) or a coded self effect.",
+            MoveEditorScreen.categoryTagValidationError(defense));
+
+        // UTILITY combines with DEFENSIVE the same way.
+        defense.tags.add(MoveTag.UTILITY.name());
         assertEquals("A Defensive move needs a defense type (Block, Parry, or Dodge) or a coded self effect.",
             MoveEditorScreen.categoryTagValidationError(defense));
     }
@@ -398,17 +447,133 @@ class MoveEditorScreenTest {
     }
 
     @Test
-    void recordSectionsPrioritizeAttackThenDefenseThenUtility() {
+    void recordSectionsPrioritizeDefenseThenAttackThenUtility() {
         MoveData move = new MoveData();
         move.tags = new ArrayList<>(List.of(
             MoveTag.ATTACK.name(), MoveTag.DEFENSIVE.name(), MoveTag.UTILITY.name()));
-        assertEquals("ATTACK", MoveEditorScreen.moveRecordSection(move));
-
-        move.tags.remove(MoveTag.ATTACK.name());
+        // Defence wins over attack: the hybrid lists under DEFENSE.
         assertEquals("DEFENSE", MoveEditorScreen.moveRecordSection(move));
 
         move.tags.remove(MoveTag.DEFENSIVE.name());
+        assertEquals("ATTACK", MoveEditorScreen.moveRecordSection(move));
+
+        move.tags.remove(MoveTag.ATTACK.name());
         assertEquals("UTILITY", MoveEditorScreen.moveRecordSection(move));
+    }
+
+    @Test
+    void derivedTimelineIsDefenceFirst() {
+        MoveData hybrid = new MoveData();
+        hybrid.tags = new ArrayList<>(List.of(
+            MoveTag.ATTACK.name(), MoveTag.DEFENSIVE.name(), MoveTag.PHYSICAL.name()));
+        assertEquals("DEFENSIVE", MoveEditorScreen.derivedTimelineName(hybrid));
+
+        hybrid.tags.remove(MoveTag.DEFENSIVE.name());
+        assertEquals("OFFENSIVE", MoveEditorScreen.derivedTimelineName(hybrid));
+
+        MoveData utility = new MoveData();
+        utility.tags = new ArrayList<>(List.of(MoveTag.UTILITY.name()));
+        assertEquals("DEFENSIVE", MoveEditorScreen.derivedTimelineName(utility));
+    }
+
+    @Test
+    void attackLaunchReferenceMustExistAndNotBeSelf() {
+        MoveData move = new MoveData();
+        move.id = "000001";
+        move.tags = new ArrayList<>(List.of(
+            MoveTag.ATTACK.name(), MoveTag.DEFENSIVE.name(), MoveTag.PHYSICAL.name()));
+        move.defenseType = DefenseType.BLOCK.name();
+
+        move.attackLaunchMoveId = "000001";
+        assertEquals("The attack cannot reference the move itself.",
+            MoveEditorScreen.attackLaunchReferenceValidationError(move, List.of(move)));
+
+        move.attackLaunchMoveId = "999999";
+        assertEquals("Referenced attack move 999999 does not exist.",
+            MoveEditorScreen.attackLaunchReferenceValidationError(move, List.of(move)));
+
+        move.attackLaunchMoveId = null;
+        assertNull(MoveEditorScreen.attackLaunchReferenceValidationError(move, List.of(move)));
+
+        MoveData other = new MoveData();
+        other.id = "000002";
+        move.attackLaunchMoveId = "000002";
+        assertNull(MoveEditorScreen.attackLaunchReferenceValidationError(move, List.of(move, other)));
+    }
+
+    @Test
+    void saveCopyPreservesHybridLaunchFieldsAndClearsThemOffHybrids() {
+        MoveData hybrid = new MoveData();
+        hybrid.id = "000001";
+        hybrid.tags = new ArrayList<>(List.of(
+            MoveTag.ATTACK.name(), MoveTag.DEFENSIVE.name(), MoveTag.PHYSICAL.name()));
+        hybrid.defenseType = DefenseType.BLOCK.name();
+        hybrid.attackLaunchMode = AttackLaunchMode.ON_DEFENCE.name();
+        hybrid.attackLaunchCondition = AbilityConditionData.always();
+        hybrid.attackLaunchChanceEnabled = Boolean.TRUE;
+        hybrid.attackLaunchChance = 50;
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(hybrid);
+        assertEquals(AttackLaunchMode.ON_DEFENCE.name(), saved.attackLaunchMode);
+        assertNotNull(saved.attackLaunchCondition);
+        assertEquals(Boolean.TRUE, saved.attackLaunchChanceEnabled);
+        assertEquals(50, saved.attackLaunchChance);
+
+        // Dropping either purpose tag clears the launch settings entirely.
+        hybrid.tags.remove(MoveTag.ATTACK.name());
+        saved = MoveEditorScreen.normalizedCopyForSave(hybrid);
+        assertNull(saved.attackLaunchMode);
+        assertNull(saved.attackLaunchCondition);
+        assertNull(saved.attackLaunchChanceEnabled);
+        assertNull(saved.attackLaunchChance);
+        assertNull(saved.attackLaunchMoveId);
+    }
+
+    @Test
+    void saveCopyDiscardsOwnAttackFieldsWhenALaunchMoveIsReferenced() {
+        MoveData hybrid = new MoveData();
+        hybrid.id = "000001";
+        hybrid.tags = new ArrayList<>(List.of(
+            MoveTag.ATTACK.name(), MoveTag.DEFENSIVE.name(), MoveTag.PHYSICAL.name()));
+        hybrid.defenseType = DefenseType.BLOCK.name();
+        hybrid.attackLaunchMode = AttackLaunchMode.ON_DEFENCE.name();
+        hybrid.attackLaunchMoveId = "000002";
+        hybrid.basePower = 30;
+        hybrid.hitComponents = new ArrayList<>(List.of(new MoveData.HitComponentData()));
+        MoveEffectData onHit = new MoveEffectData();
+        onHit.type = AbilityEffectType.APPLY_STATUS.name();
+        onHit.trigger = MoveEffectTrigger.ON_HIT.name();
+        onHit.stringValue = StatusEffectType.STAGGER.name();
+        hybrid.effects = new ArrayList<>(List.of(onHit));
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(hybrid);
+
+        assertEquals("000002", saved.attackLaunchMoveId);
+        assertEquals(0, saved.basePower);
+        assertTrue(saved.hitComponents.isEmpty());
+        assertTrue(saved.effects.stream().noneMatch(effect ->
+            MoveEffectTrigger.ON_HIT.name().equalsIgnoreCase(effect.trigger)));
+    }
+
+    @Test
+    void deepCopyDuplicatesHybridLaunchFields() {
+        MoveData hybrid = new MoveData();
+        hybrid.tags = new ArrayList<>(List.of(
+            MoveTag.ATTACK.name(), MoveTag.DEFENSIVE.name(), MoveTag.PHYSICAL.name()));
+        hybrid.attackLaunchMode = AttackLaunchMode.ON_FIRE.name();
+        hybrid.attackLaunchCondition = AbilityConditionData.always();
+        hybrid.attackLaunchChanceEnabled = Boolean.TRUE;
+        hybrid.attackLaunchChance = 75;
+        hybrid.attackLaunchMoveId = "000009";
+
+        MoveData copy = MoveEditorScreen.deepCopy(hybrid);
+
+        assertEquals(AttackLaunchMode.ON_FIRE.name(), copy.attackLaunchMode);
+        assertEquals("000009", copy.attackLaunchMoveId);
+        assertEquals(Integer.valueOf(75), copy.attackLaunchChance);
+        assertNotSame(hybrid.attackLaunchCondition, copy.attackLaunchCondition);
+        copy.attackLaunchCondition.children = new ArrayList<>();
+        assertNull(hybrid.attackLaunchCondition.children);
     }
 
     @Test

@@ -212,6 +212,37 @@ public final class AbilityActivationEngine {
         return chance > 0.0 && (chance >= 1.0 || rng.nextDouble() < chance);
     }
 
+    /**
+     * Evaluate a Defensive+Attack hybrid's attack-launch gate: the authored
+     * condition tree (evaluated against the launch context — the defender and
+     * the attacker it just resolved against, or the fire-time target) plus the
+     * optional chance roll. Mirrors {@link #activateMoveEffect} for the launch
+     * itself rather than an effect row.
+     */
+    public boolean allowsAttackLaunch(
+        BattleState state,
+        BattleCombatant owner,
+        BattleCombatant enemy,
+        Move move,
+        int tick
+    ) {
+        if (move == null) return false;
+        int mastery = TechniqueMasteryResolver.masteryOf(owner);
+        AbilityConditionData resolved = move.getAttackLaunchCondition() == null
+            ? AbilityConditionData.always()
+            : TechniqueMasteryResolver.resolve(move.getAttackLaunchCondition(), mastery);
+        AbilityTrigger trigger = AbilityTrigger.move(
+            move.launchesAttackOnDefence()
+                ? AbilityTrigger.Type.MOVE_BLOCKED : AbilityTrigger.Type.MOVE_USED,
+            owner, enemy, move, tick);
+        if (!evaluateMoveCondition(resolved, owner, enemy, state, trigger, List.of(trigger))) {
+            return false;
+        }
+        if (!move.isAttackLaunchChanceEnabled()) return true;
+        double chance = Math.max(0.0, Math.min(1.0, move.getAttackLaunchChance() / 100.0));
+        return chance > 0.0 && (chance >= 1.0 || rng.nextDouble() < chance);
+    }
+
     private static AbilityTrigger moveEffectTrigger(
         BattleCombatant owner,
         BattleCombatant target,

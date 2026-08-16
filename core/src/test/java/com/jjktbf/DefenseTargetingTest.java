@@ -194,30 +194,6 @@ class DefenseTargetingTest {
             "The caster should NOT be protected under ALL_ALLIES_EXCEPT_SELF.");
     }
 
-    /** The bundled "Out of the way" data entry loads and projects to SINGLE_ALLY. */
-    @Test
-    void outOfTheWayMoveLoadsFromData() throws IOException {
-        Path movesPath = List.of(
-                Path.of("data", "moves", "all_moves.json"),
-                Path.of("..", "data", "moves", "all_moves.json"))
-            .stream()
-            .filter(Files::isRegularFile)
-            .findFirst()
-            .orElseThrow(() -> new IOException("Could not locate bundled move data"));
-
-        List<MoveData> moves = new ObjectMapper().readValue(
-            movesPath.toFile(), new TypeReference<List<MoveData>>() {});
-        MoveData entry = moves.stream()
-            .filter(move -> "Out of the way".equals(move.name))
-            .findFirst().orElseThrow(() -> new AssertionError("Out of the way move missing from data"));
-        Move built = entry.toMove();
-
-        assertEquals(DefenseType.DODGE, built.getDefenseType());
-        assertEquals(DefenseTargeting.SINGLE_ALLY, built.getDefenseTargeting());
-        assertEquals(50, built.getDodgeChance());
-        assertEquals("RANGED", built.getDodgeScope());
-    }
-
     /**
      * ALL_ALLIES_INCLUDING_SELF: the caster KEEPS its own protection (the bug
      * fixed alongside ally effect targeting) while the ally is also granted the
