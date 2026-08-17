@@ -360,7 +360,9 @@ public class ParryDodgeTest {
 
     private static DamageCalculator.DamageResult resolve(
         BattleCombatant attacker, BattleCombatant defender, Move attack) {
-        return DamageCalculator.resolve(attacker, defender, attack, 1, new FixedRandom(0.0), 1);
+        // Tick 2: one after the defence's fire tick, so the ordinary dodge/parry
+        // rules apply (an exact tick match would escalate via a perfect read).
+        return DamageCalculator.resolve(attacker, defender, attack, 2, new FixedRandom(0.0), 1);
     }
 
     private static Move rangedAttack(String id) {

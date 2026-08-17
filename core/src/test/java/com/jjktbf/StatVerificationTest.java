@@ -1074,8 +1074,11 @@ public class StatVerificationTest {
         defenderTimeline.placeAt(block, 1, 0);
         defender.setTimeline(defenderTimeline);
 
+        // Tick 2: one after the block's fire tick, so the ordinary reduction
+        // pipeline applies (an exact tick match would escalate to a perfect
+        // read's full negate).
         DamageCalculator.DamageResult result = DamageCalculator.resolve(
-            attacker, defender, attack, 1, new FixedRandom(0.0), 1
+            attacker, defender, attack, 2, new FixedRandom(0.0), 1
         );
 
         // Baseline stats (all 80, S(80)=80). Full CE. Power = ((80*4+80)/5)*0.85 = 68

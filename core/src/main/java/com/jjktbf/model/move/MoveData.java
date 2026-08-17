@@ -110,6 +110,21 @@ public class MoveData {
     /** PARRY only: AP ticks to stagger the attacker on a successful non-GUARD_BREAK parry. 0 = none. */
     public int     parryStaggerTicks = 0;
 
+    /**
+     * {@link DefenseTiming} enum name: FIXED (default) opens the window at the
+     * fire tick; REACTION arms at the fire tick and triggers on the next
+     * matching incoming attack, opening its window then.
+     */
+    public String  defenseTiming  = "FIXED";
+
+    /**
+     * How many incoming attacks this defence may contest while its window is
+     * active. 0 = unlimited (applies to every matching attack in its window).
+     * Never changes the window's duration — once the cap is spent the defence
+     * stops applying even while the window is still open.
+     */
+    public int     defenseUses    = 0;
+
     /** List of on-hit StatusEffect descriptors */
     public List<StatusEffectData> onHitEffects;
 
@@ -583,6 +598,8 @@ public class MoveData {
             .dodgeChance(dodgeChance)
             .dodgeScope(dodgeScope)
             .parryStaggerTicks(parryStaggerTicks)
+            .defenseTiming(DefenseTiming.fromName(defenseTiming))
+            .defenseUses(defenseUses)
             .requiredTechniqueId(requiredTechniqueId)
             .freeMove(isFreeMove)
             .mustBeGranted(mustBeGranted)
@@ -923,6 +940,8 @@ public class MoveData {
         d.dodgeChance           = move.getDodgeChance();
         d.dodgeScope            = move.getDodgeScope();
         d.parryStaggerTicks     = move.getParryStaggerTicks();
+        d.defenseTiming         = move.getDefenseTiming().name();
+        d.defenseUses           = move.getDefenseUses();
         d.requiredTechniqueId = move.getRequiredTechniqueId();
         d.isFreeMove          = move.isFreeMove();
         d.mustBeGranted       = move.mustBeGranted();

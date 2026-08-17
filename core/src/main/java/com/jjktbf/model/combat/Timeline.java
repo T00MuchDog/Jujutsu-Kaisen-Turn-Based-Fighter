@@ -264,6 +264,9 @@ public class Timeline {
             Move move = s.getMove();
             if (s.isStunned() || s.isTransferred() || (requireFired && !s.hasFired())
                 || move.getDefenseType() != type) continue;
+            if (s.isDefenseUsesExhausted()) continue;
+            // An armed REACTION has no window until it triggers on an incoming attack.
+            if (move.isReactionDefense() && !s.isReactionTriggered()) continue;
             if (incomingMove != null) {
                 if ((type == com.jjktbf.model.move.DefenseType.BLOCK
                         || type == com.jjktbf.model.move.DefenseType.PARRY)
@@ -291,6 +294,9 @@ public class Timeline {
         for (ActionSegment s : segments) {
             Move move = s.getMove();
             if (s.isStunned() || s.isTransferred() || !move.isActiveDefense()) continue;
+            if (s.isDefenseUsesExhausted()) continue;
+            // An armed REACTION has no window until it triggers on an incoming attack.
+            if (move.isReactionDefense() && !s.isReactionTriggered()) continue;
             if (incomingMove != null) {
                 com.jjktbf.model.move.DefenseType dt = move.getDefenseType();
                 if ((dt == com.jjktbf.model.move.DefenseType.BLOCK
@@ -313,6 +319,39 @@ public class Timeline {
     /** Legacy alias kept for callers that query any blocking defense. */
     public ActionSegment activeBlockAt(int tick, Move incomingMove) {
         return activeDefenseAt(tick, incomingMove, com.jjktbf.model.move.DefenseType.BLOCK);
+    }
+
+    /**
+     * Trigger this timeline's armed REACTION defence against an incoming move:
+     * the first fired-but-untriggered reactive defence segment whose tag/scope
+     * coverage matches the incoming move converts into a triggered segment
+     * whose window opens at {@code tick} (for its authored duration), so it
+     * contests the triggering attack and any later impacts its window covers.
+     * One trigger per placement — the armed segment is replaced by its
+     * triggered clone.
+     *
+     * @return the triggered defence segment, or {@code null} when no armed
+     *         reaction matches
+     */
+    public ActionSegment triggerArmedReaction(int tick, Move incomingMove) {
+        for (ActionSegment s : segments) {
+            Move move = s.getMove();
+            if (s.isStunned() || s.isTransferred() || !s.hasFired()
+                || s.isReactionTriggered() || !move.isReactionDefense()
+                || s.isDefenseUsesExhausted()) continue;
+            if (incomingMove != null) {
+                if ((move.getDefenseType() == com.jjktbf.model.move.DefenseType.BLOCK
+                        || move.getDefenseType() == com.jjktbf.model.move.DefenseType.PARRY)
+                        && !incomingMove.coveredByBlockTags(move.getBlockAffectedTags())) continue;
+                if (move.getDefenseType() == com.jjktbf.model.move.DefenseType.DODGE
+                        && !move.dodgeAppliesTo(incomingMove)) continue;
+            }
+            ActionSegment triggered = s.cloneTriggeredAt(tick);
+            segments.remove(s);
+            segments.add(triggered);
+            return triggered;
+        }
+        return null;
     }
 
     public ActionSegment activeBlockAt(

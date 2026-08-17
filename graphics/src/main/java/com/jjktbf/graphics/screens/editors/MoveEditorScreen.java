@@ -45,6 +45,7 @@ import com.jjktbf.model.move.AoeType;
 import com.jjktbf.model.move.AttackLaunchMode;
 import com.jjktbf.model.move.BlockStyle;
 import com.jjktbf.model.move.DefenseTargeting;
+import com.jjktbf.model.move.DefenseTiming;
 import com.jjktbf.model.move.DefenseType;
 import com.jjktbf.model.move.DodgeScope;
 import com.jjktbf.model.move.HitComponent;
@@ -881,11 +882,15 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 clearMasteryProgression(d);
             }
             // A newly-formed Defensive+Attack hybrid defaults to launching its
-            // attack on defence (the signature hybrid behaviour).
+            // attack on defence (the signature hybrid behaviour), and authors
+            // its custom attack as hit components — seed the component list
+            // from any legacy base power so the attack card opens in component
+            // mode instead of the legacy single-hit field.
             if (tags.contains(MoveTag.DEFENSIVE) && tags.contains(MoveTag.ATTACK)) {
                 if (AttackLaunchMode.fromName(d.attackLaunchMode) == null) {
                     d.attackLaunchMode = AttackLaunchMode.ON_DEFENCE.name();
                 }
+                enableHitComponentEditing(d);
             }
             if (d.hitComponents != null && tags.contains(MoveTag.ATTACK)) {
                 if (typeTagsChanged && !selectedTypeTags.isEmpty()) {
@@ -1850,6 +1855,25 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         }
     }
 
+    /**
+     * Shared timing + activation-cap rows, appended by every defence-type
+     * builder: when the window opens (FIXED vs REACTION) and how many incoming
+     * attacks the defence may contest inside that window (0 = unlimited).
+     */
+    private void addDefenseTimingAndUsesFields(Table t, MoveData d) {
+        t.add(labelledRow("Timing", new EnumSelectBox<>(
+            DefenseTiming.class, d.defenseTiming, false,
+            s -> { d.defenseTiming = s; }, skin))).growX().row();
+        t.add(formHint("REACTION arms at the fire tick and triggers on the next matching "
+            + "incoming attack, opening its window then (once per placement).")).row();
+
+        t.add(labelledIntField("Defense Uses (0 = unlimited)",
+                d.defenseUses, 0, 99999,
+                v -> { d.defenseUses = v; })).growX().row();
+        t.add(formHint("Activations allowed while the window is active — it caps "
+            + "contests, never the duration.")).row();
+    }
+
     private Actor buildBlockFields(MoveData d) {
         Table t = new Table(skin);
         t.defaults().left().pad(4);
@@ -1879,6 +1903,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         // Affected tags — multi-toggle
         t.add(new Label("Affected Tags (blank = all)", skin)).padTop(4).row();
         t.add(buildBlockTagToggles(d)).growX().row();
+
+        addDefenseTimingAndUsesFields(t, d);
         return t;
     }
 
@@ -1907,6 +1933,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 d.parryStaggerTicks, 0, 99999,
                 v -> { d.parryStaggerTicks = v; })).growX().row();
         t.add(formHint("Applied only when the parried move lacks the GUARD_BREAK tag.")).row();
+
+        addDefenseTimingAndUsesFields(t, d);
         return t;
     }
 
@@ -1934,6 +1962,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 d.blockDuration, -1, 99999,
                 v -> { d.blockDuration = v; })).growX().row();
         t.add(formHint("Dodge is chance-based and ignores potency.")).row();
+
+        addDefenseTimingAndUsesFields(t, d);
         return t;
     }
 

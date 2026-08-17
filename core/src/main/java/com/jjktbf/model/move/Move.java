@@ -173,6 +173,23 @@ public class Move {
     private final int parryStaggerTicks;
 
     /**
+     * When this defence's window opens. {@link DefenseTiming#FIXED} (the
+     * default) opens it at the fire tick; {@link DefenseTiming#REACTION} arms
+     * at the fire tick and triggers on the next matching incoming attack.
+     */
+    private final DefenseTiming defenseTiming;
+
+    /**
+     * How many incoming attacks this defence may contest while its window is
+     * active. 0 = unlimited (the historical behaviour: it applies to every
+     * matching attack inside its window). A positive value only restricts
+     * within the window — it never extends or shortens the window's duration;
+     * once the cap is spent the defence simply stops applying even though its
+     * window is still open.
+     */
+    private final int defenseUses;
+
+    /**
      * Whose timeline this defensive move's active-defense window is conferred
      * to at fire time. {@link DefenseTargeting#SELF} (the default) preserves the
      * historical behaviour of protecting the caster; the ally modes grant a fired
@@ -329,6 +346,8 @@ public class Move {
         this.dodgeChance          = b.dodgeChance;
         this.dodgeScope           = b.dodgeScope;
         this.parryStaggerTicks    = b.parryStaggerTicks;
+        this.defenseTiming        = b.defenseTiming != null ? b.defenseTiming : DefenseTiming.FIXED;
+        this.defenseUses          = b.defenseUses;
         this.defenseTargeting     = resolveDefenseTargeting(b);
         this.defenseTargetCount   = b.defenseTargetCount;
         this.selfEffects         = Collections.unmodifiableList(b.selfEffects);
@@ -396,8 +415,17 @@ public class Move {
         if (builder.hitComponentsExplicit) {
             return List.copyOf(builder.hitComponents);
         }
-        if (builder.category == MoveCategory.UTILITY || builder.category == MoveCategory.DEFENSIVE) {
+        if (builder.category == MoveCategory.UTILITY) {
             return List.of();
+        }
+        if (builder.category == MoveCategory.DEFENSIVE) {
+            // A hybrid may author its custom attack the legacy way (move-level
+            // base power): synthesize the fallback component from the hybrid's
+            // damage-nature tags. A pure defence has no attack at all.
+            if (!builder.synthesizesLegacyComponent()) return List.of();
+            return List.of(new HitComponent(
+                builder.basePower, builder.legacyHybridDamageTags(), 0, false, true,
+                builder.baseAccuracy, builder.onHitEffects));
         }
         // Legacy single-component path: seed the synthesized fallback component
         // with the builder-level on-hit effects and accuracy so existing
@@ -462,6 +490,11 @@ public class Move {
     public int getDodgeChance()                   { return dodgeChance; }
     public String getDodgeScope()                 { return dodgeScope; }
     public int getParryStaggerTicks()             { return parryStaggerTicks; }
+    public DefenseTiming getDefenseTiming()       { return defenseTiming; }
+    /** True for a REACTION-timing defence (arms at fire, triggers on an incoming attack). */
+    public boolean isReactionDefense()            { return defenseTiming == DefenseTiming.REACTION; }
+    /** Activations allowed inside the defence window; 0 = unlimited. */
+    public int getDefenseUses()                   { return defenseUses; }
     /** Whose timeline this defensive move's window is conferred to (SELF for non-defensive moves). */
     public DefenseTargeting getDefenseTargeting() { return defenseTargeting; }
     /** Ally count for {@link DefenseTargeting#MULTIPLE_ALLIES}; ignored otherwise. */
@@ -881,6 +914,8 @@ public class Move {
         private int dodgeChance                = 0;
         private String dodgeScope              = "BOTH";
         private int parryStaggerTicks          = 0;
+        private DefenseTiming defenseTiming    = DefenseTiming.FIXED;
+        private int defenseUses                = 0;
         private DefenseTargeting defenseTargeting = DefenseTargeting.SELF;
         private int defenseTargetCount          = 2;
         /**
@@ -945,6 +980,8 @@ public class Move {
         public Builder dodgeChance(int v)                  { this.dodgeChance = v; return this; }
         public Builder dodgeScope(String v)                { this.dodgeScope = v; return this; }
         public Builder parryStaggerTicks(int v)            { this.parryStaggerTicks = v; return this; }
+        public Builder defenseTiming(DefenseTiming v)      { this.defenseTiming = v; return this; }
+        public Builder defenseUses(int v)                  { this.defenseUses = v; return this; }
         /** Set whose timeline this defensive move's window is conferred to. Only meaningful on defensive moves. */
         public Builder defenseTargeting(DefenseTargeting v) { this.defenseTargeting = v; return this; }
         /** Set the ally count for {@link DefenseTargeting#MULTIPLE_ALLIES}. Must be ≥ 2 when used. */
@@ -1031,6 +1068,18 @@ public class Move {
                     "MULTIPLE_ALLIES defense targeting requires defenseTargetCount >= 2 (name='" + name + "')");
             }
 
+            // Defence timing and uses only take effect on an active defence;
+            // reject them elsewhere so an authoring slip can't silently apply.
+            if (defenseUses < 0) {
+                throw new IllegalStateException(
+                    "defenseUses must be non-negative (name='" + name + "')");
+            }
+            if (category != MoveCategory.DEFENSIVE
+                && (defenseTiming != DefenseTiming.FIXED || defenseUses != 0)) {
+                throw new IllegalStateException(
+                    "defenseTiming/defenseUses may only be set on a defensive move (name='" + name + "')");
+            }
+
             validateAttackLaunch();
             validateHitComponents();
             validateMoveEffects();
@@ -1087,7 +1136,7 @@ public class Move {
             java.util.Set<String> ids = new java.util.HashSet<>();
             int hitCount = hitComponentsExplicit
                 ? hitComponents.size()
-                : category == MoveCategory.UTILITY || category == MoveCategory.DEFENSIVE ? 0 : 1;
+                : synthesizesLegacyComponent() ? 1 : 0;
             boolean masteryEligible = effectiveTags().contains(MoveTag.INNATE_TECHNIQUE);
             for (int index = 0; index < rows.size(); index++) {
                 MoveEffectData effect = rows.get(index);
@@ -1137,6 +1186,32 @@ public class Move {
         }
 
         /**
+         * True when the legacy single-component path synthesizes a fallback
+         * component for this move: every damaging move, and — since hybrids
+         * carry an attack — a Defensive+Attack hybrid authored with move-level
+         * base power instead of explicit hit components.
+         */
+        private boolean synthesizesLegacyComponent() {
+            if (hitComponentsExplicit) return false;
+            if (category == MoveCategory.UTILITY) return false;
+            if (category == MoveCategory.DEFENSIVE) {
+                return effectiveTags().contains(MoveTag.ATTACK)
+                    && basePower > 0
+                    && !legacyHybridDamageTags().isEmpty();
+            }
+            return true;
+        }
+
+        /** Damage-nature tags of a legacy-authored hybrid's synthesized component. */
+        private EnumSet<MoveTag> legacyHybridDamageTags() {
+            EnumSet<MoveTag> damageTags = EnumSet.noneOf(MoveTag.class);
+            for (MoveTag tag : effectiveTags()) {
+                if (MoveTag.TYPE_TAGS.contains(tag)) damageTags.add(tag);
+            }
+            return damageTags;
+        }
+
+        /**
          * A Defensive+Attack hybrid (DEFENSIVE category + ATTACK tag) must say
          * when its attack launches, and only hybrids may carry launch settings.
          */
@@ -1167,7 +1242,9 @@ public class Move {
                 && effectiveTags().contains(MoveTag.ATTACK);
             if (hybrid) {
                 boolean references = attackLaunchMoveId != null && !attackLaunchMoveId.isBlank();
-                boolean hasComponents = hitComponentsExplicit && !hitComponents.isEmpty();
+                boolean hasComponents = hitComponentsExplicit
+                    ? !hitComponents.isEmpty()
+                    : synthesizesLegacyComponent();
                 if (references && hasComponents) {
                     throw new IllegalStateException(
                         "A hybrid cannot both reference a move and define hit components (name='"

@@ -3,6 +3,8 @@ package com.jjktbf;
 import com.jjktbf.model.character.AbilityConditionData;
 import com.jjktbf.model.character.AbilityConditionActor;
 import com.jjktbf.model.character.AbilityConditionType;
+import com.jjktbf.model.character.AbilityEffectTarget;
+import com.jjktbf.model.character.AbilityEffectType;
 import com.jjktbf.model.character.CharacterStats;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.combat.BattleCombatant;
@@ -19,6 +21,8 @@ import com.jjktbf.model.move.HitComponent;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveData;
+import com.jjktbf.model.move.MoveEffectData;
+import com.jjktbf.model.move.MoveEffectTrigger;
 import com.jjktbf.model.move.MoveTag;
 import org.junit.jupiter.api.Test;
 
@@ -318,6 +322,83 @@ class DefenceAttackHybridTest {
         assertEquals("000002", cycleA.getAttackLaunchMove().getId());
         assertEquals("000001", cycleA.getAttackLaunchMove().getAttackLaunchMove().getId());
         assertNull(cycleA.getAttackLaunchMove().getAttackLaunchMove().getAttackLaunchMove());
+    }
+
+    /**
+     * A hybrid may author its custom attack the legacy way — move-level base
+     * power, no explicit hit components. The builder synthesizes the fallback
+     * component from the hybrid's damage-nature tags, exactly like the legacy
+     * path for plain attack moves.
+     */
+    @Test
+    void legacyBasePowerHybridSynthesizesItsCustomAttack() {
+        Move hybrid = new Move.Builder("LEGACY")
+            .name("Legacy Riposte").category(MoveCategory.DEFENSIVE)
+            .tags(Set.of(MoveTag.DEFENSIVE, MoveTag.ATTACK, MoveTag.PHYSICAL))
+            .apCost(2).unleashPoint(1).neverMiss(true)
+            .defenseType(DefenseType.BLOCK).blockDuration(10)
+            .basePower(30).baseAccuracy(1.0)
+            .attackLaunchMode(AttackLaunchMode.ON_DEFENCE)
+            .build();
+
+        assertEquals(1, hybrid.getHitComponents().size());
+        assertEquals(30, hybrid.getHitComponents().get(0).getBasePower());
+        assertTrue(hybrid.getHitComponents().get(0).getTags()
+            .contains(MoveTag.PHYSICAL), "The synthesized component carries the move's damage nature.");
+        assertTrue(hybrid.launchesAttackOnDefence());
+
+        // A legacy hybrid without any authored power still names the problem.
+        IllegalStateException noAttack = assertThrows(IllegalStateException.class,
+            () -> new Move.Builder("LEGACY_EMPTY")
+                .name("Empty Legacy").category(MoveCategory.DEFENSIVE)
+                .tags(Set.of(MoveTag.DEFENSIVE, MoveTag.ATTACK, MoveTag.PHYSICAL))
+                .apCost(2).unleashPoint(1)
+                .defenseType(DefenseType.BLOCK)
+                .attackLaunchMode(AttackLaunchMode.ON_DEFENCE)
+                .build());
+        assertTrue(noAttack.getMessage().contains("must define hit components or reference"));
+    }
+
+    /** The legacy hybrid counts as an attacking move for ON_HIT effect rows. */
+    @Test
+    void legacyHybridAllowsOnHitEffectRows() {
+        MoveEffectData stun = AbilityEffectType.STUN_CURRENT_ACTION.createDefaultMoveEffect();
+        stun.trigger = MoveEffectTrigger.ON_HIT.name();
+        stun.target = AbilityEffectTarget.ENEMY.name();
+
+        Move hybrid = new Move.Builder("LEGACY_ON_HIT")
+            .name("Stunning Riposte").category(MoveCategory.DEFENSIVE)
+            .tags(Set.of(MoveTag.DEFENSIVE, MoveTag.ATTACK, MoveTag.PHYSICAL))
+            .apCost(2).unleashPoint(1).neverMiss(true)
+            .defenseType(DefenseType.BLOCK).blockDuration(10)
+            .basePower(30)
+            .attackLaunchMode(AttackLaunchMode.ON_DEFENCE)
+            .effects(List.of(stun))
+            .build();
+
+        assertEquals(1, hybrid.getHitComponents().size());
+        assertEquals(1, hybrid.effectsFor(MoveEffectTrigger.ON_HIT, -1).size());
+    }
+
+    /** MoveData in the legacy shape (base power, no component list) builds too. */
+    @Test
+    void legacyShapedMoveDataBuildsAHybrid() {
+        MoveData data = new MoveData();
+        data.id = "000010";
+        data.name = "Legacy Hybrid";
+        data.tags = List.of(
+            MoveTag.DEFENSIVE.name(), MoveTag.ATTACK.name(), MoveTag.PHYSICAL.name());
+        data.defenseType = DefenseType.BLOCK.name();
+        data.blockDuration = 10;
+        data.apCost = 2;
+        data.unleashPoint = 1;
+        data.basePower = 40;
+        data.attackLaunchMode = AttackLaunchMode.ON_DEFENCE.name();
+
+        Move built = data.toMove();
+        assertEquals(1, built.getHitComponents().size());
+        assertEquals(40, built.getHitComponents().get(0).getBasePower());
+        assertTrue(built.launchesAttackOnDefence());
     }
 
     // ----- helpers -----

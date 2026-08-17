@@ -54,6 +54,12 @@ public final class DamageCalculator {
     /** Low end of the random damage roll (±15% variance). */
     private static final double ROLL_MIN     = 0.85;
 
+    /**
+     * Perfect-read parry bonus: extra stagger ticks applied when a parry's
+     * fire tick exactly matches the incoming impact tick.
+     */
+    private static final int PERFECT_PARRY_BONUS_STAGGER_TICKS = 2;
+
     private DamageCalculator() {}
 
     /**
@@ -178,8 +184,16 @@ public final class DamageCalculator {
                         TechniqueMasteryResolver.masteryOf(defender));
                     boolean canAvoid = neverMissTier == 0 || dodgeTier > neverMissTier;
                     int chance = Math.max(0, Math.min(100, dodgeSeg.getMove().getDodgeChance()));
-                    if (canAvoid && (chance >= 100 || rng.nextDouble() < chance / 100.0)) {
-                        return DamageResult.dodged(move, component, dodgeSeg, List.of());
+                    if (canAvoid) {
+                        // Taking the roll spends one of the dodge's activations,
+                        // successful or not — the defence activated; the roll is
+                        // what can fail.
+                        dodgeSeg.consumeDefenseUse();
+                        boolean perfect = isPerfectRead(dodgeSeg, currentTick);
+                        if (perfect || chance >= 100 || rng.nextDouble() < chance / 100.0) {
+                            return DamageResult.dodged(move, component, dodgeSeg, List.of())
+                                .withPerfectRead(perfect);
+                        }
                     }
                 }
             }
@@ -239,11 +253,15 @@ public final class DamageCalculator {
                 currentTick, move, component, com.jjktbf.model.move.DefenseType.PARRY,
                 requireFiredDefense);
             if (parrySeg != null && parrySeg.getMove().getPotency() >= move.getPotency()) {
+                parrySeg.consumeDefenseUse();
+                boolean perfect = isPerfectRead(parrySeg, currentTick);
                 boolean stagger = parrySeg.getMove().parryStaggersAttacker(move);
                 int staggerTicks = stagger ? parrySeg.getMove().getParryStaggerTicks() : 0;
+                if (perfect && stagger) staggerTicks += PERFECT_PARRY_BONUS_STAGGER_TICKS;
                 return DamageResult.parried(
                     move, component, parrySeg, staggerTicks, codedModifiers.events())
-                    .withRecoil(codedModifiers.recoilDamage());
+                    .withRecoil(codedModifiers.recoilDamage())
+                    .withPerfectRead(perfect);
             }
         }
 
@@ -267,6 +285,14 @@ public final class DamageCalculator {
                 activeBlockSegment = blk;
             }
         }
+        // Contesting with the block spends one of its activations. A perfect
+        // read (fire tick == this impact tick) escalates to a full negate for
+        // both block styles.
+        boolean perfectBlock = false;
+        if (activeBlockSegment != null) {
+            activeBlockSegment.consumeDefenseUse();
+            perfectBlock = isPerfectRead(activeBlockSegment, currentTick);
+        }
 
         // --- 3. Power ---
         // PHYSICAL-category Power is dampened (PHYSICAL_POWER_MULTIPLIER < 1.0):
@@ -286,6 +312,12 @@ public final class DamageCalculator {
             * attacker.getAbilityFlags().basePowerMultiplierFor(move)
             * power;
         if (activeBlockSegment != null) {
+            if (perfectBlock) {
+                return DamageResult.blocked(
+                    move, component, activeBlockSegment, codedModifiers.events())
+                    .withRecoil(codedModifiers.recoilDamage())
+                    .withPerfectRead(true);
+            }
             attackValue = activeBlockSegment.getMove().applyBlockTo(attackValue);
             if (attackValue == 0) {
                 return DamageResult.blocked(
@@ -337,6 +369,19 @@ public final class DamageCalculator {
     }
 
     /**
+     * A perfect read: a FIXED-timing defence whose fire tick exactly matches
+     * this component's impact tick — the wielder read not just the attack but
+     * the tick it lands on. A triggered REACTION never qualifies: it bought
+     * timing certainty (arm now, fire when attacked) rather than predicting
+     * the tick, so it escalates nothing.
+     */
+    private static boolean isPerfectRead(ActionSegment defense, int impactTick) {
+        return defense != null
+            && !defense.isReactionTriggered()
+            && defense.getFireTick() == impactTick;
+    }
+
+    /**
      * Compatibility overload for callers that still supply {@link Random}.
      */
     public static DamageResult resolve(
@@ -379,6 +424,13 @@ public final class DamageCalculator {
         /** For a PARRIED result: ticks to stagger the attacker (0 = no stagger). */
         private final int parryStaggerTicks;
         private final int recoilDamage;
+        /**
+         * True when the resolving defence was a perfect read — its fire tick
+         * exactly matched this component's impact tick — and therefore
+         * escalated (block/parry negate fully, dodge auto-succeeds, parry
+         * staggers longer). Only meaningful on defence outcomes.
+         */
+        private final boolean perfectRead;
 
         private DamageResult(
             Outcome outcome,
@@ -393,6 +445,25 @@ public final class DamageCalculator {
             int parryStaggerTicks,
             int recoilDamage
         ) {
+            this(outcome, move, component, finalDamage, rawDamage, blackFlash,
+                bypassedBlock, codedEvents, defenseSegment, parryStaggerTicks,
+                recoilDamage, false);
+        }
+
+        private DamageResult(
+            Outcome outcome,
+            Move move,
+            HitComponent component,
+            int finalDamage,
+            int rawDamage,
+            boolean blackFlash,
+            boolean bypassedBlock,
+            List<CombatEvent> codedEvents,
+            ActionSegment defenseSegment,
+            int parryStaggerTicks,
+            int recoilDamage,
+            boolean perfectRead
+        ) {
             this.outcome     = outcome;
             this.move        = move;
             this.component   = component;
@@ -404,6 +475,7 @@ public final class DamageCalculator {
             this.defenseSegment = defenseSegment;
             this.parryStaggerTicks = parryStaggerTicks;
             this.recoilDamage = Math.max(0, recoilDamage);
+            this.perfectRead = perfectRead;
         }
 
         public static DamageResult miss(Move move) {
@@ -498,7 +570,14 @@ public final class DamageCalculator {
             if (recoilDamage <= 0) return this;
             return new DamageResult(outcome, move, component, finalDamage, rawDamage,
                 blackFlash, bypassedBlock, codedEvents, defenseSegment,
-                parryStaggerTicks, recoilDamage);
+                parryStaggerTicks, recoilDamage, perfectRead);
+        }
+
+        private DamageResult withPerfectRead(boolean perfectRead) {
+            if (!perfectRead) return this;
+            return new DamageResult(outcome, move, component, finalDamage, rawDamage,
+                blackFlash, bypassedBlock, codedEvents, defenseSegment,
+                parryStaggerTicks, recoilDamage, true);
         }
 
         public Outcome getOutcome()     { return outcome; }
@@ -512,6 +591,8 @@ public final class DamageCalculator {
         public ActionSegment getDefenseSegment() { return defenseSegment; }
         public int getParryStaggerTicks() { return parryStaggerTicks; }
         public int getRecoilDamage() { return recoilDamage; }
+        /** True when the resolving defence escalated via an exact-tick perfect read. */
+        public boolean isPerfectRead() { return perfectRead; }
         public boolean isHit()          { return outcome == Outcome.HIT; }
         public boolean isMiss()         { return outcome == Outcome.MISS; }
         public boolean isBlocked()      { return outcome == Outcome.BLOCKED; }

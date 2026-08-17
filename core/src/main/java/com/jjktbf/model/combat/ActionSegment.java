@@ -38,6 +38,21 @@ public class ActionSegment {
     private boolean      transferred;    // set true when a defensive segment's protection has been conferred onto another combatant's timeline (ally targeting)
 
     /**
+     * Set when an armed REACTION defence converts into a triggered window.
+     * A triggered reaction counts as fired and opens its window anchored at
+     * the trigger tick — and is excluded from perfect-read escalation, since
+     * a reaction buys timing certainty rather than predicting the exact tick.
+     */
+    private boolean      reactionTriggered;
+
+    /**
+     * Remaining activations of this defence inside its window. Lazily
+     * initialised from {@link Move#getDefenseUses()} on first consumption:
+     * -1 means "no cap authored / nothing consumed yet".
+     */
+    private int          remainingDefenseUses = -1;
+
+    /**
      * The CE cost actually charged for this segment (after efficiency scaling).
      * Stored here because CE is drained when the segment's startTick is reached.
      */
@@ -155,6 +170,46 @@ public class ActionSegment {
         ActionSegment copy = new ActionSegment(move, startTick, actualCeCost);
         copy.fired = true;
         return copy;
+    }
+
+    /**
+     * Create a fired, reaction-triggered copy of this armed REACTION segment,
+     * with its fire tick anchored at the trigger tick so the authored window
+     * opens from the moment the defence reacts. The triggered clone starts
+     * with a fresh (lazily initialised) uses counter — an armed reaction has
+     * consumed nothing before it triggers.
+     */
+    public ActionSegment cloneTriggeredAt(int tick) {
+        // Anchor so fireTick == tick; clamping to tick 1 only shifts the
+        // window start slightly earlier in the extreme early-tick edge case,
+        // which is harmless for a defence that is already fired.
+        int start = Math.max(1, tick - move.getUnleashPoint() + 1);
+        ActionSegment copy = new ActionSegment(move, start, actualCeCost);
+        copy.fired = true;
+        copy.reactionTriggered = true;
+        return copy;
+    }
+
+    /** True once this REACTION segment's defence has triggered into an active window. */
+    public boolean isReactionTriggered() { return reactionTriggered; }
+
+    /** Mark this segment as a triggered reaction (see {@link #cloneTriggeredAt(int)}). */
+    public void markReactionTriggered() { this.reactionTriggered = true; }
+
+    /**
+     * True when this defence segment has spent all of its authored activations
+     * ({@code defenseUses}). A defence without a cap never exhausts.
+     */
+    public boolean isDefenseUsesExhausted() {
+        if (move.getDefenseUses() <= 0 || remainingDefenseUses < 0) return false;
+        return remainingDefenseUses == 0;
+    }
+
+    /** Spend one of this segment's authored defence activations (no-op when uncapped). */
+    public void consumeDefenseUse() {
+        if (move.getDefenseUses() <= 0) return;
+        if (remainingDefenseUses < 0) remainingDefenseUses = move.getDefenseUses();
+        if (remainingDefenseUses > 0) remainingDefenseUses--;
     }
 
     /**

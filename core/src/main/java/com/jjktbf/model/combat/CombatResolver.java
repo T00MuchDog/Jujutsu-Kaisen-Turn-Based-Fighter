@@ -1276,6 +1276,23 @@ public class CombatResolver {
     ) {
         Move move = execution.entry.segment.getMove();
         BattleCombatant attacker = execution.entry.attacker;
+
+        // An armed REACTION defence converts into a triggered window the moment
+        // a hostile component is about to resolve against its wielder. The
+        // triggered clone is already fired, so it contests this very attack
+        // under the normal requireFiredDefense gate.
+        Timeline defenderTimeline = defender.getTimeline();
+        if (defenderTimeline != null) {
+            ActionSegment reaction = defenderTimeline.triggerArmedReaction(tick, move);
+            if (reaction != null) {
+                events.add(CombatEvent.of(CombatEvent.Type.MOVE_FIRED)
+                    .source(defender).move(reaction.getMove()).tick(tick)
+                    .message(defender.getCharacter().getName() + "'s "
+                        + reaction.getMove().getName() + " reacted to " + move.getName() + "!")
+                    .build());
+            }
+        }
+
         DamageCalculator.DamageResult result = DamageCalculator.resolve(
             attacker, defender, move, component, tick, rng,
             state.getRoundNumber(), Boolean.TRUE.equals(
@@ -1313,7 +1330,8 @@ public class CombatResolver {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_DODGED)
                 .source(attacker).target(defender).move(move).componentIndex(componentIndex)
                 .tick(tick)
-                .message(defender.getCharacter().getName() + " dodged " + move.getName() + "!")
+                .message((result.isPerfectRead() ? "PERFECT READ! " : "")
+                    + defender.getCharacter().getName() + " dodged " + move.getName() + "!")
                 .build());
             applyDefenseEffects(state, defender, attacker, defenseMove,
                 MoveEffectTrigger.ON_DODGE,
@@ -1327,7 +1345,8 @@ public class CombatResolver {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_PARRIED)
                 .source(attacker).target(defender).move(move).componentIndex(componentIndex)
                 .tick(tick)
-                .message(defender.getCharacter().getName() + " parried " + move.getName() + "!")
+                .message((result.isPerfectRead() ? "PERFECT READ! " : "")
+                    + defender.getCharacter().getName() + " parried " + move.getName() + "!")
                 .build());
             if (result.staggersAttacker()) {
                 attacker.addStatusEffect(
@@ -1355,7 +1374,8 @@ public class CombatResolver {
             events.add(CombatEvent.of(CombatEvent.Type.MOVE_BLOCKED)
                 .source(attacker).target(defender).move(move).componentIndex(componentIndex)
                 .tick(tick)
-                .message(defender.getCharacter().getName() + " blocked " + move.getName() + "!")
+                .message((result.isPerfectRead() ? "PERFECT READ! " : "")
+                    + defender.getCharacter().getName() + " blocked " + move.getName() + "!")
                 .build());
             applyDefenseEffects(state, defender, attacker, defenseMove,
                 MoveEffectTrigger.ON_BLOCK,
@@ -1380,8 +1400,8 @@ public class CombatResolver {
                 .source(attacker).target(defender).move(move).componentIndex(componentIndex)
                 .tick(tick)
                 .message(defender.getCharacter().getName()
-                         + " blocked " + move.getName() + "! (damage reduced)"
-                         + hitQualifier(move, componentIndex))
+                    + " blocked " + move.getName() + "! (damage reduced)"
+                    + hitQualifier(move, componentIndex))
                 .build());
             Move defenseMove = defenseMove(result);
             applyDefenseEffects(state, defender, attacker, defenseMove,
