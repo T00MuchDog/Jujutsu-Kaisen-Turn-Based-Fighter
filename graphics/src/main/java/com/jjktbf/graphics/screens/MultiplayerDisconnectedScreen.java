@@ -68,13 +68,13 @@ public final class MultiplayerDisconnectedScreen extends MultiplayerScreenBase {
 
         reconnectButton = button("RECONNECT", "primary", this::reconnect);
         backButton = button("BACK", "default", this::back);
-        card.add(reconnectButton).growX().height(46f).pad(4f).row();
-        card.add(backButton).growX().height(46f).pad(4f).row();
+        card.add(reconnectButton).growX().height(multiplayerButtonHeight()).pad(4f).row();
+        card.add(backButton).growX().height(multiplayerButtonHeight()).pad(4f).row();
 
         ScrollPane scroll = new AxisLockedScrollPane(card, assets.editorSkin);
         scroll.setFadeScrollBars(false);
         scroll.setScrollingDisabled(true, false);
-        root.add(scroll).grow().maxWidth(780f).padTop(16f).row();
+        root.add(scroll).grow().maxWidth(windowsLayout ? 1170f : 780f).padTop(16f).row();
     }
 
     @Override

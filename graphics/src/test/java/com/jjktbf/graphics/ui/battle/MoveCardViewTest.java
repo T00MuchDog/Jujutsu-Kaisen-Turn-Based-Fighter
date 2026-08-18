@@ -19,6 +19,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MoveCardViewTest {
 
     @Test
+    void windowsGeometryEnlargesCardBoundsWithoutChangingDefaultBounds() {
+        Move move = moveWithTags("ATTACK", "PHYSICAL");
+
+        MoveCardView defaultCard = new MoveCardView(move, 0f, 0f);
+        MoveCardView windowsCard = new MoveCardView(move, 0f, 0f, 1.5f);
+
+        assertEquals(240f, defaultCard.getBounds().width, 0.0001f);
+        assertEquals(224f, defaultCard.getBounds().height, 0.0001f);
+        assertEquals(360f, windowsCard.getBounds().width, 0.0001f);
+        assertEquals(336f, windowsCard.getBounds().height, 0.0001f);
+    }
+
+    @Test
     void reinforcementDefenseUsesTheDeepLimePalette() {
         Move move = moveWithTags("DEFENSIVE", "PHYSICAL", "CURSED_ENERGY");
 

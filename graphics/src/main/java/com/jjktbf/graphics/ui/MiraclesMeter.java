@@ -16,6 +16,7 @@ public final class MiraclesMeter {
     private float x;
     private float y;
     private float size;
+    private float textGeometryScale = 1f;
     private int imageIndex;
     private int currentValue;
     private int maximumValue;
@@ -31,11 +32,21 @@ public final class MiraclesMeter {
         return timelineHeightForViewport(viewportHeight) * GRAPHIC_SCALE;
     }
 
+    /** Windows overload matching the enlarged timeline and counter label. */
+    public static float sizeForViewport(float viewportHeight, float geometryScale) {
+        return sizeForViewport(viewportHeight) * Math.max(1f, geometryScale);
+    }
+
     /** Positions the square counter graphic. */
     public void setBounds(float x, float y, float size) {
+        setBounds(x, y, size, 1f);
+    }
+
+    public void setBounds(float x, float y, float size, float textGeometryScale) {
         this.x = x;
         this.y = y;
         this.size = size;
+        this.textGeometryScale = Math.max(1f, textGeometryScale);
     }
 
     /** Shows the graphic only when the player has a live Miracles runtime. */
@@ -81,7 +92,8 @@ public final class MiraclesMeter {
         float labelX = x + (size - layout.width) / 2f;
         float labelY = y + Math.max(font.getCapHeight(), size * 0.12f);
         font.setColor(Color.BLACK);
-        font.draw(batch, value, labelX + 2f, labelY - 2f);
+        font.draw(batch, value, labelX + 2f * textGeometryScale,
+            labelY - 2f * textGeometryScale);
         font.setColor(Color.WHITE);
         font.draw(batch, value, labelX, labelY);
         font.setColor(previousFontColor);

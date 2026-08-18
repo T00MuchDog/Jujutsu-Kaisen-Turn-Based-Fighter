@@ -1,5 +1,6 @@
 package com.jjktbf.graphics.ui.editor;
 
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -28,6 +29,12 @@ class MoveAssignmentPanelTest {
         assertTrue(MoveAssignmentPanel.matchesSearch(item, ""));
         assertTrue(MoveAssignmentPanel.matchesSearch(item, "   "));
         assertTrue(MoveAssignmentPanel.matchesSearch(item, null));
+    }
+
+    @Test
+    void windowsStacksAssignmentGroupsForNarrowEditors() {
+        assertEquals(2, MoveAssignmentPanel.columnRowCount(UiProfile.WINDOWS));
+        assertEquals(1, MoveAssignmentPanel.columnRowCount(UiProfile.MAC));
     }
 
     @Test

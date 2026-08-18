@@ -175,7 +175,7 @@ public class JJKGame extends Game {
                 + " UI layout: " + failure.getMessage() + "; using defaults.");
             battleUiLayout = BattleUiLayout.defaults(launchOptions.uiProfile());
         }
-        assets = new AssetLoader();
+        assets = new AssetLoader(launchOptions.uiProfile());
         assets.load();
         audio = new GameAudio();
         if (AppPaths.isAuthoringMode()) {

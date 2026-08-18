@@ -102,6 +102,22 @@ class BattleScreenSpriteBoundsTest {
     }
 
     @Test
+    void windowsHudWidthIsConstrainedAfterScaling() {
+        float inwardOffset = 44.8f + 23.04f;
+        float width = BattleScreen.scaledHudWidth(
+            600f, 1.25f, 1280f, 32f, 12f, inwardOffset, true);
+        assertEquals(534.16f, width, 0.0001f);
+        float availableCenterGap = 1280f - 64f - width * 2f;
+        float shift = Math.min(44.8f, (availableCenterGap - 12f) / 2f);
+        assertEquals(12f,
+            availableCenterGap - (shift + 23.04f) * 2f, 0.0001f);
+        assertEquals(750f,
+            BattleScreen.scaledHudWidth(
+                600f, 1.25f, 1280f, 32f, 12f, inwardOffset, false),
+            0.0001f);
+    }
+
+    @Test
     void speedControlsAlignAboveTheNextRoundButton() {
         Rectangle nextRound = new Rectangle(800f, 17f, 210f, 54f);
         Rectangle fastForward = new Rectangle();
@@ -115,6 +131,18 @@ class BattleScreenSpriteBoundsTest {
         assertEquals(nextRound.x + nextRound.width, skip.x + skip.width, 0.0001f);
         assertTrue(fastForward.y > nextRound.y + nextRound.height);
         assertTrue(skip.y + skip.height < 153f);
+    }
+
+    @Test
+    void windowsNextRoundGeometryDoesNotEnlargeSpeedIcons() {
+        Rectangle nextRound = new Rectangle(900f, 21f, 315f, 81f);
+        Rectangle fastForward = new Rectangle();
+        Rectangle skip = new Rectangle();
+
+        BattleScreen.layoutSpeedControls(nextRound, 218f, fastForward, skip);
+
+        assertEquals(54f, fastForward.width, 0.0001f);
+        assertEquals(54f, skip.width, 0.0001f);
     }
 
     @Test

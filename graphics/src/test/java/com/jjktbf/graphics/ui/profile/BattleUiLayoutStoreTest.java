@@ -28,7 +28,55 @@ class BattleUiLayoutStoreTest {
         assertEquals(982, mac.referenceHeight);
         assertEquals(2560, windows.referenceWidth);
         assertEquals(1440, windows.referenceHeight);
+        assertEquals(1f, mac.execution.textGeometryScale, 0.0001f);
+        assertEquals(1f, mac.planner.textGeometryScale, 0.0001f);
+        assertEquals(1.5f, windows.execution.textGeometryScale, 0.0001f);
+        assertEquals(1.5f, windows.planner.textGeometryScale, 0.0001f);
+        assertEquals(217.5f, windows.execution.logHeightMax, 0.0001f);
+        assertEquals(162f, windows.execution.hudHeightMax, 0.0001f);
+        assertEquals(315f, windows.execution.nextRoundWidthMax, 0.0001f);
+        assertEquals(87f, windows.planner.headerHeight, 0.0001f);
+        assertEquals(213f, windows.planner.lockButtonWidth, 0.0001f);
         assertNotSame(mac.execution, windows.execution);
+    }
+
+    @Test
+    void defaultsKeepMacGeometryAndApplyWindowsFallbacks() {
+        BattleUiLayout mac = BattleUiLayout.defaults(UiProfile.MAC);
+        BattleUiLayout windows = BattleUiLayout.defaults(UiProfile.WINDOWS);
+
+        assertEquals(145f, mac.execution.logHeightMax, 0.0001f);
+        assertEquals(108f, mac.execution.hudHeightMax, 0.0001f);
+        assertEquals(58f, mac.planner.headerHeight, 0.0001f);
+        assertEquals(1f, mac.planner.textGeometryScale, 0.0001f);
+        assertEquals(217.5f, windows.execution.logHeightMax, 0.0001f);
+        assertEquals(162f, windows.execution.hudHeightMax, 0.0001f);
+        assertEquals(87f, windows.planner.headerHeight, 0.0001f);
+        assertEquals(1.5f, windows.planner.textGeometryScale, 0.0001f);
+    }
+
+    @Test
+    void profileTextGeometryInvariantIsValidated() {
+        BattleUiLayout windows = BattleUiLayout.defaults(UiProfile.WINDOWS);
+        windows.planner.textGeometryScale = 1f;
+
+        assertThrows(IllegalArgumentException.class,
+            () -> windows.validate(UiProfile.WINDOWS));
+    }
+
+    @Test
+    void omittedAdditiveSchemaOneFieldsResolveToWindowsFallbacks() {
+        BattleUiLayout windows = BattleUiLayout.defaults(UiProfile.WINDOWS);
+        windows.execution.textGeometryScale = 0f;
+        windows.planner.textGeometryScale = 0f;
+        windows.planner.shortViewportHeightThreshold = 0f;
+
+        windows.validate(UiProfile.WINDOWS);
+
+        assertEquals(1.5f, windows.execution.textGeometryScale, 0.0001f);
+        assertEquals(1.5f, windows.planner.textGeometryScale, 0.0001f);
+        assertEquals(800f, windows.planner.shortViewportHeightThreshold, 0.0001f);
+        assertEquals(272f, windows.planner.shortMoveCardHeight, 0.0001f);
     }
 
     @Test

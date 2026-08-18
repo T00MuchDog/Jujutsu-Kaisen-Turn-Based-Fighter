@@ -103,9 +103,9 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
         Table actions = new Table(assets.editorSkin);
         refreshButton = button("REFRESH", "primary", this::refresh);
         backButton = button("BACK", "default", this::requestBack);
-        actions.add(refreshButton).growX().height(46f).pad(4f);
-        actions.add(backButton).growX().height(46f).pad(4f);
-        root.add(actions).growX().maxWidth(620f).padTop(8f).row();
+        actions.add(refreshButton).growX().height(multiplayerButtonHeight()).pad(4f);
+        actions.add(backButton).growX().height(multiplayerButtonHeight()).pad(4f);
+        root.add(actions).growX().maxWidth(windowsLayout ? 930f : 620f).padTop(8f).row();
     }
 
     @Override
@@ -288,7 +288,10 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
         TextButton join = button("JOIN", "primary", () -> joinChallenge(challenge));
         joinButtons.add(join);
         card.add(info).growX().left();
-        card.add(join).width(118f).height(46f).right().padLeft(12f);
+        card.add(join)
+            .width(windowsLayout ? 177f : 118f)
+            .height(multiplayerButtonHeight())
+            .right().padLeft(12f);
         challengeRows.add(card).growX().pad(5f).row();
     }
 

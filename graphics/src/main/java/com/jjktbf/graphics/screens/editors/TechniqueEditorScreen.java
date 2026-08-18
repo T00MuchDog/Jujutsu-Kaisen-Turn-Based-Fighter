@@ -195,6 +195,7 @@ public class TechniqueEditorScreen extends EditorScreenBase<InnateTechniqueData>
             message -> setStatus(message, false),
             null,
             game.audio()::play,
+            uiProfile,
             skin);
         ScrollPane scroll = new AxisLockedScrollPane(canvas, skin);
         scroll.setFadeScrollBars(false);

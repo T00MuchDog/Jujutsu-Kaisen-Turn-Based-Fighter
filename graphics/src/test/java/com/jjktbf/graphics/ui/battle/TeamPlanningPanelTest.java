@@ -2,6 +2,8 @@ package com.jjktbf.graphics.ui.battle;
 
 import com.badlogic.gdx.Input;
 import com.jjktbf.graphics.multiplayer.TargetListSupport;
+import com.jjktbf.graphics.ui.profile.BattleUiLayout;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleTeamId;
 import com.jjktbf.model.combat.CombatantId;
@@ -120,6 +122,19 @@ class TeamPlanningPanelTest {
         panel.nextPage();
         assertEquals(List.of("enemy-1"),
             panel.activePlanningPanel().getSelectedTargetIds(second));
+    }
+
+    @Test
+    void windowsTeamNavigationOwnsASeparateHeaderRegion() {
+        TeamPlanningPanel panel = panel(move("FIRST"), move("SECOND"));
+
+        panel.setLayout(BattleUiLayout.defaults(UiProfile.WINDOWS));
+        TeamPlanningPanel.HeaderRegions regions = panel.headerRegions();
+
+        assertFalse(regions.genericTitleVisible());
+        assertFalse(regions.previous().overlaps(regions.next()));
+        assertFalse(regions.previous().overlaps(regions.pageLabel()));
+        assertFalse(regions.next().overlaps(regions.pageLabel()));
     }
 
     private static TeamPlanningPanel panel(Move first, Move second) {

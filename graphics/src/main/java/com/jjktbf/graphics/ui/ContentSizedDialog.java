@@ -4,14 +4,26 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.jjktbf.graphics.ui.profile.UiProfile;
+
+import java.util.Objects;
 
 /** A dialog that follows its content's preferred size while it is open. */
 public class ContentSizedDialog extends Dialog {
 
     private static final float VIEWPORT_MARGIN = 12f;
+    private static final float WINDOWS_VIEWPORT_MARGIN = 18f;
+
+    private final float viewportMargin;
 
     public ContentSizedDialog(String title, Skin skin) {
+        this(title, skin, UiProfile.MAC);
+    }
+
+    public ContentSizedDialog(String title, Skin skin, UiProfile uiProfile) {
         super(title, skin);
+        viewportMargin = Objects.requireNonNull(uiProfile, "uiProfile") == UiProfile.WINDOWS
+            ? WINDOWS_VIEWPORT_MARGIN : VIEWPORT_MARGIN;
     }
 
     @Override
@@ -37,7 +49,7 @@ public class ContentSizedDialog extends Dialog {
     }
 
     private void resizeToContent(Stage stage, boolean centerOnStage) {
-        float margin = Math.min(VIEWPORT_MARGIN,
+        float margin = Math.min(viewportMargin,
             Math.min(stage.getWidth(), stage.getHeight()) / 2f);
         float width = Math.min(getPrefWidth(), Math.max(0f, stage.getWidth() - margin * 2f));
         float height = Math.min(getPrefHeight(), Math.max(0f, stage.getHeight() - margin * 2f));

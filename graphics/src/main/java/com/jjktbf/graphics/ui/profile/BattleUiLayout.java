@@ -39,7 +39,61 @@ public final class BattleUiLayout {
         layout.profile = profile.name();
         layout.referenceWidth = profile.defaultReferenceWidth();
         layout.referenceHeight = profile.defaultReferenceHeight();
+        layout.execution.textGeometryScale = profile == UiProfile.WINDOWS ? 1.5f : 1f;
+        layout.planner.textGeometryScale = profile == UiProfile.WINDOWS ? 1.5f : 1f;
+        if (profile == UiProfile.WINDOWS) {
+            layout.applyWindowsTextGeometry();
+        }
         return layout;
+    }
+
+    private void applyWindowsTextGeometry() {
+        execution.textGeometryScale = 1.5f;
+        execution.logHeightFraction = 0.33f;
+        execution.logHeightMin = 150f;
+        execution.logHeightMax = 217.5f;
+        execution.hudWidthFraction = 0.60f;
+        execution.hudWidthMin = 225f;
+        execution.hudWidthMax = 645f;
+        execution.hudHeightFraction = 0.435f;
+        execution.hudHeightMin = 123f;
+        execution.hudHeightMax = 162f;
+        execution.nextRoundWidthFraction = 0.30f;
+        execution.nextRoundWidthMin = 225f;
+        execution.nextRoundWidthMax = 315f;
+        execution.nextRoundHeightMax = 81f;
+        execution.nextRoundVerticalPadding = 36f;
+        execution.nextRoundInset = 21f;
+
+        planner.textGeometryScale = 1.5f;
+        planner.headerHeight = 87f;
+        planner.compactHeaderHeight = 177f;
+        planner.lockButtonWidth = 213f;
+        planner.lockButtonHorizontalInset = 21f;
+        planner.lockButtonVerticalInset = 15f;
+        planner.compactLockButtonWidth = 138f;
+        planner.compactLockButtonHeight = 42f;
+        planner.compactLockButtonRightInset = 18f;
+        planner.compactLockButtonTopInset = 18f;
+        planner.emptyActorNameReservedHeight = 36f;
+        planner.actorNameReservedHeight = 84f;
+        planner.timelineLabelWidthFraction = 0.18f;
+        planner.timelineLabelWidthMin = 162f;
+        planner.timelineLabelWidthMax = 225f;
+        planner.shortViewportHeightThreshold = 800f;
+        planner.shortMoveCardWidth = 300f;
+        planner.shortMoveCardHeight = 272f;
+        planner.shortTimelineHeight = 64f;
+        planner.shortPaletteBoardGap = 18f;
+        planner.shortActorNameReservedHeight = 60f;
+        planner.shortBoardGap = 18f;
+        planner.shortMiraclesSize = 108f;
+        planner.miraclesSideGap = 14f;
+    }
+
+    /** Returns the canonical enum represented by the serialized profile name. */
+    public UiProfile storedProfile() {
+        return UiProfile.parse(profile);
     }
 
     public void validate(UiProfile expectedProfile) {
@@ -47,7 +101,7 @@ public final class BattleUiLayout {
             throw new IllegalArgumentException(
                 "Unsupported battle UI layout schema " + schemaVersion);
         }
-        UiProfile storedProfile = UiProfile.parse(profile);
+        UiProfile storedProfile = storedProfile();
         if (storedProfile != expectedProfile) {
             throw new IllegalArgumentException(
                 "Layout for " + storedProfile + " cannot be loaded as " + expectedProfile);
@@ -62,8 +116,34 @@ public final class BattleUiLayout {
         }
         if (execution == null) throw new IllegalArgumentException("execution layout is required");
         if (planner == null) throw new IllegalArgumentException("planner layout is required");
+        float requiredTextGeometryScale = storedProfile == UiProfile.WINDOWS ? 1.5f : 1f;
+        // Schema 1 permits additive fields to be omitted; resolve those omissions
+        // before validating explicit profile invariants.
+        if (execution.textGeometryScale == 0f) {
+            execution.textGeometryScale = requiredTextGeometryScale;
+        }
+        if (planner.textGeometryScale == 0f) {
+            planner.textGeometryScale = requiredTextGeometryScale;
+        }
+        if (storedProfile == UiProfile.WINDOWS
+            && planner.shortViewportHeightThreshold == 0f) {
+            planner.shortViewportHeightThreshold = 800f;
+            planner.shortMoveCardWidth = 300f;
+            planner.shortMoveCardHeight = 272f;
+            planner.shortTimelineHeight = 64f;
+            planner.shortPaletteBoardGap = 18f;
+            planner.shortActorNameReservedHeight = 60f;
+            planner.shortBoardGap = 18f;
+            planner.shortMiraclesSize = 108f;
+            planner.miraclesSideGap = 14f;
+        }
         execution.validate();
         planner.validate();
+        if (execution.textGeometryScale != requiredTextGeometryScale
+            || planner.textGeometryScale != requiredTextGeometryScale) {
+            throw new IllegalArgumentException(storedProfile
+                + " battle text geometry scale must be " + requiredTextGeometryScale);
+        }
     }
 
     private static void requireRange(String name, float value, float minimum, float maximum) {
@@ -87,6 +167,7 @@ public final class BattleUiLayout {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static final class Execution {
+        public float textGeometryScale;
         public float outerMarginFraction = 0.035f;
         public float outerMarginMin = 16f;
         public float outerMarginMax = 32f;
@@ -149,6 +230,7 @@ public final class BattleUiLayout {
         }
 
         private Execution(Execution source) {
+            textGeometryScale = source.textGeometryScale;
             outerMarginFraction = source.outerMarginFraction;
             outerMarginMin = source.outerMarginMin;
             outerMarginMax = source.outerMarginMax;
@@ -206,6 +288,7 @@ public final class BattleUiLayout {
         }
 
         private void validate() {
+            requireRange("execution.textGeometryScale", textGeometryScale, 1f, 3f);
             requireRange("execution.outerMarginFraction", outerMarginFraction, 0f, 0.25f);
             requireRange("execution.outerMarginMin", outerMarginMin, 0f, 300f);
             requireRange("execution.outerMarginMax", outerMarginMax, 0f, 500f);
@@ -277,6 +360,7 @@ public final class BattleUiLayout {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static final class Planner {
+        public float textGeometryScale;
         public float marginFraction = 0.045f;
         public float marginMin = 18f;
         public float marginMax = 34f;
@@ -301,11 +385,21 @@ public final class BattleUiLayout {
         public float miraclesTopGap = 16f;
         public float miraclesBottomGap = 16f;
         public float compactMiraclesBottomGap = 28f;
+        public float shortViewportHeightThreshold = 0f;
+        public float shortMoveCardWidth = 240f;
+        public float shortMoveCardHeight = 224f;
+        public float shortTimelineHeight = 54f;
+        public float shortPaletteBoardGap = 18f;
+        public float shortActorNameReservedHeight = 56f;
+        public float shortBoardGap = 18f;
+        public float shortMiraclesSize = 108f;
+        public float miraclesSideGap = 14f;
 
         public Planner() {
         }
 
         private Planner(Planner source) {
+            textGeometryScale = source.textGeometryScale;
             marginFraction = source.marginFraction;
             marginMin = source.marginMin;
             marginMax = source.marginMax;
@@ -330,9 +424,19 @@ public final class BattleUiLayout {
             miraclesTopGap = source.miraclesTopGap;
             miraclesBottomGap = source.miraclesBottomGap;
             compactMiraclesBottomGap = source.compactMiraclesBottomGap;
+            shortViewportHeightThreshold = source.shortViewportHeightThreshold;
+            shortMoveCardWidth = source.shortMoveCardWidth;
+            shortMoveCardHeight = source.shortMoveCardHeight;
+            shortTimelineHeight = source.shortTimelineHeight;
+            shortPaletteBoardGap = source.shortPaletteBoardGap;
+            shortActorNameReservedHeight = source.shortActorNameReservedHeight;
+            shortBoardGap = source.shortBoardGap;
+            shortMiraclesSize = source.shortMiraclesSize;
+            miraclesSideGap = source.miraclesSideGap;
         }
 
         private void validate() {
+            requireRange("planner.textGeometryScale", textGeometryScale, 1f, 3f);
             requireRange("planner.marginFraction", marginFraction, 0f, 0.25f);
             requireRange("planner.marginMin", marginMin, 0f, 300f);
             requireRange("planner.marginMax", marginMax, 0f, 600f);
@@ -360,6 +464,17 @@ public final class BattleUiLayout {
             requireRange("planner.miraclesTopGap", miraclesTopGap, 0f, 500f);
             requireRange("planner.miraclesBottomGap", miraclesBottomGap, 0f, 500f);
             requireRange("planner.compactMiraclesBottomGap", compactMiraclesBottomGap, 0f, 500f);
+            requireRange("planner.shortViewportHeightThreshold",
+                shortViewportHeightThreshold, 0f, 2500f);
+            requireRange("planner.shortMoveCardWidth", shortMoveCardWidth, 100f, 1000f);
+            requireRange("planner.shortMoveCardHeight", shortMoveCardHeight, 100f, 1000f);
+            requireRange("planner.shortTimelineHeight", shortTimelineHeight, 20f, 300f);
+            requireRange("planner.shortPaletteBoardGap", shortPaletteBoardGap, 0f, 300f);
+            requireRange("planner.shortActorNameReservedHeight",
+                shortActorNameReservedHeight, 0f, 500f);
+            requireRange("planner.shortBoardGap", shortBoardGap, 0f, 300f);
+            requireRange("planner.shortMiraclesSize", shortMiraclesSize, 20f, 500f);
+            requireRange("planner.miraclesSideGap", miraclesSideGap, 0f, 300f);
         }
     }
 }

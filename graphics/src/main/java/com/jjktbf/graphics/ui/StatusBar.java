@@ -17,6 +17,7 @@ public class StatusBar {
 
     private final String label;
     private final Color fillColor;
+    private final float textGeometryScale;
     private final Color healthFillColor = new Color();
 
     private float x;
@@ -32,8 +33,13 @@ public class StatusBar {
     private float displayed = -1f;
 
     public StatusBar(String label, Color fillColor) {
+        this(label, fillColor, 1f);
+    }
+
+    public StatusBar(String label, Color fillColor, float textGeometryScale) {
         this.label = label;
         this.fillColor = fillColor;
+        this.textGeometryScale = Math.max(1f, textGeometryScale);
     }
 
     public void setBounds(float x, float y, float width, float height) {
@@ -72,30 +78,32 @@ public class StatusBar {
     }
 
     public void draw(Batch batch, BitmapFont font, BattleUiAssets ui, boolean showValue) {
-        float labelWidth = Math.max(38f, height * 1.55f);
+        float labelWidth = Math.max(scaled(38f), height * 1.55f);
         float trackX = x + labelWidth;
         float trackWidth = Math.max(1f, width - labelWidth);
+        float edge = scaled(3f);
 
         batch.setColor(BattleUiAssets.INK);
         batch.draw(ui.pixel, x, y, width, height);
         batch.setColor(TRACK_COLOR);
-        batch.draw(ui.pixel, trackX + 3f, y + 3f, trackWidth - 6f, height - 6f);
+        batch.draw(ui.pixel, trackX + edge, y + edge,
+            trackWidth - edge * 2f, height - edge * 2f);
 
-        float fillX = trackX + 3f;
-        float inner = trackWidth - 6f;
-        float fillHeight = height - 6f;
+        float fillX = trackX + edge;
+        float inner = trackWidth - edge * 2f;
+        float fillHeight = height - edge * 2f;
 
         // HP transitions from green through yellow to red as it is depleted.
         float fillWidth = Math.max(0f, inner * current / max);
         batch.setColor(fillColor());
-        batch.draw(ui.pixel, fillX, y + 3f, fillWidth, fillHeight);
+        batch.draw(ui.pixel, fillX, y + edge, fillWidth, fillHeight);
 
         // Damage trail: the portion between current and the still-easing
         // displayed value flashes red, then shrinks away as it catches up.
         if (displayed > current) {
             float trailWidth = Math.max(0f, inner * (displayed - current) / max);
             batch.setColor(DAMAGE_COLOR);
-            batch.draw(ui.pixel, fillX + fillWidth, y + 3f, trailWidth, fillHeight);
+            batch.draw(ui.pixel, fillX + fillWidth, y + edge, trailWidth, fillHeight);
         }
         batch.setColor(Color.WHITE);
 
@@ -105,7 +113,7 @@ public class StatusBar {
         if (showValue) {
             String value = current + "/" + max;
             valueLayout.setText(font, value);
-            float availableValueWidth = Math.max(1f, trackWidth - 12f);
+            float availableValueWidth = Math.max(1f, trackWidth - scaled(12f));
             if (valueLayout.width > availableValueWidth) {
                 float fittedScale = availableValueWidth / valueLayout.width;
                 font.getData().setScale(originalScaleX * fittedScale, originalScaleY * fittedScale);
@@ -119,10 +127,15 @@ public class StatusBar {
         font.draw(batch, label, x + (labelWidth - labelLayout.width) / 2f, textY);
         if (showValue) {
             font.setColor(BattleUiAssets.INK);
-            font.draw(batch, current + "/" + max, x + width - 7f - valueLayout.width, textY);
+            font.draw(batch, current + "/" + max,
+                x + width - scaled(7f) - valueLayout.width, textY);
         }
         font.getData().setScale(originalScaleX, originalScaleY);
         batch.setColor(Color.WHITE);
+    }
+
+    private float scaled(float value) {
+        return value * textGeometryScale;
     }
 
     private Color fillColor() {

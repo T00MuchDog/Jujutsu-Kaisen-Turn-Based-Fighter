@@ -115,6 +115,7 @@ public class BattleScreen implements Screen, BattleView {
     private static final float SKIP_ACTIVE_FLASH_SECONDS = 0.16f;
     private static final float SPEED_CONTROL_GAP = 8f;
     private static final float SPEED_CONTROL_PANEL_INSET = 8f;
+    private static final float SPEED_CONTROL_SIZE_MAX = 54f;
     /**
      * Move-unleash animation length. This is visual-only and does not delay
      * resolution after a move's dialogue finishes.
@@ -776,16 +777,21 @@ public class BattleScreen implements Screen, BattleView {
      * font stays fixed.
      */
     private void drawLog(float sw, float sh) {
+        float textGeometryScale = executionTextGeometryScale();
         assets.battleUi.dialogue.draw(batch, logBounds.x, logBounds.y, logBounds.width, logBounds.height);
         assets.fontSmall.setColor(new Color(0.980f, 0.870f, 0.540f, 1f));
-        assets.fontSmall.draw(batch, "BATTLE LOG", logBounds.x + 14f, logBounds.y + logBounds.height - 14f);
+        assets.fontSmall.draw(batch, "BATTLE LOG",
+            logBounds.x + 14f * textGeometryScale,
+            logBounds.y + logBounds.height - 14f * textGeometryScale);
 
         BitmapFont logFont = assets.fontLog;
         float speedControlSpace = speedControlsVisible()
-            ? logBounds.x + logBounds.width - fastForwardBounds.x + 14f : 0f;
+            ? logBounds.x + logBounds.width - fastForwardBounds.x
+                + 14f * textGeometryScale : 0f;
         float buttonSpace = Math.max(speedControlSpace,
-            awaitingNextRound ? nextRoundBounds.width + 24f : 0f);
-        float textWidth = Math.max(1f, logBounds.width - 28f - buttonSpace);
+            awaitingNextRound ? nextRoundBounds.width + 24f * textGeometryScale : 0f);
+        float textWidth = Math.max(
+            1f, logBounds.width - 28f * textGeometryScale - buttonSpace);
         // Wrap the retained messages to the panel width (fixed font; no scaling).
         List<String> lines = wrapAll(logFont, textWidth);
         // Append the in-progress typing line (newest) — wrapped from the
@@ -797,8 +803,9 @@ public class BattleScreen implements Screen, BattleView {
 
         float lineStep = logFont.getCapHeight() * uiLayout.execution.logLineSpacing;
         // Drawable band inside the panel (below the title, above the baseplate).
-        float bottomY = logBounds.y + 25f;
-        float topY = logBounds.y + logBounds.height - 34f + lineStep;
+        float bottomY = logBounds.y + 25f * textGeometryScale;
+        float topY = logBounds.y + logBounds.height
+            - 34f * textGeometryScale + lineStep;
         float visibleHeight = topY - bottomY;
         float contentHeight = lines.size() * lineStep;
         // Keep the offset within the now-current content range: it can grow
@@ -811,8 +818,9 @@ public class BattleScreen implements Screen, BattleView {
         // (see resize()), so the clip rectangle in world coords maps to pixels.
         // The title is drawn before this push, and the NEXT ROUND button is
         // drawn after this method returns, so neither is affected.
-        Rectangle clip = new Rectangle(logBounds.x + 6f, logBounds.y + 6f,
-            logBounds.width - 12f, logBounds.height - 12f);
+        float clipInset = 6f * textGeometryScale;
+        Rectangle clip = new Rectangle(logBounds.x + clipInset, logBounds.y + clipInset,
+            logBounds.width - clipInset * 2f, logBounds.height - clipInset * 2f);
         float scaleX = Gdx.graphics.getBackBufferWidth() / (float) Gdx.graphics.getWidth();
         float scaleY = Gdx.graphics.getBackBufferHeight() / (float) Gdx.graphics.getHeight();
         boolean pushed = clip.width > 0f && clip.height > 0f;
@@ -833,7 +841,8 @@ public class BattleScreen implements Screen, BattleView {
         try {
             for (int i = lines.size() - 1; i >= 0; i--) {
                 if (y > topY) break;
-                logFont.draw(batch, lines.get(i), logBounds.x + 14f, y);
+                logFont.draw(batch, lines.get(i),
+                    logBounds.x + 14f * textGeometryScale, y);
                 y += lineStep;
             }
             if (pushed) batch.flush();
@@ -861,9 +870,11 @@ public class BattleScreen implements Screen, BattleView {
     private void adjustLogScroll(float rows) {
         if (rows == 0f) return;
         BitmapFont logFont = assets.fontLog;
+        float textGeometryScale = executionTextGeometryScale();
         float lineStep = logFont.getCapHeight() * uiLayout.execution.logLineSpacing;
-        float bottomY = logBounds.y + 25f;
-        float topY = logBounds.y + logBounds.height - 34f + lineStep;
+        float bottomY = logBounds.y + 25f * textGeometryScale;
+        float topY = logBounds.y + logBounds.height
+            - 34f * textGeometryScale + lineStep;
         float visibleHeight = topY - bottomY;
         float contentHeight = (logLines.size()
             + (typingLine != null ? 1 : 0)) * lineStep; // approx; renderer wraps precisely
@@ -1234,20 +1245,25 @@ public class BattleScreen implements Screen, BattleView {
     private void drawBattleOver() {
         float sw = Gdx.graphics.getWidth();
         float sh = Gdx.graphics.getHeight();
+        float textGeometryScale = executionTextGeometryScale();
         batch.begin();
-        float width = Math.min(420f, sw - 48f);
+        float width = Math.min(420f * textGeometryScale, sw - 48f * textGeometryScale);
         float x = (sw - width) / 2f;
         float y = sh * 0.35f;
-        assets.battleUi.header.draw(batch, x, y, width, 200f);
+        assets.battleUi.header.draw(batch, x, y, width, 200f * textGeometryScale);
         assets.fontLarge.setColor(Color.WHITE);
-        assets.fontLarge.draw(batch, "BATTLE OVER", x + 36f, y + 132f);
+        assets.fontLarge.draw(batch, "BATTLE OVER",
+            x + 36f * textGeometryScale, y + 132f * textGeometryScale);
         assets.fontMedium.setColor(Color.YELLOW);
-        assets.fontMedium.draw(batch, battleResult, x + 36f, y + 86f);
+        assets.fontMedium.draw(batch, battleResult,
+            x + 36f * textGeometryScale, y + 86f * textGeometryScale);
         assets.fontSmall.setColor(Color.LIGHT_GRAY);
         if (!battleResultReason.isBlank()) {
-            assets.fontSmall.draw(batch, battleResultReason, x + 36f, y + 57f);
+            assets.fontSmall.draw(batch, battleResultReason,
+                x + 36f * textGeometryScale, y + 57f * textGeometryScale);
         }
-        assets.fontSmall.draw(batch, "ESC: MAIN MENU", x + 36f, y + 28f);
+        assets.fontSmall.draw(batch, "ESC: MAIN MENU",
+            x + 36f * textGeometryScale, y + 28f * textGeometryScale);
         batch.end();
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
@@ -3418,6 +3434,7 @@ public class BattleScreen implements Screen, BattleView {
     /** Recreates all execution widgets from the live viewport after a resize. */
     private void layoutExecutionUi(float width, float height) {
         BattleUiLayout.Execution layout = uiLayout.execution;
+        float textGeometryScale = executionTextGeometryScale();
         float margin = Math.min(layout.outerMarginMax,
             Math.max(layout.outerMarginMin,
                 Math.min(width, height) * layout.outerMarginFraction));
@@ -3439,7 +3456,15 @@ public class BattleScreen implements Screen, BattleView {
             Math.max(layout.hudWidthMin, width * layout.hudWidthFraction));
         fullHudWidth = Math.min(fullHudWidth,
             Math.max(1f, (width - margin * 2f - layout.hudCenterGap) / 2f));
-        fullHudWidth *= layout.hudScale;
+        float requestedHudShift = Math.min(
+            layout.hudSideShiftMax, width * layout.hudSideShiftFraction);
+        float hudHorizontalNudge = Math.min(
+            layout.hudHorizontalNudgeMax,
+            width * layout.hudHorizontalNudgeFraction);
+        fullHudWidth = scaledHudWidth(fullHudWidth, layout.hudScale,
+            width, margin, layout.hudCenterGap,
+            requestedHudShift + hudHorizontalNudge,
+            uiLayout.storedProfile() == UiProfile.WINDOWS);
         float hudHeight = Math.min(layout.hudHeightMax,
             Math.max(layout.hudHeightMin,
                 fieldHeight * layout.hudHeightFraction)) * layout.hudScale;
@@ -3448,11 +3473,8 @@ public class BattleScreen implements Screen, BattleView {
         float hudVerticalNudge = Math.max(0f, playerHudY - playerBottomHudY);
         float availableCenterGap = width - margin * 2f - fullHudWidth * 2f;
         float hudShift = Math.min(
-            Math.min(layout.hudSideShiftMax, width * layout.hudSideShiftFraction),
+            requestedHudShift,
             Math.max(0f, (availableCenterGap - layout.hudCenterGap) / 2f));
-        float hudHorizontalNudge = Math.min(
-            layout.hudHorizontalNudgeMax,
-            width * layout.hudHorizontalNudgeFraction);
         float enemyHudWidth = fullHudWidth * (enemyCount <= 2
             ? 1f : layout.multiCombatantHudWidthScale);
         float playerHudWidth = fullHudWidth * (playerCount <= 2
@@ -3575,20 +3597,24 @@ public class BattleScreen implements Screen, BattleView {
         playerPanel = playerPanels.isEmpty() ? null : playerPanels.get(0);
         remapFaintAnimationPanels();
 
-        float miracleSize = Math.min(MiraclesMeter.sizeForViewport(height),
+        float miracleSize = Math.min(
+            MiraclesMeter.sizeForViewport(height, textGeometryScale),
             Math.min(hudHeight, width * layout.miraclesWidthFraction));
         miraclesMeter.setBounds(
             Math.max(margin, playerHud.x - miracleSize - layout.meterHudGap),
             playerHud.y + (playerHud.height - miracleSize) / 2f,
-            miracleSize
+            miracleSize,
+            textGeometryScale
         );
-        float ratioHeight = Math.min(RatioMeter.heightForViewport(height),
+        float ratioHeight = Math.min(
+            RatioMeter.heightForViewport(height, textGeometryScale),
             Math.min(hudHeight * 0.75f, width * layout.ratioWidthFraction));
         float ratioWidth = RatioMeter.widthForHeight(ratioHeight);
         ratioMeter.setBounds(
             Math.max(margin, playerHud.x - ratioWidth - layout.meterHudGap),
             playerHud.y + (playerHud.height - ratioHeight) / 2f,
-            ratioHeight
+            ratioHeight,
+            textGeometryScale
         );
 
         float nextRoundWidth = Math.min(layout.nextRoundWidthMax,
@@ -3603,7 +3629,7 @@ public class BattleScreen implements Screen, BattleView {
             nextRoundHeight
         );
         layoutSpeedControls(nextRoundBounds, logBounds.y + logBounds.height,
-            fastForwardBounds, skipBounds);
+            SPEED_CONTROL_SIZE_MAX, fastForwardBounds, skipBounds);
         updatePanels();
     }
 
@@ -3613,13 +3639,25 @@ public class BattleScreen implements Screen, BattleView {
         Rectangle fastForward,
         Rectangle skip
     ) {
+        layoutSpeedControls(
+            nextRound, logTop, SPEED_CONTROL_SIZE_MAX, fastForward, skip);
+    }
+
+    private static void layoutSpeedControls(
+        Rectangle nextRound,
+        float logTop,
+        float sizeMaximum,
+        Rectangle fastForward,
+        Rectangle skip
+    ) {
         float availableHeight = Math.max(1f,
             logTop - SPEED_CONTROL_PANEL_INSET
                 - (nextRound.y + nextRound.height)
                 - SPEED_CONTROL_GAP);
         float availableWidth = Math.max(1f,
             (nextRound.width - SPEED_CONTROL_GAP) / 2f);
-        float size = Math.min(nextRound.height, Math.min(availableHeight, availableWidth));
+        float size = Math.min(sizeMaximum,
+            Math.min(nextRound.height, Math.min(availableHeight, availableWidth)));
         float y = nextRound.y + nextRound.height + SPEED_CONTROL_GAP;
         skip.set(nextRound.x + nextRound.width - size, y, size, size);
         fastForward.set(skip.x - SPEED_CONTROL_GAP - size, y, size, size);
@@ -3652,9 +3690,31 @@ public class BattleScreen implements Screen, BattleView {
                 primaryHud.height);
             panels.add(new CombatantPanel(spriteTexture,
                 i == 0 ? assets.stoneBasePlate : null,
-                assets.battleUi, plate, sprite, hud, uiLayout.execution.hudScale, !opponent));
+                assets.battleUi, plate, sprite, hud, uiLayout.execution.hudScale, !opponent,
+                executionTextGeometryScale()));
         }
         return List.copyOf(panels);
+    }
+
+    private float executionTextGeometryScale() {
+        return uiLayout.storedProfile() == UiProfile.WINDOWS
+            ? uiLayout.execution.textGeometryScale : 1f;
+    }
+
+    static float scaledHudWidth(
+        float unscaledWidth,
+        float hudScale,
+        float viewportWidth,
+        float margin,
+        float centerGap,
+        float inwardOffset,
+        boolean constrainAfterScaling
+    ) {
+        float scaledWidth = unscaledWidth * hudScale;
+        if (!constrainAfterScaling) return scaledWidth;
+        return Math.min(scaledWidth,
+            Math.max(1f,
+                (viewportWidth - margin * 2f - centerGap) / 2f - inwardOffset));
     }
 
     private static List<Texture> visibleTeamSprites(List<Texture> teamSprites) {

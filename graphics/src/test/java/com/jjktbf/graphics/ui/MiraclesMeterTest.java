@@ -11,6 +11,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MiraclesMeterTest {
 
     @Test
+    void windowsGeometryEnlargesCounterWithoutEnlargingTimelineBands() {
+        assertEquals(84f, MiraclesMeter.timelineHeightForViewport(1440f), 0.0001f);
+        assertEquals(151.2f, MiraclesMeter.sizeForViewport(1440f), 0.0001f);
+        assertEquals(226.8f, MiraclesMeter.sizeForViewport(1440f, 1.5f), 0.0001f);
+    }
+
+    @Test
     void onlyMiraclesStateSelectsAClampedCounterGraphic() {
         MiraclesMeter meter = new MiraclesMeter();
 

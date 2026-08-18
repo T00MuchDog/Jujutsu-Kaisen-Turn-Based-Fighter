@@ -9,25 +9,35 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.utils.Align;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.model.text.KeywordDescriptionCatalog;
+
+import java.util.Objects;
 
 /** A stage-level popup shared by keyword labels in a clipped editor surface. */
 public final class KeywordTooltip {
 
     private static final float CONTENT_WIDTH = 280f;
+    private static final float WINDOWS_CONTENT_WIDTH = 420f;
 
     private final Table popup;
     private final Label heading;
     private final Label description;
     private final Cell<Label> headingCell;
     private final Cell<Label> descriptionCell;
+    private final float contentWidth;
+    private final float popupHorizontalInset;
     private Actor owner;
 
-    public KeywordTooltip(Skin skin) {
+    public KeywordTooltip(Skin skin, UiProfile uiProfile) {
+        boolean windowsLayout = Objects.requireNonNull(uiProfile, "uiProfile") == UiProfile.WINDOWS;
+        contentWidth = windowsLayout ? WINDOWS_CONTENT_WIDTH : CONTENT_WIDTH;
+        float popupPadding = windowsLayout ? 15f : 10f;
+        popupHorizontalInset = windowsLayout ? 30f : 20f;
         popup = new Table(skin);
         popup.setBackground(skin.getDrawable("battle-card-over"));
         popup.setTouchable(Touchable.disabled);
-        popup.pad(10f);
+        popup.pad(popupPadding);
 
         heading = new Label("", skin, "white");
         heading.setColor(KeywordTextLayout.KEYWORD_ORANGE);
@@ -36,10 +46,10 @@ public final class KeywordTooltip {
         description.setWrap(true);
         description.setAlignment(Align.topLeft);
 
-        headingCell = popup.add(heading).width(CONTENT_WIDTH).left();
+        headingCell = popup.add(heading).width(contentWidth).left();
         popup.row();
         descriptionCell = popup.add(description)
-            .width(CONTENT_WIDTH).left().top().padTop(5f);
+            .width(contentWidth).left().top().padTop(5f);
         popup.row();
     }
 
@@ -58,11 +68,12 @@ public final class KeywordTooltip {
         owner = source;
         heading.setText(displayedTerm);
         description.setText(entry.description());
-        float contentWidth = Math.max(1f, Math.min(CONTENT_WIDTH, stage.getWidth() - 20f));
-        headingCell.width(contentWidth);
-        descriptionCell.width(contentWidth);
-        heading.setWidth(contentWidth);
-        description.setWidth(contentWidth);
+        float availableContentWidth = Math.max(1f,
+            Math.min(contentWidth, stage.getWidth() - popupHorizontalInset));
+        headingCell.width(availableContentWidth);
+        descriptionCell.width(availableContentWidth);
+        heading.setWidth(availableContentWidth);
+        description.setWidth(availableContentWidth);
         description.invalidateHierarchy();
         popup.invalidateHierarchy();
         popup.pack();

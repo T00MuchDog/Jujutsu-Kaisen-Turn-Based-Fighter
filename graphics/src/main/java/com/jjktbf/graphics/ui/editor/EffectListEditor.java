@@ -14,6 +14,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.ContentSizedDialog;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectParameter;
@@ -65,6 +66,8 @@ public class EffectListEditor extends Table {
     private final boolean passiveAbility;
     private final List<AbilityEffectType> availableTypes;
     private final boolean moveEffectEditor;
+    private final UiProfile uiProfile;
+    private final boolean windowsLayout;
 
     public EffectListEditor(
         List<AbilityEffectData> effects,
@@ -77,13 +80,14 @@ public class EffectListEditor extends Table {
         Consumer<SoundCue> soundPlayer,
         boolean masteryEligible,
         boolean passiveAbility,
+        UiProfile uiProfile,
         Skin skin
     ) {
         this(effects, moves, abilities, techniques, characters, onDirty,
             requestRebuild, soundPlayer, masteryEligible, passiveAbility,
             java.util.Arrays.stream(AbilityEffectType.values())
                 .filter(type -> !type.isMoveOnly())
-                .toList(), false, skin);
+                .toList(), false, uiProfile, skin);
     }
 
     public EffectListEditor(
@@ -99,6 +103,7 @@ public class EffectListEditor extends Table {
         boolean passiveAbility,
         List<AbilityEffectType> availableTypes,
         boolean moveEffectEditor,
+        UiProfile uiProfile,
         Skin skin
     ) {
         super(skin);
@@ -116,6 +121,8 @@ public class EffectListEditor extends Table {
         this.availableTypes = availableTypes == null || availableTypes.isEmpty()
             ? List.of(AbilityEffectType.APPLY_STATUS) : List.copyOf(availableTypes);
         this.moveEffectEditor = moveEffectEditor;
+        this.uiProfile = uiProfile;
+        this.windowsLayout = uiProfile == UiProfile.WINDOWS;
 
         listContainer = new Container<>();
         listContainer.fill(true, false);
@@ -177,7 +184,7 @@ public class EffectListEditor extends Table {
         AbilityEffectType initialType = safeType(working.type);
         initialType.prepare(working);
 
-        SelectBox<String> typeBox = new DynamicSelectBox<>(skin);
+        SelectBox<String> typeBox = new DynamicSelectBox<>(skin, uiProfile);
         typeBox.setItems(effectTypeLabels());
         typeBox.setSelected(initialType.displayName());
 
@@ -206,16 +213,19 @@ public class EffectListEditor extends Table {
             }
         });
 
-        ContentSizedDialog dialog = new ContentSizedDialog(adding ? "Add Effect" : "Edit Effect", skin);
+        ContentSizedDialog dialog = new ContentSizedDialog(
+            adding ? "Add Effect" : "Edit Effect",
+            skin,
+            uiProfile);
         Table content = dialog.getContentTable();
         content.defaults().pad(4).left().growX();
         content.add(new Label("Effect", skin)).padRight(8);
         content.add(typeBox).growX().row();
-        content.add(hint).colspan(2).width(440).growX().row();
+        addDialogLabel(content, hint);
         ScrollPane fieldsScroll = verticalScrollPane(fieldsContainer);
-        content.add(fieldsScroll).colspan(2).minHeight(120f)
+        content.add(fieldsScroll).colspan(2).minHeight(windowsLayout ? 180f : 120f)
             .maxHeight(effectDialogScrollHeight()).growX().row();
-        content.add(error).colspan(2).width(440).growX().row();
+        addDialogLabel(content, error);
 
         TextButton done = new TextButton("Done", skin);
         done.addListener(new ChangeListener() {
@@ -284,8 +294,22 @@ public class EffectListEditor extends Table {
     }
 
     private float effectDialogScrollHeight() {
-        float viewportHeight = getStage() == null ? 720f : getStage().getHeight();
+        float viewportHeight = getStage() == null
+            ? windowsLayout ? 1080f : 720f
+            : getStage().getHeight();
+        if (windowsLayout) {
+            return Math.max(120f, Math.min(840f, viewportHeight - 240f));
+        }
         return Math.max(180f, Math.min(560f, viewportHeight - 220f));
+    }
+
+    private void addDialogLabel(Table content, Label label) {
+        if (windowsLayout) {
+            content.add(label).colspan(2).minWidth(0f).prefWidth(660f)
+                .maxWidth(660f).growX().row();
+        } else {
+            content.add(label).colspan(2).width(440f).growX().row();
+        }
     }
 
     private Actor buildFields(
@@ -311,7 +335,7 @@ public class EffectListEditor extends Table {
             List<CodedAbilityRegistry.AbilityFeature> features =
                 CodedAbilityRegistry.abilityFeatures();
             CodedAbilityRegistry.AbilityFeature selected = codedFeature(effect);
-            SelectBox<String> featureBox = new DynamicSelectBox<>(skin);
+            SelectBox<String> featureBox = new DynamicSelectBox<>(skin, uiProfile);
             featureBox.setItems(features.stream()
                 .map(CodedAbilityRegistry.AbilityFeature::label)
                 .toArray(String[]::new));
@@ -352,7 +376,7 @@ public class EffectListEditor extends Table {
             List<CodedAbilityRegistry.EffectAction> actions =
                 CodedAbilityRegistry.effectActions();
             CodedAbilityRegistry.EffectAction selected = codedAction(effect);
-            SelectBox<String> actionBox = new DynamicSelectBox<>(skin);
+            SelectBox<String> actionBox = new DynamicSelectBox<>(skin, uiProfile);
             actionBox.setItems(actions.stream()
                 .map(CodedAbilityRegistry.EffectAction::label)
                 .toArray(String[]::new));
@@ -380,7 +404,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.STAT)) {
-            SelectBox<String> statBox = new DynamicSelectBox<>(skin);
+            SelectBox<String> statBox = new DynamicSelectBox<>(skin, uiProfile);
             statBox.setItems(statLabels());
             statBox.setSelected(statLabel(effect.stat));
             effect.stat = statFromLabel(statBox.getSelected()).fieldName;
@@ -393,7 +417,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.BATTLE_STAT)) {
-            SelectBox<String> statBox = new DynamicSelectBox<>(skin);
+            SelectBox<String> statBox = new DynamicSelectBox<>(skin, uiProfile);
             statBox.setItems(java.util.Arrays.stream(BattleStatKey.values())
                 .map(stat -> stat.label).toArray(String[]::new));
             statBox.setSelected(battleStatLabel(effect.stringValue));
@@ -407,7 +431,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.MOVE_SCOPE)) {
-            SelectBox<String> scopeBox = new DynamicSelectBox<>(skin);
+            SelectBox<String> scopeBox = new DynamicSelectBox<>(skin, uiProfile);
             scopeBox.setItems(moveScopeLabels(type != AbilityEffectType.LOCK_MOVE_TAG));
             scopeBox.setSelected(moveScopeLabel(effect.moveTag));
             effect.moveTag = ALL_MOVES.equals(scopeBox.getSelected())
@@ -450,7 +474,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.MOVE_ID)) {
-            SelectBox<String> moveBox = new DynamicSelectBox<>(skin);
+            SelectBox<String> moveBox = new DynamicSelectBox<>(skin, uiProfile);
             moveBox.setItems(moveReferenceLabels(effect.moveId));
             moveBox.setSelected(moveReferenceLabel(effect.moveId));
             moveBox.addListener(new ChangeListener() {
@@ -462,7 +486,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.ABILITY_ID)) {
-            SelectBox<String> abilityBox = new DynamicSelectBox<>(skin);
+            SelectBox<String> abilityBox = new DynamicSelectBox<>(skin, uiProfile);
             abilityBox.setItems(abilityReferenceLabels(effect.abilityId));
             abilityBox.setSelected(abilityReferenceLabel(effect.abilityId));
             abilityBox.addListener(new ChangeListener() {
@@ -474,7 +498,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.CHARACTER_ID)) {
-            SelectBox<String> characterBox = new DynamicSelectBox<>(skin);
+            SelectBox<String> characterBox = new DynamicSelectBox<>(skin, uiProfile);
             characterBox.setItems(shikigamiReferenceLabels(effect.characterId));
             characterBox.setSelected(shikigamiReferenceLabel(effect.characterId));
             characterBox.addListener(new ChangeListener() {
@@ -486,7 +510,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.TECHNIQUE)) {
-            SelectBox<String> techniqueBox = new DynamicSelectBox<>(skin);
+            SelectBox<String> techniqueBox = new DynamicSelectBox<>(skin, uiProfile);
             techniqueBox.setItems(techniqueLabels(effect.stringValue));
             techniqueBox.setSelected(techniqueLabel(effect.stringValue));
             techniqueBox.addListener(new ChangeListener() {
@@ -498,7 +522,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.STATUS_TYPE)) {
-            SelectBox<String> statusBox = new DynamicSelectBox<>(skin);
+            SelectBox<String> statusBox = new DynamicSelectBox<>(skin, uiProfile);
             List<String> statuses = new ArrayList<>(AbilityEffectType.supportedAutoStatuses().stream()
                 .map(StatusEffectType::displayName)
                 .toList());
@@ -532,7 +556,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.TARGET)) {
-            SelectBox<String> targetBox = new DynamicSelectBox<>(skin);
+            SelectBox<String> targetBox = new DynamicSelectBox<>(skin, uiProfile);
             String self = moveEffectEditor ? "Move user" : AbilityEffectTarget.SELF.name();
             String enemy = moveEffectEditor ? "Move target" : AbilityEffectTarget.ENEMY.name();
             String ally = moveEffectEditor ? "Move ally" : AbilityEffectTarget.ALLY.name();
@@ -556,7 +580,7 @@ public class EffectListEditor extends Table {
         }
 
         if (type.uses(AbilityEffectParameter.TIMING)) {
-            SelectBox<String> timingBox = new DynamicSelectBox<>(skin);
+            SelectBox<String> timingBox = new DynamicSelectBox<>(skin, uiProfile);
             timingBox.setItems(
                 AbilityEffectTiming.FIGHT_START.name(),
                 AbilityEffectTiming.ROUND_START.name(),
@@ -686,6 +710,7 @@ public class EffectListEditor extends Table {
             () -> effect.masteryProgression,
             value -> effect.masteryProgression = value,
             onDirty,
+            uiProfile,
             skin);
         fields.add(editor).colspan(2).growX().row();
     }
@@ -696,7 +721,7 @@ public class EffectListEditor extends Table {
         Runnable refreshFields
     ) {
         if (RatioAbility.KEY.equalsIgnoreCase(effect.codedAbilityKey)) {
-            SelectBox<String> target = new DynamicSelectBox<>(skin);
+            SelectBox<String> target = new DynamicSelectBox<>(skin, uiProfile);
             String apply = "Apply to this hit";
             String create = "Create Ratio stacks";
             target.setItems(apply, create);
@@ -730,7 +755,7 @@ public class EffectListEditor extends Table {
                     () -> effect.codedStackCount == null ? 1 : effect.codedStackCount);
             }
         } else if (CursedSpeechAbility.KEY.equalsIgnoreCase(effect.codedAbilityKey)) {
-            SelectBox<String> mode = new DynamicSelectBox<>(skin);
+            SelectBox<String> mode = new DynamicSelectBox<>(skin, uiProfile);
             mode.setItems(CursedSpeechAbility.commandModes().toArray(new String[0]));
             mode.setSelected(CursedSpeechAbility.supportsTarget(effect.codedTarget, null)
                 ? effect.codedTarget : CursedSpeechAbility.DONT_MOVE);
@@ -748,7 +773,7 @@ public class EffectListEditor extends Table {
             List<MoveData> candidates = moves.stream()
                 .filter(EffectListEditor::isSimpleDomainReactionMove)
                 .toList();
-            SelectBox<String> reaction = new DynamicSelectBox<>(skin);
+            SelectBox<String> reaction = new DynamicSelectBox<>(skin, uiProfile);
             reaction.setItems(candidates.stream().map(EffectListEditor::moveLabel)
                 .toArray(String[]::new));
             if (!candidates.isEmpty()) {

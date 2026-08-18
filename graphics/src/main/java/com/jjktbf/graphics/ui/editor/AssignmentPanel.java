@@ -15,6 +15,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.DragAndDrop;
 import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.audio.SoundCue;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -73,6 +74,7 @@ public class AssignmentPanel extends Table {
     private final Skin skin;
     private final Controller controller;
     private final Consumer<SoundCue> soundPlayer;
+    private final boolean windowsLayout;
     private final DragAndDrop dnd = new DragAndDrop();
 
     private final VerticalGroup availableCol;
@@ -83,12 +85,14 @@ public class AssignmentPanel extends Table {
     public AssignmentPanel(
         Controller controller,
         Consumer<SoundCue> soundPlayer,
+        UiProfile uiProfile,
         Skin skin
     ) {
         super(skin);
         this.skin = skin;
         this.controller = controller;
         this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
+        this.windowsLayout = uiProfile == UiProfile.WINDOWS;
         defaults().pad(4);
 
         // Title + budget summary
@@ -125,8 +129,13 @@ public class AssignmentPanel extends Table {
         availableScroll.setScrollingDisabled(true, false);
         assignedScroll.setScrollingDisabled(true, false);
 
-        add(availableScroll).grow().width(220).padRight(8).top();
-        add(assignedScroll).grow().width(220).top();
+        if (windowsLayout) {
+            add(availableScroll).grow().minWidth(0f).prefWidth(220f).padRight(8).top();
+            add(assignedScroll).grow().minWidth(0f).prefWidth(220f).top();
+        } else {
+            add(availableScroll).grow().width(220).padRight(8).top();
+            add(assignedScroll).grow().width(220).top();
+        }
 
         // Wire both columns as DnD targets. Payload.getObject() is a String[]
         // of { side, id } packed in dragStart().
@@ -196,6 +205,7 @@ public class AssignmentPanel extends Table {
 
         final Label name = new Label(item.label, skin, "small");
         name.setAlignment(Align.left);
+        if (windowsLayout) name.setEllipsis(true);
         row.add(name).left().growX().row();
         final Label sub;
         String subText = item.locked && item.lockReason != null
@@ -204,6 +214,7 @@ public class AssignmentPanel extends Table {
             sub = new Label(subText, skin, "small");
             sub.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
             sub.setAlignment(Align.left);
+            if (windowsLayout) sub.setEllipsis(true);
             row.add(sub).left().growX();
         } else {
             sub = null;

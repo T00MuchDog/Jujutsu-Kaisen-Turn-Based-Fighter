@@ -13,6 +13,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
 import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
@@ -33,6 +34,7 @@ import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.ContentSizedDialog;
 import com.jjktbf.graphics.ui.HoverScrollStage;
 import com.jjktbf.graphics.ui.editor.HoverTextField;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +50,31 @@ import java.util.function.IntConsumer;
  */
 public class MainMenuScreen implements Screen {
 
+    private static final float WINDOWS_MAX_RESPONSIVE_SCALE = 1.75f;
+    private static final float WINDOWS_HEADER_X = 49f;
+    private static final float WINDOWS_HEADER_WIDTH_INSET = 98f;
+    private static final float WINDOWS_HEADER_HEIGHT = 126f;
+    private static final float WINDOWS_HEADER_BOTTOM_FROM_TOP = 154f;
+    private static final float WINDOWS_SETTINGS_X = 70f;
+    private static final float WINDOWS_SETTINGS_TOP_FROM_TOP = 158f;
+    private static final float WINDOWS_SETTINGS_SIZE_PER_SCALE = 184f;
+    private static final float WINDOWS_MENU_HALF_WIDTH = 567f;
+    private static final float WINDOWS_MENU_FIXED_HEIGHT = 62.5f;
+    private static final float WINDOWS_MENU_SCALED_HEIGHT = 861f;
+    private static final float WINDOWS_MENU_HALF_FIXED_HEIGHT = 31.25f;
+    private static final float WINDOWS_MENU_HALF_SCALED_HEIGHT = 430.5f;
+    private static final float WINDOWS_AUTHOR_MENU_SCALED_HEIGHT = 974.4f;
+    private static final float WINDOWS_AUTHOR_MENU_HALF_SCALED_HEIGHT = 487.2f;
+    private static final float WINDOWS_MENU_SIDE_CLEARANCE_BASE = 74f;
+    private static final float WINDOWS_MENU_SIDE_CLEARANCE_SCALED = 322f;
+    private static final float WINDOWS_MENU_MIN_HALF_WIDTH = 99f;
+    private static final float WINDOWS_COMMAND_PADDING = 33.6f;
+    private static final float WINDOWS_BUTTON_HEIGHT = 96.6f;
+    private static final float WINDOWS_BUTTON_PADDING = 8.4f;
+    private static final float WINDOWS_TITLE_FONT_SCALE = 0.25f;
+    private static final float WINDOWS_BUTTON_FONT_SCALE = 0.525f;
+    private static final float WINDOWS_COMMAND_VIEWPORT_INSET = 168f;
+
     private enum NavigationMode {
         NONE,
         CURSOR,
@@ -58,6 +85,8 @@ public class MainMenuScreen implements Screen {
     private final AssetLoader assets;
     private final Stage       stage;
     private final Table       root;
+    private final boolean     windowsLayout;
+    private final boolean     authoringMenu;
     private final List<MenuButton> menuButtons = new ArrayList<>();
     private final List<Cell<MenuButton>> menuButtonCells = new ArrayList<>();
     private int selectedButtonIndex = -1;
@@ -66,7 +95,11 @@ public class MainMenuScreen implements Screen {
     private NavigationMode navigationMode = NavigationMode.NONE;
     /** Guards against double-dispose of native stage resources. */
     private boolean disposed;
-    private Table commands;
+    private Table header;
+    private Label title;
+    private FixedSizeTable commands;
+    private ScrollPane commandsScroll;
+    private Label commandTitle;
     private Cell<?> commandsCell;
     private ImageButton settingsButton;
     private Cell<ImageButton> settingsButtonCell;
@@ -77,35 +110,50 @@ public class MainMenuScreen implements Screen {
         this.game   = game;
         this.assets = assets;
         this.stage  = new HoverScrollStage(new ScreenViewport());
+        this.windowsLayout = game.activeUiProfile() == UiProfile.WINDOWS;
+        this.authoringMenu = AppPaths.isAuthoringMode();
 
         this.root = new Table();
-        root.setFillParent(true);
-        root.pad(28);
-        stage.addActor(root);
+        if (!windowsLayout) {
+            root.setFillParent(true);
+            root.pad(28);
+            stage.addActor(root);
+        }
 
         buildMenu();
         layoutMenu(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
     }
 
     private void buildMenu() {
-        Table header = new Table(assets.editorSkin);
+        header = new Table(assets.editorSkin);
         header.setBackground(assets.editorSkin.getDrawable("battle-header"));
         header.pad(14);
 
-        Label title = new Label("JJK TURN BASED FIGHTER", assets.editorSkin, "title");
-        title.setAlignment(Align.left);
-        header.add(title).left();
-        root.add(header).growX().padBottom(10).row();
+        title = new Label("JJK TURN BASED FIGHTER", assets.editorSkin, "title");
+        if (windowsLayout) {
+            title.setAlignment(Align.center);
+            header.add(title).grow().center();
+            stage.addActor(header);
+        } else {
+            title.setAlignment(Align.left);
+            header.add(title).left();
+            root.add(header).growX().padBottom(10).row();
+        }
 
         // This pointer-only control must never participate in arrow-key navigation.
         settingsButton = makeSettingsButton();
-        settingsButtonCell = root.add(settingsButton).left().size(46).padBottom(8);
-        root.row();
+        if (windowsLayout) {
+            settingsButton.getImageCell().expand().fill();
+            stage.addActor(settingsButton);
+        } else {
+            settingsButtonCell = root.add(settingsButton).left().size(46).padBottom(8);
+            root.row();
+        }
 
-        commands = new Table(assets.editorSkin);
+        commands = new FixedSizeTable(assets.editorSkin);
         commands.setBackground(assets.editorSkin.getDrawable("battle-palette"));
         commands.pad(16);
-        Label commandTitle = new Label("SELECT MODE", assets.editorSkin, "title");
+        commandTitle = new Label("SELECT MODE", assets.editorSkin, "title");
         commandTitle.setColor(new Color(1.000f, 0.835f, 0.180f, 1f));
         commands.add(commandTitle).left().padBottom(10).row();
 
@@ -118,7 +166,7 @@ public class MainMenuScreen implements Screen {
         MenuButton quit      = makeButton("QUIT", this::exitApplication);
 
         List<MenuButton> buttons = new ArrayList<>(List.of(singlePlayer, multiplayer));
-        if (AppPaths.isAuthoringMode()) {
+        if (authoringMenu) {
             buttons.add(makeButton("AUTHOR BATTLE (CONTROL BOTH SIDES)", game::showAuthorBattle));
         }
         buttons.addAll(List.of(charEd, moveEd, abilityEd, techEd, quit));
@@ -127,8 +175,16 @@ public class MainMenuScreen implements Screen {
             menuButtonCells.add(commands.add(button).growX().height(46).pad(4));
             commands.row();
         }
-        commandsCell = root.add(commands).width(540);
-        root.row();
+        if (windowsLayout) {
+            commandsScroll = new ScrollPane(commands, new ScrollPane.ScrollPaneStyle());
+            commandsScroll.setScrollingDisabled(true, false);
+            commandsScroll.setOverscroll(false, false);
+            commandsScroll.setFlickScroll(false);
+            stage.addActor(commandsScroll);
+        } else {
+            commandsCell = root.add(commands).width(540);
+            root.row();
+        }
 
         // Capture movement before child widgets so a mouse move always leaves keyboard mode.
         stage.addCaptureListener(new InputListener() {
@@ -193,6 +249,7 @@ public class MainMenuScreen implements Screen {
         selectedButtonIndex = index;
         lastHighlightedButtonIndex = index;
         updateHighlights();
+        revealWindowsMenuButton(index);
         if (changed) game.audio().play(SoundCue.UI_NAVIGATE);
     }
 
@@ -229,6 +286,9 @@ public class MainMenuScreen implements Screen {
         hoveredButtonIndex = -1;
         lastHighlightedButtonIndex = -1;
         updateHighlights();
+        if (windowsLayout && commandsScroll != null) {
+            commandsScroll.setScrollPercentY(0f);
+        }
     }
 
     private MenuButton makeButton(String label, Runnable onClick) {
@@ -292,7 +352,8 @@ public class MainMenuScreen implements Screen {
         resetNavigation();
 
         Skin skin = assets.editorSkin;
-        ContentSizedDialog dialog = new ContentSizedDialog("SETTINGS", skin);
+        ContentSizedDialog dialog = new ContentSizedDialog(
+            "SETTINGS", skin, game.activeUiProfile());
         dialog.setModal(true);
         dialog.setMovable(false);
         dialog.setResizable(false);
@@ -304,7 +365,8 @@ public class MainMenuScreen implements Screen {
                 closeSettings();
             }
         });
-        dialog.getTitleTable().add(close).right().size(30f).padLeft(8f).padRight(2f);
+        float closeSize = windowsLayout ? 45f : 30f;
+        dialog.getTitleTable().add(close).right().size(closeSize).padLeft(8f).padRight(2f);
 
         AudioSettings settings = game.audio().settings();
         Table content = dialog.getContentTable();
@@ -392,10 +454,14 @@ public class MainMenuScreen implements Screen {
 
         content.add(nameLabel).colspan(4).left().padTop(6f).padBottom(2f);
         content.row();
-        content.add(minimum).right().width(20f).padRight(5f);
+        float minimumWidth = windowsLayout ? 30f : 20f;
+        float maximumWidth = windowsLayout ? 51f : 34f;
+        float valueWidth = windowsLayout ? 87f : 58f;
+        float valueHeight = windowsLayout ? 51f : 34f;
+        content.add(minimum).right().width(minimumWidth).padRight(5f);
         content.add(slider).growX().minWidth(100f).prefWidth(180f).height(32f).padRight(5f);
-        content.add(maximum).left().width(34f).padRight(8f);
-        content.add(valueField).width(58f).height(34f);
+        content.add(maximum).left().width(maximumWidth).padRight(8f);
+        content.add(valueField).width(valueWidth).height(valueHeight);
         content.row();
     }
 
@@ -439,6 +505,11 @@ public class MainMenuScreen implements Screen {
     private void layoutMenu(int width, int height) {
         float scale = Math.min(1.75f, Math.max(0.80f,
             Math.min(width / 1024f, height / 600f)));
+        if (windowsLayout) {
+            layoutWindowsMenu(width, height, scale);
+            return;
+        }
+
         float panelWidth = Math.min(width - 56f * scale, 540f * scale);
         root.pad(28f * scale);
         commands.pad(16f * scale);
@@ -452,6 +523,97 @@ public class MainMenuScreen implements Screen {
         }
         settingsButtonCell.size(46f * scale);
         root.invalidateHierarchy();
+    }
+
+    private void layoutWindowsMenu(int width, int height, float responsiveScale) {
+        float referenceScale = responsiveScale / WINDOWS_MAX_RESPONSIVE_SCALE;
+        float menuHeight = WINDOWS_MENU_FIXED_HEIGHT
+            + (authoringMenu
+                ? WINDOWS_AUTHOR_MENU_SCALED_HEIGHT
+                : WINDOWS_MENU_SCALED_HEIGHT) * referenceScale;
+        float menuY = height * 0.5f - WINDOWS_MENU_HALF_FIXED_HEIGHT
+            - (authoringMenu
+                ? WINDOWS_AUTHOR_MENU_HALF_SCALED_HEIGHT
+                : WINDOWS_MENU_HALF_SCALED_HEIGHT) * referenceScale;
+        float menuHalfWidth = windowsCommandViewportHalfWidth(width, referenceScale);
+        float menuWidth = menuHalfWidth * 2f;
+        float viewportHeight = windowsCommandViewportHeight(height, menuHeight);
+        float viewportY = windowsCommandViewportY(height, menuHeight, menuY);
+        float settingsSize = WINDOWS_SETTINGS_SIZE_PER_SCALE * responsiveScale;
+
+        header.setBounds(
+            WINDOWS_HEADER_X,
+            height - WINDOWS_HEADER_BOTTOM_FROM_TOP,
+            width - WINDOWS_HEADER_WIDTH_INSET,
+            WINDOWS_HEADER_HEIGHT);
+        settingsButton.setBounds(
+            WINDOWS_SETTINGS_X,
+            height - WINDOWS_SETTINGS_TOP_FROM_TOP
+                - WINDOWS_SETTINGS_SIZE_PER_SCALE * responsiveScale,
+            settingsSize,
+            settingsSize);
+        commandsScroll.setBounds(
+            width * 0.5f - menuHalfWidth,
+            viewportY,
+            menuWidth,
+            viewportHeight);
+        commands.setExplicitPrefSize(menuWidth, menuHeight);
+        title.setFontScale(WINDOWS_TITLE_FONT_SCALE);
+        commandTitle.setFontScale(WINDOWS_TITLE_FONT_SCALE);
+        commands.pad(WINDOWS_COMMAND_PADDING * referenceScale);
+        for (int i = 0; i < menuButtons.size(); i++) {
+            menuButtons.get(i).getLabel().setFontScale(
+                WINDOWS_BUTTON_FONT_SCALE * referenceScale);
+            menuButtonCells.get(i)
+                .height(WINDOWS_BUTTON_HEIGHT * referenceScale)
+                .pad(WINDOWS_BUTTON_PADDING * referenceScale);
+        }
+        header.invalidateHierarchy();
+        commands.invalidateHierarchy();
+        commandsScroll.invalidateHierarchy();
+        commandsScroll.validate();
+        if (selectedButtonIndex >= 0) {
+            revealWindowsMenuButton(selectedButtonIndex);
+        }
+    }
+
+    static float windowsCommandViewportHeight(float screenHeight, float menuHeight) {
+        return Math.min(menuHeight,
+            Math.max(1f, screenHeight - WINDOWS_COMMAND_VIEWPORT_INSET * 2f));
+    }
+
+    static float windowsCommandViewportHalfWidth(float screenWidth, float referenceScale) {
+        float availableHalfWidth = screenWidth * 0.5f
+            - WINDOWS_MENU_SIDE_CLEARANCE_BASE
+            - WINDOWS_MENU_SIDE_CLEARANCE_SCALED * referenceScale;
+        return Math.min(WINDOWS_MENU_HALF_WIDTH * referenceScale,
+            Math.max(WINDOWS_MENU_MIN_HALF_WIDTH, availableHalfWidth));
+    }
+
+    static float windowsCommandViewportY(
+        float screenHeight,
+        float menuHeight,
+        float unclippedMenuY
+    ) {
+        float viewportHeight = windowsCommandViewportHeight(screenHeight, menuHeight);
+        return viewportHeight < menuHeight
+            ? (screenHeight - viewportHeight) * 0.5f : unclippedMenuY;
+    }
+
+    private void revealWindowsMenuButton(int index) {
+        if (!windowsLayout || commandsScroll == null || index < 0
+            || index >= menuButtons.size()) {
+            return;
+        }
+        float responsiveScale = Math.min(1.75f, Math.max(0.80f,
+            Math.min(stage.getWidth() / 1024f, stage.getHeight() / 600f)));
+        float referenceScale = responsiveScale / WINDOWS_MAX_RESPONSIVE_SCALE;
+        float rowHeight = (WINDOWS_BUTTON_HEIGHT + WINDOWS_BUTTON_PADDING * 2f)
+            * referenceScale;
+        float rowY = WINDOWS_COMMAND_PADDING * referenceScale
+            + (menuButtons.size() - 1 - index) * rowHeight;
+        commandsScroll.scrollTo(0f, rowY, 0f, rowHeight, false, true);
+        commandsScroll.updateVisualScroll();
     }
 
     // -------------------------------------------------------------------------
@@ -511,6 +673,31 @@ public class MainMenuScreen implements Screen {
         @Override
         public boolean isOver() {
             return highlighted;
+        }
+    }
+
+    private static final class FixedSizeTable extends Table {
+        private float explicitPrefWidth;
+        private float explicitPrefHeight;
+
+        private FixedSizeTable(Skin skin) {
+            super(skin);
+        }
+
+        private void setExplicitPrefSize(float width, float height) {
+            explicitPrefWidth = width;
+            explicitPrefHeight = height;
+            invalidateHierarchy();
+        }
+
+        @Override
+        public float getPrefWidth() {
+            return explicitPrefWidth > 0f ? explicitPrefWidth : super.getPrefWidth();
+        }
+
+        @Override
+        public float getPrefHeight() {
+            return explicitPrefHeight > 0f ? explicitPrefHeight : super.getPrefHeight();
         }
     }
 }

@@ -633,7 +633,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         baseStatSummaryOverlay.top().right();
         baseStatSummaryOverlay.add(baseStatSummary).right().padRight(10f);
         Stack statsHeader = new Stack();
-        statsHeader.add(StatField.tierHeader(pointBuyToggle, skin));
+        statsHeader.add(StatField.tierHeader(pointBuyToggle, windowsLayout, skin));
         statsHeader.add(baseStatSummaryOverlay);
         stats.add(statsHeader).growX().colspan(2).row();
         refreshBaseStatTotalLabel(cd);
@@ -672,7 +672,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 rebuildMoveAssignment(cd);
                 rebuildSkillTree(cd);
                 markDirty();
-            }, () -> lastEditedStatIndex = statIndex, locked, skin);
+            }, () -> lastEditedStatIndex = statIndex, locked, windowsLayout, skin);
             sf.setEffectiveMinimum(allocationMinimum);
             sf.setEffectiveMaximum(allocationMaximum);
             statFields[i] = sf;
@@ -775,6 +775,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 message -> setStatus(message, false),
                 node -> treeActivationError(character, node),
                 game.audio()::play,
+                uiProfile,
                 skin);
             ScrollPane scroll = new AxisLockedScrollPane(canvas, skin);
             scroll.setFadeScrollBars(false);
@@ -872,7 +873,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (currentName != null && names.stream().noneMatch(currentName::equalsIgnoreCase)) {
             names.add(currentName);
         }
-        SelectBox<String> select = new DynamicSelectBox<>(skin);
+        SelectBox<String> select = new DynamicSelectBox<>(skin, uiProfile);
         select.setItems(names.toArray(new String[0]));
         select.setSelected(currentName == null ? none : names.stream()
             .filter(currentName::equalsIgnoreCase).findFirst().orElse(currentName));
@@ -1169,7 +1170,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             @Override public int learnedLimit(MovePool pool) {
                 return SlotBudgetEnforcer.slotBudgetFor(combatStatsWithAbilitySlots(cd), pool);
             }
-        }, game.audio()::play, skin);
+        }, game.audio()::play, uiProfile, skin);
     }
 
     private void reorderLearnedMoves(
@@ -1403,7 +1404,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             @Override public String budgetSummary() {
                 return "Only available abilities can be assigned.";
             }
-        }, game.audio()::play, skin);
+        }, game.audio()::play, uiProfile, skin);
     }
 
     private AbilityResolver.Result resolvedAbilities(CharacterData cd) {

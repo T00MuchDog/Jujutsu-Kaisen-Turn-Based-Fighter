@@ -16,6 +16,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.DragAndDrop;
 import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.audio.SoundCue;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.model.move.MovePool;
 
 import java.util.ArrayList;
@@ -89,33 +90,50 @@ public class MoveAssignmentPanel extends Table {
     private final Skin skin;
     private final Controller controller;
     private final Consumer<SoundCue> soundPlayer;
+    private final boolean windowsLayout;
     private final DragAndDrop dragAndDrop = new DragAndDrop();
     private final Map<ColumnKey, MoveColumn> columns = new java.util.LinkedHashMap<>();
 
     public MoveAssignmentPanel(
         Controller controller,
         Consumer<SoundCue> soundPlayer,
+        UiProfile uiProfile,
         Skin skin
     ) {
         super(skin);
         this.controller = controller;
         this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
+        this.windowsLayout = uiProfile == UiProfile.WINDOWS;
         this.skin = skin;
         top();
         defaults().top();
 
-        add(groupHeading("AVAILABLE")).colspan(2).growX().center().padBottom(6f);
-        add(groupHeading("LEARNED (DRAG TO REORDER)"))
-            .colspan(2).growX().center().padBottom(6f).row();
+        if (columnRowCount(uiProfile) == 2) {
+            add(groupHeading("AVAILABLE")).colspan(2).growX().center().padBottom(6f).row();
+            add(buildColumn(Side.AVAILABLE, MovePool.COMBAT_ARTS))
+                .growX().uniformX().minWidth(0f).padRight(COLUMN_GAP);
+            add(buildColumn(Side.AVAILABLE, MovePool.JUJUTSU_ARTS))
+                .growX().uniformX().minWidth(0f).row();
+            add(groupHeading("LEARNED (DRAG TO REORDER)"))
+                .colspan(2).growX().center().padTop(8f).padBottom(6f).row();
+            add(buildColumn(Side.LEARNED, MovePool.COMBAT_ARTS))
+                .growX().uniformX().minWidth(0f).padRight(COLUMN_GAP);
+            add(buildColumn(Side.LEARNED, MovePool.JUJUTSU_ARTS))
+                .growX().uniformX().minWidth(0f);
+        } else {
+            add(groupHeading("AVAILABLE")).colspan(2).growX().center().padBottom(6f);
+            add(groupHeading("LEARNED (DRAG TO REORDER)"))
+                .colspan(2).growX().center().padBottom(6f).row();
 
-        add(buildColumn(Side.AVAILABLE, MovePool.COMBAT_ARTS))
-            .growX().uniformX().padRight(COLUMN_GAP);
-        add(buildColumn(Side.AVAILABLE, MovePool.JUJUTSU_ARTS))
-            .growX().uniformX().padRight(COLUMN_GAP * 2f);
-        add(buildColumn(Side.LEARNED, MovePool.COMBAT_ARTS))
-            .growX().uniformX().padRight(COLUMN_GAP);
-        add(buildColumn(Side.LEARNED, MovePool.JUJUTSU_ARTS))
-            .growX().uniformX();
+            add(buildColumn(Side.AVAILABLE, MovePool.COMBAT_ARTS))
+                .growX().uniformX().padRight(COLUMN_GAP);
+            add(buildColumn(Side.AVAILABLE, MovePool.JUJUTSU_ARTS))
+                .growX().uniformX().padRight(COLUMN_GAP * 2f);
+            add(buildColumn(Side.LEARNED, MovePool.COMBAT_ARTS))
+                .growX().uniformX().padRight(COLUMN_GAP);
+            add(buildColumn(Side.LEARNED, MovePool.JUJUTSU_ARTS))
+                .growX().uniformX();
+        }
 
         columns.values().forEach(this::addDropTarget);
         refresh();
@@ -132,6 +150,10 @@ public class MoveAssignmentPanel extends Table {
         return contains(item.label, needle)
             || contains(item.sublabel, needle)
             || contains(item.id, needle);
+    }
+
+    static int columnRowCount(UiProfile uiProfile) {
+        return uiProfile == UiProfile.WINDOWS ? 2 : 1;
     }
 
     static boolean moveToInsertionIndex(List<String> ids, int sourceIndex, int insertionIndex) {
@@ -166,7 +188,7 @@ public class MoveAssignmentPanel extends Table {
 
         HoverTextField search = new HoverTextField("", skin);
         search.setMessageText("search moves...");
-        column.add(search).growX().height(34f).padBottom(6f).row();
+        column.add(search).growX().height(windowsLayout ? 51f : 34f).padBottom(6f).row();
 
         Table rows = new MoveList(skin);
         rows.top().left();

@@ -67,7 +67,8 @@ public class StatField extends Table {
      * @param disabled when true the field+slider are read-only (e.g. CTM with no technique)
      */
     public StatField(String name, int initial, int min, int max,
-                      IntConsumer onChange, Runnable onEdited, boolean disabled, Skin skin) {
+                      IntConsumer onChange, Runnable onEdited, boolean disabled,
+                      boolean windowsLayout, Skin skin) {
         super(skin);
         this.rangeMin = min;
         this.effectiveMin = min;
@@ -86,10 +87,15 @@ public class StatField extends Table {
         maxLabel.setColor(skin.get("text-dim", Color.class));
 
         Slider.SliderStyle sliderStyle = skin.get("default-horizontal", Slider.SliderStyle.class);
-        add(nameLabel).left().minWidth(NAME_LABEL_WIDTH).padRight(8);
+        if (windowsLayout) {
+            add(nameLabel).left().minWidth(0f).prefWidth(247.5f)
+                .maxWidth(247.5f).padRight(8);
+        } else {
+            add(nameLabel).left().minWidth(NAME_LABEL_WIDTH).padRight(8);
+        }
 
         // Min edge label
-        add(minLabel).width(EDGE_LABEL_WIDTH).padRight(4);
+        add(minLabel).width(windowsLayout ? 36f : EDGE_LABEL_WIDTH).padRight(4);
 
         // Slider
         slider = new TierSlider(min, max, sliderStyle, skin.getDrawable("white-pixel"));
@@ -98,7 +104,7 @@ public class StatField extends Table {
         add(slider).growX().padRight(4);
 
         // Max edge label
-        add(maxLabel).width(EDGE_LABEL_WIDTH).padRight(6);
+        add(maxLabel).width(windowsLayout ? 36f : EDGE_LABEL_WIDTH).padRight(6);
 
         // Numeric text field (type a value). Digits only — the field is
         // free-form while focused; clamping happens on commit (focus loss /
@@ -109,7 +115,7 @@ public class StatField extends Table {
         valueField.setDisabled(disabled);
         // Fixed-ish width for the numeric input
         Container<TextField> fc = new Container<>(valueField);
-        fc.width(VALUE_FIELD_WIDTH);
+        fc.width(windowsLayout ? 84f : VALUE_FIELD_WIDTH);
         add(fc).right();
 
         wire();
@@ -250,14 +256,19 @@ public class StatField extends Table {
     }
 
     /** Header row whose tier scale uses the exact same horizontal geometry as every stat slider. */
-    public static Table tierHeader(Actor leadingActor, Skin skin) {
+    public static Table tierHeader(Actor leadingActor, boolean windowsLayout, Skin skin) {
         Slider.SliderStyle sliderStyle = skin.get("default-horizontal", Slider.SliderStyle.class);
         Table header = new Table(skin);
-        header.add(leadingActor).left().top().minWidth(NAME_LABEL_WIDTH).padRight(8);
-        header.add().width(EDGE_LABEL_WIDTH).padRight(4);
+        if (windowsLayout) {
+            header.add(leadingActor).left().top().minWidth(0f).prefWidth(247.5f)
+                .maxWidth(247.5f).padRight(8);
+        } else {
+            header.add(leadingActor).left().top().minWidth(NAME_LABEL_WIDTH).padRight(8);
+        }
+        header.add().width(windowsLayout ? 36f : EDGE_LABEL_WIDTH).padRight(4);
         header.add(new TierLabels(sliderStyle, skin)).growX().padRight(4);
-        header.add().width(EDGE_LABEL_WIDTH).padRight(6);
-        header.add().width(VALUE_FIELD_WIDTH);
+        header.add().width(windowsLayout ? 36f : EDGE_LABEL_WIDTH).padRight(6);
+        header.add().width(windowsLayout ? 84f : VALUE_FIELD_WIDTH);
         return header;
     }
 

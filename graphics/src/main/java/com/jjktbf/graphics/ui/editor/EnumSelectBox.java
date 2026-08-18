@@ -4,6 +4,7 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 
 import java.util.function.Consumer;
 
@@ -27,8 +28,13 @@ public class EnumSelectBox<T extends Enum<T>> extends DynamicSelectBox<String> {
      * @param onChange   fires with the selected enum name (or null if "[none]" picked)
      */
     public EnumSelectBox(Class<T> enumClass, String current, boolean includeNull,
-                         Consumer<String> onChange, Skin skin) {
-        super(skin);
+                          Consumer<String> onChange, Skin skin) {
+        this(enumClass, current, includeNull, onChange, skin, UiProfile.MAC);
+    }
+
+    public EnumSelectBox(Class<T> enumClass, String current, boolean includeNull,
+                         Consumer<String> onChange, Skin skin, UiProfile uiProfile) {
+        super(skin, uiProfile);
         this.enumClass = enumClass;
         this.hasNull   = includeNull;
         this.onChange  = onChange;

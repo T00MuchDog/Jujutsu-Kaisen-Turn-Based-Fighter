@@ -17,6 +17,7 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.HoverScrollStage;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.multiplayer.ApiClientException;
 
@@ -36,6 +37,7 @@ abstract class MultiplayerScreenBase implements Screen {
     protected final AssetLoader assets;
     protected final Stage stage;
     protected final Table root;
+    protected final boolean windowsLayout;
 
     private volatile long lifecycleGeneration;
     private volatile boolean visible;
@@ -44,6 +46,7 @@ abstract class MultiplayerScreenBase implements Screen {
     protected MultiplayerScreenBase(JJKGame game, AssetLoader assets) {
         this.game = game;
         this.assets = assets;
+        this.windowsLayout = game.activeUiProfile() == UiProfile.WINDOWS;
         this.stage = new HoverScrollStage(new ScreenViewport());
         this.root = new Table();
         root.setFillParent(true);
@@ -215,6 +218,14 @@ abstract class MultiplayerScreenBase implements Screen {
             }
         });
         return button;
+    }
+
+    protected final float multiplayerButtonHeight() {
+        return windowsLayout ? 69f : 46f;
+    }
+
+    protected final float multiplayerSelectBoxHeight() {
+        return windowsLayout ? 66f : 44f;
     }
 
     private static boolean isBackAction(String text) {

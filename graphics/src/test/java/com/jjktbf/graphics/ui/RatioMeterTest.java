@@ -11,6 +11,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RatioMeterTest {
 
     @Test
+    void windowsGeometryEnlargesRatioHeightOnlyWhenRequested() {
+        assertEquals(90f, RatioMeter.heightForViewport(1440f), 0.0001f);
+        assertEquals(135f, RatioMeter.heightForViewport(1440f, 1.5f), 0.0001f);
+    }
+
+    @Test
     void onlyActiveRatioStacksShowTheGraphicAndMultiplierCount() {
         RatioMeter meter = new RatioMeter();
 

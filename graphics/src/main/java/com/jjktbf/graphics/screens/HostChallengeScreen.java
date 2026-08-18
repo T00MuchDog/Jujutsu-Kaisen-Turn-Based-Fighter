@@ -91,22 +91,22 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         requestActions = new Table(assets.editorSkin);
         acceptButton = button("YES", "primary", this::acceptRequest);
         rejectButton = button("NO", "default", SoundCue.UI_BACK, this::rejectRequest);
-        requestActions.add(acceptButton).growX().height(46f).pad(4f);
-        requestActions.add(rejectButton).growX().height(46f).pad(4f);
+        requestActions.add(acceptButton).growX().height(multiplayerButtonHeight()).pad(4f);
+        requestActions.add(rejectButton).growX().height(multiplayerButtonHeight()).pad(4f);
         requestActions.setVisible(false);
         card.add(requestActions).growX().row();
 
         cancelButton = button("CANCEL CHALLENGE", "primary", this::cancelChallenge);
         retryButton = button("RETRY", "default", this::retry);
         backButton = button("BACK", "default", this::requestBack);
-        card.add(cancelButton).growX().height(46f).pad(4f).row();
-        card.add(retryButton).growX().height(46f).pad(4f).row();
-        card.add(backButton).growX().height(46f).pad(4f).row();
+        card.add(cancelButton).growX().height(multiplayerButtonHeight()).pad(4f).row();
+        card.add(retryButton).growX().height(multiplayerButtonHeight()).pad(4f).row();
+        card.add(backButton).growX().height(multiplayerButtonHeight()).pad(4f).row();
 
         ScrollPane scroll = new AxisLockedScrollPane(card, assets.editorSkin);
         scroll.setFadeScrollBars(false);
         scroll.setScrollingDisabled(true, false);
-        root.add(scroll).grow().maxWidth(760f).padTop(16f).row();
+        root.add(scroll).grow().maxWidth(windowsLayout ? 1140f : 760f).padTop(16f).row();
     }
 
     @Override

@@ -7,6 +7,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.ContentSizedDialog;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.model.character.*;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.combat.BattleState;
@@ -33,6 +34,8 @@ public class ConditionTreeEditor extends Table {
     private final Consumer<SoundCue> soundPlayer;
     private final Skin skin;
     private final boolean masteryEligible;
+    private final UiProfile uiProfile;
+    private final boolean windowsLayout;
     private final Container<Actor> treeContainer = new Container<>();
 
     public ConditionTreeEditor(
@@ -41,6 +44,7 @@ public class ConditionTreeEditor extends Table {
         Runnable onDirty,
         Consumer<SoundCue> soundPlayer,
         boolean masteryEligible,
+        UiProfile uiProfile,
         Skin skin
     ) {
         super(skin);
@@ -50,6 +54,8 @@ public class ConditionTreeEditor extends Table {
         this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
         this.skin = skin;
         this.masteryEligible = masteryEligible;
+        this.uiProfile = uiProfile;
+        this.windowsLayout = uiProfile == UiProfile.WINDOWS;
         treeContainer.fill(true, false);
         add(treeContainer).growX().row();
         rebuild();
@@ -160,7 +166,7 @@ public class ConditionTreeEditor extends Table {
         AbilityConditionType initial = safeType(working.type);
         if (initial.isGroup()) return;
 
-        SelectBox<String> typeBox = new DynamicSelectBox<>(skin);
+        SelectBox<String> typeBox = new DynamicSelectBox<>(skin, uiProfile);
         typeBox.setItems(Arrays.stream(AbilityConditionType.values())
             .filter(type -> !type.isGroup())
             .map(AbilityConditionType::displayName)
@@ -188,14 +194,27 @@ public class ConditionTreeEditor extends Table {
             }
         });
 
-        ContentSizedDialog dialog = new ContentSizedDialog("Edit Activation Condition", skin);
+        ContentSizedDialog dialog = new ContentSizedDialog(
+            "Edit Activation Condition",
+            skin,
+            uiProfile);
         Table content = dialog.getContentTable();
         content.defaults().pad(4).left().growX();
         content.add(new Label("Condition", skin));
         content.add(typeBox).growX().row();
-        content.add(hint).colspan(2).width(480).growX().row();
-        content.add(fields).colspan(2).growX().row();
-        content.add(error).colspan(2).width(480).growX().row();
+        addDialogLabel(content, hint);
+        if (windowsLayout) {
+            ScrollPane fieldsScroll = new AxisLockedScrollPane(fields, skin);
+            fieldsScroll.setScrollingDisabled(true, false);
+            fieldsScroll.setFadeScrollBars(false);
+            fieldsScroll.setOverscroll(false, false);
+            fieldsScroll.setForceScroll(false, false);
+            content.add(fieldsScroll).colspan(2).minHeight(180f)
+                .maxHeight(conditionDialogScrollHeight()).growX().row();
+        } else {
+            content.add(fields).colspan(2).growX().row();
+        }
+        addDialogLabel(content, error);
 
         TextButton done = button("Done", () -> {
             AbilityConditionType selected = typeFromLabel(typeBox.getSelected());
@@ -227,6 +246,20 @@ public class ConditionTreeEditor extends Table {
         dialog.show(getStage());
     }
 
+    private float conditionDialogScrollHeight() {
+        float viewportHeight = getStage() == null ? 1080f : getStage().getHeight();
+        return Math.max(120f, Math.min(840f, viewportHeight - 240f));
+    }
+
+    private void addDialogLabel(Table content, Label label) {
+        if (windowsLayout) {
+            content.add(label).colspan(2).minWidth(0f).prefWidth(720f)
+                .maxWidth(720f).growX().row();
+        } else {
+            content.add(label).colspan(2).width(480f).growX().row();
+        }
+    }
+
     private Actor buildFields(AbilityConditionData condition, AbilityConditionType type) {
         Table fields = new Table(skin);
         fields.defaults().pad(4).left().growX();
@@ -254,7 +287,7 @@ public class ConditionTreeEditor extends Table {
                 () -> condition.amount == null ? 0 : condition.amount);
         }
         if (type.uses(AbilityConditionParameter.MOVE_ID)) {
-            SelectBox<String> box = new DynamicSelectBox<>(skin);
+            SelectBox<String> box = new DynamicSelectBox<>(skin, uiProfile);
             List<String> labels = new ArrayList<>();
             labels.add(SELECT_MOVE);
             labels.addAll(moves.stream().map(ConditionTreeEditor::moveLabel).toList());
@@ -293,7 +326,7 @@ public class ConditionTreeEditor extends Table {
             addRow(fields, "Exact damage tags", tags);
         }
         if (type.uses(AbilityConditionParameter.STAT)) {
-            SelectBox<String> box = new DynamicSelectBox<>(skin);
+            SelectBox<String> box = new DynamicSelectBox<>(skin, uiProfile);
             box.setItems(Arrays.stream(StatKey.values()).map(stat -> stat.label).toArray(String[]::new));
             box.setSelected(statLabel(condition.stat));
             box.addListener(change(() -> condition.stat = statFromLabel(box.getSelected()).fieldName));
@@ -301,7 +334,7 @@ public class ConditionTreeEditor extends Table {
         }
         if (type.uses(AbilityConditionParameter.STATUS_TYPE)) {
             List<StatusEffectType> statuses = List.of(StatusEffectType.values());
-            SelectBox<String> box = new DynamicSelectBox<>(skin);
+            SelectBox<String> box = new DynamicSelectBox<>(skin, uiProfile);
             List<String> labels = new ArrayList<>(statuses.stream()
                 .map(StatusEffectType::displayName).toList());
             String storedStatus = condition.statusType;
@@ -322,7 +355,7 @@ public class ConditionTreeEditor extends Table {
         }
         if (type.uses(AbilityConditionParameter.CODED_ABILITY)) {
             List<CodedAbilityRegistry.StateKey> states = CodedAbilityRegistry.stateKeys();
-            SelectBox<String> box = new DynamicSelectBox<>(skin);
+            SelectBox<String> box = new DynamicSelectBox<>(skin, uiProfile);
             box.setItems(states.stream()
                 .map(CodedAbilityRegistry.StateKey::label)
                 .toArray(String[]::new));
@@ -375,11 +408,12 @@ public class ConditionTreeEditor extends Table {
             () -> condition.masteryProgression,
             value -> condition.masteryProgression = value,
             onDirty,
+            uiProfile,
             skin)).colspan(2).growX().row();
     }
 
     private <E extends Enum<E>> SelectBox<String> enumBox(E[] values, String selected, java.util.function.Consumer<String> onChange) {
-        SelectBox<String> box = new DynamicSelectBox<>(skin);
+        SelectBox<String> box = new DynamicSelectBox<>(skin, uiProfile);
         box.setItems(Arrays.stream(values).map(Enum::name).toArray(String[]::new));
         box.setSelected(selected);
         box.addListener(change(() -> onChange.accept(box.getSelected())));
@@ -387,7 +421,7 @@ public class ConditionTreeEditor extends Table {
     }
 
     private <E extends Enum<E>> SelectBox<String> prettyEnumBox(E[] values, String selected, java.util.function.Consumer<String> onChange) {
-        SelectBox<String> box = new DynamicSelectBox<>(skin);
+        SelectBox<String> box = new DynamicSelectBox<>(skin, uiProfile);
         box.setItems(Arrays.stream(values).map(value -> pretty(value.name())).toArray(String[]::new));
         box.setSelected(pretty(selected));
         box.addListener(change(() -> onChange.accept(box.getSelected())));

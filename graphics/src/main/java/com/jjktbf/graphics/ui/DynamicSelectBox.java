@@ -5,6 +5,9 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.jjktbf.graphics.ui.profile.UiProfile;
+
+import java.util.Objects;
 
 /**
  * A select box whose popup is sized from its list content and kept inside the
@@ -13,22 +16,37 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 public class DynamicSelectBox<T> extends SelectBox<T> {
 
     private static final float VIEWPORT_MARGIN = 8f;
+    private static final float WINDOWS_VIEWPORT_MARGIN = 12f;
 
+    private ContentSizedScrollPane<T> contentSizedScrollPane;
+
+    /** @deprecated Production callers should pass their active UI profile explicitly. */
+    @Deprecated
     public DynamicSelectBox(Skin skin) {
+        this(skin, UiProfile.MAC);
+    }
+
+    public DynamicSelectBox(Skin skin, UiProfile uiProfile) {
         super(skin);
+        contentSizedScrollPane.viewportMargin =
+            Objects.requireNonNull(uiProfile, "uiProfile") == UiProfile.WINDOWS
+                ? WINDOWS_VIEWPORT_MARGIN : VIEWPORT_MARGIN;
     }
 
     @Override
     protected SelectBoxScrollPane<T> newScrollPane() {
-        return new ContentSizedScrollPane<>(this);
+        contentSizedScrollPane = new ContentSizedScrollPane<>(this, VIEWPORT_MARGIN);
+        return contentSizedScrollPane;
     }
 
     private static final class ContentSizedScrollPane<T> extends SelectBoxScrollPane<T> {
 
         private final Vector2 stagePosition = new Vector2();
+        private float viewportMargin;
 
-        private ContentSizedScrollPane(SelectBox<T> selectBox) {
+        private ContentSizedScrollPane(SelectBox<T> selectBox, float viewportMargin) {
             super(selectBox);
+            this.viewportMargin = viewportMargin;
         }
 
         @Override
@@ -39,7 +57,7 @@ public class DynamicSelectBox<T> extends SelectBox<T> {
             SelectBox<T> selectBox = getSelectBox();
             selectBox.localToStageCoordinates(stagePosition.set(0f, 0f));
 
-            float margin = Math.min(VIEWPORT_MARGIN,
+            float margin = Math.min(viewportMargin,
                 Math.min(stage.getWidth(), stage.getHeight()) / 2f);
             float preferredHeight = getPrefHeight();
             float spaceBelow = Math.max(0f, stagePosition.y - margin);

@@ -14,6 +14,7 @@ import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.multiplayer.TargetListSupport;
 import com.jjktbf.graphics.ui.MiraclesMeter;
 import com.jjktbf.graphics.ui.profile.BattleUiLayout;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.graphics.ui.text.KeywordPopupPosition;
 import com.jjktbf.graphics.ui.text.KeywordTextLayout;
 import com.jjktbf.model.character.coded.CodedAbilityState;
@@ -94,6 +95,7 @@ public class PlanningPanel {
     private final BattleUiAssets ui;
     private final MiraclesMeter miraclesMeter = new MiraclesMeter();
     private BattleUiLayout.Planner layout = new BattleUiLayout.Planner();
+    private boolean windowsTextGeometry;
 
     /**
      * Battle-wide timeline grid length (dot count), derived from the stronger
@@ -111,10 +113,13 @@ public class PlanningPanel {
     private final Rectangle paletteScrollTrackBounds = new Rectangle();
     private final Rectangle paletteScrollThumbBounds = new Rectangle();
     private final Rectangle lockInBounds = new Rectangle();
+    private final Rectangle miraclesBounds = new Rectangle();
 
     private float screenWidth;
     private float screenHeight;
     private boolean compactLayout;
+    private boolean shortViewportLayout;
+    private boolean showHeaderTitle = true;
     private float paletteContentWidth;
     private float paletteScrollX;
     private float paletteScrollTargetX;
@@ -317,7 +322,25 @@ public class PlanningPanel {
     public void setLayout(BattleUiLayout battleLayout) {
         if (battleLayout == null) return;
         this.layout = battleLayout.copy().planner;
+        this.windowsTextGeometry = battleLayout.storedProfile() == UiProfile.WINDOWS;
         if (screenWidth > 0f && screenHeight > 0f) resize(screenWidth, screenHeight);
+    }
+
+    /** Lets the Windows team pager own the header's title region without overlap. */
+    void setTeamNavigationHeader(boolean active) {
+        showHeaderTitle = !active;
+    }
+
+    boolean isHeaderTitleVisible() {
+        return showHeaderTitle;
+    }
+
+    private float textGeometryScale() {
+        return windowsTextGeometry ? layout.textGeometryScale : 1f;
+    }
+
+    private float scaled(float value) {
+        return value * textGeometryScale();
     }
 
     /** Builds the two bars at the fight's battle-wide grid length (placeholder bounds; set in {@link #resize}). */
@@ -536,6 +559,8 @@ public class PlanningPanel {
         screenWidth = width;
         screenHeight = height;
         compactLayout = width < layout.compactWidthThreshold;
+        shortViewportLayout = windowsTextGeometry
+            && height <= layout.shortViewportHeightThreshold;
 
         float margin = Math.min(layout.marginMax,
             Math.max(layout.marginMin, width * layout.marginFraction));
@@ -558,8 +583,9 @@ public class PlanningPanel {
                 Math.max(1f, headerH - layout.lockButtonVerticalInset * 2f));
         }
 
-        int rows = paletteRowCount(knownMoves.size());
-        float paletteHeight = 20f + rows * MoveCardView.CARD_H + (rows - 1) * CARD_GAP;
+        int rows = paletteRows(knownMoves.size());
+        float paletteHeight = scaled(20f) + rows * cardHeight()
+            + (rows - 1) * scaled(CARD_GAP);
         float availablePaletteWidth = Math.max(1f, width - margin * 2f);
         float paletteWidth = Math.min(availablePaletteWidth, preferredPaletteWidth());
         paletteBounds.set((width - paletteWidth) / 2f, margin, paletteWidth, paletteHeight);
@@ -569,18 +595,35 @@ public class PlanningPanel {
             layout.timelineLabelWidthMax,
             Math.max(layout.timelineLabelWidthMin,
                 width * layout.timelineLabelWidthFraction));
-        float timelineH = MiraclesMeter.timelineHeightForViewport(height);
-        float boardAreaBottom = paletteBounds.y + paletteBounds.height + layout.paletteBoardGap;
-        float actorNameHeight = actorName.isBlank()
-            ? layout.emptyActorNameReservedHeight : layout.actorNameReservedHeight;
+        float timelineH = shortViewportLayout
+            ? layout.shortTimelineHeight : MiraclesMeter.timelineHeightForViewport(height);
+        float paletteBoardGap = shortViewportLayout
+            ? layout.shortPaletteBoardGap : layout.paletteBoardGap;
+        float boardAreaBottom = paletteBounds.y + paletteBounds.height + paletteBoardGap;
+        float actorNameHeight = shortViewportLayout
+            ? layout.shortActorNameReservedHeight
+            : actorName.isBlank()
+                ? layout.emptyActorNameReservedHeight : layout.actorNameReservedHeight;
         float boardAreaTop = headerBounds.y - actorNameHeight;
+        float miracleSize = 0f;
+        boolean sideMiracles = windowsTextGeometry
+            && !compactLayout && miraclesMeter.isVisible();
         if (miraclesMeter.isVisible()) {
-            float miracleSize = MiraclesMeter.sizeForViewport(height);
-            float miracleY = boardAreaTop - layout.miraclesTopGap - miracleSize;
-            miraclesMeter.setBounds(headerBounds.x, miracleY, miracleSize);
-            // Compact timeline labels sit above their bars, so leave them a little more clearance.
-            boardAreaTop = miracleY - (compactLayout
-                ? layout.compactMiraclesBottomGap : layout.miraclesBottomGap);
+            if (sideMiracles) {
+                miracleSize = shortViewportLayout
+                    ? layout.shortMiraclesSize : MiraclesMeter.sizeForViewport(height);
+            } else {
+                miracleSize = MiraclesMeter.sizeForViewport(height);
+                float miracleY = boardAreaTop - layout.miraclesTopGap - miracleSize;
+                miraclesBounds.set(headerBounds.x, miracleY, miracleSize, miracleSize);
+                miraclesMeter.setBounds(
+                    miraclesBounds.x, miraclesBounds.y, miracleSize, textGeometryScale());
+                // Compact labels sit above their bars, so retain the original vertical clearance.
+                boardAreaTop = miracleY - (compactLayout
+                    ? layout.compactMiraclesBottomGap : layout.miraclesBottomGap);
+            }
+        } else {
+            miraclesBounds.set(0f, 0f, 0f, 0f);
         }
 
         // The bar grows with the fight's AP tier while keeping the dot spacing
@@ -590,34 +633,73 @@ public class PlanningPanel {
         // and the top tier (300) clamps to the full width. The bar plus its
         // left-hand label gutter is centered as a group, so the timeline grows
         // outward from the screen centre as the tier rises.
-        float maxBarWidth = Math.max(1f, width - margin * 2f - labelWidth);
+        float miracleSideWidth = sideMiracles ? miracleSize + layout.miraclesSideGap : 0f;
+        float maxBarWidth = Math.max(
+            1f, width - margin * 2f - labelWidth - miracleSideWidth);
         float dotSpacing = maxBarWidth / (float) Timeline.DEFAULT_GRID_LENGTH;
         float timelineW = Math.min(maxBarWidth, gridLength * dotSpacing);
-        float groupWidth = labelWidth + timelineW;
+        float groupWidth = labelWidth + timelineW + miracleSideWidth;
         float timelineX = (width - groupWidth) / 2f + labelWidth;
 
-        float boardGap = compactLayout ? layout.compactBoardGap : layout.boardGap;
+        float boardGap = shortViewportLayout
+            ? layout.shortBoardGap
+            : compactLayout ? layout.compactBoardGap : layout.boardGap;
+        if (windowsTextGeometry) {
+            float availableBoardHeight = Math.max(1f, boardAreaTop - boardAreaBottom);
+            timelineH = Math.min(timelineH,
+                Math.max(20f, (availableBoardHeight - boardGap) / 2f));
+        }
         float boardGroupHeight = timelineH * 2f + boardGap;
         float defensiveY = boardAreaBottom + Math.max(0f, (boardAreaTop - boardAreaBottom - boardGroupHeight) / 2f);
         defensiveBar.setBounds(timelineX, defensiveY, timelineW, timelineH);
         offensiveBar.setBounds(timelineX, defensiveY + timelineH + boardGap, timelineW, timelineH);
+        if (sideMiracles) {
+            float miracleX = timelineX + timelineW + layout.miraclesSideGap;
+            float miracleY = defensiveY + (boardGroupHeight - miracleSize) / 2f;
+            miraclesBounds.set(miracleX, miracleY, miracleSize, miracleSize);
+            miraclesMeter.setBounds(
+                miraclesBounds.x, miraclesBounds.y, miracleSize, textGeometryScale());
+        }
+    }
+
+    record LayoutSnapshot(
+        Rectangle palette,
+        Rectangle defensiveTimeline,
+        Rectangle offensiveTimeline,
+        Rectangle miracles,
+        Rectangle header,
+        boolean shortViewport,
+        float paletteScrollMaximum
+    ) { }
+
+    LayoutSnapshot layoutSnapshot() {
+        return new LayoutSnapshot(
+            new Rectangle(paletteBounds),
+            new Rectangle(defensiveBar.getBounds()),
+            new Rectangle(offensiveBar.getBounds()),
+            new Rectangle(miraclesBounds),
+            new Rectangle(headerBounds),
+            shortViewportLayout,
+            paletteScrollMax);
     }
 
     private void buildPalette(int rows) {
         cards.clear();
         for (int i = 0; i < knownMoves.size(); i++) {
-            cards.add(new MoveCardView(knownMoves.get(i), 0f, 0f));
+            cards.add(new MoveCardView(
+                knownMoves.get(i), 0f, 0f, textGeometryScale(),
+                cardWidth(), cardHeight(), shortViewportLayout ? 2 : 5));
         }
 
         paletteViewportBounds.set(
-            paletteBounds.x + PALETTE_PADDING,
-            paletteBounds.y + PALETTE_PADDING,
-            Math.max(0f, paletteBounds.width - PALETTE_PADDING * 2f),
-            Math.max(0f, paletteBounds.height - PALETTE_PADDING * 2f));
-        int columns = paletteColumnCount(knownMoves.size());
+            paletteBounds.x + scaled(PALETTE_PADDING),
+            paletteBounds.y + scaled(PALETTE_PADDING),
+            Math.max(0f, paletteBounds.width - scaled(PALETTE_PADDING) * 2f),
+            Math.max(0f, paletteBounds.height - scaled(PALETTE_PADDING) * 2f));
+        int columns = paletteColumns(knownMoves.size());
         paletteContentWidth = columns == 0
             ? 0f
-            : columns * MoveCardView.CARD_W + (columns - 1) * CARD_GAP;
+            : columns * cardWidth() + (columns - 1) * scaled(CARD_GAP);
         paletteScrollMax = Math.max(0f, paletteContentWidth - paletteViewportBounds.width);
         paletteScrollX = clamp(paletteScrollX, 0f, paletteScrollMax);
         paletteScrollTargetX = clamp(paletteScrollTargetX, 0f, paletteScrollMax);
@@ -628,12 +710,12 @@ public class PlanningPanel {
 
     private void layoutPaletteCards(int rows) {
         for (int i = 0; i < cards.size(); i++) {
-            int row = paletteRow(i);
-            int column = paletteColumn(i);
+            int row = paletteRowFor(i);
+            int column = paletteColumnFor(i);
             float x = paletteViewportBounds.x
-                + column * (MoveCardView.CARD_W + CARD_GAP) - paletteScrollX;
+                + column * (cardWidth() + scaled(CARD_GAP)) - paletteScrollX;
             float y = paletteViewportBounds.y
-                + (rows - row - 1) * (MoveCardView.CARD_H + CARD_GAP);
+                + (rows - row - 1) * (cardHeight() + scaled(CARD_GAP));
             cards.get(i).getBounds().setPosition(x, y);
         }
     }
@@ -646,12 +728,12 @@ public class PlanningPanel {
         }
 
         paletteScrollTrackBounds.set(
-            paletteBounds.x + PALETTE_PADDING,
-            paletteBounds.y + 2f,
-            Math.max(0f, paletteBounds.width - PALETTE_PADDING * 2f),
-            SCROLLBAR_HEIGHT);
+            paletteBounds.x + scaled(PALETTE_PADDING),
+            paletteBounds.y + scaled(2f),
+            Math.max(0f, paletteBounds.width - scaled(PALETTE_PADDING) * 2f),
+            scaled(SCROLLBAR_HEIGHT));
         float thumbWidth = Math.max(
-            SCROLLBAR_MIN_THUMB_WIDTH,
+            scaled(SCROLLBAR_MIN_THUMB_WIDTH),
             paletteScrollTrackBounds.width * paletteViewportBounds.width / paletteContentWidth);
         thumbWidth = Math.min(paletteScrollTrackBounds.width, thumbWidth);
         float travel = paletteScrollTrackBounds.width - thumbWidth;
@@ -666,7 +748,7 @@ public class PlanningPanel {
     private void setPaletteScroll(float value) {
         paletteScrollX = clamp(value, 0f, paletteScrollMax);
         paletteScrollTargetX = paletteScrollX;
-        layoutPaletteCards(paletteRowCount(cards.size()));
+        layoutPaletteCards(paletteRows(cards.size()));
         layoutPaletteScrollbar();
     }
 
@@ -684,15 +766,41 @@ public class PlanningPanel {
             float blend = 1f - (float) Math.exp(-PALETTE_SCROLL_SMOOTHING * elapsed);
             paletteScrollX += distance * blend;
         }
-        layoutPaletteCards(paletteRowCount(cards.size()));
+        layoutPaletteCards(paletteRows(cards.size()));
         layoutPaletteScrollbar();
         updateHoveredCard();
     }
 
-    private static float preferredPaletteWidth() {
-        return PALETTE_PADDING * 2f
-            + PALETTE_COLUMNS * MoveCardView.CARD_W
-            + (PALETTE_COLUMNS - 1) * CARD_GAP;
+    private float preferredPaletteWidth() {
+        return scaled(PALETTE_PADDING) * 2f
+            + PALETTE_COLUMNS * cardWidth()
+            + (PALETTE_COLUMNS - 1) * scaled(CARD_GAP);
+    }
+
+    private float cardWidth() {
+        return shortViewportLayout
+            ? layout.shortMoveCardWidth : MoveCardView.CARD_W * textGeometryScale();
+    }
+
+    private float cardHeight() {
+        return shortViewportLayout
+            ? layout.shortMoveCardHeight : MoveCardView.CARD_H * textGeometryScale();
+    }
+
+    private int paletteRows(int cardCount) {
+        return windowsTextGeometry ? 1 : paletteRowCount(cardCount);
+    }
+
+    private int paletteRowFor(int cardIndex) {
+        return windowsTextGeometry ? 0 : paletteRow(cardIndex);
+    }
+
+    private int paletteColumnFor(int cardIndex) {
+        return windowsTextGeometry ? cardIndex : paletteColumn(cardIndex);
+    }
+
+    private int paletteColumns(int cardCount) {
+        return windowsTextGeometry ? Math.max(0, cardCount) : paletteColumnCount(cardCount);
     }
 
     static int paletteRowCount(int cardCount) {
@@ -730,10 +838,12 @@ public class PlanningPanel {
         offensiveViews.clear();
         defensiveViews.clear();
         for (ActionSegment segment : plan.offensiveTimeline().getSegments()) {
-            offensiveViews.add(new ActionSegmentView(segment, 0f, 0f, 0f, offensiveBar.getBounds().height - 12f));
+            offensiveViews.add(new ActionSegmentView(segment, 0f, 0f, 0f,
+                offensiveBar.getBounds().height - 12f));
         }
         for (ActionSegment segment : plan.defensiveTimeline().getSegments()) {
-            defensiveViews.add(new ActionSegmentView(segment, 0f, 0f, 0f, defensiveBar.getBounds().height - 12f));
+            defensiveViews.add(new ActionSegmentView(segment, 0f, 0f, 0f,
+                defensiveBar.getBounds().height - 12f));
         }
         offensiveBar.layoutSegments(offensiveViews);
         defensiveBar.layoutSegments(defensiveViews);
@@ -831,8 +941,8 @@ public class PlanningPanel {
         MoveCardView.KeywordHover hover = cards.get(hoveredCard).keywordAt(dragMouseX, dragMouseY);
         if (hover == null) return;
 
-        float popupWidth = Math.max(1f, Math.min(320f, screenWidth - 20f));
-        float padding = 12f;
+        float popupWidth = Math.max(1f, Math.min(scaled(320f), screenWidth - scaled(20f)));
+        float padding = scaled(12f);
         float contentWidth = Math.max(1f, popupWidth - padding * 2f);
         GlyphLayout heading = new GlyphLayout(
             titleFont,
@@ -848,7 +958,8 @@ public class PlanningPanel {
             contentWidth,
             Align.left,
             true);
-        float popupHeight = padding * 2f + heading.height + 6f + description.height;
+        float headingGap = scaled(6f);
+        float popupHeight = padding * 2f + heading.height + headingGap + description.height;
         KeywordPopupPosition.Position position = KeywordPopupPosition.place(
             hover.bounds().x,
             hover.bounds().y,
@@ -862,20 +973,29 @@ public class PlanningPanel {
         ui.cardOver.draw(batch, position.x(), position.y(), popupWidth, popupHeight);
         float textTop = position.y() + popupHeight - padding;
         titleFont.draw(batch, heading, position.x() + padding, textTop);
-        font.draw(batch, description, position.x() + padding, textTop - heading.height - 6f);
+        font.draw(batch, description, position.x() + padding,
+            textTop - heading.height - headingGap);
     }
 
     private void drawHeader(Batch batch, BitmapFont font, BitmapFont titleFont) {
         ui.header.draw(batch, headerBounds.x, headerBounds.y, headerBounds.width, headerBounds.height);
-        titleFont.setColor(Color.WHITE);
-        titleFont.draw(batch, compactLayout ? "PLAN ROUND" : "BUILD YOUR TIMELINE",
-            headerBounds.x + 18f, headerBounds.y + (compactLayout ? 106f : 39f));
-        float statX = compactLayout ? headerBounds.x + 12f : headerBounds.x + Math.min(340f, headerBounds.width * 0.42f);
-        float statWidth = compactLayout ? 82f : 104f;
-        drawStat(batch, font, statX, headerBounds.y + (compactLayout ? 12f : 15f), statWidth,
+        if (showHeaderTitle) {
+            titleFont.setColor(Color.WHITE);
+            titleFont.draw(batch, compactLayout ? "PLAN ROUND" : "BUILD YOUR TIMELINE",
+                headerBounds.x + scaled(18f),
+                headerBounds.y + scaled(compactLayout ? 106f : 39f));
+        }
+        float statX = compactLayout
+            ? headerBounds.x + scaled(12f)
+            : headerBounds.x + Math.min(scaled(340f), headerBounds.width * 0.42f);
+        float statWidth = scaled(compactLayout ? 82f : 104f);
+        drawStat(batch, font, statX,
+            headerBounds.y + scaled(compactLayout ? 12f : 15f), statWidth,
             "AP", plan.remainingApBudget(), plan.apBudget(), BattleUiAssets.YELLOW);
-        drawStat(batch, font, statX + statWidth + 8f, headerBounds.y + (compactLayout ? 12f : 15f),
-            compactLayout ? 82f : 108f, "CE", plan.remainingCe(), maxCe, BattleUiAssets.CURSED_ENERGY);
+        drawStat(batch, font, statX + statWidth + scaled(8f),
+            headerBounds.y + scaled(compactLayout ? 12f : 15f),
+            scaled(compactLayout ? 82f : 108f),
+            "CE", plan.remainingCe(), maxCe, BattleUiAssets.CURSED_ENERGY);
 
         if (confirmed) {
             ui.lockButtonDisabled.draw(batch, lockInBounds.x, lockInBounds.y, lockInBounds.width, lockInBounds.height);
@@ -886,25 +1006,27 @@ public class PlanningPanel {
         }
         font.setColor(Color.WHITE);
         font.draw(batch, confirmed ? (compactLayout ? "LOCKED" : "PLAN LOCKED") : (compactLayout ? "LOCK" : "LOCK IN"),
-            lockInBounds.x + (compactLayout ? 17f : 22f), lockInBounds.y + (compactLayout ? 19f : 25f));
+            lockInBounds.x + scaled(compactLayout ? 17f : 22f),
+            lockInBounds.y + scaled(compactLayout ? 19f : 25f));
         if (lockError != null) {
             font.setColor(BattleUiAssets.YELLOW);
-            font.draw(batch, lockError, headerBounds.x + 18f, headerBounds.y + 13f);
+            font.draw(batch, lockError,
+                headerBounds.x + scaled(18f), headerBounds.y + scaled(13f));
         }
     }
 
     private void drawActorName(Batch batch, BitmapFont font) {
         if (actorName.isBlank()) return;
         GlyphLayout layout = new GlyphLayout(font, actorName);
-        float availableWidth = Math.max(1f, headerBounds.width - 36f);
+        float availableWidth = Math.max(1f, headerBounds.width - scaled(36f));
         float scale = Math.min(ACTOR_NAME_SCALE, availableWidth / layout.width);
         float originalScaleX = font.getData().scaleX;
         float originalScaleY = font.getData().scaleY;
         Color originalColor = new Color(font.getColor());
         font.getData().setScale(originalScaleX * scale, originalScaleY * scale);
         font.setColor(Color.BLACK);
-        font.draw(batch, actorName, headerBounds.x + 18f,
-            headerBounds.y - 6f);
+        font.draw(batch, actorName, headerBounds.x + scaled(18f),
+            headerBounds.y - scaled(6f));
         font.getData().setScale(originalScaleX, originalScaleY);
         font.setColor(originalColor);
     }
@@ -925,7 +1047,8 @@ public class PlanningPanel {
                 batch, bounds.x, bounds.y, bounds.width, bounds.height);
             font.setColor(BattleUiAssets.TEXT);
             String prefix = multiple ? (selected ? "[x] " : "[ ] ") : "";
-            font.draw(batch, prefix + option.label(), bounds.x + 8f, bounds.y + 20f);
+            font.draw(batch, prefix + option.label(),
+                bounds.x + scaled(8f), bounds.y + scaled(20f));
         }
         if (multiple) {
             int count = selectedIds.size();
@@ -933,30 +1056,36 @@ public class PlanningPanel {
             font.setColor(BattleUiAssets.YELLOW);
             font.draw(batch, "SELECT TARGETS  " + count + "/" + cap,
                 targetDoneBounds.x,
-                targetDoneBounds.y + targetDoneBounds.height * (eligibleTargets.size() + 1) + 20f);
+                targetDoneBounds.y + targetDoneBounds.height * (eligibleTargets.size() + 1)
+                    + scaled(20f));
             boolean canFinish = count > 0 && count <= cap;
             (canFinish && targetDoneBounds.contains(dragMouseX, dragMouseY)
                 ? ui.cardOver : ui.card).draw(batch, targetDoneBounds.x, targetDoneBounds.y,
                     targetDoneBounds.width, targetDoneBounds.height);
             font.setColor(canFinish ? BattleUiAssets.TEXT : BattleUiAssets.MUTED);
-            font.draw(batch, "DONE", targetDoneBounds.x + 8f, targetDoneBounds.y + 20f);
+            font.draw(batch, "DONE",
+                targetDoneBounds.x + scaled(8f), targetDoneBounds.y + scaled(20f));
         }
     }
 
     private void layoutTargetMenu() {
         targetOptionBounds.clear();
         ActionSegmentView selectedView = viewFor(targetMenuSegment);
-        float width = Math.min(240f, Math.max(140f, screenWidth - 20f));
-        float rowHeight = 30f;
+        float width = Math.min(scaled(240f),
+            Math.max(scaled(140f), screenWidth - scaled(20f)));
+        float rowHeight = scaled(30f);
         float x = selectedView == null ? dragMouseX : selectedView.getBounds().x;
         float y = selectedView == null
-            ? dragMouseY : selectedView.getBounds().y + selectedView.getBounds().height + 4f;
-        x = clamp(x, 10f, Math.max(10f, screenWidth - width - 10f));
+            ? dragMouseY : selectedView.getBounds().y + selectedView.getBounds().height + scaled(4f);
+        x = clamp(x, scaled(10f),
+            Math.max(scaled(10f), screenWidth - width - scaled(10f)));
         boolean multiple = isMultipleTargetMove(targetMenuSegment.getMove());
         List<TargetOption> eligibleTargets = eligibleTargetOptions(targetMenuSegment.getMove());
         float totalHeight = rowHeight * (eligibleTargets.size() + (multiple ? 2 : 0));
-        if (y + totalHeight > screenHeight - 10f) {
-            y = Math.max(10f, (selectedView == null ? y : selectedView.getBounds().y) - totalHeight - 4f);
+        if (y + totalHeight > screenHeight - scaled(10f)) {
+            y = Math.max(scaled(10f),
+                (selectedView == null ? y : selectedView.getBounds().y)
+                    - totalHeight - scaled(4f));
         }
         float optionsY = y + (multiple ? rowHeight : 0f);
         for (int i = 0; i < eligibleTargets.size(); i++) {
@@ -1055,15 +1184,19 @@ public class PlanningPanel {
 
     private void drawStat(Batch batch, BitmapFont font, float x, float y, float width, String label,
                           int current, int maximum, Color fillColor) {
-        ui.statPill.draw(batch, x, y, width, 29f);
+        float height = scaled(29f);
+        float edge = scaled(4f);
+        ui.statPill.draw(batch, x, y, width, height);
         float fillRatio = maximum <= 0 ? 0f : Math.max(0f, Math.min(1f, current / (float) maximum));
         batch.setColor(fillColor);
-        batch.draw(ui.pixel, x + 4f, y + 4f, (width - 8f) * fillRatio, 21f);
+        batch.draw(ui.pixel, x + edge, y + edge,
+            (width - edge * 2f) * fillRatio, scaled(21f));
         batch.setColor(Color.WHITE);
         font.setColor(BattleUiAssets.MUTED);
-        font.draw(batch, label, x + 8f, y + 19f);
+        font.draw(batch, label, x + scaled(8f), y + scaled(19f));
         font.setColor(BattleUiAssets.TEXT);
-        font.draw(batch, current + "/" + maximum, x + 31f, y + 19f);
+        font.draw(batch, current + "/" + maximum,
+            x + scaled(31f), y + scaled(19f));
     }
 
     private void drawTimelineLabel(Batch batch, BitmapFont font, TimelineBar bar, String label,
@@ -1072,17 +1205,22 @@ public class PlanningPanel {
         // Anchor the icon to the bar itself so tier-scaled timelines retain the
         // same gap. Desktop labels go to the icon's left so the bar cannot
         // paint over them when it is drawn afterwards.
+        float iconSize = scaled(TIMELINE_ICON_SIZE);
         float iconX = compactLayout
-            ? bounds.x + LABEL_LEFT_GAP
-            : bounds.x - LABEL_LEFT_GAP - TIMELINE_ICON_SIZE;
-        float y = compactLayout ? bounds.y + bounds.height + 9f : bounds.y + bounds.height / 2f;
-        batch.draw(icon, iconX, y - TIMELINE_ICON_SIZE / 2f, TIMELINE_ICON_SIZE, TIMELINE_ICON_SIZE);
+            ? bounds.x + scaled(LABEL_LEFT_GAP)
+            : bounds.x - scaled(LABEL_LEFT_GAP) - iconSize;
+        float y = compactLayout
+            ? bounds.y + bounds.height + scaled(9f)
+            : bounds.y + bounds.height / 2f;
+        batch.draw(icon, iconX, y - iconSize / 2f, iconSize, iconSize);
         font.setColor(color);
         if (compactLayout) {
-            font.draw(batch, label, iconX + TIMELINE_ICON_SIZE + TIMELINE_LABEL_GAP, y + 8f);
+            font.draw(batch, label,
+                iconX + iconSize + scaled(TIMELINE_LABEL_GAP), y + scaled(8f));
         } else {
             GlyphLayout labelLayout = new GlyphLayout(font, label);
-            font.draw(batch, label, iconX - TIMELINE_LABEL_GAP - labelLayout.width, y + 8f);
+            font.draw(batch, label,
+                iconX - scaled(TIMELINE_LABEL_GAP) - labelLayout.width, y + scaled(8f));
         }
     }
 
@@ -1093,8 +1231,10 @@ public class PlanningPanel {
         TimelineBar bar = barFor(draggingBoard);
         Rectangle barBounds = bar.getBounds();
         boolean overTrack = barBounds.contains(dragMouseX, dragMouseY);
-        float width = overTrack ? bar.segmentWidth(move.getApCost()) : Math.max(132f, bar.segmentWidth(move.getApCost()));
-        float height = overTrack ? barBounds.height - 12f : 48f;
+        float width = overTrack
+            ? bar.segmentWidth(move.getApCost())
+            : Math.max(scaled(132f), bar.segmentWidth(move.getApCost()));
+        float height = overTrack ? barBounds.height - 12f : scaled(48f);
         float x = overTrack ? bar.segmentLeft(draggingTick) : dragMouseX - width / 2f;
         float y = overTrack ? barBounds.y + 6f : dragMouseY - height / 2f;
         ActionSegmentView ghost = new ActionSegmentView(move, x, y, width, height);
@@ -1348,8 +1488,8 @@ public class PlanningPanel {
             float amount = Math.abs(amountX) > Math.abs(amountY) ? amountX : amountY;
             if (amount == 0f) return false;
             float step = Math.min(
-                MoveCardView.CARD_W + CARD_GAP,
-                Math.max(48f, paletteViewportBounds.width * 0.3f));
+                cardWidth() + scaled(CARD_GAP),
+                Math.max(scaled(48f), paletteViewportBounds.width * 0.3f));
             setPaletteScrollTarget(
                 paletteScrollTargetX + amount * step * PALETTE_SCROLL_SPEED);
             updateHover();

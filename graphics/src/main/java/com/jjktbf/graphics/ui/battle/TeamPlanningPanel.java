@@ -5,10 +5,12 @@ import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.math.Rectangle;
 import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.multiplayer.TargetListSupport;
 import com.jjktbf.graphics.ui.profile.BattleUiLayout;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.model.character.coded.CodedAbilityState;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.BattleState;
@@ -71,8 +73,13 @@ public final class TeamPlanningPanel {
     private final List<Page> pages = new ArrayList<>();
     private final Rectangle previousBounds = new Rectangle();
     private final Rectangle nextBounds = new Rectangle();
+    private final Rectangle pageLabelBounds = new Rectangle();
+    private BattleUiLayout.Planner layout = new BattleUiLayout.Planner();
     private int activePage;
+    private float screenWidth;
     private float screenHeight;
+    private float textGeometryScale = 1f;
+    private boolean windowsTextGeometry;
     private boolean submitted;
     private Runnable onConfirm = () -> { };
     private Consumer<SoundCue> soundPlayer = cue -> { };
@@ -213,14 +220,60 @@ public final class TeamPlanningPanel {
     }
 
     public void resize(float width, float height) {
+        screenWidth = width;
         screenHeight = height;
         for (Page page : pages) page.panel().resize(width, height);
-        previousBounds.set(14f, height - 52f, 30f, 30f);
-        nextBounds.set(50f, height - 52f, 30f, 30f);
+        layoutNavigation(width, height);
     }
 
-    public void setLayout(BattleUiLayout layout) {
-        for (Page page : pages) page.panel().setLayout(layout);
+    public void setLayout(BattleUiLayout battleLayout) {
+        if (battleLayout == null) return;
+        layout = battleLayout.copy().planner;
+        windowsTextGeometry = battleLayout.storedProfile() == UiProfile.WINDOWS;
+        textGeometryScale = windowsTextGeometry ? layout.textGeometryScale : 1f;
+        for (Page page : pages) {
+            page.panel().setLayout(battleLayout);
+            page.panel().setTeamNavigationHeader(windowsTextGeometry && pages.size() > 1);
+        }
+        layoutNavigation(screenWidth, screenHeight);
+    }
+
+    private void layoutNavigation(float width, float height) {
+        if (!windowsTextGeometry) {
+            previousBounds.set(14f, height - 52f, 30f, 30f);
+            nextBounds.set(50f, height - 52f, 30f, 30f);
+            pageLabelBounds.set(nextBounds.x + nextBounds.width + 10f,
+                nextBounds.y, Float.MAX_VALUE, nextBounds.height);
+            return;
+        }
+
+        float margin = Math.min(layout.marginMax,
+            Math.max(layout.marginMin, width * layout.marginFraction));
+        boolean compact = width < layout.compactWidthThreshold;
+        float headerHeight = compact ? layout.compactHeaderHeight : layout.headerHeight;
+        float headerY = height - margin - headerHeight;
+        float buttonSize = scaled(30f);
+        float buttonY = headerY + (headerHeight - buttonSize) / 2f;
+        previousBounds.set(margin + scaled(18f), buttonY, buttonSize, buttonSize);
+        nextBounds.set(previousBounds.x + buttonSize + scaled(6f),
+            buttonY, buttonSize, buttonSize);
+
+        float headerWidth = width - margin * 2f;
+        float statX = compact
+            ? margin + scaled(12f)
+            : margin + Math.min(scaled(340f), headerWidth * 0.42f);
+        float lockX = compact
+            ? margin + headerWidth
+                - layout.compactLockButtonRightInset - layout.compactLockButtonWidth
+            : margin + headerWidth - layout.lockButtonHorizontalInset - layout.lockButtonWidth;
+        float labelX = nextBounds.x + nextBounds.width + scaled(10f);
+        float labelRight = Math.min(statX, lockX) - scaled(10f);
+        pageLabelBounds.set(labelX, buttonY,
+            Math.max(1f, labelRight - labelX), buttonSize);
+    }
+
+    private float scaled(float value) {
+        return value * textGeometryScale;
     }
 
     public void draw(Batch batch, BitmapFont font, BitmapFont titleFont, BitmapFont statFont) {
@@ -233,12 +286,51 @@ public final class TeamPlanningPanel {
         batch.draw(ui.pixel, nextBounds.x, nextBounds.y, nextBounds.width, nextBounds.height);
         batch.setColor(Color.WHITE);
         font.setColor(Color.WHITE);
-        font.draw(batch, "<", previousBounds.x + 10f, previousBounds.y + 21f);
-        font.draw(batch, ">", nextBounds.x + 10f, nextBounds.y + 21f);
-        font.draw(batch, pages.get(activePage).name() + "  " + (activePage + 1)
-            + "/" + pages.size(), nextBounds.x + nextBounds.width + 10f,
-            nextBounds.y + 21f);
+        if (!windowsTextGeometry) {
+            font.draw(batch, "<", previousBounds.x + 10f, previousBounds.y + 21f);
+            font.draw(batch, ">", nextBounds.x + 10f, nextBounds.y + 21f);
+            font.draw(batch, pages.get(activePage).name() + "  " + (activePage + 1)
+                + "/" + pages.size(), nextBounds.x + nextBounds.width + 10f,
+                nextBounds.y + 21f);
+            batch.end();
+            return;
+        }
+        font.draw(batch, "<",
+            previousBounds.x + scaled(10f), previousBounds.y + scaled(21f));
+        font.draw(batch, ">",
+            nextBounds.x + scaled(10f), nextBounds.y + scaled(21f));
+        String pageLabel = pages.get(activePage).name() + "  " + (activePage + 1)
+            + "/" + pages.size();
+        font.draw(batch, ellipsize(font, pageLabel, pageLabelBounds.width),
+            pageLabelBounds.x, pageLabelBounds.y + scaled(21f));
         batch.end();
+    }
+
+    private static String ellipsize(BitmapFont font, String value, float maximumWidth) {
+        if (new GlyphLayout(font, value).width <= maximumWidth) return value;
+        String suffix = "...";
+        if (new GlyphLayout(font, suffix).width > maximumWidth) return "";
+        String result = value;
+        while (result.length() > 1
+            && new GlyphLayout(font, result + suffix).width > maximumWidth) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result + suffix;
+    }
+
+    record HeaderRegions(
+        Rectangle previous,
+        Rectangle next,
+        Rectangle pageLabel,
+        boolean genericTitleVisible
+    ) { }
+
+    HeaderRegions headerRegions() {
+        return new HeaderRegions(
+            new Rectangle(previousBounds),
+            new Rectangle(nextBounds),
+            new Rectangle(pageLabelBounds),
+            active().isHeaderTitleVisible());
     }
 
     public InputAdapter inputProcessor() {

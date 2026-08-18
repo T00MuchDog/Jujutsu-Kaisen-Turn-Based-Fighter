@@ -12,6 +12,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.model.progression.TechniqueMasteryProgressionData;
 
 import java.util.ArrayList;
@@ -30,6 +31,8 @@ public final class MasteryProgressionEditor extends Table {
     private final Consumer<Map<String, TechniqueMasteryProgressionData>> setter;
     private final Runnable onDirty;
     private final Skin skin;
+    private final UiProfile uiProfile;
+    private final boolean windowsLayout;
     private final Container<Actor> details = new Container<>();
 
     public MasteryProgressionEditor(
@@ -38,6 +41,7 @@ public final class MasteryProgressionEditor extends Table {
         Supplier<Map<String, TechniqueMasteryProgressionData>> getter,
         Consumer<Map<String, TechniqueMasteryProgressionData>> setter,
         Runnable onDirty,
+        UiProfile uiProfile,
         Skin skin
     ) {
         super(skin);
@@ -46,6 +50,8 @@ public final class MasteryProgressionEditor extends Table {
         this.getter = getter;
         this.setter = setter;
         this.onDirty = onDirty == null ? () -> { } : onDirty;
+        this.uiProfile = uiProfile;
+        this.windowsLayout = uiProfile == UiProfile.WINDOWS;
         this.skin = skin;
         defaults().left().pad(3).growX();
         rebuild();
@@ -78,7 +84,7 @@ public final class MasteryProgressionEditor extends Table {
         Table table = new Table(skin);
         table.defaults().left().pad(3).growX();
 
-        SelectBox<String> mode = new DynamicSelectBox<>(skin);
+        SelectBox<String> mode = new DynamicSelectBox<>(skin, uiProfile);
         mode.setItems("Formula", "Benchmarks");
         mode.setSelected(TechniqueMasteryProgressionData.BENCHMARKS.equals(data.mode)
             ? "Benchmarks" : "Formula");
@@ -117,8 +123,8 @@ public final class MasteryProgressionEditor extends Table {
                 skin, "small");
             hint.setColor(skin.get("text-dim", Color.class));
             hint.setWrap(true);
-            table.add(hint).colspan(2).width(500f).growX().row();
-            table.add(preview).colspan(2).width(500f).growX().row();
+            addWideLabel(table, hint);
+            addWideLabel(table, preview);
         }
         return table;
     }
@@ -150,9 +156,9 @@ public final class MasteryProgressionEditor extends Table {
                 onDirty.run();
             }));
             row.add(new Label("CTM", skin)).padRight(3);
-            row.add(mastery).width(70).padRight(6);
+            row.add(mastery).width(windowsLayout ? 105f : 70f).padRight(6);
             row.add(new Label("Value", skin)).padRight(3);
-            row.add(value).width(90);
+            row.add(value).width(windowsLayout ? 135f : 90f);
             if (index > 0) {
                 TextButton remove = new TextButton("X", skin);
                 remove.addListener(change(() -> {
@@ -176,7 +182,7 @@ public final class MasteryProgressionEditor extends Table {
             rebuild();
         }));
         table.add(add).colspan(2).left().row();
-        table.add(preview).colspan(2).width(500f).growX().row();
+        addWideLabel(table, preview);
     }
 
     private Label previewLabel(TechniqueMasteryProgressionData data) {
@@ -222,6 +228,15 @@ public final class MasteryProgressionEditor extends Table {
         field.setTextFieldFilter((textField, character) ->
             Character.isDigit(character) || character == '-');
         return field;
+    }
+
+    private void addWideLabel(Table table, Label label) {
+        if (windowsLayout) {
+            table.add(label).colspan(2).minWidth(0f).prefWidth(750f)
+                .maxWidth(750f).growX().row();
+        } else {
+            table.add(label).colspan(2).width(500f).growX().row();
+        }
     }
 
     private static Integer parseInteger(String value) {

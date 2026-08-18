@@ -22,6 +22,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.WidgetGroup;
 import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.ContentSizedDialog;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.graphics.ui.text.KeywordLabel;
 import com.jjktbf.graphics.ui.text.KeywordTooltip;
 import com.jjktbf.model.character.AbilityData;
@@ -61,6 +62,8 @@ public class SkillTreeCanvas extends WidgetGroup {
     private final Function<SkillTreeNodeData, String> activationError;
     private final Consumer<SoundCue> soundPlayer;
     private final Skin skin;
+    private final UiProfile uiProfile;
+    private final boolean windowsLayout;
     private final Map<String, MoveData> movesById = new LinkedHashMap<>();
     private final Map<String, AbilityData> abilitiesById = new LinkedHashMap<>();
     private final Map<String, NodeView> viewsByNodeId = new LinkedHashMap<>();
@@ -85,6 +88,7 @@ public class SkillTreeCanvas extends WidgetGroup {
         Consumer<String> onStatus,
         Function<SkillTreeNodeData, String> activationError,
         Consumer<SoundCue> soundPlayer,
+        UiProfile uiProfile,
         Skin skin
     ) {
         this.technique = Objects.requireNonNull(technique);
@@ -95,9 +99,11 @@ public class SkillTreeCanvas extends WidgetGroup {
         this.activationError = activationError == null ? ignored -> null : activationError;
         this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
         this.skin = Objects.requireNonNull(skin);
+        this.uiProfile = Objects.requireNonNull(uiProfile);
+        this.windowsLayout = uiProfile == UiProfile.WINDOWS;
         this.background = skin.getDrawable("battle-palette");
         this.connector = skin.getDrawable("white-pixel");
-        this.keywordTooltip = new KeywordTooltip(skin);
+        this.keywordTooltip = new KeywordTooltip(skin, uiProfile);
         setTouchable(Touchable.enabled);
 
         if (moves != null) moves.stream().filter(Objects::nonNull)
@@ -334,7 +340,7 @@ public class SkillTreeCanvas extends WidgetGroup {
         menu.defaults().growX().pad(2f);
         Label heading = new Label(contentName(node), skin, "small");
         heading.setEllipsis(true);
-        menu.add(heading).width(245f).row();
+        menu.add(heading).width(windowsLayout ? 367.5f : 245f).row();
         TextButton attach = new TextButton("Attach it to another node", skin);
         attach.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
@@ -390,14 +396,28 @@ public class SkillTreeCanvas extends WidgetGroup {
 
     private void openPrerequisiteManager(SkillTreeNodeData node) {
         if (node.prerequisites == null) node.prerequisites = new ArrayList<>();
-        ContentSizedDialog dialog = new ContentSizedDialog("Prerequisites: " + contentName(node), skin);
+        ContentSizedDialog dialog = new ContentSizedDialog(
+            "Prerequisites: " + contentName(node),
+            skin,
+            uiProfile);
         Container<Actor> listContainer = new Container<>();
         listContainer.fill(true, false);
         Runnable[] refresh = new Runnable[1];
         refresh[0] = () -> listContainer.setActor(prerequisiteList(node, refresh[0]));
         refresh[0].run();
 
-        dialog.getContentTable().add(listContainer).width(600f).growX().pad(6f).row();
+        if (windowsLayout) {
+            AxisLockedScrollPane listScroll = new AxisLockedScrollPane(listContainer, skin);
+            listScroll.setScrollingDisabled(true, false);
+            listScroll.setFadeScrollBars(false);
+            listScroll.setOverscroll(false, false);
+            listScroll.setForceScroll(false, false);
+            dialog.getContentTable().add(listScroll).minWidth(0f).prefWidth(900f)
+                .maxWidth(900f).minHeight(120f).maxHeight(windowsDialogScrollHeight())
+                .growX().pad(6f).row();
+        } else {
+            dialog.getContentTable().add(listContainer).width(600f).growX().pad(6f).row();
+        }
         TextButton add = new TextButton("+ Add prerequisite", skin);
         add.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
@@ -415,6 +435,11 @@ public class SkillTreeCanvas extends WidgetGroup {
         dialog.getButtonTable().add(close).pad(4f);
         dialog.show(getStage());
         soundPlayer.accept(SoundCue.UI_CONFIRM);
+    }
+
+    private float windowsDialogScrollHeight() {
+        float viewportHeight = getStage() == null ? 1080f : getStage().getHeight();
+        return Math.max(120f, Math.min(840f, viewportHeight - 210f));
     }
 
     private Actor prerequisiteList(SkillTreeNodeData node, Runnable refresh) {
@@ -456,8 +481,10 @@ public class SkillTreeCanvas extends WidgetGroup {
         SkillTreePrerequisiteData working = adding
             ? newPrerequisite() : node.prerequisites.get(index).copy();
         ContentSizedDialog dialog = new ContentSizedDialog(
-            adding ? "Add Prerequisite" : "Edit Prerequisite", skin);
-        SelectBox<String> type = new DynamicSelectBox<>(skin);
+            adding ? "Add Prerequisite" : "Edit Prerequisite",
+            skin,
+            uiProfile);
+        SelectBox<String> type = new DynamicSelectBox<>(skin, uiProfile);
         type.setItems("Cursed Technique Mastery", "Stat", "Node");
         type.setSelected(typeLabel(working.type));
         Container<Actor> fields = new Container<>();
@@ -480,7 +507,11 @@ public class SkillTreeCanvas extends WidgetGroup {
         Table content = dialog.getContentTable();
         content.defaults().pad(4f).left().growX();
         content.add(new Label("Type", skin));
-        content.add(type).width(340f).row();
+        if (windowsLayout) {
+            content.add(type).minWidth(0f).prefWidth(510f).maxWidth(510f).growX().row();
+        } else {
+            content.add(type).width(340f).row();
+        }
         content.add(fields).colspan(2).growX().row();
         Label error = new Label("", skin, "small");
         error.setColor(skin.get("text-error", Color.class));
@@ -520,7 +551,7 @@ public class SkillTreeCanvas extends WidgetGroup {
         Table fields = new Table(skin);
         fields.defaults().pad(4f).left().growX();
         if (SkillTreePrerequisiteData.NODE.equalsIgnoreCase(requirement.type)) {
-            SelectBox<String> nodes = new DynamicSelectBox<>(skin);
+            SelectBox<String> nodes = new DynamicSelectBox<>(skin, uiProfile);
             List<String> labels = technique.skillTree == null ? List.of() : technique.skillTree.stream()
                 .filter(Objects::nonNull).map(this::nodeOptionLabel).toList();
             nodes.setItems(labels.toArray(new String[0]));
@@ -536,13 +567,12 @@ public class SkillTreeCanvas extends WidgetGroup {
                     requirement.nodeId = nodeIdFromOption(nodes.getSelected());
                 }
             });
-            fields.add(new Label("Required node", skin)).width(210f);
-            fields.add(nodes).width(340f).row();
+            addPrerequisiteField(fields, "Required node", nodes);
             return fields;
         }
 
         if (SkillTreePrerequisiteData.STAT.equalsIgnoreCase(requirement.type)) {
-            SelectBox<String> stats = new DynamicSelectBox<>(skin);
+            SelectBox<String> stats = new DynamicSelectBox<>(skin, uiProfile);
             List<String> labels = java.util.Arrays.stream(StatKey.values())
                 .filter(stat -> stat != StatKey.CURSED_TECHNIQUE_MASTERY)
                 .map(stat -> stat.label).toList();
@@ -558,8 +588,7 @@ public class SkillTreeCanvas extends WidgetGroup {
                         .findFirst().orElse(StatKey.VITALITY).fieldName;
                 }
             });
-            fields.add(new Label("Stat", skin)).width(210f);
-            fields.add(stats).width(340f).row();
+            addPrerequisiteField(fields, "Stat", stats);
         }
 
         TextField minimum = new HoverTextField(
@@ -574,9 +603,19 @@ public class SkillTreeCanvas extends WidgetGroup {
                 }
             }
         });
-        fields.add(new Label("Minimum (0-300)", skin)).width(210f);
-        fields.add(minimum).width(340f).row();
+        addPrerequisiteField(fields, "Minimum (0-300)", minimum);
         return fields;
+    }
+
+    private void addPrerequisiteField(Table fields, String text, Actor actor) {
+        Label label = new Label(text, skin);
+        if (windowsLayout) {
+            fields.add(label).minWidth(0f).prefWidth(315f).maxWidth(315f);
+            fields.add(actor).minWidth(0f).prefWidth(510f).maxWidth(510f).growX().row();
+        } else {
+            fields.add(label).width(210f);
+            fields.add(actor).width(340f).row();
+        }
     }
 
     private String validatePrerequisite(SkillTreePrerequisiteData requirement) {
@@ -669,6 +708,10 @@ public class SkillTreeCanvas extends WidgetGroup {
         }
     }
 
+    static float descriptionHeight(UiProfile uiProfile) {
+        return uiProfile == UiProfile.WINDOWS ? 48f : 72f;
+    }
+
     static VerticalBounds verticalBoundsFor(List<SkillTreeNodeData> nodes) {
         float lowestY = Float.POSITIVE_INFINITY;
         float highestY = Float.NEGATIVE_INFINITY;
@@ -731,7 +774,15 @@ public class SkillTreeCanvas extends WidgetGroup {
                 contentDescription(node),
                 skin.get("small", Label.LabelStyle.class),
                 keywordTooltip);
-            add(description).width(NODE_WIDTH - 18f).height(72f).top().row();
+            if (windowsLayout) {
+                Container<KeywordLabel> descriptionViewport = new Container<>(description);
+                descriptionViewport.fill();
+                descriptionViewport.setClip(true);
+                add(descriptionViewport).width(NODE_WIDTH - 18f)
+                    .height(descriptionHeight(uiProfile)).top().row();
+            } else {
+                add(description).width(NODE_WIDTH - 18f).height(72f).top().row();
+            }
             refreshState();
 
             addListener(new InputListener() {

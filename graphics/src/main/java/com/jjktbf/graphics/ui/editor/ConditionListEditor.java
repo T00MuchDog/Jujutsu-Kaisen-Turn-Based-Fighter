@@ -11,6 +11,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.jjktbf.graphics.audio.SoundCue;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.model.character.AbilityConditionData;
 import com.jjktbf.model.character.AbilityConditionRuleData;
 import com.jjktbf.model.character.AbilityEffectData;
@@ -35,6 +36,7 @@ public final class ConditionListEditor extends Table {
     private final Skin skin;
     private final Container<Actor> cards = new Container<>();
     private final boolean masteryEligible;
+    private final UiProfile uiProfile;
 
     public ConditionListEditor(
         List<AbilityConditionRuleData> rules,
@@ -43,6 +45,7 @@ public final class ConditionListEditor extends Table {
         Runnable onDirty,
         Consumer<SoundCue> soundPlayer,
         boolean masteryEligible,
+        UiProfile uiProfile,
         Skin skin
     ) {
         super(skin);
@@ -53,6 +56,7 @@ public final class ConditionListEditor extends Table {
         this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
         this.skin = skin;
         this.masteryEligible = masteryEligible;
+        this.uiProfile = uiProfile;
         defaults().left().pad(4f).growX();
         cards.fill(true, false);
         add(cards).growX().row();
@@ -113,6 +117,7 @@ public final class ConditionListEditor extends Table {
             onDirty,
             soundPlayer,
             masteryEligible,
+            uiProfile,
             skin)).growX().row();
 
         CheckBox sameTrigger = new CheckBox(
@@ -161,6 +166,7 @@ public final class ConditionListEditor extends Table {
                 () -> rule.masteryProgression,
                 value -> rule.masteryProgression = value,
                 onDirty,
+                uiProfile,
                 skin)).growX().row();
         }
 

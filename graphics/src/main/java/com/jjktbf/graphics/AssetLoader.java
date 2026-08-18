@@ -8,10 +8,12 @@ import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator.FreeTypeFont
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.jjktbf.graphics.ui.battle.BattleUiAssets;
 import com.jjktbf.graphics.ui.pixel.PixelSkin;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Centralised asset loading and disposal.
@@ -23,6 +25,12 @@ import java.util.Map;
  * Screens must NEVER dispose these assets themselves.
  */
 public class AssetLoader {
+
+    private final UiProfile uiProfile;
+
+    public AssetLoader(UiProfile uiProfile) {
+        this.uiProfile = Objects.requireNonNull(uiProfile, "uiProfile");
+    }
 
     /** Change this path to select a different battle execution backdrop. */
     public static final String BATTLE_EXECUTION_BACKGROUND_PATH =
@@ -94,7 +102,7 @@ public class AssetLoader {
      * so disposing the skin later cannot affect the battle UI fonts.
      */
     private void loadSkin() {
-        editorSkin = PixelSkin.create();
+        editorSkin = PixelSkin.create(uiProfile);
     }
 
     /**
@@ -113,21 +121,21 @@ public class AssetLoader {
      * tall. At small sizes the pixel grid cannot represent thin strokes, so
      * crossbars and dots get dropped. To avoid this we render the glyphs
      * {@code FONT_OVERSAMPLE}× larger than requested (where the grid has ample
-     * resolution), then set the font's base scale to {@code 1/FONT_OVERSAMPLE}
-     * so its logical/visual size is unchanged, and let the GPU downscale with
-     * mipmap + linear filtering for clean edges. Logical font sizes and all
-     * layout stay identical to the non-oversampled case; only rendering quality
-     * improves.
+     * resolution), including the active profile's text scale, then set the
+     * font's base scale to {@code 1/FONT_OVERSAMPLE}. The profile scale remains
+     * in the generated glyph dimensions while the GPU downscales with mipmap +
+     * linear filtering for clean edges.
      *
      * <p>This is a stateless helper: it touches neither AssetLoader fields nor
      * the PixelSkin's private generator, so it does not break the existing
      * isolation between the two font owners.
      */
     public static BitmapFont generateOversampled(FreeTypeFontGenerator gen,
-                                                 FreeTypeFontParameter p,
-                                                 int logicalSize) {
+                                                  FreeTypeFontParameter p,
+                                                  int logicalSize,
+                                                  UiProfile uiProfile) {
         final float OVERSAMPLE = FONT_OVERSAMPLE;
-        p.size = Math.round(logicalSize * OVERSAMPLE);
+        p.size = rasterSize(logicalSize, uiProfile);
         p.genMipMaps = true;
         p.minFilter = Texture.TextureFilter.MipMapLinearNearest;
         p.magFilter = Texture.TextureFilter.Linear;
@@ -135,6 +143,10 @@ public class AssetLoader {
         // Restore logical size: glyphs were rendered OVERSAMPLE× too large.
         font.getData().setScale(1f / OVERSAMPLE);
         return font;
+    }
+
+    static int rasterSize(int logicalSize, UiProfile uiProfile) {
+        return Math.round(logicalSize * uiProfile.textScale() * FONT_OVERSAMPLE);
     }
 
     private void loadFonts() {
@@ -146,13 +158,12 @@ public class AssetLoader {
         FreeTypeFontParameter p = new FreeTypeFontParameter();
         p.borderWidth = 0f;
 
-        // Logical sizes match the on-screen size of the previous font; layout is
-        // unchanged. generateOversampled renders them at 4x for crisp small text.
-        fontSmall  = generateOversampled(fontGenerator, p, 15);
-        fontMedium = generateOversampled(fontGenerator, p, 23);
-        fontLarge  = generateOversampled(fontGenerator, p, 35);
-        fontXLarge = generateOversampled(fontGenerator, p, 50);
-        fontLog    = generateOversampled(fontGenerator, p, 31);
+        // Profile logical sizes are rendered at 4x for crisp small text.
+        fontSmall  = generateOversampled(fontGenerator, p, 15, uiProfile);
+        fontMedium = generateOversampled(fontGenerator, p, 23, uiProfile);
+        fontLarge  = generateOversampled(fontGenerator, p, 35, uiProfile);
+        fontXLarge = generateOversampled(fontGenerator, p, 50, uiProfile);
+        fontLog    = generateOversampled(fontGenerator, p, 31, uiProfile);
 
         // TTF no longer needed after bitmap generation
         fontGenerator.dispose();

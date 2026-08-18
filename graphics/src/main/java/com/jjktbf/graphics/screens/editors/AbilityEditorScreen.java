@@ -569,7 +569,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                 initialiseCategoryDefaults(ability);
                 markDirty();
                 rebuildDetail();
-            }, skin))).growX().row();
+            }, skin, uiProfile))).growX().row();
         if (ability.isPassive()) {
             category.add(formHint("Passive abilities are always active while assigned.")).growX().row();
         }
@@ -584,7 +584,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                     clearMasteryProgression(ability);
                 }
                 refreshConditionalSections(ability);
-            }, skin))).growX().row();
+            }, skin, uiProfile))).growX().row();
         sourceValueContainer = new Container<>();
         sourceValueContainer.setActor(buildSourceValue(ability));
         source.add(sourceValueContainer).growX().row();
@@ -680,6 +680,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             game.audio()::play,
             safeSource(ability.sourceType) == SourceTypeEnum.TECHNIQUE,
             ability.isPassive(),
+            uiProfile,
             skin);
     }
 
@@ -694,6 +695,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             this::markDirty,
             game.audio()::play,
             safeSource(ability.sourceType) == SourceTypeEnum.TECHNIQUE,
+            uiProfile,
             skin)).growX().row();
         table.add(formHint(
             "Nest AND/OR groups inside each condition. Link a condition to all effects or select "
@@ -827,7 +829,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         String selected,
         Consumer<String> onChange
     ) {
-        SelectBox<String> box = new DynamicSelectBox<>(skin);
+        SelectBox<String> box = new DynamicSelectBox<>(skin, uiProfile);
         box.setItems(labels.toArray(new String[0]));
         box.setSelected(selected);
         box.addListener(new ChangeListener() {

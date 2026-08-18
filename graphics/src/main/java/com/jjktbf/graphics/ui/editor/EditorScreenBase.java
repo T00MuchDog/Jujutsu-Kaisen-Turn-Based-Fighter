@@ -33,6 +33,7 @@ import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.HoverScrollStage;
 import com.jjktbf.graphics.ui.pixel.HoverList;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -95,6 +96,8 @@ public abstract class EditorScreenBase<D> implements Screen {
     protected final JJKGame     game;
     protected final AssetLoader assets;
     protected final Skin        skin;
+    protected final UiProfile   uiProfile;
+    protected final boolean     windowsLayout;
 
     // ── Stage + root ───────────────────────────────────────────────────────────
 
@@ -165,6 +168,8 @@ public abstract class EditorScreenBase<D> implements Screen {
         this.game   = game;
         this.assets = assets;
         this.skin   = assets.editorSkin;
+        this.uiProfile = game.activeUiProfile();
+        this.windowsLayout = uiProfile == UiProfile.WINDOWS;
         this.stage  = new HoverScrollStage(new ScreenViewport());
 
         this.root = new Table();
@@ -857,9 +862,11 @@ public abstract class EditorScreenBase<D> implements Screen {
         });
         if (headSection) {
             collapseButton.getLabel().setFontScale(RECORD_SECTION_HEAD_TITLE_SCALE);
-            header.add(collapseButton).right().size(36f, 33f);
+            if (windowsLayout) header.add(collapseButton).right().size(54f, 49.5f);
+            else header.add(collapseButton).right().size(36f, 33f);
         } else {
-            header.add(collapseButton).right().size(24f, 22f);
+            if (windowsLayout) header.add(collapseButton).right().size(36f, 33f);
+            else header.add(collapseButton).right().size(24f, 22f);
         }
         return header;
     }
@@ -1295,7 +1302,7 @@ public abstract class EditorScreenBase<D> implements Screen {
     /** A row pairing an aligned label column with an arbitrary field actor. */
     protected Table labelledRow(String label, Actor field) {
         Table row = new Table(skin);
-        row.add(new Label(label, skin)).left().minWidth(FORM_LABEL_WIDTH).padRight(PAD);
+        addFormLabel(row, label);
         row.add(field).growX();
         return row;
     }
@@ -1320,7 +1327,7 @@ public abstract class EditorScreenBase<D> implements Screen {
     protected Table labelledField(String label, String initial,
                                   java.util.function.Consumer<String> onChange) {
         Table row = new Table(skin);
-        row.add(new Label(label, skin)).left().minWidth(FORM_LABEL_WIDTH).padRight(PAD);
+        addFormLabel(row, label);
         TextField tf = new HoverTextField(initial == null ? "" : initial, skin);
         tf.setTextFieldFilter((TextField textField, char c) -> true);
         tf.addListener(new ChangeListener() {
@@ -1337,8 +1344,9 @@ public abstract class EditorScreenBase<D> implements Screen {
     protected Table labelledKeywordField(String label, String initial,
                                          java.util.function.Consumer<String> onChange) {
         Table row = new Table(skin);
-        row.add(new Label(label, skin)).left().minWidth(FORM_LABEL_WIDTH).padRight(PAD);
-        TextField tf = new KeywordAutocompleteField(initial == null ? "" : initial, skin);
+        addFormLabel(row, label);
+        TextField tf = new KeywordAutocompleteField(
+            initial == null ? "" : initial, skin, uiProfile);
         tf.setTextFieldFilter((TextField textField, char c) -> true);
         tf.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
@@ -1357,7 +1365,7 @@ public abstract class EditorScreenBase<D> implements Screen {
     protected Table labelledIntField(String label, int initial, int min, int max,
                                      java.util.function.IntConsumer onChange) {
         Table row = new Table(skin);
-        row.add(new Label(label, skin)).left().minWidth(FORM_LABEL_WIDTH).padRight(PAD);
+        addFormLabel(row, label);
         TextField tf = new HoverTextField(String.valueOf(initial), skin);
         tf.setTextFieldFilter((TextField textField, char c) ->
             Character.isDigit(c) || c == '-');
@@ -1376,8 +1384,17 @@ public abstract class EditorScreenBase<D> implements Screen {
                 } catch (NumberFormatException ignored) { /* keep editing */ }
             }
         });
-        row.add(tf).left().width(120f);
+        row.add(tf).left().width(windowsLayout ? 180f : 120f);
         row.add().growX(); // spacer keeps the field left-anchored
         return row;
+    }
+
+    private void addFormLabel(Table row, String text) {
+        Label label = new Label(text, skin);
+        if (windowsLayout) {
+            row.add(label).left().minWidth(0f).prefWidth(300f).maxWidth(300f).padRight(PAD);
+        } else {
+            row.add(label).left().minWidth(FORM_LABEL_WIDTH).padRight(PAD);
+        }
     }
 }

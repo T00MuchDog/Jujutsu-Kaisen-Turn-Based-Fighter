@@ -2,6 +2,7 @@ package com.jjktbf.graphics.screens;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
@@ -61,7 +62,7 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
 
         Label formatTitle = new Label("FORMAT", assets.editorSkin, "white");
         panel.add(formatTitle).growX().left().padBottom(5f).row();
-        formatSelect = new DynamicSelectBox<>(assets.editorSkin);
+        formatSelect = new DynamicSelectBox<>(assets.editorSkin, game.activeUiProfile());
         formatSelect.setItems(BattleFormat.ONE_V_ONE, BattleFormat.TWO_V_TWO);
         formatSelect.addListener(new ChangeListener() {
             @Override
@@ -74,11 +75,12 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
                 }
             }
         });
-        panel.add(formatSelect).growX().height(44f).padBottom(12f).row();
+        panel.add(formatSelect).growX().height(multiplayerSelectBoxHeight())
+            .padBottom(12f).row();
 
         Label statModeTitle = new Label("STAT MODE", assets.editorSkin, "white");
         panel.add(statModeTitle).growX().left().padBottom(5f).row();
-        statModeSelect = new DynamicSelectBox<>(assets.editorSkin);
+        statModeSelect = new DynamicSelectBox<>(assets.editorSkin, game.activeUiProfile());
         statModeSelect.setItems(BattleStatMode.STANDARD, BattleStatMode.EQUALIZED);
         statModeSelect.addListener(new ChangeListener() {
             @Override
@@ -87,11 +89,12 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
                 if (selected != null) game.setSelectedMultiplayerStatMode(selected);
             }
         });
-        panel.add(statModeSelect).growX().height(44f).padBottom(12f).row();
+        panel.add(statModeSelect).growX().height(multiplayerSelectBoxHeight())
+            .padBottom(12f).row();
 
         Label fighterOneLabel = new Label("FIGHTER 1", assets.editorSkin, "white");
         panel.add(fighterOneLabel).growX().left().padBottom(5f).row();
-        fighterOneSelect = new DynamicSelectBox<>(assets.editorSkin);
+        fighterOneSelect = new DynamicSelectBox<>(assets.editorSkin, game.activeUiProfile());
         fighterOneSelect.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -99,11 +102,12 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
                 refreshDuplicateGuard();
             }
         });
-        panel.add(fighterOneSelect).growX().height(44f).padBottom(8f).row();
+        panel.add(fighterOneSelect).growX().height(multiplayerSelectBoxHeight())
+            .padBottom(8f).row();
 
         fighterTwoLabel = new Label("FIGHTER 2", assets.editorSkin, "white");
         panel.add(fighterTwoLabel).growX().left().padBottom(5f).row();
-        fighterTwoSelect = new DynamicSelectBox<>(assets.editorSkin);
+        fighterTwoSelect = new DynamicSelectBox<>(assets.editorSkin, game.activeUiProfile());
         fighterTwoSelect.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -111,7 +115,8 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
                 refreshDuplicateGuard();
             }
         });
-        panel.add(fighterTwoSelect).growX().height(44f).padBottom(5f).row();
+        panel.add(fighterTwoSelect).growX().height(multiplayerSelectBoxHeight())
+            .padBottom(5f).row();
 
         rosterStatusLabel = wrappedLabel("", "small-white");
         panel.add(rosterStatusLabel).growX().left().padBottom(14f).row();
@@ -122,10 +127,23 @@ public final class MultiplayerMenuScreen extends MultiplayerScreenBase {
         TextButton backButton = button("BACK", "default", game::showMainMenu);
 
         for (TextButton button : new TextButton[]{hostButton, searchButton, retryButton, backButton}) {
-            panel.add(button).growX().height(46f).pad(4f).row();
+            panel.add(button).growX().height(multiplayerButtonHeight()).pad(4f).row();
         }
 
-        root.add(panel).growX().maxWidth(660f).top().padTop(16f).expandY().row();
+        if (windowsLayout) {
+            Table scrollContent = new Table();
+            scrollContent.top();
+            scrollContent.add(panel).growX().top();
+            ScrollPane panelScroll = new ScrollPane(
+                scrollContent, new ScrollPane.ScrollPaneStyle());
+            panelScroll.setScrollingDisabled(true, false);
+            panelScroll.setOverscroll(false, false);
+            panelScroll.setFlickScroll(false);
+            root.add(panelScroll).grow().maxWidth(990f).padTop(16f).row();
+        } else {
+            root.add(panel).growX().maxWidth(660f)
+                .top().padTop(16f).expandY().row();
+        }
         setIdentityActions(false);
         retryButton.setVisible(false);
     }

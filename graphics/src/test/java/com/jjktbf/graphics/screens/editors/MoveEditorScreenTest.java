@@ -1,5 +1,6 @@
 package com.jjktbf.graphics.screens.editors;
 
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.CharacterType;
 import com.jjktbf.model.character.AbilityConditionData;
@@ -30,6 +31,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MoveEditorScreenTest {
+
+    @Test
+    void windowsWrapsPrerequisitesIntoNarrowRows() {
+        assertEquals(2, MoveEditorScreen.prerequisiteColumnsPerRow(UiProfile.WINDOWS));
+        assertEquals(Integer.MAX_VALUE,
+            MoveEditorScreen.prerequisiteColumnsPerRow(UiProfile.MAC));
+    }
 
     @Test
     void saveCopyDeepCopiesAndPreservesAuthoritativeHitComponents() {

@@ -20,6 +20,7 @@ import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.HoverScrollStage;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.model.combat.BattleConfiguration;
 import com.jjktbf.model.combat.BattleFormat;
 import com.jjktbf.model.combat.BattleStatMode;
@@ -32,9 +33,14 @@ import java.util.function.Consumer;
 /** Local battle format choice shown before character selection. */
 public final class BattleFormatScreen implements Screen {
     private static final Color SCREEN_BACKGROUND = new Color(0.804f, 0.863f, 0.980f, 1f);
+    private static final float MAC_STAT_MODE_HEIGHT = 48f;
+    private static final float WINDOWS_STAT_MODE_HEIGHT = 72f;
+    private static final float MAC_PANEL_MAX_WIDTH = 920f;
+    private static final float WINDOWS_PANEL_MAX_WIDTH = 1380f;
 
     private final JJKGame game;
     private final AssetLoader assets;
+    private final boolean windowsLayout;
     private final Stage stage;
     private final Table root;
     private final Table formatPanel;
@@ -53,6 +59,7 @@ public final class BattleFormatScreen implements Screen {
     public BattleFormatScreen(JJKGame game, AssetLoader assets) {
         this.game = game;
         this.assets = assets;
+        windowsLayout = game.activeUiProfile() == UiProfile.WINDOWS;
         stage = new HoverScrollStage(new ScreenViewport());
 
         root = new Table();
@@ -90,7 +97,9 @@ public final class BattleFormatScreen implements Screen {
                 toggleStatMode();
             }
         });
-        formatPanel.add(statModeButton).growX().height(48f).padBottom(6f).row();
+        formatPanel.add(statModeButton).growX()
+            .height(windowsLayout ? WINDOWS_STAT_MODE_HEIGHT : MAC_STAT_MODE_HEIGHT)
+            .padBottom(6f).row();
 
         statModeDescription = new Label("", assets.editorSkin, "small-white");
         statModeDescription.setWrap(true);
@@ -106,7 +115,9 @@ public final class BattleFormatScreen implements Screen {
         formatButtonCells.add(buttonRow.add(oneOnOne).growX().padRight(8f));
         formatButtonCells.add(buttonRow.add(twoOnTwo).growX().padLeft(8f));
         formatPanel.add(buttonRow).growX().expandY().fillY();
-        root.add(formatPanel).growX().maxWidth(920f).expandY().top();
+        root.add(formatPanel).growX()
+            .maxWidth(windowsLayout ? WINDOWS_PANEL_MAX_WIDTH : MAC_PANEL_MAX_WIDTH)
+            .expandY().top();
 
         stage.addCaptureListener(new InputListener() {
             @Override

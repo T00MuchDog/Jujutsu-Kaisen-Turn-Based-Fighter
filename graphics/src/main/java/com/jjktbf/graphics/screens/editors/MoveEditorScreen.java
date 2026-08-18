@@ -20,6 +20,7 @@ import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.ContentSizedDialog;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
 import com.jjktbf.graphics.ui.editor.AxisLockedScrollPane;
 import com.jjktbf.graphics.ui.editor.EnumSelectBox;
@@ -1101,7 +1102,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                     d.defenseType = s;
                     synchronizeWeaponRequirement(d);
                     refreshConditionalFields(d);
-                }, skin))).growX().row();
+                }, skin, uiProfile))).growX().row();
 
             defenseFieldsContainer = new Container<>();
             defenseFieldsContainer.setActor(buildDefenseFields(d));
@@ -1211,7 +1212,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 game.audio().play(SoundCue.UI_NAVIGATE);
                 markDirty();
                 rebuildDetail();
-            }, skin);
+            }, skin, uiProfile);
         t.add(labelledRow("Launch (" + current.displayName() + ")", modeSelect)).growX().row();
         t.add(formHint(current == AttackLaunchMode.ON_FIRE
             ? "The attack launches on this move's firing tick, right after the defence is granted."
@@ -1229,6 +1230,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             this::markDirty,
             game.audio()::play,
             masteryEligible(d),
+            uiProfile,
             skin)).growX().row();
 
         CheckBox chanceEnabled = new CheckBox(" Roll launch chance", skin);
@@ -1262,7 +1264,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         // custom move reveals the normal attack editors below.
         t.add(new Label("ATTACK SOURCE", skin, "small")).padTop(8f).left().row();
         boolean references = attackLaunchReferencesMove(d);
-        SelectBox<String> source = new DynamicSelectBox<>(skin);
+        SelectBox<String> source = new DynamicSelectBox<>(skin, uiProfile);
         source.setItems("Custom move", "Existing move");
         source.setSelected(references ? "Existing move" : "Custom move");
         source.addListener(new ChangeListener() {
@@ -1286,7 +1288,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 t.add(formHint("No other moves exist to reference yet.")).left().row();
             } else {
                 String selectedLabel = launchReferenceLabel(d, options);
-                DynamicSelectBox<String> moveSelect = new DynamicSelectBox<>(skin);
+                DynamicSelectBox<String> moveSelect = new DynamicSelectBox<>(skin, uiProfile);
                 moveSelect.setItems(options.toArray(new String[0]));
                 moveSelect.setSelected(selectedLabel);
                 moveSelect.addListener(new ChangeListener() {
@@ -1863,7 +1865,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     private void addDefenseTimingAndUsesFields(Table t, MoveData d) {
         t.add(labelledRow("Timing", new EnumSelectBox<>(
             DefenseTiming.class, d.defenseTiming, false,
-            s -> { d.defenseTiming = s; }, skin))).growX().row();
+            s -> { d.defenseTiming = s; }, skin, uiProfile))).growX().row();
         t.add(formHint("REACTION arms at the fire tick and triggers on the next matching "
             + "incoming attack, opening its window then (once per placement).")).row();
 
@@ -1881,7 +1883,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         // Block style: percentage vs flat reduction.
         t.add(labelledRow("Style", new EnumSelectBox<>(
             BlockStyle.class, d.blockStyle, false,
-            s -> { d.blockStyle = s; refreshConditionalFields(d); }, skin))).growX().row();
+            s -> { d.blockStyle = s; refreshConditionalFields(d); }, skin, uiProfile)))
+            .growX().row();
 
         if (d.isPercentageBlock()) {
             t.add(labelledIntField("Damage Reduction %", d.blockDamageReduction, 0, 100,
@@ -1955,7 +1958,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         // Scope: which attack ranges this dodge reacts to.
         t.add(labelledRow("Scope", new EnumSelectBox<>(
             DodgeScope.class, d.dodgeScope, false,
-            s -> { d.dodgeScope = s; }, skin))).growX().row();
+            s -> { d.dodgeScope = s; }, skin, uiProfile))).growX().row();
 
         // Duration.
         t.add(labelledIntField("Duration (−1 = EOR, 0 = use AP)",
@@ -2040,28 +2043,37 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         Table statRow = new Table(skin);
         statRow.defaults().center().padLeft(6f).padRight(6f);
 
-        for (StatKey stat : StatKey.values()) {
+        StatKey[] stats = StatKey.values();
+        int columns = prerequisiteColumnsPerRow(uiProfile);
+        for (int index = 0; index < stats.length; index++) {
+            StatKey stat = stats[index];
             Table statColumn = new Table(skin);
             statColumn.defaults().center();
 
             Label label = new Label(stat.label, skin, "small");
             label.setAlignment(Align.center);
             label.setWrap(true);
-            statColumn.add(label).width(82f).height(48f).row();
+            statColumn.add(label).width(windowsLayout ? 123f : 82f)
+                .height(windowsLayout ? 72f : 48f).row();
 
             TextField valueField = new HoverTextField(
                 String.valueOf(prerequisiteValue(d, stat)), skin);
             valueField.setTextFieldFilter((TextField tf, char c) -> Character.isDigit(c));
             wirePrerequisiteField(valueField, d, stat);
-            statColumn.add(valueField).width(64f);
+            statColumn.add(valueField).width(windowsLayout ? 96f : 64f);
 
             statRow.add(statColumn);
+            if ((index + 1) % columns == 0 && index + 1 < stats.length) statRow.row();
         }
 
         t.add(statRow).center().expandX().row();
         t.add(formHint("Set each stat's minimum value (0 means no threshold)."))
             .padTop(6f).center().row();
         return t;
+    }
+
+    static int prerequisiteColumnsPerRow(UiProfile uiProfile) {
+        return uiProfile == UiProfile.WINDOWS ? 2 : Integer.MAX_VALUE;
     }
 
     /** Match the character editor's numeric fields: commit on Enter or focus loss. */
@@ -2165,6 +2177,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             false,
             moveEffectTypes(trigger),
             true,
+            uiProfile,
             skin)).growX().row();
         if (!context.isEmpty() && trigger != MoveEffectTrigger.AVAILABILITY) {
             editor.add(formHint(
@@ -2208,6 +2221,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 this::markDirty,
                 game.audio()::play,
                 masteryEligible(move),
+                uiProfile,
                 skin)).growX().row();
 
             CheckBox chanceEnabled = new CheckBox(" Roll effect chance", skin);
@@ -2245,6 +2259,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                     () -> effect.activationMasteryProgression,
                     value -> effect.activationMasteryProgression = value,
                     this::markDirty,
+                    uiProfile,
                     skin)).growX().row();
             }
             list.add(card).growX().padTop(4f).row();
@@ -2474,7 +2489,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         Consumer<MoveData.StatusEffectData> commit
     ) {
         MoveData.StatusEffectData eff = copyEffect(source);
-        ContentSizedDialog dlg = new ContentSizedDialog("Edit Effect", skin) {
+        ContentSizedDialog dlg = new ContentSizedDialog("Edit Effect", skin, uiProfile) {
                 @Override
                 protected void result(Object object) {
                     if (Boolean.TRUE.equals(object)) {
@@ -2510,7 +2525,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             .map(CodedAbilityRegistry.EffectAction::label).toList());
 
         // --- The Type row: "Type" label  [Status/Coded toggle]  [Summon]  [dropdown] ---
-        final SelectBox<String> typeBox = new DynamicSelectBox<>(skin);
+        final SelectBox<String> typeBox = new DynamicSelectBox<>(skin, uiProfile);
         final TextButton toggleBtn = new TextButton("Coded", skin);
         final TextButton summonBtn = new TextButton("Summon", skin);
         // Holders so the listeners below can reference the mode swap before it's assigned.
@@ -2656,8 +2671,11 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         scroll.setOverscroll(false, false);
         scroll.setForceScroll(false, false);
         float viewportHeight = stage == null ? 720f : stage.getHeight();
-        float maxHeight = Math.max(180f, Math.min(560f, viewportHeight - 180f));
-        dlg.getContentTable().add(scroll).minHeight(140f).maxHeight(maxHeight).growX().row();
+        float maxHeight = windowsLayout
+            ? Math.max(270f, Math.min(840f, viewportHeight - 270f))
+            : Math.max(180f, Math.min(560f, viewportHeight - 180f));
+        dlg.getContentTable().add(scroll).minHeight(windowsLayout ? 210f : 140f)
+            .maxHeight(maxHeight).growX().row();
         dlg.button("Done", true);
         dlg.button("Cancel", false);
         dlg.show(stage);
@@ -2802,7 +2820,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                     .colspan(2).row();
                 return fields;
             }
-            SelectBox<String> moveBox = new DynamicSelectBox<>(skin);
+            SelectBox<String> moveBox = new DynamicSelectBox<>(skin, uiProfile);
             List<String> labels = candidates.stream().map(MoveEditorScreen::moveLabel).toList();
             moveBox.setItems(labels.toArray(new String[0]));
             String selected = candidates.stream()
@@ -2825,7 +2843,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             return fields;
         }
 
-        SelectBox<String> targetBox = new DynamicSelectBox<>(skin);
+        SelectBox<String> targetBox = new DynamicSelectBox<>(skin, uiProfile);
         String applyLabel = "Apply to this move";
         String createLabel = "Create Ratio stacks";
         targetBox.setItems(applyLabel, createLabel);
@@ -2946,6 +2964,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             () -> effect.masteryProgression,
             value -> effect.masteryProgression = value,
             this::markDirty,
+            uiProfile,
             skin)).colspan(2).growX().row();
     }
 
@@ -3068,7 +3087,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 d.defenseTargeting = name;
                 game.audio().play(SoundCue.UI_NAVIGATE);
                 refreshConditionalFields(d);
-            }, skin);
+            }, skin, uiProfile);
         t.add(labelledRow("Targeting (" + current.displayName() + ")", targetingSelect)).growX().row();
 
         if (current == DefenseTargeting.MULTIPLE_ALLIES) {
@@ -3103,7 +3122,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 d.aoeType = name;
                 game.audio().play(SoundCue.UI_NAVIGATE);
                 refreshConditionalFields(d);
-            }, skin);
+            }, skin, uiProfile);
         t.add(labelledRow("AOE Type (" + current.displayName() + ")", aoeTypeSelect)).growX().row();
 
         if (current == AoeType.MULTIPLE) {
@@ -3146,7 +3165,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         AbilityEffectType type,
         String label
     ) {
-        SelectBox<String> tiers = new DynamicSelectBox<>(skin);
+        SelectBox<String> tiers = new DynamicSelectBox<>(skin, uiProfile);
         tiers.setItems("None", "Tier 1", "Tier 2", "Tier 3", "Tier 4", "Tier 5");
         int current = type == AbilityEffectType.NEVER_MISS
             ? move.getNeverMissTier() : move.getNeverHitTier();

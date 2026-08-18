@@ -27,6 +27,7 @@ public class CombatantPanel {
     private final Rectangle hudBounds;
     private final float hpBarTop;
     private final float hudScale;
+    private final float textGeometryScale;
     private final boolean showResourceValues;
     private float damageFlashRemaining;
 
@@ -37,6 +38,13 @@ public class CombatantPanel {
     public CombatantPanel(Texture sprite, Texture basePlate, BattleUiAssets ui,
                            Rectangle plateBounds, Rectangle spriteBounds, Rectangle hudBounds,
                            float hudScale, boolean showResourceValues) {
+        this(sprite, basePlate, ui, plateBounds, spriteBounds, hudBounds,
+            hudScale, showResourceValues, 1f);
+    }
+
+    public CombatantPanel(Texture sprite, Texture basePlate, BattleUiAssets ui,
+                           Rectangle plateBounds, Rectangle spriteBounds, Rectangle hudBounds,
+                           float hudScale, boolean showResourceValues, float textGeometryScale) {
         this.sprite = sprite;
         this.basePlate = basePlate;
         this.ui = ui;
@@ -44,20 +52,29 @@ public class CombatantPanel {
         this.spriteBounds = new Rectangle(spriteBounds);
         this.hudBounds = new Rectangle(hudBounds);
         this.hudScale = hudScale;
+        this.textGeometryScale = Math.max(1f, textGeometryScale);
         this.showResourceValues = showResourceValues;
 
-        hpBar = new StatusBar("HP", new Color(0.260f, 0.820f, 0.360f, 1f));
-        ceBar = new StatusBar("CE", new Color(0.220f, 0.500f, 0.940f, 1f));
+        hpBar = new StatusBar("HP", new Color(0.260f, 0.820f, 0.360f, 1f),
+            this.textGeometryScale);
+        ceBar = new StatusBar("CE", new Color(0.220f, 0.500f, 0.940f, 1f),
+            this.textGeometryScale);
 
-        float inset = Math.max(10f * hudScale, hudBounds.height * 0.11f);
-        float gap = Math.max(4f * hudScale, hudBounds.height * 0.045f);
-        float barHeight = Math.max(18f * hudScale, Math.min(25f * hudScale,
-            (hudBounds.height - inset * 2f - 25f * hudScale - gap) / 2f));
+        float inset = Math.max(scaled(10f) * hudScale, hudBounds.height * 0.11f);
+        float gap = Math.max(scaled(4f) * hudScale, hudBounds.height * 0.045f);
+        float nameBandHeight = scaled(25f) * hudScale;
+        float barHeight = Math.max(scaled(18f) * hudScale,
+            Math.min(scaled(25f) * hudScale,
+                (hudBounds.height - inset * 2f - nameBandHeight - gap) / 2f));
         float barWidth = hudBounds.width - inset * 2f;
         float ceY = hudBounds.y + inset;
         ceBar.setBounds(hudBounds.x + inset, ceY, barWidth, barHeight);
         hpBar.setBounds(hudBounds.x + inset, ceY + barHeight + gap, barWidth, barHeight);
         hpBarTop = ceY + barHeight * 2f + gap;
+    }
+
+    private float scaled(float value) {
+        return value * textGeometryScale;
     }
 
     public void update(BattleCombatant combatant) {
@@ -158,7 +175,7 @@ public class CombatantPanel {
         float originalScaleY = nameFont.getData().scaleY;
         nameFont.getData().setScale(originalScaleX * hudScale, originalScaleY * hudScale);
         nameLayout.setText(nameFont, name);
-        float availableNameWidth = hudBounds.width - 28f * hudScale;
+        float availableNameWidth = hudBounds.width - scaled(28f) * hudScale;
         if (nameLayout.width > availableNameWidth) {
             float fittedScale = availableNameWidth / nameLayout.width;
             nameFont.getData().setScale(
@@ -167,10 +184,10 @@ public class CombatantPanel {
             nameLayout.setText(nameFont, name);
         }
         nameFont.setColor(BattleUiAssets.TEXT);
-        float originalNameY = hudBounds.y + hudBounds.height - 10f * hudScale;
+        float originalNameY = hudBounds.y + hudBounds.height - scaled(10f) * hudScale;
         float currentGap = originalNameY - nameFont.getCapHeight() - hpBarTop;
         float nameY = currentGap > 0f ? originalNameY - currentGap / 2f : originalNameY;
-        nameFont.draw(batch, name, hudBounds.x + 15f * hudScale, nameY);
+        nameFont.draw(batch, name, hudBounds.x + scaled(15f) * hudScale, nameY);
         nameFont.getData().setScale(originalScaleX, originalScaleY);
 
         hpBar.update(delta);

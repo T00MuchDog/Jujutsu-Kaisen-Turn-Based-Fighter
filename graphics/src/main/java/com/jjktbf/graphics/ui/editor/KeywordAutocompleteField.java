@@ -17,16 +17,20 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.FocusListener;
 import com.badlogic.gdx.utils.Align;
 import com.jjktbf.graphics.ui.pixel.HoverList;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.graphics.ui.text.KeywordTextLayout;
 import com.jjktbf.model.text.KeywordDescriptionCatalog;
 
 import java.util.List;
+import java.util.Objects;
 
 /** Text field that suggests documented keywords for uppercase input. */
 public final class KeywordAutocompleteField extends HoverTextField {
 
     private static final float CONTENT_WIDTH = 420f;
+    private static final float WINDOWS_CONTENT_WIDTH = 630f;
     private static final float VIEWPORT_MARGIN = 8f;
+    private static final float WINDOWS_VIEWPORT_MARGIN = 12f;
     private static final int MAX_VISIBLE_ITEMS = 7;
 
     private final List<KeywordDescriptionCatalog.Entry> catalogEntries;
@@ -40,6 +44,10 @@ public final class KeywordAutocompleteField extends HoverTextField {
     private final Cell<ScrollPane> suggestionCell;
     private final Cell<Label> selectedTermCell;
     private final Cell<Label> descriptionCell;
+    private final float contentWidth;
+    private final float viewportMargin;
+    private final float popupHorizontalInset;
+    private final float listHeightPadding;
     private final Vector2 fieldBottomLeft = new Vector2();
     private final Vector2 fieldTopRight = new Vector2();
     private final Vector2 clipBottomLeft = new Vector2();
@@ -54,8 +62,8 @@ public final class KeywordAutocompleteField extends HoverTextField {
     private int previewIndex = -1;
     private boolean suppressNextCompletionCharacter;
 
-    public KeywordAutocompleteField(String text, Skin skin) {
-        this(text, skin, KeywordDescriptionCatalog.getDefault().entries());
+    public KeywordAutocompleteField(String text, Skin skin, UiProfile uiProfile) {
+        this(text, skin, KeywordDescriptionCatalog.getDefault().entries(), uiProfile);
     }
 
     KeywordAutocompleteField(
@@ -63,12 +71,27 @@ public final class KeywordAutocompleteField extends HoverTextField {
         Skin skin,
         List<KeywordDescriptionCatalog.Entry> catalogEntries
     ) {
+        this(text, skin, catalogEntries, UiProfile.MAC);
+    }
+
+    KeywordAutocompleteField(
+        String text,
+        Skin skin,
+        List<KeywordDescriptionCatalog.Entry> catalogEntries,
+        UiProfile uiProfile
+    ) {
         super(text, skin);
         this.catalogEntries = List.copyOf(catalogEntries == null ? List.of() : catalogEntries);
+        boolean windowsLayout = Objects.requireNonNull(uiProfile, "uiProfile") == UiProfile.WINDOWS;
+        contentWidth = windowsLayout ? WINDOWS_CONTENT_WIDTH : CONTENT_WIDTH;
+        viewportMargin = windowsLayout ? WINDOWS_VIEWPORT_MARGIN : VIEWPORT_MARGIN;
+        float popupPadding = windowsLayout ? 15f : 10f;
+        popupHorizontalInset = windowsLayout ? 30f : 20f;
+        listHeightPadding = windowsLayout ? 12f : 8f;
 
         popup = new Table(skin);
         popup.setBackground(skin.getDrawable("battle-card-over"));
-        popup.pad(10f);
+        popup.pad(popupPadding);
         popup.setClip(true);
 
         Label heading = new Label("KEYWORDS", skin);
@@ -301,24 +324,25 @@ public final class KeywordAutocompleteField extends HoverTextField {
     }
 
     private void packPopup(Stage stage) {
-        float maximumWidth = Math.max(1f, stage.getWidth() - VIEWPORT_MARGIN * 2f);
-        float contentWidth = Math.max(1f,
-            Math.min(CONTENT_WIDTH, maximumWidth - 20f));
+        float maximumWidth = Math.max(1f, stage.getWidth() - viewportMargin * 2f);
+        float availableContentWidth = Math.max(1f,
+            Math.min(contentWidth, maximumWidth - popupHorizontalInset));
         float listHeight = Math.min(
             suggestionList.getPrefHeight(),
-            suggestionList.getItemHeight() * MAX_VISIBLE_ITEMS + 8f);
-        headingCell.width(contentWidth);
-        controlsCell.width(contentWidth);
-        suggestionCell.width(contentWidth).height(Math.max(suggestionList.getItemHeight(), listHeight));
-        selectedTermCell.width(contentWidth);
-        descriptionCell.width(contentWidth);
-        selectedTerm.setWidth(contentWidth);
-        description.setWidth(contentWidth);
+            suggestionList.getItemHeight() * MAX_VISIBLE_ITEMS + listHeightPadding);
+        headingCell.width(availableContentWidth);
+        controlsCell.width(availableContentWidth);
+        suggestionCell.width(availableContentWidth)
+            .height(Math.max(suggestionList.getItemHeight(), listHeight));
+        selectedTermCell.width(availableContentWidth);
+        descriptionCell.width(availableContentWidth);
+        selectedTerm.setWidth(availableContentWidth);
+        description.setWidth(availableContentWidth);
         description.invalidateHierarchy();
         popup.invalidateHierarchy();
         popup.pack();
 
-        float maximumHeight = Math.max(1f, stage.getHeight() - VIEWPORT_MARGIN * 2f);
+        float maximumHeight = Math.max(1f, stage.getHeight() - viewportMargin * 2f);
         if (popup.getHeight() > maximumHeight) {
             float reducedListHeight = Math.max(
                 suggestionList.getItemHeight(),
@@ -343,17 +367,17 @@ public final class KeywordAutocompleteField extends HoverTextField {
         localToStageCoordinates(fieldBottomLeft.set(0f, 0f));
         localToStageCoordinates(fieldTopRight.set(getWidth(), getHeight()));
 
-        float maxX = Math.max(VIEWPORT_MARGIN,
-            stage.getWidth() - VIEWPORT_MARGIN - popup.getWidth());
-        float x = MathUtils.clamp(fieldBottomLeft.x, VIEWPORT_MARGIN, maxX);
+        float maxX = Math.max(viewportMargin,
+            stage.getWidth() - viewportMargin - popup.getWidth());
+        float x = MathUtils.clamp(fieldBottomLeft.x, viewportMargin, maxX);
         float below = fieldBottomLeft.y - popup.getHeight() - 2f;
         float above = fieldTopRight.y + 2f;
-        float y = below >= VIEWPORT_MARGIN ? below : above;
-        float maxY = Math.max(VIEWPORT_MARGIN,
-            stage.getHeight() - VIEWPORT_MARGIN - popup.getHeight());
+        float y = below >= viewportMargin ? below : above;
+        float maxY = Math.max(viewportMargin,
+            stage.getHeight() - viewportMargin - popup.getHeight());
         popup.setPosition(
             x,
-            MathUtils.clamp(y, VIEWPORT_MARGIN, maxY));
+            MathUtils.clamp(y, viewportMargin, maxY));
         popup.toFront();
     }
 

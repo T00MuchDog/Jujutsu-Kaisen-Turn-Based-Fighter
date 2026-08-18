@@ -54,7 +54,7 @@ java -XstartOnFirstThread -Djjktbf.authoring=true -jar graphics/target/graphics-
 Windows PowerShell or Command Prompt (Author game, default `WINDOWS` profile):
 
 ```bash
-mvn -Drevision=1.4.1 -pl core,graphics -am clean verify
+mvn "-Drevision=1.4.1" -pl core,graphics -am clean verify
 java "-Djjktbf.authoring=true" -jar graphics/target/graphics-1.4.1.jar
 ```
 

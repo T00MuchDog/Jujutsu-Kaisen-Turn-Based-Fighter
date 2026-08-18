@@ -31,6 +31,8 @@ public class MoveCardView {
 
     private final Move move;
     private final Rectangle bounds;
+    private final float geometryScale;
+    private final int descriptionLineCount;
     private boolean disabled;
     private boolean hovered;
     private boolean dragging;
@@ -39,8 +41,29 @@ public class MoveCardView {
     private float descriptionTop;
 
     public MoveCardView(Move move, float x, float y) {
+        this(move, x, y, 1f);
+    }
+
+    public MoveCardView(Move move, float x, float y, float geometryScale) {
+        this(move, x, y, geometryScale,
+            CARD_W * Math.max(1f, geometryScale),
+            CARD_H * Math.max(1f, geometryScale),
+            5);
+    }
+
+    public MoveCardView(
+        Move move,
+        float x,
+        float y,
+        float geometryScale,
+        float width,
+        float height,
+        int descriptionLineCount
+    ) {
         this.move = move;
-        this.bounds = new Rectangle(x, y, CARD_W, CARD_H);
+        this.geometryScale = Math.max(1f, geometryScale);
+        this.bounds = new Rectangle(x, y, Math.max(1f, width), Math.max(1f, height));
+        this.descriptionLineCount = Math.max(1, descriptionLineCount);
     }
 
     public Move getMove()                    { return move; }
@@ -227,23 +250,27 @@ public class MoveCardView {
         Color type = typeColorFor(move);
         if (disabled) type = new Color(type).lerp(Color.GRAY, 0.65f);
         batch.setColor(type);
-        batch.draw(ui.pixel, x + 10f, y + h / 2f, 9f, h / 2f - 12f);
+        batch.draw(ui.pixel, x + scaled(10f), y + h / 2f,
+            scaled(9f), h / 2f - scaled(12f));
         batch.setColor(Color.WHITE);
 
         Color ink = disabled ? BattleUiAssets.MUTED : BattleUiAssets.TEXT;
-        float textX = x + 30f;
-        float textW = w - 40f;
+        float textX = x + scaled(30f);
+        float textW = w - scaled(40f);
+        float roleIconSize = scaled(ROLE_ICON_SIZE);
         font.setColor(ink);
-        drawFitted(batch, font, move.getName(), textX, y + h - 24f, textW - ROLE_ICON_SIZE - 4f, 1);
-        drawRoleIcon(batch, ui, x + w - ROLE_ICON_SIZE - 10f, y + h - ROLE_ICON_SIZE - 18f, disabled);
+        drawFitted(batch, font, move.getName(), textX, y + h - scaled(24f),
+            textW - roleIconSize - scaled(4f), 1);
+        drawRoleIcon(batch, ui, x + w - roleIconSize - scaled(10f),
+            y + h - roleIconSize - scaled(18f), disabled);
         font.setColor(disabled ? BattleUiAssets.MUTED : type);
-        drawFitted(batch, font, typeNameFor(move), textX, y + h - 48f, textW, 1);
+        drawFitted(batch, font, typeNameFor(move), textX, y + h - scaled(48f), textW, 1);
 
         font.setColor(ink);
         descriptionX = textX;
-        descriptionTop = y + h - 74f;
+        descriptionTop = y + h - scaled(74f);
         descriptionLayout = KeywordTextLayout.build(
-            font, move.getDescription(), textW, 5, 0.3f, 0.7f);
+            font, move.getDescription(), textW, descriptionLineCount, 0.3f, 0.7f);
         descriptionLayout.draw(
             batch,
             font,
@@ -251,17 +278,22 @@ public class MoveCardView {
             descriptionTop,
             ink,
             KeywordTextLayout.KEYWORD_ORANGE);
-        float extraActionBarHeight = drawActionPointDots(batch, ui, x + 20f, y + 8f, w - 40f,
-            move.getApCost(), move.getUnleashPoint(), 6f, 4f);
+        float extraActionBarHeight = drawActionPointDots(batch, ui,
+            x + scaled(20f), y + scaled(8f), w - scaled(40f),
+            move.getApCost(), move.getUnleashPoint(), scaled(6f), scaled(4f), geometryScale);
 
         statFont.setColor(ink);
-        drawStatColumn(batch, statFont, textX, y + 55f + extraActionBarHeight,
-            y + 35f + extraActionBarHeight,
-            accuracyLabel(move), powerLabel(move));
+        drawStatColumn(batch, statFont, textX, y + scaled(55f) + extraActionBarHeight,
+            y + scaled(35f) + extraActionBarHeight,
+            accuracyLabel(move), powerLabel(move), geometryScale);
         if (move.hasCeCost()) {
-            drawCeCostBar(batch, statFont, ui, x + w - 48f, y + 24f + extraActionBarHeight,
-                actualCeCost);
+            drawCeCostBar(batch, statFont, ui, x + w - scaled(48f),
+                y + scaled(24f) + extraActionBarHeight, actualCeCost, geometryScale);
         }
+    }
+
+    private float scaled(float value) {
+        return value * geometryScale;
     }
 
     static String accuracyLabel(Move move) {
@@ -281,33 +313,37 @@ public class MoveCardView {
 
     /** Draws the AP duration dots and returns the height added by any extra rows. */
     private static float drawActionPointDots(Batch batch, BattleUiAssets ui, float x, float bottomY,
-                                             float width, int apCost, int unleashPoint,
-                                             float dotSize, float gap) {
+                                              float width, int apCost, int unleashPoint,
+                                              float dotSize, float gap, float geometryScale) {
         if (apCost <= 0 || width <= 0f) return 0f;
 
         float size = Math.min(width, Math.max(1f, dotSize));
         float spacing = Math.max(0f, gap);
         int dotsPerRow = Math.max(1, (int) Math.floor((width + spacing) / (size + spacing)));
         int rowCount = (int) Math.ceil(apCost / (double) dotsPerRow);
-        float rowStep = size + Math.max(1f, spacing);
-        float stripY = bottomY - 3f;
-        float stripHeight = rowCount * size + (rowCount - 1) * Math.max(1f, spacing) + 6f;
+        float minimumPixel = geometryScale;
+        float rowStep = size + Math.max(minimumPixel, spacing);
+        float stripY = bottomY - 3f * geometryScale;
+        float stripHeight = rowCount * size
+            + (rowCount - 1) * Math.max(minimumPixel, spacing) + 6f * geometryScale;
 
         // Long custom moves use smaller dots so the AP strip stays below the stat area.
-        while (stripHeight > ACTION_BAR_MAX_H && size > 1f) {
-            size = size > 2f ? 2f : 1f;
-            spacing = 1f;
+        while (stripHeight > ACTION_BAR_MAX_H * geometryScale && size > minimumPixel) {
+            size = size > 2f * geometryScale ? 2f * geometryScale : minimumPixel;
+            spacing = minimumPixel;
             dotsPerRow = Math.max(1, (int) Math.floor((width + spacing) / (size + spacing)));
             rowCount = (int) Math.ceil(apCost / (double) dotsPerRow);
             rowStep = size + spacing;
-            stripHeight = rowCount * size + (rowCount - 1) * spacing + 6f;
+            stripHeight = rowCount * size + (rowCount - 1) * spacing
+                + 6f * geometryScale;
         }
 
         batch.setColor(TIMING_STRIP);
         batch.draw(ui.pixel, x, stripY, width, stripHeight);
         batch.setColor(TIMING_STRIP_EDGE);
-        batch.draw(ui.pixel, x, stripY, width, 1f);
-        batch.draw(ui.pixel, x, stripY + stripHeight - 1f, width, 1f);
+        batch.draw(ui.pixel, x, stripY, width, geometryScale);
+        batch.draw(ui.pixel, x, stripY + stripHeight - geometryScale,
+            width, geometryScale);
 
         for (int row = 0; row < rowCount; row++) {
             int firstDot = row * dotsPerRow;
@@ -329,7 +365,8 @@ public class MoveCardView {
 
     private void drawRoleIcon(Batch batch, BattleUiAssets ui, float x, float y, boolean muted) {
         batch.setColor(muted ? BattleUiAssets.MUTED : Color.WHITE);
-        batch.draw(roleIconFor(move, ui), x, y, ROLE_ICON_SIZE, ROLE_ICON_SIZE);
+        float size = scaled(ROLE_ICON_SIZE);
+        batch.draw(roleIconFor(move, ui), x, y, size, size);
         batch.setColor(Color.WHITE);
     }
 
@@ -362,10 +399,11 @@ public class MoveCardView {
 
     /** Draws the accuracy and power stats in the left side of the stat area. */
     private static void drawStatColumn(Batch batch, BitmapFont font, float x,
-                                       float upperY, float lowerY, String upper, String lower) {
+                                       float upperY, float lowerY, String upper, String lower,
+                                       float geometryScale) {
         float originalScaleX = font.getData().scaleX;
         float originalScaleY = font.getData().scaleY;
-        float columnWidth = 120f;
+        float columnWidth = 120f * geometryScale;
 
         for (float scale = 0.70f; scale >= 0.30f; scale -= 0.10f) {
             font.getData().setScale(originalScaleX * scale, originalScaleY * scale);
@@ -374,25 +412,31 @@ public class MoveCardView {
             }
         }
 
-        drawStat(batch, font, upper, x, upperY, false, columnWidth);
-        drawStat(batch, font, lower, x, lowerY, false, columnWidth);
+        drawStat(batch, font, upper, x, upperY, false, columnWidth, geometryScale);
+        drawStat(batch, font, lower, x, lowerY, false, columnWidth, geometryScale);
         font.getData().setScale(originalScaleX, originalScaleY);
     }
 
     /** Draws the CE label and its cost in the reserved right-hand stat area. */
     private static void drawCeCostBar(Batch batch, BitmapFont font, BattleUiAssets ui,
-                                      float x, float y, int cost) {
+                                      float x, float y, int cost, float geometryScale) {
+        float barWidth = CE_BAR_W * geometryScale;
+        float barHeight = CE_BAR_H * geometryScale;
+        float edge = 2f * geometryScale;
         batch.setColor(Color.BLACK);
-        batch.draw(ui.pixel, x, y, CE_BAR_W, CE_BAR_H);
+        batch.draw(ui.pixel, x, y, barWidth, barHeight);
         batch.setColor(BattleUiAssets.CURSED_ENERGY);
-        batch.draw(ui.pixel, x + 2f, y + 2f, CE_BAR_W - 4f, CE_BAR_H - 4f);
+        batch.draw(ui.pixel, x + edge, y + edge,
+            barWidth - edge * 2f, barHeight - edge * 2f);
         batch.setColor(Color.WHITE);
 
         font.setColor(Color.BLACK);
-        drawCentered(batch, font, "CE", x, y + CE_BAR_H + 20f, CE_BAR_W, CE_BAR_W);
+        drawCentered(batch, font, "CE", x,
+            y + barHeight + 20f * geometryScale, barWidth, barWidth);
         font.setColor(Color.WHITE);
         drawCentered(batch, font, String.valueOf(cost), x,
-            y + (CE_BAR_H + font.getCapHeight()) / 2f, CE_BAR_W, CE_BAR_W - 6f);
+            y + (barHeight + font.getCapHeight()) / 2f,
+            barWidth, barWidth - 6f * geometryScale);
     }
 
     private static void drawCentered(Batch batch, BitmapFont font, String value, float x, float y,
@@ -412,12 +456,12 @@ public class MoveCardView {
     }
 
     private static void drawStat(Batch batch, BitmapFont font, String value, float x, float y,
-                                 boolean rightAligned, float rowWidth) {
+                                 boolean rightAligned, float rowWidth, float geometryScale) {
         if (value == null) return;
         float drawX = rightAligned ? x + rowWidth - width(font, value) : x;
         font.draw(batch, value, drawX, y);
         // A one-pixel second pass keeps the larger stats legible in pixel art.
-        font.draw(batch, value, drawX + 1f, y);
+        font.draw(batch, value, drawX + geometryScale, y);
     }
 
     private static List<String> wrap(BitmapFont font, String text, float maxWidth) {

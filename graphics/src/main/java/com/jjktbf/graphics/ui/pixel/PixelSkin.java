@@ -14,6 +14,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.NinePatchDrawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.jjktbf.graphics.AssetLoader;
+import com.jjktbf.graphics.ui.profile.UiProfile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +30,7 @@ import java.util.List;
  *   - Square, nearest-neighbour pixel details
  *
  * Usage:
- *   Skin skin = PixelSkin.create();
+ *   Skin skin = PixelSkin.create(uiProfile);
  *
  * Disposal:
  *   The skin owns Textures + Fonts. Call {@code skin.dispose()} when done — but
@@ -95,15 +96,15 @@ public final class PixelSkin {
      * Build a fresh, self-contained Skin with all editor styles registered.
      * The caller is responsible for disposing the returned skin.
      */
-    public static Skin create() {
-        PixelSkin builder = new PixelSkin();
+    public static Skin create(UiProfile uiProfile) {
+        PixelSkin builder = new PixelSkin(uiProfile);
         return builder.build();
     }
 
-    private PixelSkin() {
+    private PixelSkin(UiProfile uiProfile) {
         // Generate our own editor fonts from the bundled TTF so disposing this
         // skin never touches AssetLoader's battle fonts.
-        BitmapFont[] fonts = generateFonts();
+        BitmapFont[] fonts = generateFonts(uiProfile);
         this.font      = fonts[0];
         this.fontSmall = fonts[1];
         this.fontLarge = fonts[2];
@@ -512,7 +513,7 @@ public final class PixelSkin {
     // Fonts
     // =========================================================================
 
-    private BitmapFont[] generateFonts() {
+    private BitmapFont[] generateFonts(UiProfile uiProfile) {
         com.badlogic.gdx.files.FileHandle ttf =
             Gdx.files.internal("assets/fonts/AtlantisInternational-jen0.ttf");
 
@@ -523,15 +524,15 @@ public final class PixelSkin {
         // Oversampled (4x render + mipmap/linear downscale) so small editor text
         // keeps every stroke. Logical sizes match the previous on-screen size.
         // Editor body font
-        BitmapFont body = AssetLoader.generateOversampled(gen, p, 19);
+        BitmapFont body = AssetLoader.generateOversampled(gen, p, 19, uiProfile);
         body.setUseIntegerPositions(true);
 
         // Smaller font for tight UI (stat numbers, hints)
-        BitmapFont small = AssetLoader.generateOversampled(gen, p, 15);
+        BitmapFont small = AssetLoader.generateOversampled(gen, p, 15, uiProfile);
         small.setUseIntegerPositions(true);
 
         // Large font for titles / banners
-        BitmapFont large = AssetLoader.generateOversampled(gen, p, 35);
+        BitmapFont large = AssetLoader.generateOversampled(gen, p, 35, uiProfile);
         large.setUseIntegerPositions(true);
 
         gen.dispose();

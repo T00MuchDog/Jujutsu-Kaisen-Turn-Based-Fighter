@@ -1,5 +1,6 @@
 package com.jjktbf.graphics.ui.editor;
 
+import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.technique.SkillTreeNodeData;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,12 @@ class SkillTreeCanvasTest {
 
         assertEquals(60f, bounds.canvasY(lower.y), 0.001f);
         assertEquals(60f, bounds.preferredHeight() - (bounds.canvasY(upper.y) + 92.8f), 0.001f);
+    }
+
+    @Test
+    void windowsTextUsesAClippedDescriptionWithoutChangingNodeGeometry() {
+        assertEquals(48f, SkillTreeCanvas.descriptionHeight(UiProfile.WINDOWS), 0.001f);
+        assertEquals(72f, SkillTreeCanvas.descriptionHeight(UiProfile.MAC), 0.001f);
     }
 
     @Test
