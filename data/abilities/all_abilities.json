@@ -564,15 +564,19 @@
   "id" : "000025",
   "name" : "Nue",
   "flavourText" : "Nue dominates the air and channels cursed lightning through its wings and talons.",
-  "mechanicText" : "Unlock ELECTRIFIED TALONS and LIGHTNING DISCHARGE. Drain 0.35 CE from the summoner each active tick.",
+  "mechanicText" : "Unlock SKY RESCUE, ELECTRIFIED TALONS and LIGHTNING DISCHARGE. Drain 0.35 CE from the summoner each active tick.",
   "category" : "PASSIVE",
   "sourceType" : "SHIKIGAMI",
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000057"
+    "moveId" : "000085"
   }, {
     "effectId" : "effect-000001",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000057"
+  }, {
+    "effectId" : "effect-000002",
     "type" : "UNLOCK_MOVE",
     "moveId" : "000058"
   } ],
@@ -581,15 +585,19 @@
   "id" : "000026",
   "name" : "Toad",
   "flavourText" : "Toad controls space with a long, powerful tongue suited to striking and binding prey.",
-  "mechanicText" : "Unlock TONGUE LASH and BINDING TONGUE",
+  "mechanicText" : "Unlock TONGUE RESCUE, TONGUE LASH and BINDING TONGUE",
   "category" : "PASSIVE",
   "sourceType" : "SHIKIGAMI",
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000059"
+    "moveId" : "000088"
   }, {
     "effectId" : "effect-000001",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000059"
+  }, {
+    "effectId" : "effect-000002",
     "type" : "UNLOCK_MOVE",
     "moveId" : "000060"
   } ],
@@ -598,15 +606,19 @@
   "id" : "000027",
   "name" : "Great Serpent",
   "flavourText" : "Great Serpent overwhelms prey with its immense coils before swallowing the opening whole.",
-  "mechanicText" : "Unlock SERPENT CONSTRICT and DEVOURING LUNGE",
+  "mechanicText" : "Unlock COILING GUARD, SERPENT CONSTRICT and DEVOURING LUNGE",
   "category" : "PASSIVE",
   "sourceType" : "SHIKIGAMI",
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000061"
+    "moveId" : "000086"
   }, {
     "effectId" : "effect-000001",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000061"
+  }, {
+    "effectId" : "effect-000002",
     "type" : "UNLOCK_MOVE",
     "moveId" : "000062"
   } ],
@@ -615,15 +627,19 @@
   "id" : "000028",
   "name" : "Divine Dog Totality",
   "flavourText" : "Totality concentrates the Divine Dogs' inherited power into a predator of extraordinary speed and force.",
-  "mechanicText" : "Unlock TOTALITY CLAW and PREDATOR RUSH",
+  "mechanicText" : "Unlock RESCUE SPRINT, TOTALITY CLAW and PREDATOR RUSH",
   "category" : "PASSIVE",
   "sourceType" : "SHIKIGAMI",
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000063"
+    "moveId" : "000087"
   }, {
     "effectId" : "effect-000001",
+    "type" : "UNLOCK_MOVE",
+    "moveId" : "000063"
+  }, {
+    "effectId" : "effect-000002",
     "type" : "UNLOCK_MOVE",
     "moveId" : "000064"
   } ],
