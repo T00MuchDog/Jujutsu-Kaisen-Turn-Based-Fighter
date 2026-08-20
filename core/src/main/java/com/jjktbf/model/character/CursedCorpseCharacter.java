@@ -4,32 +4,32 @@ import com.jjktbf.model.move.Move;
 
 import java.util.List;
 
-/** A cursed spirit, restricted to cursed-spirit moves. */
-public class CursedSpiritCharacter extends Character {
+/** A cursed corpse, able to learn both sorcerer and shikigami moves. */
+public class CursedCorpseCharacter extends Character {
 
-    public CursedSpiritCharacter(
-        String         id,
-        String         name,
+    public CursedCorpseCharacter(
+        String id,
+        String name,
         CharacterStats baseStats,
-        String         innateTechniqueName,
-        List<Move>     knownMoves
+        String innateTechniqueName,
+        List<Move> knownMoves
     ) {
-        super(id, name, CharacterType.CURSED_SPIRIT, baseStats, innateTechniqueName, knownMoves);
+        super(id, name, CharacterType.CURSED_CORPSE, baseStats, innateTechniqueName, knownMoves);
     }
 
-    public CursedSpiritCharacter(
-        String         id,
-        String         name,
+    public CursedCorpseCharacter(
+        String id,
+        String name,
         CharacterStats baseStats,
-        String         innateTechniqueName,
-        List<Move>     knownMoves,
-        List<Ability>  abilities
+        String innateTechniqueName,
+        List<Move> knownMoves,
+        List<Ability> abilities
     ) {
-        super(id, name, CharacterType.CURSED_SPIRIT, baseStats, innateTechniqueName,
+        super(id, name, CharacterType.CURSED_CORPSE, baseStats, innateTechniqueName,
             knownMoves, abilities);
     }
 
-    public CursedSpiritCharacter(
+    public CursedCorpseCharacter(
         String id,
         String name,
         CharacterStats baseStats,
@@ -39,11 +39,11 @@ public class CursedSpiritCharacter extends Character {
         java.util.Set<String> accessibleTechniques,
         boolean hasWeapon
     ) {
-        super(id, name, CharacterType.CURSED_SPIRIT, baseStats, innateTechniqueName,
+        super(id, name, CharacterType.CURSED_CORPSE, baseStats, innateTechniqueName,
             knownMoves, abilities, accessibleTechniques, hasWeapon);
     }
 
-    public CursedSpiritCharacter(
+    public CursedCorpseCharacter(
         String id,
         String name,
         CharacterStats baseStats,

@@ -1,5 +1,7 @@
 package com.jjktbf.model.character;
 
+import com.jjktbf.model.move.MoveType;
+
 import java.util.Locale;
 
 /**
@@ -22,9 +24,15 @@ public enum CharacterType {
      * A jujutsu sorcerer.
      * May or may not have an innate cursed technique — that is governed by
      * the character's innateTechniqueName field.
-     * Has full access to all move categories (gated by stats and technique possession).
+     * Learns sorcerer moves (gated by stats and technique possession).
      */
     SORCERER,
+
+    /** A cursed spirit. Learns only cursed-spirit moves. */
+    CURSED_SPIRIT,
+
+    /** A cursed corpse. Learns both sorcerer and shikigami moves. */
+    CURSED_CORPSE,
 
     /**
      * A shikigami — a summoned combatant (e.g. the Divine Dogs, Mahoraga).
@@ -34,6 +42,17 @@ public enum CharacterType {
      * explicitly marked selectable in the editor.
      */
     SHIKIGAMI;
+
+    /** Whether this character class may learn a move of the given authored type. */
+    public boolean canLearn(MoveType moveType) {
+        if (moveType == null) return false;
+        return switch (this) {
+            case SORCERER -> moveType == MoveType.SORCERER;
+            case CURSED_SPIRIT -> moveType == MoveType.CURSED_SPIRIT;
+            case CURSED_CORPSE, SHIKIGAMI -> moveType == MoveType.SORCERER
+                || moveType == MoveType.SHIKIGAMI;
+        };
+    }
 
     /**
      * Parse a stored type string. A missing or blank value resolves to

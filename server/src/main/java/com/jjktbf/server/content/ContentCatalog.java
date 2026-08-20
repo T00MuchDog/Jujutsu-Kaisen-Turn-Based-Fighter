@@ -361,7 +361,6 @@ public final class ContentCatalog {
             try {
                 Character character = definition.constructTypedCharacter(
                     definition.toCharacterStats(), moves, abilities);
-                character.setTitle(definition.title);
                 charactersById.put(definition.id, character);
                 // Only directly-selectable definitions appear in fighter rosters
                 // / multiplayer summaries / challenge create+accept. Hidden

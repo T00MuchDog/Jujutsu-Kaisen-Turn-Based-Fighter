@@ -13,6 +13,7 @@ import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveEffectData;
 import com.jjktbf.model.move.MoveEffectTrigger;
 import com.jjktbf.model.move.MoveTag;
+import com.jjktbf.model.move.MoveType;
 import com.jjktbf.model.move.StatusEffectType;
 import com.jjktbf.model.progression.TechniqueMasteryProgressionData;
 import com.jjktbf.model.progression.TechniqueMasteryProgressions;
@@ -619,6 +620,21 @@ class MoveEditorScreenTest {
     }
 
     @Test
+    void canonicalMoveTypesControlEditorGroupingAndSurviveSaveCopy() {
+        MoveData move = new MoveData();
+        move.tags = new ArrayList<>(List.of(MoveTag.UTILITY.name()));
+        move.moveType = MoveType.CURSED_SPIRIT.name();
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(move);
+
+        assertEquals("CURSED SPIRIT", MoveEditorScreen.moveRecordGroup(move));
+        assertEquals(MoveType.CURSED_SPIRIT.name(), saved.moveType);
+
+        move.moveType = MoveType.SHIKIGAMI.name();
+        assertEquals("SHIKIGAMI", MoveEditorScreen.moveRecordGroup(move));
+    }
+
+    @Test
     void cursedTechniqueMovesAreGroupedByTechniqueUnlessTheyBelongToShikigami() {
         MoveData move = new MoveData();
         move.requiredTechniqueId = "Ratio";
@@ -643,6 +659,7 @@ class MoveEditorScreenTest {
         assertTrue(sections.contains("CURSED TECHNIQUES/Ratio/ATTACK"));
         assertTrue(sections.contains("CURSED TECHNIQUES/Ratio/DEFENSE"));
         assertTrue(sections.contains("CURSED TECHNIQUES/Ratio/UTILITY"));
+        assertTrue(sections.contains("CURSED SPIRIT/ATTACK"));
     }
 
     @Test

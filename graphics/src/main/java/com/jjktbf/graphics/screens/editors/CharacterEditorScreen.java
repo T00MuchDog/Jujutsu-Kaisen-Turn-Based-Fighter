@@ -180,7 +180,6 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         d.id                  = stored.id;
         d.name                = stored.name;
         d.description         = stored.description;
-        d.title               = stored.title;
         d.spriteAsset         = stored.spriteAsset;
         d.type                = stored.type;
         d.directlySelectable  = stored.directlySelectable;
@@ -517,9 +516,6 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 s -> { cd.name = s; })).growX().row();
         identity.add(labelledField("Description", cd.description,
                 s -> { cd.description = s; })).growX().row();
-        identity.add(labelledField("Title / epithet (display only, blank = none)", cd.title,
-                s -> { cd.title = (s == null || s.isBlank()) ? null : s; }))
-            .growX().row();
         identity.add(labelledField("Sprite Asset (assets/sprites/characters/...)", cd.spriteAsset,
                 s -> { cd.spriteAsset = (s == null || s.isBlank()) ? null : s; }))
             .growX().row();
@@ -955,8 +951,10 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private String labelForType(CharacterType type) {
         if (type == null) return "Sorcerer";
         return switch (type) {
-            case SORCERER  -> "Sorcerer";
-            case SHIKIGAMI -> "Shikigami";
+            case SORCERER      -> "Sorcerer";
+            case CURSED_SPIRIT -> "Cursed Spirit";
+            case CURSED_CORPSE -> "Cursed Corpse";
+            case SHIKIGAMI     -> "Shikigami";
         };
     }
 
@@ -1261,6 +1259,11 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (move.mustBeGranted && !abilities.availableMoveIds().contains(move.id)) {
             return "This move must be granted by an ability.";
         }
+        CharacterType characterType = character.effectiveType();
+        if (!characterType.canLearn(built.getMoveType())) {
+            return labelForMoveType(built.getMoveType()) + " moves cannot be learned by "
+                + labelForCharacterType(characterType) + " characters.";
+        }
         // A GRANT_MOVE-granted move bypasses all requirements, mirroring
         // Character.validateAndBuildMoveList. UNLOCK_MOVE-granted moves are
         // still subject to every check below.
@@ -1309,6 +1312,14 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
     private static String noAvailableSlotsError(MovePool pool) {
         return "No available " + pool + " slots";
+    }
+
+    private static String labelForCharacterType(CharacterType type) {
+        return type.name().replace('_', ' ').toLowerCase(Locale.ROOT);
+    }
+
+    private static String labelForMoveType(com.jjktbf.model.move.MoveType type) {
+        return type.name().replace('_', ' ').toLowerCase(Locale.ROOT);
     }
 
     static AssignmentPanel.Item availableMoveItem(

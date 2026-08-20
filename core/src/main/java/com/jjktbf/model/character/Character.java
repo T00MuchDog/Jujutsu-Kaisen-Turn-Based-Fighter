@@ -53,16 +53,6 @@ public abstract class Character extends Entity {
      */
     private final boolean hasWeapon;
 
-    /**
-     * Optional display-only title/epithet (e.g. "SHIKIGAMI", "The Honored One",
-     * "Special Grade"). Null/blank when unset. This carries no combat rules — it
-     * is purely a flavour label for roster and battle presentation. Set by
-     * {@link CharacterData#toCharacter} from the authored {@code title} field;
-     * not threaded through the construction chain because it participates in no
-     * validation.
-     */
-    private String title;
-
     // -------------------------------------------------------------------------
     // Construction
     // -------------------------------------------------------------------------
@@ -131,7 +121,7 @@ public abstract class Character extends Entity {
         this.hasWeapon          = hasWeapon;
         GrantedMoves granted = availableMoveIdsOf(abilities);
         List<Move> validatedMoves = validateAndBuildMoveList(
-            knownMoves, baseStats, combatStats, accessibleTechniques,
+            knownMoves, type, baseStats, combatStats, accessibleTechniques,
             granted, lockedMoveTagsOf(abilities), hasWeapon);
         validatedMoves = filterMovesByAssignedCodedFeatures(validatedMoves, abilities);
         validateCodedMoveReferences(validatedMoves);
@@ -288,6 +278,7 @@ public abstract class Character extends Entity {
 
     private static List<Move> validateAndBuildMoveList(
         List<Move>     moves,
+        CharacterType  characterType,
         CharacterStats cs,
         CombatStats    combatStats,
         java.util.Set<String> accessibleTechniques,
@@ -307,6 +298,15 @@ public abstract class Character extends Entity {
             // enforces them.
             boolean moveAvailable = granted.contains(move.getId());
             boolean bypass        = granted.bypass().contains(move.getId());
+
+            // Character-class eligibility is absolute: an ability may waive
+            // ordinary learning requirements, but cannot change what kind of
+            // move the character is capable of learning.
+            if (!characterType.canLearn(move.getMoveType())) {
+                throw new IllegalArgumentException(
+                    "Character type " + characterType + " cannot learn "
+                        + move.getMoveType() + " move '" + move.getName() + "'");
+            }
 
             if (move.mustBeGranted() && !moveAvailable) {
                 throw new IllegalArgumentException(
@@ -402,10 +402,4 @@ public abstract class Character extends Entity {
     /** Base CE charged to a summoner per active tick; non-shikigami default to zero. */
     public double          getBaseCeDrainPerTick()     { return 0.0; }
 
-    /** Optional display-only title/epithet, or null when unset. */
-    public String          getTitle()                 { return title; }
-    /** Set the display-only title. Used by {@link CharacterData#toCharacter}. */
-    public void            setTitle(String title)     { this.title = title; }
-    /** True when this character has a non-blank title to display. */
-    public boolean         hasTitle()                 { return title != null && !title.isBlank(); }
 }

@@ -523,12 +523,6 @@ public class CharacterSelectScreen implements Screen {
         // Name — top-left corner, prominent.
         assets.fontXLarge.setColor(BattleUiAssets.TEXT);
         drawBold(assets.fontXLarge, character.name, innerLeft, innerTop);
-        // Title/epithet (if any) sits beneath the name in the accent colour.
-        if (character.title != null && !character.title.isBlank()) {
-            assets.fontMedium.setColor(BattleUiAssets.YELLOW);
-            assets.fontMedium.draw(batch, character.title, innerLeft,
-                innerTop - (windowsLayout ? 42f : 28f));
-        }
         String baseStatTotalText = "Base Stat Total: " + baseStatTotal(character);
         assets.fontMedium.setColor(BattleUiAssets.TEXT);
         drawBold(assets.fontMedium, baseStatTotalText,

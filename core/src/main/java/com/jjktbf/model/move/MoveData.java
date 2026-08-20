@@ -36,6 +36,12 @@ public class MoveData {
     public String description;
 
     /**
+     * Authored move class ({@code SORCERER}, {@code CURSED_SPIRIT}, or
+     * {@code SHIKIGAMI}). Missing values are legacy sorcerer moves.
+     */
+    public String moveType;
+
+    /**
      * List of MoveTag enum names applied to this move.
      * e.g. ["PHYSICAL", "ATTACK"]  or  ["INNATE_TECHNIQUE", "ATTACK", "CURSED_ENERGY"]
      * The MoveCategory is derived from this set at conversion time.
@@ -226,12 +232,17 @@ public class MoveData {
     /** Cannot be assigned directly; an ability must add this move to the character. */
     public boolean mustBeGranted = false;
 
-    /**
-     * Editor-only grouping flag. True places this record under Shikigami in the
-     * Move Editor, taking precedence over cursed-technique grouping. It has no
-     * runtime effect.
-     */
+    /** Legacy shikigami classification retained for existing stored content. */
     public Boolean shikigamiMove;
+
+    /** Resolve the canonical move class, including the legacy shikigami flag. */
+    @JsonIgnore
+    public MoveType effectiveMoveType() {
+        if (moveType != null && !moveType.isBlank()) {
+            return MoveType.fromStoredValue(moveType);
+        }
+        return Boolean.TRUE.equals(shikigamiMove) ? MoveType.SHIKIGAMI : MoveType.SORCERER;
+    }
 
     // -------------------------------------------------------------------------
     // Hit component sub-DTO
@@ -573,6 +584,7 @@ public class MoveData {
 
         Move.Builder b = new Move.Builder(id)
             .name(name)
+            .moveType(effectiveMoveType())
             .description(description != null ? description : "")
             .category(cat)
             .pool(derivedPool())
@@ -887,6 +899,7 @@ public class MoveData {
         d.id                  = move.getId();
         d.name                = move.getName();
         d.description         = move.getDescription();
+        d.moveType            = move.getMoveType().name();
 
         List<String> tagList = move.getTags().stream()
             .map(MoveTag::name)

@@ -31,17 +31,11 @@ public class CharacterData {
     public String name;
     /** Player-facing character flavour text shown on selection pages. */
     public String description = "";
-    /**
-     * Optional display-only title/epithet (e.g. "SHIKIGAMI", "The Honored One").
-     * Null/blank when unset. Carries no combat rules — purely a flavour label for
-     * roster and battle presentation. Absent on legacy saves (treated as unset).
-     */
-    public String title;
     /** Relative graphics resource path, e.g. {@code assets/sprites/characters/yuji_frontsprite.png}. */
     public String spriteAsset;
 
     /**
-     * Stored {@link CharacterType} name (e.g. "SORCERER", "SHIKIGAMI").
+     * Stored {@link CharacterType} name (e.g. "SORCERER", "CURSED_SPIRIT").
      * A missing/blank value resolves to {@link CharacterType#SORCERER} (the
      * legacy default) via {@link CharacterType#fromStoredValue}. An unknown
      * non-blank value fails loudly at load time.
@@ -223,9 +217,7 @@ public class CharacterData {
                 }
         }
 
-        Character character = constructTypedCharacter(stats, moves, abilities);
-        character.setTitle(title);
-        return character;
+        return constructTypedCharacter(stats, moves, abilities);
     }
 
     /**
@@ -235,16 +227,23 @@ public class CharacterData {
      */
     public Character constructTypedCharacter(CharacterStats stats, List<Move> moves, List<Ability> abilities) {
         CharacterType resolved = effectiveType();
-        if (resolved == CharacterType.SHIKIGAMI) {
-            if (baseCeDrainPerTick == null || !Double.isFinite(baseCeDrainPerTick)
-                || baseCeDrainPerTick <= 0.0) {
-                throw new IllegalArgumentException(
-                    "Shikigami base CE drain per tick must be greater than 0");
+        return switch (resolved) {
+            case SHIKIGAMI -> {
+                if (baseCeDrainPerTick == null || !Double.isFinite(baseCeDrainPerTick)
+                    || baseCeDrainPerTick <= 0.0) {
+                    throw new IllegalArgumentException(
+                        "Shikigami base CE drain per tick must be greater than 0");
+                }
+                yield new ShikigamiCharacter(id, name, stats, innateTechniqueName,
+                    moves, abilities, hasWeapon, baseCeDrainPerTick);
             }
-            return new ShikigamiCharacter(id, name, stats, innateTechniqueName,
-                moves, abilities, hasWeapon, baseCeDrainPerTick);
-        }
-        return new SorcererCharacter(id, name, stats, innateTechniqueName, moves, abilities, hasWeapon);
+            case CURSED_SPIRIT -> new CursedSpiritCharacter(
+                id, name, stats, innateTechniqueName, moves, abilities, hasWeapon);
+            case CURSED_CORPSE -> new CursedCorpseCharacter(
+                id, name, stats, innateTechniqueName, moves, abilities, hasWeapon);
+            case SORCERER -> new SorcererCharacter(
+                id, name, stats, innateTechniqueName, moves, abilities, hasWeapon);
+        };
     }
 
     private void validateSelectedMoveNodes(
@@ -334,7 +333,6 @@ public class CharacterData {
         CharacterData d = new CharacterData();
         d.id                    = character.getId();
         d.name                  = character.getName();
-        d.title                 = character.getTitle();
         // The domain Character carries its type but not the authoring-only
         // directlySelectable flag; leave the DTO flag null so the type default
         // applies (sorcerers selectable, shikigami not). The editor sets the

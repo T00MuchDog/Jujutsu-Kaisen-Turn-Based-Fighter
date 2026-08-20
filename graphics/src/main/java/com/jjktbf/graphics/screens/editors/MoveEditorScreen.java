@@ -56,6 +56,7 @@ import com.jjktbf.model.move.MoveRepository;
 import com.jjktbf.model.move.MoveEffectData;
 import com.jjktbf.model.move.MoveEffectTrigger;
 import com.jjktbf.model.move.MoveTag;
+import com.jjktbf.model.move.MoveType;
 import com.jjktbf.model.move.StatusEffectType;
 import com.jjktbf.model.progression.TechniqueMasteryProgressions;
 import com.jjktbf.model.technique.InnateTechniqueData;
@@ -86,6 +87,7 @@ import java.util.function.Consumer;
 public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
     private static final String SORCERER_SECTION = "SORCERER";
+    private static final String CURSED_SPIRIT_SECTION = "CURSED SPIRIT";
     private static final String CURSED_TECHNIQUES_SECTION = "CURSED TECHNIQUES";
     private static final String SHIKIGAMI_SECTION = "SHIKIGAMI";
     private static final List<String> MOVE_PURPOSE_SECTIONS = List.of(
@@ -130,6 +132,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         MoveData m = new MoveData();
         m.name = "New Move";
         m.description = "";
+        m.moveType = MoveType.SORCERER.name();
         m.tags = new ArrayList<>();
         m.basePower = 0;
         m.baseAccuracy = 1.0;
@@ -182,6 +185,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         d.id                    = s.id;
         d.name                  = s.name;
         d.description           = s.description;
+        d.moveType              = s.moveType;
         d.tags                  = s.tags != null ? new ArrayList<>(s.tags) : null;
         d.basePower             = s.basePower;
         d.hitComponents         = copyHitComponents(s.hitComponents);
@@ -421,11 +425,30 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     }
 
     static String moveRecordGroup(MoveData record) {
-        if (Boolean.TRUE.equals(record.shikigamiMove)) return SHIKIGAMI_SECTION;
+        MoveType moveType = record.effectiveMoveType();
+        if (moveType == MoveType.CURSED_SPIRIT) return CURSED_SPIRIT_SECTION;
+        if (moveType == MoveType.SHIKIGAMI) return SHIKIGAMI_SECTION;
         if (record.requiredTechniqueId != null && !record.requiredTechniqueId.isBlank()) {
             return CURSED_TECHNIQUES_SECTION + "/" + record.requiredTechniqueId.trim();
         }
         return SORCERER_SECTION;
+    }
+
+    private static String moveTypeLabel(MoveType type) {
+        return switch (type) {
+            case SORCERER -> "Sorcerer";
+            case CURSED_SPIRIT -> "Cursed Spirit";
+            case SHIKIGAMI -> "Shikigami";
+        };
+    }
+
+    private static MoveType moveTypeFromLabel(String label) {
+        if (label != null) {
+            for (MoveType type : MoveType.values()) {
+                if (moveTypeLabel(type).equalsIgnoreCase(label.trim())) return type;
+            }
+        }
+        return MoveType.SORCERER;
     }
 
     static List<String> moveRecordSections(List<String> techniqueNames) {
@@ -440,6 +463,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
 
         List<String> sections = new ArrayList<>();
         addMoveRecordGroup(sections, SORCERER_SECTION);
+        addMoveRecordGroup(sections, CURSED_SPIRIT_SECTION);
         sections.add(CURSED_TECHNIQUES_SECTION);
         for (String techniqueName : sortedNames.values()) {
             addMoveRecordGroup(
@@ -464,7 +488,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             }
         }
         for (MoveData move : records) {
-            if (Boolean.TRUE.equals(move.shikigamiMove)
+            if (move.effectiveMoveType() != MoveType.SORCERER
                 || move.requiredTechniqueId == null
                 || move.requiredTechniqueId.isBlank()) {
                 continue;
@@ -1040,17 +1064,22 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         });
         misc.add(freeCb).left().row();
 
-        CheckBox shikigamiCb = new CheckBox(" Shikigami move", skin);
-        shikigamiCb.setChecked(Boolean.TRUE.equals(d.shikigamiMove));
-        shikigamiCb.addListener(new ChangeListener() {
+        SelectBox<String> moveTypeSelect = new DynamicSelectBox<>(skin, uiProfile);
+        moveTypeSelect.setItems(java.util.Arrays.stream(MoveType.values())
+            .map(MoveEditorScreen::moveTypeLabel)
+            .toList()
+            .toArray(new String[0]));
+        moveTypeSelect.setSelected(moveTypeLabel(d.effectiveMoveType()));
+        moveTypeSelect.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
                 game.audio().play(SoundCue.UI_TOGGLE);
-                d.shikigamiMove = shikigamiCb.isChecked() ? Boolean.TRUE : null;
+                d.moveType = moveTypeFromLabel(moveTypeSelect.getSelected()).name();
+                d.shikigamiMove = null;
                 markDirty();
             }
         });
-        misc.add(shikigamiCb).left().row();
-        misc.add(formHint("Organizes this record under Shikigami in the Move Editor."))
+        misc.add(labelledRow("Move Type", moveTypeSelect)).growX().row();
+        misc.add(formHint("Controls which character classes may learn this move."))
             .left().row();
 
         CheckBox grantedCb = new CheckBox(" Must be granted", skin);

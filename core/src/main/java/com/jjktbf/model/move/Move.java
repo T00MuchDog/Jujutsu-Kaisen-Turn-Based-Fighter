@@ -45,6 +45,9 @@ public class Move {
     /** Display name. */
     private final String name;
 
+    /** Character class of move used by learning eligibility. */
+    private final MoveType moveType;
+
     /** Flavour description shown to the player. */
     private final String description;
 
@@ -318,6 +321,7 @@ public class Move {
     private Move(Builder b) {
         this.id                  = b.id;
         this.name                = b.name;
+        this.moveType            = b.moveType;
         this.description         = b.description;
         this.category            = b.category;
         this.tags                = immutableTags(b.tags, b.category);
@@ -450,6 +454,7 @@ public class Move {
 
     public String getId()                         { return id; }
     public String getName()                       { return name; }
+    public MoveType getMoveType()                 { return moveType; }
     public String getDescription()                { return description; }
     public MoveCategory getCategory()             { return category; }
     public Set<MoveTag> getTags()                 { return tags; }
@@ -886,6 +891,7 @@ public class Move {
     public static class Builder {
         private String id;
         private String name                  = "";
+        private MoveType moveType            = MoveType.SORCERER;
         private String description           = "";
         private MoveCategory category        = MoveCategory.PHYSICAL;
         private Set<MoveTag> tags;
@@ -949,6 +955,10 @@ public class Move {
         public Builder(String id) { this.id = id; }
 
         public Builder name(String v)                      { this.name = v; return this; }
+        public Builder moveType(MoveType v)                {
+            this.moveType = v == null ? MoveType.SORCERER : v;
+            return this;
+        }
         public Builder description(String v)               { this.description = v; return this; }
         public Builder category(MoveCategory v)            { this.category = v; return this; }
         public Builder tags(Set<MoveTag> v)                { this.tags = v == null ? null : Set.copyOf(v); return this; }
