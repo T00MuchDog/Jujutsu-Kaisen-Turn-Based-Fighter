@@ -43,7 +43,10 @@ public class BattleCombatant {
 
     public static final double DEFAULT_CURSED_ENERGY_REGENERATION_PER_TICK = 0.05;
 
-    private final Character character;
+    /** Stable authored definition this battle instance entered the fight as. */
+    private final Character originCharacter;
+    /** Definition currently supplying presentation, stats, moves, and abilities. */
+    private Character character;
     private final BattleStatMode statMode;
 
     // --- Battle-instance identity (assigned by BattleState at creation) ---
@@ -69,26 +72,30 @@ public class BattleCombatant {
      * Ability-modified stats. Used for all combat calculations instead of
      * character.getBaseStats(). Produced by AbilityApplicator at construction.
      */
-    private final CharacterStats effectiveStats;
+    private CharacterStats effectiveStats;
 
     /**
      * Ability-derived combat stats (computed from effectiveStats).
      * Used for HP, AP bar, slot counts, etc.
      */
-    private final CombatStats effectiveCombatStats;
+    private CombatStats effectiveCombatStats;
 
     /**
      * Non-stat ability effects (CE cost overrides, accuracy bonus, etc.).
      * Applied during combat resolution by CombatResolver / DamageCalculator.
      */
-    private final AbilityApplicator.AbilityFlags abilityFlags;
-    private final List<Ability> abilities;
-    private final CodedAbilities codedAbilities;
+    private AbilityApplicator.AbilityFlags abilityFlags;
+    private List<Ability> abilities;
+    private CodedAbilities codedAbilities;
+
+    /** Parked original mechanics while another authored character form is active. */
+    private FormProfile originalFormProfile;
+    private TransformationState transformationState;
 
     /** Conditional and timed effects added by active ability activation. */
     private final List<RuntimeAbilityEffect> runtimeAbilityEffects = new ArrayList<>();
-    private final Map<String, Boolean> abilityConditionState = new HashMap<>();
-    private final Map<String, List<AbilityTrigger>> abilityTriggerHistory = new HashMap<>();
+    private Map<String, Boolean> abilityConditionState = new HashMap<>();
+    private Map<String, List<AbilityTrigger>> abilityTriggerHistory = new HashMap<>();
     private boolean abilityFightStartProcessed;
     private int lastAbilityRoundStartRound;
 
@@ -174,19 +181,10 @@ public class BattleCombatant {
         CharacterStats baseStats,
         BattleStatMode statMode
     ) {
+        this.originCharacter = Objects.requireNonNull(character, "character");
         this.character = character;
         this.statMode = Objects.requireNonNull(statMode, "statMode");
-        this.abilities = abilities == null ? List.of() : List.copyOf(abilities);
-        this.codedAbilities = CodedAbilityRegistry.create(this, this.abilities);
-
-        // Apply passive ability effects to produce modified stats + flags
-        AbilityApplicator.ApplicationResult result =
-            AbilityApplicator.apply(baseStats, abilities, statMode);
-
-        this.effectiveStats      = result.modifiedStats;
-        this.effectiveCombatStats= new CombatStats(
-            effectiveStats, result.flags.jujutsuArtSlots, statMode);
-        this.abilityFlags        = result.flags;
+        applyProfile(createProfile(character, abilities, baseStats));
 
         // HP and CE derived from effective (ability-modified) stats
         this.currentHp               = effectiveCombatStats.getMaxHp();
@@ -202,6 +200,202 @@ public class BattleCombatant {
         this.timeline             = null;
         this.abilityFightStartProcessed = false;
         this.lastAbilityRoundStartRound = 0;
+    }
+
+    private FormProfile createProfile(
+        Character definition,
+        List<Ability> profileAbilities,
+        CharacterStats baseStats
+    ) {
+        List<Ability> resolvedAbilities = profileAbilities == null
+            ? List.of() : List.copyOf(profileAbilities);
+        AbilityApplicator.ApplicationResult result = AbilityApplicator.apply(
+            baseStats, resolvedAbilities, statMode);
+        Character previousDefinition = character;
+        character = definition;
+        CodedAbilities resolvedCodedAbilities = CodedAbilityRegistry.create(
+            this, resolvedAbilities);
+        character = previousDefinition;
+        return new FormProfile(
+            definition,
+            result.modifiedStats,
+            new CombatStats(result.modifiedStats, result.flags.jujutsuArtSlots, statMode),
+            result.flags,
+            resolvedAbilities,
+            resolvedCodedAbilities,
+            new HashMap<>(),
+            new HashMap<>(),
+            abilityFightStartProcessed,
+            lastAbilityRoundStartRound);
+    }
+
+    private FormProfile captureProfile() {
+        Map<String, List<AbilityTrigger>> history = new HashMap<>();
+        abilityTriggerHistory.forEach((key, value) -> history.put(key, new ArrayList<>(value)));
+        return new FormProfile(
+            character,
+            effectiveStats,
+            effectiveCombatStats,
+            abilityFlags,
+            abilities,
+            codedAbilities,
+            new HashMap<>(abilityConditionState),
+            history,
+            abilityFightStartProcessed,
+            lastAbilityRoundStartRound);
+    }
+
+    private void applyProfile(FormProfile profile) {
+        character = profile.character;
+        effectiveStats = profile.effectiveStats;
+        effectiveCombatStats = profile.effectiveCombatStats;
+        abilityFlags = profile.abilityFlags;
+        abilities = profile.abilities;
+        codedAbilities = profile.codedAbilities;
+        abilityConditionState = new HashMap<>(profile.abilityConditionState);
+        abilityTriggerHistory = new HashMap<>();
+        profile.abilityTriggerHistory.forEach((key, value) ->
+            abilityTriggerHistory.put(key, new ArrayList<>(value)));
+        abilityFightStartProcessed = profile.abilityFightStartProcessed;
+        lastAbilityRoundStartRound = profile.lastAbilityRoundStartRound;
+    }
+
+    /**
+     * Assume another authored character profile without changing battle identity.
+     * Statuses, runtime effects, CE, plans, lifecycle, and team ownership persist.
+     */
+    public TransformationChange transformInto(
+        Character newForm,
+        com.jjktbf.model.character.TransformationHpMode hpMode,
+        com.jjktbf.model.character.AbilityConditionData returnCondition
+    ) {
+        Objects.requireNonNull(newForm, "newForm");
+        com.jjktbf.model.character.TransformationHpMode resolvedHpMode =
+            hpMode == null
+                ? com.jjktbf.model.character.TransformationHpMode.FULL : hpMode;
+        if (newForm.getId().equals(character.getId())) {
+            if (transformationState != null) {
+                transformationState = new TransformationState(returnCondition);
+            }
+            return null;
+        }
+        if (newForm.getId().equals(originCharacter.getId()) && isTransformed()) {
+            return returnToOriginalForm();
+        }
+
+        String previousId = character.getId();
+        String previousName = character.getName();
+        int previousMaxHp = getMaxHp();
+        int previousHp = currentHp;
+        int previousMaxCe = getMaxCursedEnergy();
+        if (originalFormProfile == null) originalFormProfile = captureProfile();
+
+        applyProfile(createProfile(newForm, newForm.getAbilities(), newForm.getBaseStats()));
+        int newMaxHp = getMaxHp();
+        currentHp = switch (resolvedHpMode) {
+            case FULL -> newMaxHp;
+            case CURRENT_VALUE -> Math.min(previousHp, newMaxHp);
+            case CURRENT_PERCENTAGE -> Math.min(newMaxHp, (int) Math.round(
+                newMaxHp * (previousMaxHp <= 0 ? 0.0 : (double) previousHp / previousMaxHp)));
+        };
+        currentCe = Math.min(currentCe, getMaxCursedEnergy());
+        transformationState = new TransformationState(returnCondition);
+        return new TransformationChange(
+            previousId, previousName, character.getId(), character.getName(),
+            previousMaxHp, getMaxHp(), previousMaxCe, getMaxCursedEnergy(),
+            previousHp, currentHp);
+    }
+
+    /** Restore the exact original definition-derived profile, preserving current HP value. */
+    public TransformationChange returnToOriginalForm() {
+        if (originalFormProfile == null) return null;
+        String previousId = character.getId();
+        String previousName = character.getName();
+        int previousMaxHp = getMaxHp();
+        int previousMaxCe = getMaxCursedEnergy();
+        int previousHp = currentHp;
+        FormProfile restored = originalFormProfile;
+        originalFormProfile = null;
+        transformationState = null;
+        applyProfile(restored);
+        currentHp = Math.min(currentHp, getMaxHp());
+        currentCe = Math.min(currentCe, getMaxCursedEnergy());
+        return new TransformationChange(
+            previousId, previousName, character.getId(), character.getName(),
+            previousMaxHp, getMaxHp(), previousMaxCe, getMaxCursedEnergy(),
+            previousHp, currentHp);
+    }
+
+    public boolean isTransformed() {
+        return originalFormProfile != null;
+    }
+
+    com.jjktbf.model.character.AbilityConditionData transformationReturnCondition() {
+        return transformationState == null || transformationState.returnCondition == null
+            ? null : transformationState.returnCondition.copy();
+    }
+
+    boolean wasTransformationReturnConditionTrue() {
+        return transformationState != null && transformationState.conditionMatched;
+    }
+
+    void setTransformationReturnConditionTrue(boolean value) {
+        if (transformationState != null) transformationState.conditionMatched = value;
+    }
+
+    void recordTransformationReturnTrigger(AbilityTrigger trigger) {
+        if (transformationState == null || trigger == null) return;
+        List<AbilityTrigger> history = transformationState.triggerHistory;
+        if (!history.isEmpty() && history.get(history.size() - 1) == trigger) return;
+        history.add(trigger);
+        if (history.size() > 64) history.remove(0);
+    }
+
+    List<AbilityTrigger> transformationReturnTriggerHistory() {
+        return transformationState == null
+            ? List.of() : List.copyOf(transformationState.triggerHistory);
+    }
+
+    void clearTransformationReturnTriggerHistory() {
+        if (transformationState != null) transformationState.triggerHistory.clear();
+    }
+
+    public record TransformationChange(
+        String previousCharacterId,
+        String previousCharacterName,
+        String characterId,
+        String characterName,
+        int previousMaxHp,
+        int maxHp,
+        int previousMaxCe,
+        int maxCe,
+        int previousHp,
+        int currentHp
+    ) { }
+
+    private record FormProfile(
+        Character character,
+        CharacterStats effectiveStats,
+        CombatStats effectiveCombatStats,
+        AbilityApplicator.AbilityFlags abilityFlags,
+        List<Ability> abilities,
+        CodedAbilities codedAbilities,
+        Map<String, Boolean> abilityConditionState,
+        Map<String, List<AbilityTrigger>> abilityTriggerHistory,
+        boolean abilityFightStartProcessed,
+        int lastAbilityRoundStartRound
+    ) { }
+
+    private static final class TransformationState {
+        private final com.jjktbf.model.character.AbilityConditionData returnCondition;
+        private final List<AbilityTrigger> triggerHistory = new ArrayList<>();
+        private boolean conditionMatched;
+
+        private TransformationState(
+            com.jjktbf.model.character.AbilityConditionData returnCondition
+        ) {
+            this.returnCondition = returnCondition == null ? null : returnCondition.copy();
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -1061,6 +1255,7 @@ public class BattleCombatant {
     // -------------------------------------------------------------------------
 
     public Character getCharacter()                        { return character; }
+    public Character getOriginCharacter()                  { return originCharacter; }
     public BattleStatMode getStatMode()                    { return statMode; }
     public CharacterStats getEffectiveStats() {
         List<AbilityEffectData> modifiers = runtimeAbilityEffects.stream()

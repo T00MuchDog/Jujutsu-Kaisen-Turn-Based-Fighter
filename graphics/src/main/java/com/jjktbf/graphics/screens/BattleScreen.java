@@ -1678,6 +1678,10 @@ public class BattleScreen implements Screen, BattleView {
             if (!skipRoundRequested && e.getType() == CombatEvent.Type.RATIO_TRIGGERED) {
                 postLocal(this::playRatioUnleashAnimation);
             }
+            if (e.getType() == CombatEvent.Type.CHARACTER_TRANSFORMED
+                || e.getType() == CombatEvent.Type.CHARACTER_REVERTED) {
+                postLocal(() -> refreshLocalFormSprite(e));
+            }
             if (hasLocalPlaybackEffect(e)) {
                 final CombatEvent ev = e;
                 // Apply this event's resource delta and enqueue any log line ON
@@ -2425,6 +2429,7 @@ public class BattleScreen implements Screen, BattleView {
         syncOnlineBattlefield(
             roundStartOnlineCombatants(state, multiplayerSetup.playerSide(), onlinePlayer),
             roundStartOnlineCombatants(state, opposite(multiplayerSetup.playerSide()), onlineEnemy));
+        applyRoundStartFormSprites(state);
         seedOnlineResourcesFromRoundStart(state);
         boolean tickZeroRoundStart = playbackEvents.stream().allMatch(event -> event.tick() == 0)
             && playbackEvents.stream().anyMatch(event -> event.type() == BattleEventType.ROUND_START);
@@ -2563,8 +2568,14 @@ public class BattleScreen implements Screen, BattleView {
                     targetResources.maxCe = Math.max(0, value);
                     targetResources.ce = Math.min(targetResources.ce, targetResources.maxCe);
                 }
+                case CHARACTER_TRANSFORMED, CHARACTER_REVERTED ->
+                    targetResources.hp = Math.max(0, value);
                 default -> { }
             }
+        }
+        if (event.type() == BattleEventType.CHARACTER_TRANSFORMED
+            || event.type() == BattleEventType.CHARACTER_REVERTED) {
+            refreshOnlineFormSprite(event.targetSide(), target, event.targetCharacterId());
         }
         if (value != null && (event.type() == BattleEventType.CE_DRAINED
             || event.type() == BattleEventType.CE_RESTORED)) {
@@ -3067,6 +3078,50 @@ public class BattleScreen implements Screen, BattleView {
             .map(combatant -> assets.characterBattleSprite(
                 game.multiplayerSpriteAsset(combatant.characterId()), opponent, fallback))
             .toList();
+    }
+
+    private void applyRoundStartFormSprites(MatchState state) {
+        if (state == null) return;
+        for (RoundStartCharacterState start : state.roundStartCharacterStates()) {
+            CharacterState combatant = onlineVisualForEvent(
+                start.side(), start.instanceId(), start.characterId());
+            refreshOnlineFormSprite(start.side(), combatant, start.characterId());
+        }
+    }
+
+    private void refreshOnlineFormSprite(
+        PlayerSide side,
+        CharacterState combatant,
+        String characterId
+    ) {
+        if (side == null || combatant == null || characterId == null || characterId.isBlank()) {
+            return;
+        }
+        boolean playerSide = side == multiplayerSetup.playerSide();
+        List<CharacterState> combatants = playerSide
+            ? renderOnlinePlayerTeam : renderOnlineEnemyTeam;
+        int index = -1;
+        OnlineCombatantKey key = onlineKey(side, combatant);
+        for (int i = 0; i < combatants.size(); i++) {
+            if (key.equals(onlineKey(side, combatants.get(i)))) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0) return;
+        List<Texture> sprites = new ArrayList<>(playerSide
+            ? playerTeamSprites : enemyTeamSprites);
+        if (index >= sprites.size()) return;
+        Texture fallback = playerSide ? assets.playerSprite : assets.enemySprite;
+        sprites.set(index, assets.characterBattleSprite(
+            game.multiplayerSpriteAsset(characterId), !playerSide, fallback));
+        if (playerSide) {
+            playerTeamSprites = List.copyOf(sprites);
+            if (!sprites.isEmpty()) playerSprite = sprites.get(0);
+        } else {
+            enemyTeamSprites = List.copyOf(sprites);
+            if (!sprites.isEmpty()) enemySprite = sprites.get(0);
+        }
     }
 
     static List<CharacterState> roundStartOnlineCombatants(
@@ -3883,8 +3938,39 @@ public class BattleScreen implements Screen, BattleView {
                 int maximum = Math.max(1, amount);
                 yield new LocalHpState(Math.min(current.hp(), maximum), maximum);
             }
+            case CHARACTER_TRANSFORMED, CHARACTER_REVERTED ->
+                new LocalHpState(Math.max(0, amount), current.maxHp());
             default -> current;
         });
+    }
+
+    private void refreshLocalFormSprite(CombatEvent event) {
+        BattleCombatant combatant = event == null ? null : event.getTarget();
+        String characterId = event == null ? null : event.getCharacterId();
+        if (combatant == null || characterId == null || characterId.isBlank()) return;
+        boolean playerSide = renderPlayerTeam.stream().anyMatch(candidate -> candidate == combatant);
+        List<BattleCombatant> combatants = playerSide ? renderPlayerTeam : renderEnemyTeam;
+        int index = -1;
+        for (int i = 0; i < combatants.size(); i++) {
+            if (combatants.get(i) == combatant) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0) return;
+        List<Texture> sprites = new ArrayList<>(playerSide
+            ? playerTeamSprites : enemyTeamSprites);
+        if (index >= sprites.size()) return;
+        Texture fallback = playerSide ? assets.playerSprite : assets.enemySprite;
+        sprites.set(index, assets.characterBattleSprite(
+            game.multiplayerSpriteAsset(characterId), !playerSide, fallback));
+        if (playerSide) {
+            playerTeamSprites = List.copyOf(sprites);
+            if (!sprites.isEmpty()) playerSprite = sprites.get(0);
+        } else {
+            enemyTeamSprites = List.copyOf(sprites);
+            if (!sprites.isEmpty()) enemySprite = sprites.get(0);
+        }
     }
 
     private record LocalHpState(int hp, int maxHp) { }

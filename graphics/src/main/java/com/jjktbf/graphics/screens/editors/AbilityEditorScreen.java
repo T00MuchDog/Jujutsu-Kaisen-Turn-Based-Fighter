@@ -292,6 +292,16 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                         + "): " + summonError;
                 }
             }
+            if (type == AbilityEffectType.TRANSFORM_CHARACTER) {
+                String formError = transformationReferenceValidationError(
+                    effect.characterId, charRepo.getAll());
+                if (formError != null) {
+                    return "Effect " + (i + 1) + " (" + type.displayName()
+                        + "): " + formError;
+                }
+                String returnMoveError = validateConditionMoves(effect.returnCondition);
+                if (returnMoveError != null) return returnMoveError;
+            }
         }
         String effectIdError = AbilityConditionRuleData.effectIdValidationError(ability.effects);
         if (effectIdError != null) return effectIdError;
@@ -372,6 +382,19 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         }
     }
 
+    static String transformationReferenceValidationError(
+        String characterId,
+        List<CharacterData> characters
+    ) {
+        if (characterId == null || characterId.isBlank()) {
+            return "Choose an existing character form.";
+        }
+        boolean exists = characters != null && characters.stream()
+            .filter(java.util.Objects::nonNull)
+            .anyMatch(character -> characterId.equals(character.id));
+        return exists ? null : "The character form does not exist.";
+    }
+
     private boolean hasAbilitySourceCycle(AbilityData draftAbility) {
         java.util.Set<String> visited = new java.util.HashSet<>();
         AbilityData current = draftAbility;
@@ -445,6 +468,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         ability.activationChance = null;
         for (AbilityEffectData effect : ability.effects) {
             AbilityEffectType.fromName(effect.type).clearUnusedFields(effect);
+            if (effect.returnCondition != null) normalizeCondition(effect.returnCondition);
         }
     }
 

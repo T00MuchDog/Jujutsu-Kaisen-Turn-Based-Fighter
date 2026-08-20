@@ -70,12 +70,14 @@ public class AbilityEffectData {
     /** Ability ID (6-digit) for GRANT_ABILITY. */
     public String abilityId;
 
-    /**
-     * Canonical shikigami character id for {@link AbilityEffectType#SUMMON_CHARACTER}.
-     * Must reference a valid SHIKIGAMI definition (validated in editors and the
-     * authoritative catalog). Null for non-summon effects.
-     */
+    /** Canonical character id used by summon and transformation effects. */
     public String characterId;
+
+    /** {@link TransformationHpMode} name used when assuming another character form. */
+    public String transformationHpMode;
+
+    /** Optional condition tree that returns a transformed combatant to its original form. */
+    public AbilityConditionData returnCondition;
 
     // ── Status effect automation ──────────────────────────────────────────────
     /**
@@ -142,6 +144,9 @@ public class AbilityEffectData {
         this.moveId = source.moveId;
         this.abilityId = source.abilityId;
         this.characterId = source.characterId;
+        this.transformationHpMode = source.transformationHpMode;
+        this.returnCondition = source.returnCondition == null
+            ? null : source.returnCondition.copy();
         this.stringValue = source.stringValue;
         this.target = source.target;
         this.timing = source.timing;
@@ -260,6 +265,8 @@ public class AbilityEffectData {
             + (moveTag     != null ? " tag=" + moveTag : "")
             + (moveId      != null ? " move=" + moveId : "")
             + (abilityId   != null ? " ability=" + abilityId : "")
+            + (characterId != null ? " character=" + characterId : "")
+            + (transformationHpMode != null ? " hp=" + transformationHpMode : "")
             + (stringValue != null ? " str=" + stringValue : "")
             + (target      != null ? " tgt=" + target : "")
             + (timing      != null ? " time=" + timing : "")

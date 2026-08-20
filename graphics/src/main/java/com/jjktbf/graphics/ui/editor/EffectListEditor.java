@@ -3,6 +3,7 @@ package com.jjktbf.graphics.ui.editor;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
+import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
@@ -16,6 +17,7 @@ import com.jjktbf.graphics.ui.ContentSizedDialog;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
 import com.jjktbf.graphics.ui.profile.UiProfile;
 import com.jjktbf.model.character.AbilityData;
+import com.jjktbf.model.character.AbilityConditionType;
 import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectParameter;
 import com.jjktbf.model.character.AbilityEffectTarget;
@@ -25,6 +27,7 @@ import com.jjktbf.model.character.BattleStatKey;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.CharacterType;
 import com.jjktbf.model.character.StatKey;
+import com.jjktbf.model.character.TransformationHpMode;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.character.coded.CursedSpeechAbility;
 import com.jjktbf.model.character.coded.NewShadowStyleAbility;
@@ -47,10 +50,12 @@ public class EffectListEditor extends Table {
     private static final String SELECT_ABILITY = "[select an ability]";
     private static final String SELECT_TECHNIQUE = "[select a technique]";
     private static final String SELECT_CHARACTER = "[select a shikigami]";
+    private static final String SELECT_FORM = "[select a character form]";
     private static final String NO_MOVES = "[no moves available]";
     private static final String NO_ABILITIES = "[no abilities available]";
     private static final String NO_TECHNIQUES = "[no techniques available]";
     private static final String NO_CHARACTERS = "[no shikigami available]";
+    private static final String NO_FORMS = "[no character forms available]";
 
     private final Skin skin;
     private final List<AbilityEffectData> effects;
@@ -260,8 +265,12 @@ public class EffectListEditor extends Table {
                     return;
                 }
                 if (selected.uses(AbilityEffectParameter.CHARACTER_ID)
-                    && !isShikigamiReference(characters, working.characterId)) {
-                    error.setText("Choose a Shikigami that still exists.");
+                    && !(selected == AbilityEffectType.TRANSFORM_CHARACTER
+                        ? isCharacterReference(characters, working.characterId)
+                        : isShikigamiReference(characters, working.characterId))) {
+                    error.setText(selected == AbilityEffectType.TRANSFORM_CHARACTER
+                        ? "Choose a character form that still exists."
+                        : "Choose a Shikigami that still exists.");
                     soundPlayer.accept(SoundCue.UI_DENIED);
                     return;
                 }
@@ -499,14 +508,67 @@ public class EffectListEditor extends Table {
 
         if (type.uses(AbilityEffectParameter.CHARACTER_ID)) {
             SelectBox<String> characterBox = new DynamicSelectBox<>(skin, uiProfile);
-            characterBox.setItems(shikigamiReferenceLabels(effect.characterId));
-            characterBox.setSelected(shikigamiReferenceLabel(effect.characterId));
+            boolean formReference = type == AbilityEffectType.TRANSFORM_CHARACTER;
+            characterBox.setItems(formReference
+                ? characterReferenceLabels(effect.characterId)
+                : shikigamiReferenceLabels(effect.characterId));
+            characterBox.setSelected(formReference
+                ? characterReferenceLabel(effect.characterId)
+                : shikigamiReferenceLabel(effect.characterId));
             characterBox.addListener(new ChangeListener() {
                 @Override public void changed(ChangeEvent event, Actor actor) {
                     effect.characterId = referenceIdFromLabel(characterBox.getSelected());
                 }
             });
-            addRow(fields, "Shikigami", characterBox);
+            addRow(fields, formReference ? "Character form" : "Shikigami", characterBox);
+        }
+
+        if (type.uses(AbilityEffectParameter.TRANSFORMATION_HP)) {
+            SelectBox<String> hpMode = new DynamicSelectBox<>(skin, uiProfile);
+            hpMode.setItems(java.util.Arrays.stream(TransformationHpMode.values())
+                .map(TransformationHpMode::displayName).toArray(String[]::new));
+            TransformationHpMode selected;
+            try {
+                selected = TransformationHpMode.fromName(effect.transformationHpMode);
+            } catch (IllegalArgumentException exception) {
+                selected = TransformationHpMode.FULL;
+            }
+            hpMode.setSelected(selected.displayName());
+            effect.transformationHpMode = selected.name();
+            hpMode.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    effect.transformationHpMode = java.util.Arrays.stream(
+                            TransformationHpMode.values())
+                        .filter(mode -> mode.displayName().equals(hpMode.getSelected()))
+                        .findFirst().orElse(TransformationHpMode.FULL).name();
+                }
+            });
+            addRow(fields, "New form HP", hpMode);
+        }
+
+        if (type.uses(AbilityEffectParameter.RETURN_CONDITION)) {
+            CheckBox automaticReturn = new CheckBox(" Return automatically", skin);
+            automaticReturn.setChecked(effect.returnCondition != null);
+            automaticReturn.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    effect.returnCondition = automaticReturn.isChecked()
+                        ? AbilityConditionType.HP_PERCENT_AT_OR_BELOW.createDefault()
+                        : null;
+                    refreshFields.run();
+                }
+            });
+            addRow(fields, "Reversion", automaticReturn);
+            if (effect.returnCondition != null) {
+                fields.add(new Label("Return condition", skin)).padRight(8).top();
+                fields.add(new ConditionTreeEditor(
+                    effect.returnCondition,
+                    moves,
+                    () -> { },
+                    soundPlayer,
+                    masteryEligible,
+                    uiProfile,
+                    skin)).growX().row();
+            }
         }
 
         if (type.uses(AbilityEffectParameter.TECHNIQUE)) {
@@ -902,7 +964,19 @@ public class EffectListEditor extends Table {
             summary.append(" | ").append(abilityReferenceLabel(effect.abilityId));
         }
         if (type.uses(AbilityEffectParameter.CHARACTER_ID) && effect.characterId != null) {
-            summary.append(" | ").append(shikigamiReferenceLabel(effect.characterId));
+            summary.append(" | ").append(type == AbilityEffectType.TRANSFORM_CHARACTER
+                ? characterReferenceLabel(effect.characterId)
+                : shikigamiReferenceLabel(effect.characterId));
+        }
+        if (type.uses(AbilityEffectParameter.TRANSFORMATION_HP)) {
+            try {
+                summary.append(" | ").append(TransformationHpMode
+                    .fromName(effect.transformationHpMode).displayName());
+            } catch (IllegalArgumentException ignored) { }
+        }
+        if (type.uses(AbilityEffectParameter.RETURN_CONDITION)) {
+            summary.append(effect.returnCondition == null
+                ? " | no automatic return" : " | conditional return");
         }
         if (type.uses(AbilityEffectParameter.TECHNIQUE) && effect.stringValue != null) {
             summary.append(" | ").append(effect.stringValue);
@@ -1192,6 +1266,43 @@ public class EffectListEditor extends Table {
             .filter(java.util.Objects::nonNull)
             .filter(character -> characterId.equals(character.id))
             .anyMatch(EffectListEditor::isShikigami);
+    }
+
+    static boolean isCharacterReference(
+        List<CharacterData> characters,
+        String characterId
+    ) {
+        if (characters == null || characterId == null || characterId.isBlank()) return false;
+        return characters.stream()
+            .filter(java.util.Objects::nonNull)
+            .anyMatch(character -> characterId.equals(character.id));
+    }
+
+    private String[] characterReferenceLabels(String currentId) {
+        List<CharacterData> available = characters.stream()
+            .filter(java.util.Objects::nonNull)
+            .toList();
+        List<String> labels = new ArrayList<>();
+        labels.add(SELECT_FORM);
+        for (CharacterData character : available) {
+            labels.add(character.id + " - " + character.name);
+        }
+        if (currentId != null && !currentId.isBlank()
+            && available.stream().noneMatch(character -> currentId.equals(character.id))) {
+            labels.add(currentId + " - (missing)");
+        }
+        if (available.isEmpty()) labels.add(NO_FORMS);
+        return labels.toArray(new String[0]);
+    }
+
+    private String characterReferenceLabel(String characterId) {
+        if (characterId == null || characterId.isBlank()) return SELECT_FORM;
+        return characters.stream()
+            .filter(java.util.Objects::nonNull)
+            .filter(character -> characterId.equals(character.id))
+            .findFirst()
+            .map(character -> character.id + " - " + character.name)
+            .orElse(characterId + " - (missing)");
     }
 
     private static boolean isShikigami(CharacterData character) {

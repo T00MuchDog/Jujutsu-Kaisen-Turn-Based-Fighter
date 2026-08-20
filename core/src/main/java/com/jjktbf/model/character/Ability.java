@@ -48,8 +48,9 @@ public class Ability {
             AbilityEffectType type;
             try { type = AbilityEffectType.fromName(effect.type); }
             catch (IllegalArgumentException ignored) { continue; }
-            if (!techniqueSource && effect.masteryProgression != null
-                && !effect.masteryProgression.isEmpty()) {
+            if (!techniqueSource && ((effect.masteryProgression != null
+                && !effect.masteryProgression.isEmpty())
+                || hasMasteryProgression(effect.returnCondition))) {
                 throw new IllegalArgumentException(
                     "Only TECHNIQUE abilities may use mastery progression.");
             }

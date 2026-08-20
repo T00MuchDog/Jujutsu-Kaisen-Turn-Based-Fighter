@@ -6,7 +6,7 @@ import java.util.Optional;
 
 /**
  * Read-only lookup of canonical character definitions by id, used by the combat
- * engine to resolve summon targets (e.g. {@code Move.summonCharacterId}) without
+ * engine to resolve summon and transformation targets without
  * loading files or depending on a repository inside the engine.
  *
  * <p>The server-side authoritative session injects a lookup backed by its loaded

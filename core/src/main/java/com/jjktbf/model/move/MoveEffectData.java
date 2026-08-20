@@ -219,7 +219,7 @@ public class MoveEffectData extends AbilityEffectData {
         if (masteryProgression != null && !masteryProgression.isEmpty()) return true;
         if (activationMasteryProgression != null
             && !activationMasteryProgression.isEmpty()) return true;
-        return hasMasteryProgression(condition);
+        return hasMasteryProgression(condition) || hasMasteryProgression(returnCondition);
     }
 
     private static boolean hasMasteryProgression(AbilityConditionData value) {

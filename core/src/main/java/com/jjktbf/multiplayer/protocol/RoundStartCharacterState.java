@@ -12,7 +12,9 @@ public record RoundStartCharacterState(
     int currentCe,
     int maxCe,
     List<CodedAbilityState> codedAbilities,
-    String instanceId
+    String instanceId,
+    String characterId,
+    String name
 ) {
     public RoundStartCharacterState {
         codedAbilities = codedAbilities == null ? List.of() : List.copyOf(codedAbilities);
@@ -27,6 +29,20 @@ public record RoundStartCharacterState(
         int maxCe,
         List<CodedAbilityState> codedAbilities
     ) {
-        this(side, currentHp, maxHp, currentCe, maxCe, codedAbilities, null);
+        this(side, currentHp, maxHp, currentCe, maxCe, codedAbilities, null, null, null);
+    }
+
+    /** Source-compatible constructor from before round-start form metadata. */
+    public RoundStartCharacterState(
+        PlayerSide side,
+        int currentHp,
+        int maxHp,
+        int currentCe,
+        int maxCe,
+        List<CodedAbilityState> codedAbilities,
+        String instanceId
+    ) {
+        this(side, currentHp, maxHp, currentCe, maxCe, codedAbilities,
+            instanceId, null, null);
     }
 }

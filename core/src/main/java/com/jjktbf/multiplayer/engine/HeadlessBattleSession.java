@@ -1337,8 +1337,12 @@ public final class HeadlessBattleSession {
                 sourceCombatant == null ? null : sourceCombatant.getCharacter().getId(),
                 sourceCombatant == null ? null : sourceCombatant.getCharacter().getName(),
                 target == null ? null : target.participant.side(),
-                targetCombatant == null ? null : targetCombatant.getCharacter().getId(),
-                targetCombatant == null ? null : targetCombatant.getCharacter().getName(),
+                event.getCharacterId() != null
+                    ? event.getCharacterId()
+                    : targetCombatant == null ? null : targetCombatant.getCharacter().getId(),
+                event.getCharacterName() != null
+                    ? event.getCharacterName()
+                    : targetCombatant == null ? null : targetCombatant.getCharacter().getName(),
                 move == null ? null : move.getId(),
                 move == null ? null : move.getName(),
                 event.getComponentIndex(),
@@ -1412,7 +1416,8 @@ public final class HeadlessBattleSession {
         return switch (event.getType()) {
             case DAMAGE_DEALT, DAMAGE_IGNORED, HP_RESTORED,
                  MAX_HP_CHANGED, MAX_CE_CHANGED, BLACK_FLASH,
-                 CE_DRAINED, CE_RESTORED -> event.getIntValue();
+                 CE_DRAINED, CE_RESTORED,
+                 CHARACTER_TRANSFORMED, CHARACTER_REVERTED -> event.getIntValue();
             default -> null;
         };
     }
@@ -1514,7 +1519,9 @@ public final class HeadlessBattleSession {
             combatant.getCurrentCe(),
             combatant.getMaxCursedEnergy(),
             combatant.getCodedAbilities().states(),
-            combatant.getInstanceId().value()
+            combatant.getInstanceId().value(),
+            combatant.getCharacter().getId(),
+            combatant.getCharacter().getName()
         );
     }
 

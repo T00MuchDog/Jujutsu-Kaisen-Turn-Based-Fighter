@@ -37,9 +37,20 @@ public final class AbilityActivationEngine {
     ) { }
 
     private final RandomSource rng;
+    private BattleCharacterLookup characterLookup;
 
     public AbilityActivationEngine(RandomSource rng) {
+        this(rng, null);
+    }
+
+    public AbilityActivationEngine(RandomSource rng, BattleCharacterLookup characterLookup) {
         this.rng = rng;
+        this.characterLookup = characterLookup;
+    }
+
+    public AbilityActivationEngine withCharacterLookup(BattleCharacterLookup lookup) {
+        this.characterLookup = lookup;
+        return this;
     }
 
     public List<CombatEvent> process(BattleState state, AbilityTrigger initialTrigger) {
@@ -50,6 +61,7 @@ public final class AbilityActivationEngine {
         int processed = 0;
         while (!triggers.isEmpty() && processed++ < MAX_CHAINED_TRIGGERS) {
             AbilityTrigger trigger = triggers.removeFirst();
+            events.addAll(processTransformationReturns(state, trigger));
             Map<RuleActivationKey, Boolean> activationCache = new HashMap<>();
             // Iterate every active combatant as a possible ability owner. The
             // single-enemy context for an owner is the trigger's relevant
@@ -910,6 +922,31 @@ public final class AbilityActivationEngine {
                         .build());
                 }
             }
+            case TRANSFORM_CHARACTER -> {
+                if (effect.characterId == null || effect.characterId.isBlank()
+                    || characterLookup == null) {
+                    return;
+                }
+                java.util.Optional<com.jjktbf.model.character.Character> form =
+                    characterLookup.findCharacter(effect.characterId.trim());
+                if (form.isEmpty()) {
+                    System.err.println("[WARN] Unknown transformation character id "
+                        + effect.characterId + " — transformation skipped");
+                    return;
+                }
+                TransformationHpMode hpMode;
+                try {
+                    hpMode = TransformationHpMode.fromName(effect.transformationHpMode);
+                } catch (IllegalArgumentException exception) {
+                    hpMode = TransformationHpMode.FULL;
+                }
+                for (BattleCombatant target : targets) {
+                    BattleCombatant.TransformationChange change = target.transformInto(
+                        form.get(), hpMode, effect.returnCondition);
+                    appendTransformationEvents(
+                        owner, target, change, false, move, effectComponentIndex, tick, events);
+                }
+            }
             case DESUMMON_OWNED_SHIKIGAMI ->
                 state.voluntarilyDesummonOwnedShikigami(owner);
             case DESUMMON_TARGET_SHIKIGAMI -> {
@@ -933,9 +970,61 @@ public final class AbilityActivationEngine {
                 }
             }
             case MAX_ACTIVE_SUMMONS, SUMMON_CE_UPKEEP_PER_ACTIVE_TICK,
-                  BATTLE_STAT_ODDS_MULTIPLY,
-                  MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE -> { }
+                   BATTLE_STAT_ODDS_MULTIPLY,
+                   MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE -> { }
         }
+    }
+
+    private List<CombatEvent> processTransformationReturns(
+        BattleState state,
+        AbilityTrigger trigger
+    ) {
+        List<CombatEvent> events = new ArrayList<>();
+        for (BattleCombatant transformed : state.activeCombatants()) {
+            AbilityConditionData condition = transformed.transformationReturnCondition();
+            if (condition == null) continue;
+            BattleCombatant enemy = relevantEnemy(state, trigger, transformed);
+            boolean eventOpportunity = hasMatchingEventLeaf(
+                condition, transformed, enemy, state, trigger);
+            if (eventOpportunity) transformed.recordTransformationReturnTrigger(trigger);
+            List<AbilityTrigger> history = transformed.transformationReturnTriggerHistory();
+            boolean matches = evaluate(
+                condition, transformed, enemy, state, trigger, history);
+            boolean previouslyMatched = transformed.wasTransformationReturnConditionTrue();
+            transformed.setTransformationReturnConditionTrue(matches);
+            if (!matches || (previouslyMatched && !eventOpportunity)) continue;
+
+            BattleCombatant.TransformationChange change = transformed.returnToOriginalForm();
+            appendTransformationEvents(
+                transformed, transformed, change, true, null, null,
+                trigger == null ? 0 : trigger.tick(), events);
+        }
+        return events;
+    }
+
+    private static void appendTransformationEvents(
+        BattleCombatant source,
+        BattleCombatant target,
+        BattleCombatant.TransformationChange change,
+        boolean reverted,
+        Move move,
+        Integer componentIndex,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        if (change == null) return;
+        appendResourceMaximumEvents(
+            source, target, change.previousMaxHp(), change.previousMaxCe(), tick, events);
+        String message = reverted
+            ? change.previousCharacterName() + " returns to " + change.characterName() + "!"
+            : change.previousCharacterName() + " transforms into " + change.characterName() + "!";
+        events.add(CombatEvent.of(reverted
+                ? CombatEvent.Type.CHARACTER_REVERTED
+                : CombatEvent.Type.CHARACTER_TRANSFORMED)
+            .source(source).target(target).move(move).componentIndex(componentIndex)
+            .previousCharacterId(change.previousCharacterId())
+            .characterId(change.characterId()).characterName(change.characterName())
+            .intValue(change.currentHp()).tick(tick).message(message).build());
     }
 
     private boolean hasMatchingEventLeaf(

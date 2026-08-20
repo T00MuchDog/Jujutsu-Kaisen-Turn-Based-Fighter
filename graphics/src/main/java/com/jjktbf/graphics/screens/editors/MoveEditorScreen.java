@@ -515,9 +515,19 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             for (int index = 0; index < d.effects.size(); index++) {
                 MoveEffectData effect = d.effects.get(index);
                 if (effect == null || !AbilityEffectType.SUMMON_CHARACTER.name()
-                    .equalsIgnoreCase(effect.type)) continue;
-                summonError = summonReferenceValidationError(
-                    effect.characterId, charRepo.getAll());
+                    .equalsIgnoreCase(effect.type)) {
+                    if (effect != null && AbilityEffectType.TRANSFORM_CHARACTER.name()
+                        .equalsIgnoreCase(effect.type)) {
+                        String formError = AbilityEditorScreen.transformationReferenceValidationError(
+                            effect.characterId, charRepo.getAll());
+                        if (formError != null) {
+                            return ValidationResult.error(
+                                "Effect " + (index + 1) + ": " + formError);
+                        }
+                    }
+                    continue;
+                }
+                summonError = summonReferenceValidationError(effect.characterId, charRepo.getAll());
                 if (summonError != null) {
                     return ValidationResult.error(
                         "Effect " + (index + 1) + ": " + summonError);

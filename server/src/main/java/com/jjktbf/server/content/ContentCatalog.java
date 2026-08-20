@@ -214,6 +214,13 @@ public final class ContentCatalog {
                     throw invalid(MOVES_RESOURCE, "move " + definition.id
                         + " effect condition references unknown move " + missingMove);
                 }
+                missingMove = missingConditionMove(
+                    effect.returnCondition, movesById.keySet());
+                if (missingMove != null) {
+                    throw invalid(MOVES_RESOURCE, "move " + definition.id
+                        + " transformation return condition references unknown move "
+                        + missingMove);
+                }
             }
         }
 
@@ -238,6 +245,15 @@ public final class ContentCatalog {
                         effect.codedAbilityKey, effect.codedFeature)) {
                     throw invalid(ABILITIES_RESOURCE,
                         "invalid coded effect on ability " + definition.id);
+                }
+                if (effect != null) {
+                    String missingMove = missingConditionMove(
+                        effect.returnCondition, movesById.keySet());
+                    if (missingMove != null) {
+                        throw invalid(ABILITIES_RESOURCE, "ability " + definition.id
+                            + " transformation return condition references unknown move "
+                            + missingMove);
+                    }
                 }
             }
             if (definition.isActive()) {
@@ -391,26 +407,38 @@ public final class ContentCatalog {
                     com.jjktbf.model.character.AbilityEffectParameter.CHARACTER_ID)) continue;
                 if (effect.characterId == null || effect.characterId.isBlank()) {
                     throw invalid(MOVES_RESOURCE,
-                        "move " + definition.id + " has no shikigami target");
+                        "move " + definition.id + " has no character target");
                 }
-                verifySummonReference(effect.characterId, charactersById,
-                    MOVES_RESOURCE, "move " + definition.id);
+                if (effectType == AbilityEffectType.TRANSFORM_CHARACTER) {
+                    verifyCharacterReference(effect.characterId, charactersById,
+                        MOVES_RESOURCE, "move " + definition.id);
+                } else {
+                    verifySummonReference(effect.characterId, charactersById,
+                        MOVES_RESOURCE, "move " + definition.id);
+                }
             }
         }
         for (AbilityData definition : abilities == null ? List.<AbilityData>of() : abilities) {
             if (definition == null || definition.effects == null) continue;
             for (AbilityEffectData effect : definition.effects) {
                 if (effect == null) continue;
-                boolean summonEffect = AbilityEffectType.SUMMON_CHARACTER.name()
-                    .equalsIgnoreCase(effect.type);
+                AbilityEffectType effectType;
+                try { effectType = AbilityEffectType.fromName(effect.type); }
+                catch (IllegalArgumentException ignored) { continue; }
+                boolean summonEffect = effectType == AbilityEffectType.SUMMON_CHARACTER;
                 if (summonEffect && (effect.characterId == null
                     || effect.characterId.isBlank())) {
                     throw invalid(ABILITIES_RESOURCE,
                         "ability " + definition.id + " has no summon target");
                 }
                 if (effect.characterId == null || effect.characterId.isBlank()) continue;
-                verifySummonReference(effect.characterId, charactersById,
-                    ABILITIES_RESOURCE, "ability " + definition.id);
+                if (effectType == AbilityEffectType.TRANSFORM_CHARACTER) {
+                    verifyCharacterReference(effect.characterId, charactersById,
+                        ABILITIES_RESOURCE, "ability " + definition.id);
+                } else if (summonEffect) {
+                    verifySummonReference(effect.characterId, charactersById,
+                        ABILITIES_RESOURCE, "ability " + definition.id);
+                }
             }
         }
     }
@@ -428,6 +456,18 @@ public final class ContentCatalog {
         if (target.getType() != CharacterType.SHIKIGAMI) {
             throw invalid(resource,
                 context + " summons non-shikigami character " + characterId);
+        }
+    }
+
+    private static void verifyCharacterReference(
+        String characterId,
+        Map<String, ? extends Character> charactersById,
+        String resource,
+        String context
+    ) {
+        if (charactersById == null || !charactersById.containsKey(characterId)) {
+            throw invalid(resource,
+                context + " transforms into unknown character " + characterId);
         }
     }
 

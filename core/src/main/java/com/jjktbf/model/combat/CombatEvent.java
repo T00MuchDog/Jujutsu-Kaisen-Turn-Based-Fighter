@@ -32,6 +32,10 @@ public class CombatEvent {
         // Summoning
         MOVE_SUMMON,        // a move effect row enqueued a shikigami summon (pre-materialization)
 
+        // Character forms
+        CHARACTER_TRANSFORMED,
+        CHARACTER_REVERTED,
+
         // Damage
         DAMAGE_DEALT,
         DAMAGE_IGNORED,
@@ -76,6 +80,10 @@ public class CombatEvent {
     private final Integer         componentIndex;
     /** Optional post-event resource snapshot for a coded ability. */
     private final CodedAbilityState codedAbilityState;
+    /** Form metadata captured at event creation because combatant definitions are mutable. */
+    private final String          previousCharacterId;
+    private final String          characterId;
+    private final String          characterName;
     private final String          message;    // human-readable description
 
     private CombatEvent(Builder b) {
@@ -87,6 +95,9 @@ public class CombatEvent {
         this.tick      = b.tick;
         this.componentIndex = b.componentIndex;
         this.codedAbilityState = b.codedAbilityState;
+        this.previousCharacterId = b.previousCharacterId;
+        this.characterId = b.characterId;
+        this.characterName = b.characterName;
         this.message   = b.message;
     }
 
@@ -98,6 +109,9 @@ public class CombatEvent {
     public int             getTick()     { return tick; }
     public Integer         getComponentIndex() { return componentIndex; }
     public CodedAbilityState getCodedAbilityState() { return codedAbilityState; }
+    public String          getPreviousCharacterId() { return previousCharacterId; }
+    public String          getCharacterId() { return characterId; }
+    public String          getCharacterName() { return characterName; }
     public String          getMessage()  { return message; }
 
     @Override
@@ -120,6 +134,9 @@ public class CombatEvent {
         private int             tick;
         private Integer         componentIndex;
         private CodedAbilityState codedAbilityState;
+        private String          previousCharacterId;
+        private String          characterId;
+        private String          characterName;
         private String          message = "";
 
         private Builder(Type type) { this.type = type; }
@@ -134,6 +151,9 @@ public class CombatEvent {
             this.codedAbilityState = v;
             return this;
         }
+        public Builder previousCharacterId(String v) { this.previousCharacterId = v; return this; }
+        public Builder characterId(String v) { this.characterId = v; return this; }
+        public Builder characterName(String v) { this.characterName = v; return this; }
         public Builder message(String v)          { this.message  = v; return this; }
 
         public CombatEvent build() { return new CombatEvent(this); }

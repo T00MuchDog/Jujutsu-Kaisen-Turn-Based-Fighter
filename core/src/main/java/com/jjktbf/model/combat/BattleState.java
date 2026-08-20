@@ -582,7 +582,7 @@ public class BattleState {
         return allCombatants().stream().anyMatch(candidate -> candidate.isActive()
             && candidate.isSummon()
             && summoner.getInstanceId().equals(candidate.getSummonerId())
-            && normalizedDefinitionId.equals(candidate.getCharacter().getId()));
+            && normalizedDefinitionId.equals(candidate.getOriginCharacter().getId()));
     }
 
     private boolean hasPendingSummonDefinition(BattleCombatant summoner, String definitionId) {
@@ -702,7 +702,7 @@ public class BattleState {
             toRemove.add(current);
             if (current.getSummonerId() != null) {
                 BattleCombatant owner = combatant(current.getSummonerId());
-                recordSummonCooldown(owner, current.getCharacter().getId());
+                recordSummonCooldown(owner, current.getOriginCharacter().getId());
             }
             for (BattleCombatant candidate : allCombatants()) {
                 if (current.getInstanceId().equals(candidate.getSummonerId())) {

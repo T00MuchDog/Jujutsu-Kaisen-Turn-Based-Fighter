@@ -41,7 +41,8 @@ public final class BattleAudioRouter {
             case STATUS_APPLIED, COMBATANT_SUMMONED -> Optional.of(SoundCue.BATTLE_STATUS_APPLY);
             case STATUS_EXPIRED, BFS_EXPIRED -> Optional.of(SoundCue.BATTLE_STATUS_EXPIRE);
             case COMBATANT_DEFEATED, COMBATANT_REMOVED -> Optional.empty();
-            case ABILITY_ACTIVATED -> Optional.of(SoundCue.BATTLE_ABILITY);
+            case ABILITY_ACTIVATED, CHARACTER_TRANSFORMED, CHARACTER_REVERTED ->
+                Optional.of(SoundCue.BATTLE_ABILITY);
             case RATIO_TRIGGERED -> Optional.of(SoundCue.BATTLE_RATIO);
             case ROUND_END -> Optional.of(SoundCue.BATTLE_ROUND_END);
             case BATTLE_OVER -> Optional.empty();
@@ -73,7 +74,8 @@ public final class BattleAudioRouter {
                 Optional.of(SoundCue.BATTLE_STATUS_APPLY);
             case STATUS_EXPIRED, BFS_EXPIRED -> Optional.of(SoundCue.BATTLE_STATUS_EXPIRE);
             case COMBATANT_DEFEATED, COMBATANT_REMOVED -> Optional.empty();
-            case ABILITY_ACTIVATED -> Optional.of(SoundCue.BATTLE_ABILITY);
+            case ABILITY_ACTIVATED, CHARACTER_TRANSFORMED, CHARACTER_REVERTED ->
+                Optional.of(SoundCue.BATTLE_ABILITY);
             case RATIO_TRIGGERED -> Optional.of(SoundCue.BATTLE_RATIO);
             case ROUND_END -> Optional.of(SoundCue.BATTLE_ROUND_END);
             case MOVE_STARTED, ROUND_START, BATTLE_OVER -> Optional.empty();

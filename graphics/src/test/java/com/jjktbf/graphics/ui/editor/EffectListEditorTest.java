@@ -24,6 +24,19 @@ class EffectListEditorTest {
             List.of(sorcerer, shikigami), "missing"));
     }
 
+    @Test
+    void transformationSelectorRecognizesEveryCharacterDefinition() {
+        CharacterData sorcerer = character("000001", null);
+        CharacterData shikigami = character("000002", CharacterType.SHIKIGAMI.name());
+
+        assertTrue(EffectListEditor.isCharacterReference(
+            List.of(sorcerer, shikigami), "000001"));
+        assertTrue(EffectListEditor.isCharacterReference(
+            List.of(sorcerer, shikigami), "000002"));
+        assertFalse(EffectListEditor.isCharacterReference(
+            List.of(sorcerer, shikigami), "missing"));
+    }
+
     private static CharacterData character(String id, String type) {
         CharacterData character = new CharacterData();
         character.id = id;

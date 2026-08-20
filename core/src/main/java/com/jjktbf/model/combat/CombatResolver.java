@@ -53,7 +53,7 @@ public class CombatResolver {
 
     public CombatResolver(RandomSource rng, BattleCharacterLookup summonLookup) {
         this.rng = rng;
-        this.abilityActivations = new AbilityActivationEngine(rng);
+        this.abilityActivations = new AbilityActivationEngine(rng, summonLookup);
         this.summonLookup = summonLookup;
     }
 
@@ -63,7 +63,13 @@ public class CombatResolver {
      */
     public CombatResolver withSummonLookup(BattleCharacterLookup lookup) {
         this.summonLookup = lookup;
+        this.abilityActivations.withCharacterLookup(lookup);
         return this;
+    }
+
+    /** Character-definition lookup shared by summon and transformation effects. */
+    public CombatResolver withCharacterLookup(BattleCharacterLookup lookup) {
+        return withSummonLookup(lookup);
     }
 
     /** Compatibility constructor for callers that still supply {@link Random}. */

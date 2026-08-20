@@ -19,6 +19,8 @@ import static com.jjktbf.model.character.AbilityEffectParameter.MAGNITUDE;
 import static com.jjktbf.model.character.AbilityEffectParameter.PER_TICK_REMOVAL_CHANCE;
 import static com.jjktbf.model.character.AbilityEffectParameter.ABILITY_ID;
 import static com.jjktbf.model.character.AbilityEffectParameter.CHARACTER_ID;
+import static com.jjktbf.model.character.AbilityEffectParameter.TRANSFORMATION_HP;
+import static com.jjktbf.model.character.AbilityEffectParameter.RETURN_CONDITION;
 import static com.jjktbf.model.character.AbilityEffectParameter.MOVE_ID;
 import static com.jjktbf.model.character.AbilityEffectParameter.MOVE_SCOPE;
 import static com.jjktbf.model.character.AbilityEffectParameter.STAT;
@@ -326,6 +328,10 @@ public enum AbilityEffectType {
         "Summon character",
         "Summons a shikigami combatant onto the owner's team when activated.",
         CHARACTER_ID),
+    TRANSFORM_CHARACTER(
+        "Transform character",
+        "Changes the target into another authored character form while preserving its battle identity. An optional condition returns it to its original form.",
+        CHARACTER_ID, TARGET, TRANSFORMATION_HP, RETURN_CONDITION),
     DESUMMON_OWNED_SHIKIGAMI(
         "Desummon owned shikigami",
         "Voluntarily dismisses every direct shikigami summon owned by this combatant and their descendants."),
@@ -349,7 +355,8 @@ public enum AbilityEffectType {
             BATTLE_STAT_ADD, BATTLE_STAT_MULTIPLY, BATTLE_STAT_PERCENT,
             IGNORE_DAMAGE, DAMAGE_SHIELD, SURVIVE_FATAL_DAMAGE,
             GUARANTEE_NEXT_HIT, GUARANTEE_NEXT_DODGE, GUARANTEE_NEXT_BLACK_FLASH,
-            CANCEL_NEXT_MOVE, STUN_CURRENT_ACTION, TEMP_LOCK_MOVE_TAG, TAUNT, SUMMON_CHARACTER,
+             CANCEL_NEXT_MOVE, STUN_CURRENT_ACTION, TEMP_LOCK_MOVE_TAG, TAUNT, SUMMON_CHARACTER,
+             TRANSFORM_CHARACTER,
             DESUMMON_OWNED_SHIKIGAMI, DESUMMON_TARGET_SHIKIGAMI,
             CODED_MOVE_ACTION);
 
@@ -425,6 +432,8 @@ public enum AbilityEffectType {
         effect.moveId = null;
         effect.abilityId = null;
         effect.characterId = null;
+        effect.transformationHpMode = null;
+        effect.returnCondition = null;
         effect.stringValue = null;
         effect.target = null;
         effect.timing = null;
@@ -559,6 +568,11 @@ public enum AbilityEffectType {
                 // No target needed — the summon joins the owner's team.
                 effect.characterId = null;
             }
+            case TRANSFORM_CHARACTER -> {
+                effect.characterId = null;
+                effect.target = AbilityEffectTarget.SELF.name();
+                effect.transformationHpMode = TransformationHpMode.FULL.name();
+            }
             default -> { }
         }
     }
@@ -603,6 +617,9 @@ public enum AbilityEffectType {
             effect.stringValue = defaults.stringValue;
         }
         if (uses(TARGET) && isBlank(effect.target)) effect.target = defaults.target;
+        if (uses(TRANSFORMATION_HP) && isBlank(effect.transformationHpMode)) {
+            effect.transformationHpMode = defaults.transformationHpMode;
+        }
         if (uses(TIMING) && isBlank(effect.timing)) effect.timing = defaults.timing;
         if (uses(DURATION) && effect.durationRounds == null) effect.durationRounds = defaults.durationRounds;
         if (uses(DURATION) && effect.durationTicks == null) effect.durationTicks = defaults.durationTicks;
@@ -640,6 +657,8 @@ public enum AbilityEffectType {
         if (!uses(MOVE_ID)) effect.moveId = null;
         if (!uses(ABILITY_ID)) effect.abilityId = null;
         if (!uses(CHARACTER_ID)) effect.characterId = null;
+        if (!uses(TRANSFORMATION_HP)) effect.transformationHpMode = null;
+        if (!uses(RETURN_CONDITION)) effect.returnCondition = null;
         if (!uses(TECHNIQUE) && !uses(STATUS_TYPE) && !uses(BATTLE_STAT)) effect.stringValue = null;
         if (!uses(TARGET)) effect.target = null;
         if (!uses(TIMING)) effect.timing = null;
@@ -691,7 +710,20 @@ public enum AbilityEffectType {
         if (uses(ABILITY_ID) && isBlank(effect.abilityId)) return "Choose an ability to grant.";
         if (uses(CHARACTER_ID) && isBlank(effect.characterId)) {
             return this == SUMMON_CHARACTER
-                ? "Choose a shikigami to summon." : "Choose a shikigami.";
+                ? "Choose a shikigami to summon."
+                : this == TRANSFORM_CHARACTER
+                    ? "Choose a character form." : "Choose a shikigami.";
+        }
+        if (uses(TRANSFORMATION_HP)) {
+            try {
+                TransformationHpMode.fromName(effect.transformationHpMode);
+            } catch (Exception ex) {
+                return "Choose how HP is set for the new form.";
+            }
+        }
+        if (uses(RETURN_CONDITION) && effect.returnCondition != null) {
+            String conditionError = AbilityConditionType.validationError(effect.returnCondition);
+            if (conditionError != null) return "Return condition: " + conditionError;
         }
         if (uses(TECHNIQUE) && isBlank(effect.stringValue)) return "Choose a technique.";
 

@@ -65,8 +65,8 @@ public final class TenShadowsAbility implements CodedAbilityRuntime {
     ) {
         if (!featureActive.test(TECHNIQUE)) return;
         if (state == null || owner == null || destroyedSummon == null) return;
-        if (destroyedSummon.getCharacter() == null) return;
-        state.recordSummonDestroyed(owner, destroyedSummon.getCharacter().getId());
+        if (destroyedSummon.getOriginCharacter() == null) return;
+        state.recordSummonDestroyed(owner, destroyedSummon.getOriginCharacter().getId());
     }
 
     @Override

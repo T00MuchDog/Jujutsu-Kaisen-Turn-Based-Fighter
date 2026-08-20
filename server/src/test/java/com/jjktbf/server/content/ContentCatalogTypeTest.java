@@ -126,6 +126,31 @@ class ContentCatalogTypeTest {
                 List.of(move), List.of(ability), characters));
     }
 
+    @Test
+    void transformationReferencesMayResolveToAnyCharacterType() {
+        SorcererCharacter sorcerer = new SorcererCharacter(
+            "000001", "Sorcerer", base(), null, List.of(), List.of(), false);
+        ShikigamiCharacter shikigami = new ShikigamiCharacter(
+            "000002", "Shikigami", base(), null, List.of(), List.of(), false);
+        Map<String, Character> characters = Map.of(
+            sorcerer.getId(), sorcerer, shikigami.getId(), shikigami);
+        MoveEffectData transform = AbilityEffectType
+            .TRANSFORM_CHARACTER.createDefaultMoveEffect();
+        transform.characterId = sorcerer.getId();
+        transform.trigger = MoveEffectTrigger.ON_FIRE.name();
+        MoveData move = new MoveData();
+        move.id = "000010";
+        move.effects = List.of(transform);
+
+        assertDoesNotThrow(() -> ContentCatalog.validateSummonReferences(
+            List.of(move), List.of(), characters));
+
+        transform.characterId = "missing";
+        assertThrows(IllegalStateException.class,
+            () -> ContentCatalog.validateSummonReferences(
+                List.of(move), List.of(), characters));
+    }
+
     private static com.jjktbf.model.character.CharacterStats base() {
         return new com.jjktbf.model.character.CharacterStats.Builder().build();
     }
