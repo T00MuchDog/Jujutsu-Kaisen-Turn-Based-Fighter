@@ -206,6 +206,10 @@ public class CharacterSelectScreen implements Screen {
             abilityRepo.load();
             techniqueRepo.load();
             charRepo.load();
+            // Battles resolve combatant sprites through JJKGame's shared
+            // repository, which is otherwise only loaded at startup — reload it
+            // here so editor saves reach battles without an app restart.
+            game.reloadMultiplayerRoster();
             // Only directly-selectable definitions appear in the fighter roster.
             // Hidden definitions (e.g. summon-only shikigami) are filtered out.
             characters = charRepo.getAll().stream()
