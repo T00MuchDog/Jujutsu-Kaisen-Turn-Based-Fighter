@@ -320,7 +320,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
     private String validateSource(AbilityData ability) {
         SourceTypeEnum source = SourceTypeEnum.valueOf(ability.sourceType.toUpperCase());
         return switch (source) {
-            case CHARACTER, SHIKIGAMI -> null;
+            case CHARACTER, SHIKIGAMI, CURSED_CORPSE -> null;
             case TECHNIQUE -> {
                 if (techniqueRepo.findByName(ability.sourceValue).isEmpty()) {
                     yield "Choose an existing technique source.";
@@ -424,7 +424,8 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         ability.category = ability.category.toUpperCase();
         ability.sourceType = ability.sourceType.toUpperCase();
         if (SourceTypeEnum.CHARACTER.name().equals(ability.sourceType)
-            || SourceTypeEnum.SHIKIGAMI.name().equals(ability.sourceType)) {
+            || SourceTypeEnum.SHIKIGAMI.name().equals(ability.sourceType)
+            || SourceTypeEnum.CURSED_CORPSE.name().equals(ability.sourceType)) {
             ability.sourceValue = null;
         }
         if (!SourceTypeEnum.TECHNIQUE.name().equals(ability.sourceType)) {
@@ -639,6 +640,9 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             }
             case SHIKIGAMI -> {
                 table.add(formHint("Available only to Shikigami character definitions.")).row();
+            }
+            case CURSED_CORPSE -> {
+                table.add(formHint("Available only to Cursed Corpse character definitions.")).row();
             }
             case TECHNIQUE -> {
                 SelectBox<String> technique = techniqueSelect(ability.sourceValue, value ->
@@ -972,6 +976,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
     private enum SourceTypeEnum {
         CHARACTER,
         SHIKIGAMI,
+        CURSED_CORPSE,
         TECHNIQUE,
         MOVE,
         STAT_THRESHOLD,

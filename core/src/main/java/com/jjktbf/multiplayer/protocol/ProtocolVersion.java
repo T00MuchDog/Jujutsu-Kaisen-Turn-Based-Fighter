@@ -10,11 +10,8 @@ import java.util.Properties;
 public final class ProtocolVersion {
 
     public static final String GAME_VERSION = loadGameVersion();
-    /**
-     * Protocol v14 carries character-form transition events and round-start form
-     * metadata so transformation playback remains deterministic.
-     */
-    public static final int PROTOCOL_VERSION = 14;
+    /** Protocol v15 carries generic effect-failure events. */
+    public static final int PROTOCOL_VERSION = 15;
     public static final String STANDARD_RULESET = BattleStatMode.STANDARD.rulesetId();
     public static final String EQUALIZED_STATS_RULESET = BattleStatMode.EQUALIZED.rulesetId();
 

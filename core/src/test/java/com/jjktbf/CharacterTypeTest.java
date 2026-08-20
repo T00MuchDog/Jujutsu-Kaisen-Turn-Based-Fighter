@@ -1,6 +1,8 @@
 package com.jjktbf;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jjktbf.model.character.AbilityData;
+import com.jjktbf.model.character.AbilityResolver;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CursedCorpseCharacter;
 import com.jjktbf.model.character.CursedSpiritCharacter;
@@ -163,6 +165,26 @@ class CharacterTypeTest {
 
         assertThrows(IllegalArgumentException.class, () -> new SorcererCharacter(
             "000022", "Sorcerer", stats, null, java.util.List.of(shikigamiMove)));
+    }
+
+    @Test
+    void cursedCorpseAbilitySourceIsTypeRestricted() {
+        AbilityData physiology = new AbilityData();
+        physiology.id = "PHYSIOLOGY";
+        physiology.name = "Cursed Corpse Physiology";
+        physiology.category = "PASSIVE";
+        physiology.sourceType = "CURSED_CORPSE";
+
+        CharacterData cursedCorpse = new CharacterData();
+        cursedCorpse.type = CharacterType.CURSED_CORPSE.name();
+        cursedCorpse.abilityIds = java.util.List.of(physiology.id);
+        CharacterData sorcerer = new CharacterData();
+        sorcerer.abilityIds = java.util.List.of(physiology.id);
+
+        assertTrue(AbilityResolver.resolve(cursedCorpse, java.util.List.of(physiology))
+            .containsAbility(physiology.id));
+        assertFalse(AbilityResolver.resolve(sorcerer, java.util.List.of(physiology))
+            .availableAbilityIds().contains(physiology.id));
     }
 
     @Test

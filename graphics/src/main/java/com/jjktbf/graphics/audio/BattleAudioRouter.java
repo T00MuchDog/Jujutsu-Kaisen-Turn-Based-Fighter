@@ -27,7 +27,7 @@ public final class BattleAudioRouter {
             case MOVE_PARRIED -> Optional.of(SoundCue.BATTLE_PARRY);
             case MOVE_STUNNED -> Optional.of(SoundCue.BATTLE_STUN);
             case MOVE_SUMMON -> Optional.empty();
-            case TARGET_RETARGETED, DEFENSE_GRANTED -> Optional.empty();
+            case TARGET_RETARGETED, DEFENSE_GRANTED, EFFECT_FAILED -> Optional.empty();
             case DAMAGE_DEALT -> Optional.of(SoundCue.BATTLE_HIT);
             case DAMAGE_IGNORED -> Optional.of(SoundCue.BATTLE_DAMAGE_IGNORED);
             case HP_RESTORED -> positiveCue(event.getIntValue(), SoundCue.BATTLE_HEAL);
@@ -59,7 +59,7 @@ public final class BattleAudioRouter {
             case MOVE_PARRIED -> Optional.of(SoundCue.BATTLE_PARRY);
             case MOVE_STUNNED -> Optional.of(SoundCue.BATTLE_STUN);
             case MOVE_SUMMON -> Optional.empty();
-            case TARGET_RETARGETED, DEFENSE_GRANTED -> Optional.empty();
+            case TARGET_RETARGETED, DEFENSE_GRANTED, EFFECT_FAILED -> Optional.empty();
             case DAMAGE_DEALT -> Optional.of(SoundCue.BATTLE_HIT);
             case DAMAGE_IGNORED -> Optional.of(SoundCue.BATTLE_DAMAGE_IGNORED);
             case HP_RESTORED -> positiveCue(event.value(), SoundCue.BATTLE_HEAL);

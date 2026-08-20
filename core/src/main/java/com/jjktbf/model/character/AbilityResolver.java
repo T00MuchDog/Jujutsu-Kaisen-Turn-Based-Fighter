@@ -150,6 +150,7 @@ public final class AbilityResolver {
             case "ABILITY" -> assignedAbilities.stream().anyMatch(ability ->
                 matchesAbilityReference(ability, definition.sourceValue));
             case "SHIKIGAMI" -> character.effectiveType() == CharacterType.SHIKIGAMI;
+            case "CURSED_CORPSE" -> character.effectiveType() == CharacterType.CURSED_CORPSE;
             default -> false;
         };
     }

@@ -88,8 +88,8 @@ public class BattleCombatant {
     private List<Ability> abilities;
     private CodedAbilities codedAbilities;
 
-    /** Parked original mechanics while another authored character form is active. */
-    private FormProfile originalFormProfile;
+    /** Inactive authored forms retain their profile and independent HP for this battle. */
+    private final Map<String, FormState> inactiveFormStates = new HashMap<>();
     private TransformationState transformationState;
 
     /** Conditional and timed effects added by active ability activation. */
@@ -264,7 +264,7 @@ public class BattleCombatant {
      * Assume another authored character profile without changing battle identity.
      * Statuses, runtime effects, CE, plans, lifecycle, and team ownership persist.
      */
-    public TransformationChange transformInto(
+    public TransformationAttempt transformInto(
         Character newForm,
         com.jjktbf.model.character.TransformationHpMode hpMode,
         com.jjktbf.model.character.AbilityConditionData returnCondition
@@ -277,57 +277,67 @@ public class BattleCombatant {
             if (transformationState != null) {
                 transformationState = new TransformationState(returnCondition);
             }
-            return null;
+            return TransformationAttempt.noChange();
         }
         if (newForm.getId().equals(originCharacter.getId()) && isTransformed()) {
             return returnToOriginalForm();
         }
 
-        String previousId = character.getId();
-        String previousName = character.getName();
-        int previousMaxHp = getMaxHp();
-        int previousHp = currentHp;
-        int previousMaxCe = getMaxCursedEnergy();
-        if (originalFormProfile == null) originalFormProfile = captureProfile();
-
-        applyProfile(createProfile(newForm, newForm.getAbilities(), newForm.getBaseStats()));
-        int newMaxHp = getMaxHp();
-        currentHp = switch (resolvedHpMode) {
-            case FULL -> newMaxHp;
-            case CURRENT_VALUE -> Math.min(previousHp, newMaxHp);
-            case CURRENT_PERCENTAGE -> Math.min(newMaxHp, (int) Math.round(
-                newMaxHp * (previousMaxHp <= 0 ? 0.0 : (double) previousHp / previousMaxHp)));
-        };
-        currentCe = Math.min(currentCe, getMaxCursedEnergy());
-        transformationState = new TransformationState(returnCondition);
-        return new TransformationChange(
-            previousId, previousName, character.getId(), character.getName(),
-            previousMaxHp, getMaxHp(), previousMaxCe, getMaxCursedEnergy(),
-            previousHp, currentHp);
+        return switchForm(newForm, resolvedHpMode, returnCondition);
     }
 
-    /** Restore the exact original definition-derived profile, preserving current HP value. */
-    public TransformationChange returnToOriginalForm() {
-        if (originalFormProfile == null) return null;
+    private TransformationAttempt switchForm(
+        Character newForm,
+        com.jjktbf.model.character.TransformationHpMode hpMode,
+        com.jjktbf.model.character.AbilityConditionData returnCondition
+    ) {
+        FormState destination = inactiveFormStates.get(newForm.getId());
+        if (destination != null && destination.currentHp <= 0) {
+            return TransformationAttempt.destinationDefeated();
+        }
+
         String previousId = character.getId();
         String previousName = character.getName();
         int previousMaxHp = getMaxHp();
-        int previousMaxCe = getMaxCursedEnergy();
         int previousHp = currentHp;
-        FormProfile restored = originalFormProfile;
-        originalFormProfile = null;
-        transformationState = null;
-        applyProfile(restored);
-        currentHp = Math.min(currentHp, getMaxHp());
+        int previousMaxCe = getMaxCursedEnergy();
+        inactiveFormStates.put(previousId, new FormState(captureProfile(), previousHp));
+
+        if (destination == null) {
+            applyProfile(createProfile(newForm, newForm.getAbilities(), newForm.getBaseStats()));
+            int newMaxHp = getMaxHp();
+            currentHp = switch (hpMode) {
+                case FULL -> newMaxHp;
+                case CURRENT_VALUE -> Math.min(previousHp, newMaxHp);
+                case CURRENT_PERCENTAGE -> Math.min(newMaxHp, (int) Math.round(
+                    newMaxHp * (previousMaxHp <= 0 ? 0.0 : (double) previousHp / previousMaxHp)));
+            };
+        } else {
+            inactiveFormStates.remove(newForm.getId());
+            applyProfile(destination.profile);
+            currentHp = Math.min(destination.currentHp, getMaxHp());
+        }
         currentCe = Math.min(currentCe, getMaxCursedEnergy());
-        return new TransformationChange(
+        transformationState = new TransformationState(returnCondition);
+        return TransformationAttempt.changed(new TransformationChange(
             previousId, previousName, character.getId(), character.getName(),
             previousMaxHp, getMaxHp(), previousMaxCe, getMaxCursedEnergy(),
-            previousHp, currentHp);
+            previousHp, currentHp));
+    }
+
+    /** Restore the parked original form, including the HP it had when transformation began. */
+    public TransformationAttempt returnToOriginalForm() {
+        if (!isTransformed()) return TransformationAttempt.noChange();
+        TransformationAttempt attempt = switchForm(
+            originCharacter,
+            com.jjktbf.model.character.TransformationHpMode.FULL,
+            null);
+        if (attempt.changed()) transformationState = null;
+        return attempt;
     }
 
     public boolean isTransformed() {
-        return originalFormProfile != null;
+        return !originCharacter.getId().equals(character.getId());
     }
 
     com.jjktbf.model.character.AbilityConditionData transformationReturnCondition() {
@@ -373,6 +383,35 @@ public class BattleCombatant {
         int currentHp
     ) { }
 
+    public enum TransformationFailure {
+        DESTINATION_DEFEATED
+    }
+
+    public record TransformationAttempt(
+        TransformationChange change,
+        TransformationFailure failure
+    ) {
+        private static TransformationAttempt changed(TransformationChange change) {
+            return new TransformationAttempt(Objects.requireNonNull(change), null);
+        }
+
+        private static TransformationAttempt destinationDefeated() {
+            return new TransformationAttempt(null, TransformationFailure.DESTINATION_DEFEATED);
+        }
+
+        private static TransformationAttempt noChange() {
+            return new TransformationAttempt(null, null);
+        }
+
+        public boolean changed() {
+            return change != null;
+        }
+
+        public boolean failed() {
+            return failure != null;
+        }
+    }
+
     private record FormProfile(
         Character character,
         CharacterStats effectiveStats,
@@ -385,6 +424,8 @@ public class BattleCombatant {
         boolean abilityFightStartProcessed,
         int lastAbilityRoundStartRound
     ) { }
+
+    private record FormState(FormProfile profile, int currentHp) { }
 
     private static final class TransformationState {
         private final com.jjktbf.model.character.AbilityConditionData returnCondition;

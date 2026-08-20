@@ -36,6 +36,9 @@ public class CombatEvent {
         CHARACTER_TRANSFORMED,
         CHARACTER_REVERTED,
 
+        // Generic effect resolution
+        EFFECT_FAILED,
+
         // Damage
         DAMAGE_DEALT,
         DAMAGE_IGNORED,

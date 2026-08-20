@@ -776,4 +776,131 @@
     "stringValue" : "BLACK_FLASH_CHANCE"
   } ],
   "masteryThreshold" : 0
+}, {
+  "id" : "000036",
+  "name" : "Cursed Corpse Physiology",
+  "flavourText" : "A living construct animated by cursed energy has no biological bloodstream for ordinary toxins to corrupt.",
+  "mechanicText" : "Become immune to POISON.",
+  "category" : "PASSIVE",
+  "sourceType" : "CURSED_CORPSE",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "POISON_IMMUNITY"
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000037",
+  "name" : "Three Sibling Cores",
+  "flavourText" : "Panda was born with three compatible cores: Panda, Gorilla, and an elder sister whose form is not available during the Kyoto Goodwill Event.",
+  "mechanicText" : "Grant access to PANDA CORE, PANDA CORE SUCCESSION, GORILLA CORE, and GORILLA CORE SUCCESSION.",
+  "category" : "PASSIVE",
+  "sourceType" : "CHARACTER",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "GRANT_ABILITY",
+    "abilityId" : "000038"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "GRANT_ABILITY",
+    "abilityId" : "000039"
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "GRANT_ABILITY",
+    "abilityId" : "000040"
+  }, {
+    "effectId" : "effect-000003",
+    "type" : "GRANT_ABILITY",
+    "abilityId" : "000041"
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000038",
+  "name" : "Panda Core",
+  "flavourText" : "Panda's balanced core combines sharp judgment, resilient defense, and the dexterity to protect his allies.",
+  "mechanicText" : "Grant GORILLA MODE.",
+  "category" : "PASSIVE",
+  "sourceType" : "ABILITY",
+  "sourceValue" : "000037",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "GRANT_MOVE",
+    "moveId" : "000089"
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000039",
+  "name" : "Panda Core Succession",
+  "flavourText" : "When the Panda core can no longer sustain the body, Panda shifts control to his surviving Gorilla core.",
+  "mechanicText" : "At 0 HP, transform into GORILLA MODE at its stored HP, or full HP if it has not yet entered battle.",
+  "category" : "ACTIVE",
+  "sourceType" : "ABILITY",
+  "sourceValue" : "000038",
+  "activationConditions" : [ {
+    "condition" : {
+      "type" : "HP_VALUE_AT_OR_BELOW",
+      "actor" : "SELF",
+      "amount" : 0
+    },
+    "targetEffectIds" : [ "effect-000000" ],
+    "matchSameTrigger" : true
+  } ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "TRANSFORM_CHARACTER",
+    "characterId" : "000018",
+    "target" : "SELF",
+    "transformationHpMode" : "FULL"
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000040",
+  "name" : "Gorilla Core",
+  "flavourText" : "The short-tempered Gorilla core sacrifices efficiency for explosive strength, speed, and the power to send vibrations through an opponent's guard.",
+  "mechanicText" : "Grant GORILLA PUMMEL, UNBLOCKABLE DRUMMING BEAT, and RETURN TO PANDA CORE. Pay 40 CE at the start of each round.",
+  "category" : "PASSIVE",
+  "sourceType" : "ABILITY",
+  "sourceValue" : "000037",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "GRANT_MOVE",
+    "moveId" : "000090"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "GRANT_MOVE",
+    "moveId" : "000091"
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "GRANT_MOVE",
+    "moveId" : "000092"
+  }, {
+    "effectId" : "effect-000003",
+    "type" : "COST_CE_PER_ROUND",
+    "intValue" : 40
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000041",
+  "name" : "Gorilla Core Succession",
+  "flavourText" : "If the Gorilla core is destroyed while the Panda core still lives, control returns to Panda's balanced form.",
+  "mechanicText" : "At 0 HP, return to PANDA CORE at its stored HP. The transformation fails if PANDA CORE was already defeated.",
+  "category" : "ACTIVE",
+  "sourceType" : "ABILITY",
+  "sourceValue" : "000040",
+  "activationConditions" : [ {
+    "condition" : {
+      "type" : "HP_VALUE_AT_OR_BELOW",
+      "actor" : "SELF",
+      "amount" : 0
+    },
+    "targetEffectIds" : [ "effect-000000" ],
+    "matchSameTrigger" : true
+  } ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "TRANSFORM_CHARACTER",
+    "characterId" : "000017",
+    "target" : "SELF",
+    "transformationHpMode" : "FULL"
+  } ],
+  "masteryThreshold" : 0
 } ]

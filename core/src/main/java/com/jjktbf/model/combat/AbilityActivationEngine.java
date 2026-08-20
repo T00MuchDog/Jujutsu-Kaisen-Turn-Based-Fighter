@@ -941,10 +941,11 @@ public final class AbilityActivationEngine {
                     hpMode = TransformationHpMode.FULL;
                 }
                 for (BattleCombatant target : targets) {
-                    BattleCombatant.TransformationChange change = target.transformInto(
+                    BattleCombatant.TransformationAttempt attempt = target.transformInto(
                         form.get(), hpMode, effect.returnCondition);
-                    appendTransformationEvents(
-                        owner, target, change, false, move, effectComponentIndex, tick, events);
+                    appendTransformationAttemptEvents(
+                        owner, target, form.get(), attempt, false,
+                        move, effectComponentIndex, tick, events);
                 }
             }
             case DESUMMON_OWNED_SHIKIGAMI ->
@@ -994,12 +995,36 @@ public final class AbilityActivationEngine {
             transformed.setTransformationReturnConditionTrue(matches);
             if (!matches || (previouslyMatched && !eventOpportunity)) continue;
 
-            BattleCombatant.TransformationChange change = transformed.returnToOriginalForm();
-            appendTransformationEvents(
-                transformed, transformed, change, true, null, null,
+            BattleCombatant.TransformationAttempt attempt = transformed.returnToOriginalForm();
+            appendTransformationAttemptEvents(
+                transformed, transformed, transformed.getOriginCharacter(), attempt, true, null, null,
                 trigger == null ? 0 : trigger.tick(), events);
         }
         return events;
+    }
+
+    private static void appendTransformationAttemptEvents(
+        BattleCombatant source,
+        BattleCombatant target,
+        com.jjktbf.model.character.Character destination,
+        BattleCombatant.TransformationAttempt attempt,
+        boolean reverted,
+        Move move,
+        Integer componentIndex,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        if (attempt == null) return;
+        if (attempt.failed()) {
+            events.add(CombatEvent.of(CombatEvent.Type.EFFECT_FAILED)
+                .source(source).target(target).move(move).componentIndex(componentIndex).tick(tick)
+                .message(target.getCharacter().getName() + " cannot transform into "
+                    + destination.getName() + " because that form has already been defeated.")
+                .build());
+            return;
+        }
+        appendTransformationEvents(
+            source, target, attempt.change(), reverted, move, componentIndex, tick, events);
     }
 
     private static void appendTransformationEvents(

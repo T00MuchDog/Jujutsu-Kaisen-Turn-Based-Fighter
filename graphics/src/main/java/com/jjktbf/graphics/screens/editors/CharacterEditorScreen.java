@@ -1518,6 +1518,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             case "STAT_THRESHOLD" -> ability.sourceValue;
             case "ABILITY" -> "have ability " + ability.sourceValue;
             case "SHIKIGAMI" -> "be a Shikigami";
+            case "CURSED_CORPSE" -> "be a Cursed Corpse";
             default -> "assign directly";
         };
     }

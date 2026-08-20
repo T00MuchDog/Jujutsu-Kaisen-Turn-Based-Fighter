@@ -12,9 +12,12 @@ import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.character.TransformationHpMode;
 import com.jjktbf.model.combat.AbilityActivationEngine;
 import com.jjktbf.model.combat.AbilityTrigger;
+import com.jjktbf.model.combat.ActionSegment;
 import com.jjktbf.model.combat.BattleCombatant;
+import com.jjktbf.model.combat.BattlePlan;
 import com.jjktbf.model.combat.BattleState;
 import com.jjktbf.model.combat.CombatEvent;
+import com.jjktbf.model.combat.CombatResolver;
 import com.jjktbf.model.combat.SeededRandomSource;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
@@ -207,6 +210,126 @@ class TransformationEffectTest {
             event.getType() == CombatEvent.Type.CHARACTER_TRANSFORMED));
     }
 
+    @Test
+    void eachFormRestoresTheHpItHadWhenItWasParked() {
+        SorcererCharacter form = character("FORM", "Form", 300, List.of(), List.of());
+        BattleCombatant owner = combatantWithTransformation(
+            TransformationHpMode.CURRENT_PERCENTAGE, null);
+        owner.receiveDamage(100);
+        int originalHp = owner.getCurrentHp();
+
+        BattleCombatant.TransformationAttempt transformed = owner.transformInto(
+            form, TransformationHpMode.CURRENT_PERCENTAGE, null);
+        assertTrue(transformed.changed());
+        owner.receiveDamage(250);
+        int formHp = owner.getCurrentHp();
+
+        BattleCombatant.TransformationAttempt returned = owner.returnToOriginalForm();
+        assertTrue(returned.changed());
+        assertEquals("ORIGINAL", owner.getCharacter().getId());
+        assertEquals(originalHp, owner.getCurrentHp());
+
+        BattleCombatant.TransformationAttempt resumed = owner.transformInto(
+            form, TransformationHpMode.FULL, null);
+        assertTrue(resumed.changed());
+        assertEquals(formHp, owner.getCurrentHp(),
+            "HP mode only initializes a form the first time it enters battle");
+    }
+
+    @Test
+    void activeAbilityFailsWhenItsDestinationFormWasDefeated() {
+        SorcererCharacter form = character("FORM", "Form", 300, List.of(), List.of());
+        BattleCombatant owner = combatantWithTransformation(TransformationHpMode.FULL, null);
+        BattleState state = new BattleState(owner, combatant("ENEMY", "Enemy", 100));
+        AbilityActivationEngine engine = new AbilityActivationEngine(
+            new SeededRandomSource(1L), id -> Optional.of(form));
+
+        engine.process(state, AbilityTrigger.manual(owner, "TRANSFORM", 0));
+        owner.receiveDamage(owner.getCurrentHp());
+        assertTrue(owner.returnToOriginalForm().changed());
+        int originalHp = owner.getCurrentHp();
+
+        List<CombatEvent> events = engine.process(
+            state, AbilityTrigger.manual(owner, "TRANSFORM", 1));
+
+        assertEquals("ORIGINAL", owner.getCharacter().getId());
+        assertEquals(originalHp, owner.getCurrentHp());
+        assertTrue(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.ABILITY_ACTIVATED));
+        assertTrue(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.EFFECT_FAILED
+                && event.getMessage().contains("already been defeated")));
+        assertTrue(events.stream().noneMatch(event ->
+            event.getType() == CombatEvent.Type.CHARACTER_TRANSFORMED));
+    }
+
+    @Test
+    void failedMoveTransformationStillFiresAndSpendsItsCe() {
+        MoveEffectData effect = AbilityEffectType.TRANSFORM_CHARACTER.createDefaultMoveEffect();
+        effect.characterId = "FORM";
+        effect.target = "SELF";
+        effect.transformationHpMode = TransformationHpMode.FULL.name();
+        effect.trigger = MoveEffectTrigger.ON_FIRE.name();
+        Move transformMove = new Move.Builder("TRANSFORM_MOVE")
+            .name("Transform").category(MoveCategory.UTILITY)
+            .apCost(4).unleashPoint(1)
+            .baseCeCost(10).hasCeCost(true).minCeCost(1).maxCeCost(50)
+            .effects(List.of(effect)).build();
+        SorcererCharacter original = character(
+            "ORIGINAL", "Original", 100, List.of(transformMove), List.of());
+        SorcererCharacter form = character("FORM", "Form", 300, List.of(), List.of());
+        BattleCombatant owner = new BattleCombatant(original);
+        BattleCombatant enemy = combatant("ENEMY", "Enemy", 100);
+        BattleState state = new BattleState(owner, enemy);
+
+        assertTrue(owner.transformInto(form, TransformationHpMode.FULL, null).changed());
+        owner.receiveDamage(owner.getCurrentHp());
+        assertTrue(owner.returnToOriginalForm().changed());
+        BattlePlan plan = new BattlePlan(owner.getMaxApBar(), owner.getCurrentCe());
+        ActionSegment segment = plan.place(transformMove, 1, 10);
+        assertNotNull(segment);
+        owner.setTimeline(plan.toLegacyTimeline());
+        state.transitionTo(BattleState.Phase.RESOLUTION);
+
+        List<CombatEvent> events = new CombatResolver(
+            new SeededRandomSource(1L), id -> Optional.of(form)).resolveRound(state);
+
+        assertEquals("ORIGINAL", owner.getCharacter().getId());
+        int fired = eventIndex(events, CombatEvent.Type.MOVE_FIRED);
+        int failed = eventIndex(events, CombatEvent.Type.EFFECT_FAILED);
+        assertTrue(fired >= 0);
+        assertTrue(failed > fired, "the move must fire before its effect fails");
+        assertTrue(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.CE_DRAINED
+                && event.getMove() == transformMove));
+    }
+
+    @Test
+    void zeroHpAbilityCanTransformBeforeDefeatReconciliation() {
+        AbilityConditionData atZero = AbilityConditionType.HP_VALUE_AT_OR_BELOW.createDefault();
+        atZero.amount = 0;
+        Ability transform = transformationAbility(
+            "SUCCESSION", "FORM", TransformationHpMode.FULL, atZero);
+        SorcererCharacter original = character(
+            "ORIGINAL", "Original", 100, List.of(), List.of(transform));
+        SorcererCharacter form = character("FORM", "Form", 300, List.of(), List.of());
+        BattleCombatant owner = new BattleCombatant(original);
+        BattleCombatant enemy = combatant("ENEMY", "Enemy", 100);
+        BattleState state = new BattleState(owner, enemy);
+        owner.receiveDamage(owner.getCurrentHp());
+
+        List<CombatEvent> events = new AbilityActivationEngine(
+            new SeededRandomSource(1L), id -> Optional.of(form)).process(
+                state, AbilityTrigger.amount(
+                    AbilityTrigger.Type.DAMAGE, enemy, owner, 1, 1));
+
+        assertEquals("FORM", owner.getCharacter().getId());
+        assertEquals(owner.getMaxHp(), owner.getCurrentHp());
+        assertTrue(owner.isActive());
+        assertTrue(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.CHARACTER_TRANSFORMED));
+    }
+
     private static BattleCombatant combatantWithTransformation(
         TransformationHpMode mode,
         AbilityConditionData returnCondition
@@ -221,14 +344,43 @@ class TransformationEffectTest {
         TransformationHpMode mode,
         AbilityConditionData returnCondition
     ) {
+        return transformationAbility(
+            "TRANSFORM", "FORM", mode, AbilityConditionData.manualActivation(), returnCondition);
+    }
+
+    private static Ability transformationAbility(
+        String id,
+        String destinationId,
+        TransformationHpMode mode,
+        AbilityConditionData activationCondition
+    ) {
+        return transformationAbility(id, destinationId, mode, activationCondition, null);
+    }
+
+    private static Ability transformationAbility(
+        String id,
+        String destinationId,
+        TransformationHpMode mode,
+        AbilityConditionData activationCondition,
+        AbilityConditionData returnCondition
+    ) {
         AbilityData data = new AbilityData();
-        data.id = "TRANSFORM";
+        data.id = id;
         data.name = "Transform";
         data.category = "ACTIVE";
         data.sourceType = "CHARACTER";
-        data.activationCondition = AbilityConditionData.manualActivation();
-        data.effects = List.of(transformationEffect(mode, returnCondition));
+        data.activationCondition = activationCondition;
+        AbilityEffectData effect = transformationEffect(mode, returnCondition);
+        effect.characterId = destinationId;
+        data.effects = List.of(effect);
         return new Ability(data);
+    }
+
+    private static int eventIndex(List<CombatEvent> events, CombatEvent.Type type) {
+        for (int i = 0; i < events.size(); i++) {
+            if (events.get(i).getType() == type) return i;
+        }
+        return -1;
     }
 
     private static AbilityEffectData transformationEffect(
