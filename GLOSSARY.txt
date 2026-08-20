@@ -82,7 +82,7 @@ lookup aliases.
       See "CE COST SCALING" for the full Efficiency × Output formula.
 
     CURSED_ENERGY_OUTPUT           cursedEnergyOutput / ceo
-      Raw cursed energy output. Primary driver (3:2:1) of the CE Power component,
+      Raw cursed energy output. Primary driver (4:2:1) of the CE Power component,
       caps CE reinforcement in the Defense formula (× DEFENSE_CE_CAP_FACTOR), and
       raises the CE cost of CE-tagged moves above the baseline (scaled: ≤80 = 1.0×, 472 = 3.0×).
 

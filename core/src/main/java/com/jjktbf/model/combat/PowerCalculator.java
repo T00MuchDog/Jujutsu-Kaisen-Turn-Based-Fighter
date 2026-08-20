@@ -70,17 +70,17 @@ public final class PowerCalculator {
 
     /**
      * CE base component used by technique-derived formulas.
-     * 3:2:1  CE_Output : CE_Reserves : CE_Efficiency
-     * = (S(OUT)*3 + S(RES)*2 + S(EFF)) / 6
+     * 4:2:1  CE_Output : CE_Reserves : CE_Efficiency
+     * = (S(OUT)*4 + S(RES)*2 + S(EFF)) / 7
      */
     public static int cursedEnergyBase(CharacterStats cs) {
         return cursedEnergyBase(cs, BattleStatMode.STANDARD);
     }
 
     public static int cursedEnergyBase(CharacterStats cs, BattleStatMode statMode) {
-        return (statMode.scale(cs.getCursedEnergyOutput()) * 3
+        return (statMode.scale(cs.getCursedEnergyOutput()) * 4
               + statMode.scale(cs.getCursedEnergyReserves()) * 2
-              + statMode.scale(cs.getCursedEnergyEfficiency())) / 6;
+              + statMode.scale(cs.getCursedEnergyEfficiency())) / 7;
     }
 
     /**
@@ -105,19 +105,19 @@ public final class PowerCalculator {
     // -------------------------------------------------------------------------
 
     /**
-     * PHYSICAL + CURSED_ENERGY: 3:1 CE : Physical
-     * Power = (CE_base*3 + Physical) / 4
+     * PHYSICAL + CURSED_ENERGY: 2:1 CE : Physical
+     * Power = (CE_base*2 + Physical) / 3
      */
     private static int physicalCursedEnergy(CharacterStats cs, BattleStatMode statMode) {
-        return (cursedEnergyBase(cs, statMode) * 3 + physical(cs, statMode)) / 4;
+        return (cursedEnergyBase(cs, statMode) * 2 + physical(cs, statMode)) / 3;
     }
 
     /**
-     * PHYSICAL + INNATE_TECHNIQUE: 4:1 InnateT : Physical
-     * Power = (InnateT*4 + Physical) / 5
+     * PHYSICAL + INNATE_TECHNIQUE: 3:1 InnateT : Physical
+     * Power = (InnateT*3 + Physical) / 4
      */
     private static int physicalInnate(CharacterStats cs, BattleStatMode statMode) {
-        return (innateTechnique(cs, statMode) * 4 + physical(cs, statMode)) / 5;
+        return (innateTechnique(cs, statMode) * 3 + physical(cs, statMode)) / 4;
     }
 
     /**
@@ -138,11 +138,12 @@ public final class PowerCalculator {
     }
 
     /**
-     * PHYSICAL + INNATE_TECHNIQUE + NON_INNATE_TECHNIQUE: 1:3:2 Physical:InnateT:NonInnateT
-     * Power = (Physical + InnateT*3 + NonInnateT*2) / 6
+     * PHYSICAL + INNATE_TECHNIQUE + NON_INNATE_TECHNIQUE: 2:2:1 InnateT:NonInnateT:Physical
+     * Power = (InnateT*2 + NonInnateT*2 + Physical) / 5
      */
     private static int physicalInnateNonInnate(CharacterStats cs, BattleStatMode statMode) {
-        return (physical(cs, statMode) + innateTechnique(cs, statMode) * 3
-            + nonInnateTechnique(cs, statMode) * 2) / 6;
+        return (innateTechnique(cs, statMode) * 2
+            + nonInnateTechnique(cs, statMode) * 2
+            + physical(cs, statMode)) / 5;
     }
 }

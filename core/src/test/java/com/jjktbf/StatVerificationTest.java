@@ -1014,10 +1014,10 @@ public class StatVerificationTest {
         assertFalse(ceAttack.isBlackFlashEligible(),
             "A CE-only move has no physical contact and cannot Black Flash.");
 
-        // Power uses the 3:2:1 CE base formula: (OUT*3 + RES*2 + EFF)/6.
+        // Power uses the 4:2:1 CE base formula: (OUT*4 + RES*2 + EFF)/7.
         CharacterStats stats = new CharacterStats.Builder()
             .cursedEnergyOutput(80).cursedEnergyReserves(80).cursedEnergyEfficiency(80).build();
-        assertEquals((80 * 3 + 80 * 2 + 80) / 6,
+        assertEquals((80 * 4 + 80 * 2 + 80) / 7,
             PowerCalculator.compute(MoveCategory.CURSED_ENERGY, stats));
     }
 

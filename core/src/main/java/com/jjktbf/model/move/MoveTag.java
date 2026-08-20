@@ -17,7 +17,7 @@ import java.util.Set;
  *      Power = (Strength × CombatAbility)  [4:1 ratio]
  *
  *  CURSED_ENERGY only  (raw CE attack — dedicated CURSED_ENERGY category)
- *      Power = (CE_Output × CE_Reserves × CE_Efficiency)  [3:2:1 ratio]
+ *      Power = (CE_Output × CE_Reserves × CE_Efficiency)  [4:2:1 ratio]
  *
  *  INNATE_TECHNIQUE  (uses cursed energy)
  *      Power = CursedEnergy_component × CursedTechniqueMastery  [50:50]
@@ -26,10 +26,10 @@ import java.util.Set;
  *      Power = CursedEnergy_component × JujutsuSkill  [50:50]
  *
  *  PHYSICAL + CURSED_ENERGY
- *      Power = 3:1  CursedEnergy : Physical
+ *      Power = 2:1  CursedEnergy : Physical
  *
  *  PHYSICAL + INNATE_TECHNIQUE
- *      Power = 4:1  InnateT : Physical
+ *      Power = 3:1  InnateT : Physical
  *
  *  PHYSICAL + NON_INNATE_TECHNIQUE
  *      Power = 3:1  NonInnateT : Physical
@@ -38,7 +38,7 @@ import java.util.Set;
  *      Power = 3:2  InnateT : NonInnateT
  *
  *  PHYSICAL + INNATE_TECHNIQUE + NON_INNATE_TECHNIQUE
- *      Power = 1:3:2  Physical : InnateT : NonInnateT
+ *      Power = 2:2:1  InnateT : NonInnateT : Physical
  *
  * Black Flash eligibility: a hit component must contain PHYSICAL and
  * CURSED_ENERGY, and must not contain INNATE_TECHNIQUE or

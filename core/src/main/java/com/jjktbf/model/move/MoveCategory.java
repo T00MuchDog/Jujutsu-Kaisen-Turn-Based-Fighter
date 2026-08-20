@@ -55,13 +55,13 @@ public enum MoveCategory {
     // Hybrid categories
     // -------------------------------------------------------------------------
 
-    /** Physical + CursedEnergy. 3:1 CE:Physical. */
+    /** Physical + CursedEnergy. 2:1 CE:Physical. */
     PHYSICAL_CURSED_ENERGY(
         EnumSet.of(MoveTag.PHYSICAL, MoveTag.CURSED_ENERGY),
         true
     ),
 
-    /** Physical + InnateT. 4:1 InnateT:Physical. */
+    /** Physical + InnateT. 3:1 InnateT:Physical. */
     PHYSICAL_INNATE_TECHNIQUE(
         EnumSet.of(MoveTag.PHYSICAL, MoveTag.INNATE_TECHNIQUE),
         false   // No BF: technique-tagged moves are ineligible
@@ -79,7 +79,7 @@ public enum MoveCategory {
         false
     ),
 
-    /** Physical + InnateT + NonInnateT. 1:3:2. */
+    /** Physical + InnateT + NonInnateT. 2:2:1 InnateT:NonInnateT:Physical. */
     PHYSICAL_INNATE_NON_INNATE_TECHNIQUE(
         EnumSet.of(MoveTag.PHYSICAL, MoveTag.INNATE_TECHNIQUE, MoveTag.NON_INNATE_TECHNIQUE),
         false   // No BF: technique-tagged moves are ineligible
