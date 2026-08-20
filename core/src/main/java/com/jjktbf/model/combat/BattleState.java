@@ -466,8 +466,9 @@ public class BattleState {
     /**
      * Enqueue a summon to be created for {@code summoner}'s team. The actual
      * combatant is materialized via {@link #drainPendingSummons(BattleCharacterLookup)}
-     * so summons created mid-resolution batch do not retroactively join the
-     * current firing list / AOE snapshot.
+     * at the summon's broadcast, so it is active for every later move the same
+     * tick (AOE snapshots include it; the shikigami-locked move gate sees it).
+     * It receives no timeline until the next planning phase.
      *
      * @param innateTechniqueBased  {@code true} if the summoning move is innate-technique
      *      based (the shikigami scales with the summoner's CTM); {@code false} for a
@@ -605,7 +606,10 @@ public class BattleState {
     /**
      * Materialize all pending summons against the given character lookup. Each
      * summon begins at full HP/CE, is a {@link CombatantRole#SUMMON} owned by its
-     * summoner, and joins planning next round. Returns the created combatants.
+     * summoner, and joins planning next round (timelines are only attached
+     * during planning). Called the moment a summon is enqueued so the new
+     * combatant takes effect on the tick it was summoned. Returns the created
+     * combatants.
      */
     public List<BattleCombatant> drainPendingSummons(BattleCharacterLookup lookup) {
         if (pendingSummons.isEmpty()) return List.of();

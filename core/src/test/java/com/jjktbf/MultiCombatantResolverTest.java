@@ -320,7 +320,7 @@ class MultiCombatantResolverTest {
     }
 
     @Test
-    void summonMaterializesAfterEverySameTickMoveHasChosenItsTargets() {
+    void summonMaterializesAtBroadcastSoLaterSameTickAoeAcquiresIt() {
         BattleCombatant summoner = fighter("Summoner");
         BattleCombatant slowerEnemy = slowFighter("Enemy");
         BattleState state = new BattleState(
@@ -346,14 +346,17 @@ class MultiCombatantResolverTest {
             new SeededRandomSource(1L), id -> java.util.Optional.of(shikigami("Dog")))
             .resolveRound(state);
 
+        // The faster summoner's broadcast resolves first, so the summon is
+        // already on the field when the slower enemy's same-tick AOE fires.
         BattleCombatant summon = state.playerTeam().all().stream()
             .filter(BattleCombatant::isSummon)
             .findFirst()
             .orElseThrow();
-        assertEquals(summon.getMaxHp(), summon.getCurrentHp());
-        assertTrue(events.stream().noneMatch(event ->
+        assertTrue(events.stream().anyMatch(event ->
             event.getType() == CombatEvent.Type.DAMAGE_DEALT
-                && event.getTarget() == summon));
+                && event.getTarget() == summon),
+            "the summon is targetable by a later move on its summon tick");
+        assertTrue(summon.getCurrentHp() < summon.getMaxHp());
     }
 
     // --- helpers ----------------------------------------------------------------

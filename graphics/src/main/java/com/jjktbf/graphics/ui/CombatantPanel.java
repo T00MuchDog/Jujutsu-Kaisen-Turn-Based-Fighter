@@ -14,6 +14,8 @@ public class CombatantPanel {
 
     private static final float DAMAGE_FLASH_DURATION_SECONDS = 0.72f;
     private static final float DAMAGE_FLASH_INTERVAL_SECONDS = 0.12f;
+    /** Size the growing summon entrance starts from, as a fraction of the sprite. */
+    private static final float SUMMON_GROW_MIN_SCALE = 0.1f;
 
     private final GlyphLayout nameLayout = new GlyphLayout();
 
@@ -117,6 +119,11 @@ public class CombatantPanel {
         return spriteBounds.y + spriteBounds.height / 2f;
     }
 
+    /** The fighter's sprite texture, e.g. to derive a tinted copy for entrances. */
+    public Texture spriteTexture() {
+        return sprite;
+    }
+
     public void draw(Batch batch, BitmapFont nameFont, BitmapFont barFont,
                      String name, float delta) {
         drawPlate(batch);
@@ -161,6 +168,52 @@ public class CombatantPanel {
         batch.draw(sprite,
             spriteBounds.x, spriteBounds.y, spriteBounds.width, visibleHeight,
             0, 0, sprite.getWidth(), sourceHeight, false, false);
+    }
+
+    /**
+     * Summon entrance for back sprites: the fighter rises from below the bottom
+     * of the screen to its final footing. {@code riseRatio} eases 0 → 1.
+     */
+    public void drawEnteringSpriteSlide(Batch batch, float riseRatio) {
+        float clamped = Math.max(0f, Math.min(1f, riseRatio));
+        float rise = entranceRiseOffset(spriteBounds.y, spriteBounds.height, clamped);
+        batch.setColor(Color.WHITE);
+        batch.draw(sprite,
+            spriteBounds.x, spriteBounds.y - rise,
+            spriteBounds.width, spriteBounds.height);
+    }
+
+    /** Distance left to rise so the sprite starts fully below the screen bottom. */
+    public static float entranceRiseOffset(float finalY, float spriteHeight, float riseRatio) {
+        return (1f - Math.max(0f, Math.min(1f, riseRatio))) * (finalY + spriteHeight);
+    }
+
+    /**
+     * Summon entrance for front sprites: the fighter grows from tiny to full
+     * size anchored at its foot line while a white silhouette overlay fades
+     * out, glowing into its true palette as it arrives. {@code progress} is
+     * the raw 0 → 1 entrance progress.
+     */
+    public void drawEnteringSpriteGrow(Batch batch, float progress, Texture whiteSprite) {
+        float clamped = Math.max(0f, Math.min(1f, progress));
+        float scale = entranceGrowScale(clamped);
+        float width = spriteBounds.width * scale;
+        float height = spriteBounds.height * scale;
+        float x = spriteBounds.x + (spriteBounds.width - width) / 2f;
+        float y = spriteBounds.y;
+        batch.setColor(Color.WHITE);
+        batch.draw(sprite, x, y, width, height);
+        if (whiteSprite != null && clamped < 1f) {
+            batch.setColor(1f, 1f, 1f, 1f - clamped);
+            batch.draw(whiteSprite, x, y, width, height);
+            batch.setColor(Color.WHITE);
+        }
+    }
+
+    /** Scale of the growing entrance: from a tiny flash to the full sprite. */
+    public static float entranceGrowScale(float progress) {
+        float clamped = Math.max(0f, Math.min(1f, progress));
+        return SUMMON_GROW_MIN_SCALE + (1f - SUMMON_GROW_MIN_SCALE) * clamped;
     }
 
     /** Draws only the resource card so it can be layered above a fighter pair. */

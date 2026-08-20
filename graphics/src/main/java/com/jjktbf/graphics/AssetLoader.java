@@ -63,6 +63,7 @@ public class AssetLoader {
     public Texture stoneBasePlate;
     private final Map<String, Texture> characterSprites = new HashMap<>();
     private final Map<Texture, Float> battleSpriteScales = new IdentityHashMap<>();
+    private final Map<Texture, Texture> whiteSilhouettes = new IdentityHashMap<>();
 
     // ── UI panels ─────────────────────────────────────────────────────────────
 
@@ -224,6 +225,46 @@ public class AssetLoader {
         return characterSprite(backAsset, forward);
     }
 
+    /**
+     * Flat-white copy of a sprite (alpha preserved), cached per texture. Drawn
+     * over the true-colour sprite with a fading alpha so a summoning entrance
+     * can flash white and settle into its real palette as it grows in.
+     */
+    public Texture whiteSilhouette(Texture sprite) {
+        if (sprite == null) return null;
+        Texture cached = whiteSilhouettes.get(sprite);
+        if (cached != null) return cached;
+        Texture created = null;
+        try {
+            created = buildWhiteSilhouette(sprite);
+        } catch (Exception exception) {
+            System.err.println("[WARN] Could not build white silhouette for "
+                + sprite + ": " + exception.getMessage());
+        }
+        if (created == null) return null;
+        whiteSilhouettes.put(sprite, created);
+        return created;
+    }
+
+    private static Texture buildWhiteSilhouette(Texture sprite) {
+        com.badlogic.gdx.graphics.TextureData data = sprite.getTextureData();
+        if (!data.isPrepared()) data.prepare();
+        com.badlogic.gdx.graphics.Pixmap source = data.consumePixmap();
+        com.badlogic.gdx.graphics.Pixmap white = new com.badlogic.gdx.graphics.Pixmap(
+            source.getWidth(), source.getHeight(), com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
+        white.setBlending(com.badlogic.gdx.graphics.Pixmap.Blending.None);
+        for (int y = 0; y < source.getHeight(); y++) {
+            for (int x = 0; x < source.getWidth(); x++) {
+                int alpha = source.getPixel(x, y) & 0xFF;
+                white.drawPixel(x, y, 0xFFFFFF00 | alpha);
+            }
+        }
+        Texture texture = new Texture(white);
+        texture.setFilter(sprite.getMinFilter(), sprite.getMagFilter());
+        white.dispose();
+        return texture;
+    }
+
     private void loadUi() {
         battleUi      = new BattleUiAssets();
     }
@@ -249,6 +290,8 @@ public class AssetLoader {
         characterSprites.values().forEach(Texture::dispose);
         characterSprites.clear();
         battleSpriteScales.clear();
+        whiteSilhouettes.values().forEach(Texture::dispose);
+        whiteSilhouettes.clear();
 
         if (battleUi      != null) battleUi.dispose();
 

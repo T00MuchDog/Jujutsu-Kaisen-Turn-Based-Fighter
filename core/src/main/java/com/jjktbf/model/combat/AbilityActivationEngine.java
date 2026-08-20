@@ -910,9 +910,10 @@ public final class AbilityActivationEngine {
             }
             case SUMMON_CHARACTER -> {
                 // Shared runtime summon path: enqueue a shikigami onto the
-                // owner's team. Materialized by the resolver after the current
-                // batch via BattleState.drainPendingSummons(lookup). A summon
-                // created during resolution gets no plan this round.
+                // owner's team, then materialize it immediately via
+                // BattleState.drainPendingSummons so it is active for every
+                // later move this same tick. A summon created during resolution
+                // still gets no plan until next round's planning phase.
                 if (effect.characterId != null && !effect.characterId.isBlank()
                     && state.enqueueSummon(owner, effect.characterId,
                         move != null && move.getTags().contains(MoveTag.INNATE_TECHNIQUE))
@@ -920,6 +921,13 @@ public final class AbilityActivationEngine {
                     events.add(CombatEvent.of(CombatEvent.Type.MOVE_SUMMON)
                         .source(owner).move(move).componentIndex(effectComponentIndex).tick(tick)
                         .build());
+                    if (characterLookup != null) {
+                        for (BattleCombatant summon
+                                : state.drainPendingSummons(characterLookup)) {
+                            events.add(CombatEvent.summoned(
+                                state.combatant(summon.getSummonerId()), summon, tick));
+                        }
+                    }
                 }
             }
             case TRANSFORM_CHARACTER -> {

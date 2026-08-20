@@ -128,6 +128,18 @@ public class CombatEvent {
 
     public static Builder of(Type type) { return new Builder(type); }
 
+    /**
+     * Broadcast emitted the moment a pending summon is materialized onto its
+     * team — the single source of the join message shared by every summon
+     * path (legacy move field, move effect rows, and ability effects).
+     */
+    public static CombatEvent summoned(BattleCombatant summoner, BattleCombatant summon, int tick) {
+        return of(Type.COMBATANT_SUMMONED)
+            .source(summoner).target(summon).tick(tick)
+            .message(summon.getCharacter().getName() + " joins the battle!")
+            .build();
+    }
+
     public static class Builder {
         private final Type type;
         private BattleCombatant source;

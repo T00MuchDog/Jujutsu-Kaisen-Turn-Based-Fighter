@@ -348,8 +348,9 @@ public class CombatResolver {
             if (finishBattleIfNeeded(state, events, tick)) return events;
             updateResolutionEndForTimelineEffects(state);
 
-            // Summons created during this tick are visible only after every firing
-            // entry has resolved, so later same-tick AOE cannot acquire them.
+            // Safety net: summon enqueues materialize at their broadcast (inside
+            // resolveMove / the ability engine), so this only drains summons
+            // enqueued outside those paths during the tick.
             materializePendingSummons(state, tick, events);
             finishBattleIfNeeded(state, events, tick);
             return events;
@@ -831,7 +832,9 @@ public class CombatResolver {
      *       enemies, refilled in roster order only up to the original selection count.</li>
      *   <li>{@link MoveTargeting#ALL_ENEMIES} / {@link MoveTargeting#ALL_OTHERS}
      *       — a snapshot of every active enemy / every active combatant except
-     *       the caster, taken now so summons created afterward are excluded.</li>
+     *       the caster, taken now. Summons materialize at their broadcast, so a
+     *       summon created earlier this same tick IS included; ones created by
+     *       later same-tick moves are not.</li>
      * </ul>
      */
     private TargetSet resolveTargets(
@@ -1132,11 +1135,14 @@ public class CombatResolver {
 
         // --- Summon: a move that carries a summonCharacterId enqueues a shikigami
         // at its unleash point (works on utility and attack moves alike). The
-        // summon is materialized after the current tick batch via the shared
-        // runtime summon path, so it joins the firing list only next round.
+        // summon materializes immediately — right after the MOVE_FIRED broadcast
+        // — so later moves this same tick can target it (and are subject to the
+        // shikigami-locked move gate). It joins the firing list next round,
+        // because only planning attaches timelines.
         if (!move.usesUnifiedEffects() && move.summonsCharacter()) {
             state.enqueueSummon(attacker, move.getSummonCharacterId(),
                 move.getTags().contains(MoveTag.INNATE_TECHNIQUE));
+            materializePendingSummons(state, tick, events);
         }
 
         // --- Defensive moves: confer the active-defense window onto the
@@ -1189,12 +1195,20 @@ public class CombatResolver {
             state, attacker, move);
         if (reason == null) return false;
         if (segment != null) segment.stun();
+        // A move re-validated as unavailable mid-round (e.g. its shikigami was
+        // summoned earlier this same round) uses the generic failure message —
+        // the same wording every other failed move reports with.
         events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
             .source(attacker).target(attacker).move(move).tick(tick)
-            .message(attacker.getCharacter().getName() + " cannot use "
-                + move.getName() + ": " + reason)
+            .message(moveFailedMessage(attacker, move))
             .build());
         return true;
+    }
+
+    /** The default move-failure broadcast: "X tried to use Y, but it failed!" */
+    private static String moveFailedMessage(BattleCombatant attacker, Move move) {
+        return attacker.getCharacter().getName()
+            + " tried to use " + move.getName() + ", but it failed!";
     }
 
     private void scheduleComponents(MoveExecution execution) {
@@ -1600,7 +1614,8 @@ public class CombatResolver {
      * Enqueue a shikigami summon requested by a move effect row (self / on-hit /
      * on-defense). Shares the runtime path with the legacy {@code summonCharacterId}
      * unleash block and ability {@code SUMMON_CHARACTER} effect: the summon is
-     * materialized after the current tick batch via {@code drainPendingSummons}.
+     * materialized immediately at the broadcast via {@code drainPendingSummons},
+     * so the COMBATANT_SUMMONED event follows this MOVE_SUMMON event directly.
      */
     private void enqueueEffectSummon(
         BattleState state,
@@ -1619,6 +1634,7 @@ public class CombatResolver {
             .componentIndex(componentIndex)
             .tick(tick)
             .build());
+        materializePendingSummons(state, tick, events);
     }
 
     private void applyOnHitEffects(
@@ -2193,6 +2209,13 @@ public class CombatResolver {
         }
     }
 
+    /**
+     * Materialize every pending summon and broadcast each join. Called the
+     * moment a summon is enqueued (the broadcast of the summoning action), so
+     * the new combatant is active for every later move this tick; the call at
+     * the end of a tick only catches summons enqueued outside those paths
+     * (e.g. round-start abilities during planning).
+     */
     private void materializePendingSummons(
         BattleState state,
         int tick,
@@ -2201,10 +2224,7 @@ public class CombatResolver {
         if (summonLookup == null) return;
         for (BattleCombatant summon : state.drainPendingSummons(summonLookup)) {
             BattleCombatant summoner = state.combatant(summon.getSummonerId());
-            events.add(CombatEvent.of(CombatEvent.Type.COMBATANT_SUMMONED)
-                .source(summoner).target(summon).tick(tick)
-                .message(summon.getCharacter().getName() + " joins the battle!")
-                .build());
+            events.add(CombatEvent.summoned(summoner, summon, tick));
         }
     }
 

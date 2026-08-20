@@ -2,6 +2,7 @@ package com.jjktbf.graphics.screens;
 
 import com.badlogic.gdx.math.Rectangle;
 import com.jjktbf.graphics.BattleSpriteScaleConfig;
+import com.jjktbf.graphics.ui.CombatantPanel;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -152,6 +153,23 @@ class BattleScreenSpriteBoundsTest {
         assertEquals(1f, BattleScreen.faintSlideRatio(1f), 0.0001f);
         assertEquals(0f, BattleScreen.faintSlideRatio(-1f), 0.0001f);
         assertEquals(1f, BattleScreen.faintSlideRatio(2f), 0.0001f);
+    }
+
+    @Test
+    void summonEntranceRiseStartsFullyBelowTheScreenBottom() {
+        // Final footing y=40 with a 100px sprite: 140px of travel.
+        assertEquals(140f, CombatantPanel.entranceRiseOffset(40f, 100f, 0f), 0.0001f);
+        assertEquals(35f, CombatantPanel.entranceRiseOffset(40f, 100f, 0.75f), 0.0001f);
+        assertEquals(0f, CombatantPanel.entranceRiseOffset(40f, 100f, 1f), 0.0001f);
+        assertEquals(0f, CombatantPanel.entranceRiseOffset(40f, 100f, 2f), 0.0001f);
+    }
+
+    @Test
+    void summonEntranceGrowsFromTinyToFullScale() {
+        assertEquals(0.1f, CombatantPanel.entranceGrowScale(0f), 0.0001f);
+        assertEquals(0.55f, CombatantPanel.entranceGrowScale(0.5f), 0.0001f);
+        assertEquals(1f, CombatantPanel.entranceGrowScale(1f), 0.0001f);
+        assertEquals(1f, CombatantPanel.entranceGrowScale(2f), 0.0001f);
     }
 
 }

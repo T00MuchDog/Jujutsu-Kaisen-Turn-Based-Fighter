@@ -131,6 +131,14 @@ public class BattleScreen implements Screen, BattleView {
     private static final float HIT_FLASH_DURATION_SECONDS  = 0.6f;
     /** Fast classic monster-battle sink used when a combatant is defeated. */
     private static final float FAINT_SLIDE_DURATION_SECONDS = 0.42f;
+    /**
+     * Summon entrances. Back sprites (allies) rise from the bottom of the
+     * screen for exactly as long as the defeat slide runs; front sprites
+     * (enemies) flash-grow from tiny to full size, fading a white silhouette
+     * overlay into the true palette as they arrive.
+     */
+    private static final float SUMMON_SLIDE_DURATION_SECONDS = FAINT_SLIDE_DURATION_SECONDS;
+    private static final float SUMMON_GROW_DURATION_SECONDS  = 0.5f;
     /** Chars revealed per second when typing a log line out letter-by-letter. */
     private static final float LOG_TYPE_RATE_CPS       = 40f;
     /**
@@ -257,6 +265,8 @@ public class BattleScreen implements Screen, BattleView {
     private final List<FaintAnimation> faintAnimations = new ArrayList<>();
     /** Prevents terminal compatibility backfill from replaying fighters that already fainted. */
     private final Set<CombatantId> presentedLocalFaints = new HashSet<>();
+    /** Summon entrances playing right now; the sprite stays once each completes. */
+    private final List<EntranceAnimation> entranceAnimations = new ArrayList<>();
 
     // ── Move selection state ──────────────────────────────────────────────────
     private volatile boolean inputConfirmed = false;
@@ -507,10 +517,12 @@ public class BattleScreen implements Screen, BattleView {
         updateMoveUnleashAnimation(presentationDelta);
         updateHitFlashes(presentationDelta);
         updateFaintAnimations(presentationDelta);
+        updateEntranceAnimations(presentationDelta);
         if (skipRoundRequested) {
             flushTypingImmediately();
             clearTransientAnimations();
             completeFaintAnimationsImmediately();
+            completeEntranceAnimationsImmediately();
             snapPanelAnimations();
         } else {
             updateTyping(presentationDelta);
@@ -717,10 +729,19 @@ public class BattleScreen implements Screen, BattleView {
         panels.get(0).drawPlate(batch);
         for (CombatantPanel panel : drawOrder) {
             FaintAnimation faint = faintAnimationFor(panel);
-            if (faint == null) {
-                panel.drawSprite(batch, frameDelta);
-            } else {
+            EntranceAnimation entrance = entranceAnimationFor(panel);
+            if (faint != null) {
                 panel.drawFaintingSprite(batch, faintSlideRatio(faint.progress()));
+            } else if (entrance != null) {
+                if (entrance.playerSide) {
+                    panel.drawEnteringSpriteSlide(
+                        batch, faintSlideRatio(entrance.progress()));
+                } else {
+                    panel.drawEnteringSpriteGrow(
+                        batch, entrance.progress(), entrance.whiteSprite);
+                }
+            } else {
+                panel.drawSprite(batch, frameDelta);
             }
         }
     }
@@ -967,6 +988,7 @@ public class BattleScreen implements Screen, BattleView {
         clearTransientAnimations();
         flushTypingImmediately();
         completeFaintAnimationsImmediately();
+        completeEntranceAnimationsImmediately();
         snapPanelAnimations();
     }
 
@@ -1169,6 +1191,8 @@ public class BattleScreen implements Screen, BattleView {
             if (active.sameCombatant(faint)) return false;
         }
         faint.panel.prepareFaint();
+        // A defeat mid-entrance supersedes the arrival: the faint owns the panel.
+        entranceAnimations.removeIf(entrance -> entrance.panel == faint.panel);
         faintAnimations.add(faint);
         return true;
     }
@@ -1240,6 +1264,105 @@ public class BattleScreen implements Screen, BattleView {
                 ? localCombatant == other.localCombatant
                 : Objects.equals(onlineCombatant, other.onlineCombatant);
         }
+    }
+
+    /**
+     * A summon arrival in progress. Back sprites (player side) slide up from
+     * the bottom of the screen; front sprites (enemy side) grow in with a
+     * white flash that settles into the true palette. Unlike a faint there is
+     * no completion callback — the panel simply keeps drawing afterwards.
+     */
+    private static final class EntranceAnimation {
+        final BattleCombatant localCombatant;
+        final OnlineCombatantKey onlineCombatant;
+        final boolean playerSide;
+        final Texture whiteSprite;
+        CombatantPanel panel;
+        float elapsed;
+
+        private EntranceAnimation(
+            BattleCombatant localCombatant,
+            OnlineCombatantKey onlineCombatant,
+            boolean playerSide,
+            CombatantPanel panel,
+            Texture whiteSprite
+        ) {
+            this.localCombatant = localCombatant;
+            this.onlineCombatant = onlineCombatant;
+            this.playerSide = playerSide;
+            this.panel = panel;
+            this.whiteSprite = whiteSprite;
+        }
+
+        static EntranceAnimation local(
+            BattleCombatant combatant,
+            boolean playerSide,
+            CombatantPanel panel,
+            Texture whiteSprite
+        ) {
+            return new EntranceAnimation(combatant, null, playerSide, panel, whiteSprite);
+        }
+
+        static EntranceAnimation online(
+            OnlineCombatantKey combatant,
+            boolean playerSide,
+            CombatantPanel panel,
+            Texture whiteSprite
+        ) {
+            return new EntranceAnimation(null, combatant, playerSide, panel, whiteSprite);
+        }
+
+        float durationSeconds() {
+            return playerSide
+                ? SUMMON_SLIDE_DURATION_SECONDS : SUMMON_GROW_DURATION_SECONDS;
+        }
+
+        float progress() {
+            return Math.min(1f, elapsed / durationSeconds());
+        }
+
+        boolean sameCombatant(EntranceAnimation other) {
+            return localCombatant != null
+                ? localCombatant == other.localCombatant
+                : Objects.equals(onlineCombatant, other.onlineCombatant);
+        }
+    }
+
+    private void updateEntranceAnimations(float delta) {
+        if (entranceAnimations.isEmpty()) return;
+        java.util.Iterator<EntranceAnimation> iterator = entranceAnimations.iterator();
+        while (iterator.hasNext()) {
+            EntranceAnimation entrance = iterator.next();
+            entrance.elapsed += Math.max(0f, delta);
+            if (entrance.elapsed >= entrance.durationSeconds()) {
+                iterator.remove();
+            }
+        }
+    }
+
+    private boolean startEntranceAnimation(EntranceAnimation entrance) {
+        if (entrance == null || entrance.panel == null) return false;
+        for (EntranceAnimation active : entranceAnimations) {
+            if (active.sameCombatant(entrance)) return false;
+        }
+        entranceAnimations.add(entrance);
+        return true;
+    }
+
+    private EntranceAnimation entranceAnimationFor(CombatantPanel panel) {
+        if (panel == null) return null;
+        for (EntranceAnimation entrance : entranceAnimations) {
+            if (entrance.panel == panel) return entrance;
+        }
+        return null;
+    }
+
+    private boolean entranceAnimationInProgress() {
+        return !entranceAnimations.isEmpty();
+    }
+
+    private void completeEntranceAnimationsImmediately() {
+        entranceAnimations.clear();
     }
 
     private void drawBattleOver() {
@@ -1682,6 +1805,21 @@ public class BattleScreen implements Screen, BattleView {
                 || e.getType() == CombatEvent.Type.CHARACTER_REVERTED) {
                 postLocal(() -> refreshLocalFormSprite(e));
             }
+            // A summon joins the field the instant its join broadcast plays —
+            // sprite, HUD, and entrance animation all land on the summon tick.
+            // The join log line below paces the battle thread while the
+            // entrance runs, so the next event cannot outrun the arrival.
+            if (e.getType() == CombatEvent.Type.COMBATANT_SUMMONED) {
+                final CombatEvent summonEvent = e;
+                final boolean playerSide = localSummonIsOnPlayerSide(state, e.getTarget());
+                postLocal(() -> {
+                    if (skipRoundRequested) {
+                        addLocalCombatantToField(summonEvent.getTarget(), playerSide);
+                    } else {
+                        startLocalSummonEntrance(summonEvent.getTarget(), playerSide);
+                    }
+                });
+            }
             if (hasLocalPlaybackEffect(e)) {
                 final CombatEvent ev = e;
                 // Apply this event's resource delta and enqueue any log line ON
@@ -1727,6 +1865,13 @@ public class BattleScreen implements Screen, BattleView {
                  CE_DRAINED, CE_RESTORED, CE_DEPLETED, MAX_CE_CHANGED -> true;
             default -> false;
         };
+    }
+
+    /** Which side's render roster a just-summoned combatant belongs to. */
+    static boolean localSummonIsOnPlayerSide(BattleState state, BattleCombatant summon) {
+        return state != null && summon != null
+            && state.playerTeam().all().stream()
+                .anyMatch(candidate -> candidate == summon);
     }
 
     private static boolean shouldLog(CombatEvent event) {
@@ -2447,12 +2592,12 @@ public class BattleScreen implements Screen, BattleView {
                 multiplayerSetup.playerSide(), displayedPlayer),
             displayedPlayer == null ? List.of() : displayedPlayer.codedAbilities());
         boolean pausedForFaint = false;
-        if (!typingInProgress() && !faintAnimationInProgress()) {
+        if (!typingInProgress() && !faintAnimationInProgress() && !entranceAnimationInProgress()) {
             pausedForFaint = processPlaybackEventsThrough(0);
         }
         updatePanels();
         if (playbackActionTicks.isEmpty() && !pausedForFaint
-            && !typingInProgress() && !faintAnimationInProgress()) {
+            && !typingInProgress() && !faintAnimationInProgress() && !entranceAnimationInProgress()) {
             finishMultiplayerPlayback();
         }
     }
@@ -2465,11 +2610,11 @@ public class BattleScreen implements Screen, BattleView {
         }
         // Don't advance (or accumulate) while a log line is still typing, so
         // a tick that just queued messages can't outpace the typewriter.
-        if (typingInProgress() || faintAnimationInProgress()) return;
+        if (typingInProgress() || faintAnimationInProgress() || entranceAnimationInProgress()) return;
         // A defeat pauses event consumption mid-tick. Finish the remaining
         // events at that same tick before the timeline advances again.
         if (processPlaybackEventsThrough(currentExecutionTick)) return;
-        if (typingInProgress() || faintAnimationInProgress()) return;
+        if (typingInProgress() || faintAnimationInProgress() || entranceAnimationInProgress()) return;
         playbackTickElapsedMs += Math.max(0f, delta) * 1000f;
 
         while (resolvingTicks) {
@@ -2484,7 +2629,7 @@ public class BattleScreen implements Screen, BattleView {
             if (processPlaybackEventsThrough(currentExecutionTick)) return;
             // If advancing the tick just queued log lines, hold further
             // advancement until they type out.
-            if (typingInProgress() || faintAnimationInProgress()) return;
+            if (typingInProgress() || faintAnimationInProgress() || entranceAnimationInProgress()) return;
         }
     }
 
@@ -2532,15 +2677,26 @@ public class BattleScreen implements Screen, BattleView {
             playbackTickElapsedMs = 0f;
         }
         if (!resolvingTicks && playbackComplete
-            && !typingInProgress() && !faintAnimationInProgress()) {
+            && !typingInProgress() && !faintAnimationInProgress() && !entranceAnimationInProgress()) {
             showMultiplayerResult(state);
         }
     }
 
     private boolean applyPlaybackEvent(BattleEventState event) {
+        // The summon joins with an entrance animation; playback holds on it the
+        // same way it holds on a faint (flag returned after the log line below
+        // has been queued so the join message still types out first). A skipped
+        // round adds the combatant without ceremony.
+        boolean startedEntrance = false;
         if (event.type() == BattleEventType.COMBATANT_SUMMONED) {
-            addOnlineCombatantToField(event.targetSide(), onlineCombatantForEvent(
-                event.targetSide(), event.targetInstanceId(), event.targetCharacterId()));
+            if (skipRoundRequested) {
+                addOnlineCombatantToField(event.targetSide(), onlineCombatantForEvent(
+                    event.targetSide(), event.targetInstanceId(), event.targetCharacterId()));
+            } else {
+                startedEntrance = startOnlineSummonEntrance(event.targetSide(),
+                    onlineCombatantForEvent(event.targetSide(),
+                        event.targetInstanceId(), event.targetCharacterId()));
+            }
         }
         CharacterState target = onlineVisualForEvent(
             event.targetSide(), event.targetInstanceId(), event.targetCharacterId());
@@ -2652,7 +2808,7 @@ public class BattleScreen implements Screen, BattleView {
         if (event.type() == BattleEventType.COMBATANT_REMOVED) {
             removeOnlineCombatantImmediately(event.targetSide(), target);
         }
-        return false;
+        return startedEntrance;
     }
 
     private void logOnlineEvents(List<BattleEventState> events) {
@@ -2699,7 +2855,7 @@ public class BattleScreen implements Screen, BattleView {
             snapPanelAnimations();
         }
         if (processPlaybackEventsThrough(Integer.MAX_VALUE)
-            || typingInProgress() || faintAnimationInProgress()) {
+            || typingInProgress() || faintAnimationInProgress() || entranceAnimationInProgress()) {
             return;
         }
         playbackComplete = true;
@@ -3058,6 +3214,50 @@ public class BattleScreen implements Screen, BattleView {
         }
     }
 
+    /**
+     * Add a just-summoned combatant to the local battlefield the moment its
+     * join broadcast plays (render thread). Mirrors the removal path: appends
+     * to the render roster if a slot is free, rebuilds the side's sprites, and
+     * relayouts so a panel (and HUD) exist for it immediately.
+     */
+    private boolean addLocalCombatantToField(BattleCombatant summon, boolean playerSide) {
+        if (summon == null) return false;
+        List<BattleCombatant> roster = new ArrayList<>(playerSide
+            ? renderPlayerTeam : renderEnemyTeam);
+        if (roster.size() >= MAX_VISIBLE_COMBATANTS_PER_SIDE
+            || roster.stream().anyMatch(current -> current == summon)) {
+            return false;
+        }
+        roster.add(summon);
+        if (playerSide) {
+            renderPlayerTeam = List.copyOf(roster);
+            playerTeamSprites = battleSprites(renderPlayerTeam, false);
+            if (!playerTeamSprites.isEmpty()) playerSprite = playerTeamSprites.get(0);
+        } else {
+            renderEnemyTeam = List.copyOf(roster);
+            enemyTeamSprites = battleSprites(renderEnemyTeam, true);
+            if (!enemyTeamSprites.isEmpty()) enemySprite = enemyTeamSprites.get(0);
+        }
+        localHpStates.putIfAbsent(summon,
+            new LocalHpState(summon.getCurrentHp(), summon.getMaxHp()));
+        layoutExecutionUi(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        return true;
+    }
+
+    /** Adds the summon's panel and starts its entrance animation (render thread). */
+    private boolean startLocalSummonEntrance(BattleCombatant summon, boolean playerSide) {
+        addLocalCombatantToField(summon, playerSide);
+        CombatantPanel panel = panelForCombatant(summon);
+        if (panel == null) return false;
+        return startEntranceAnimation(EntranceAnimation.local(
+            summon, playerSide, panel, whiteSpriteFor(panel, playerSide)));
+    }
+
+    /** Front sprites flash white while growing in; back sprites slide up as-is. */
+    private Texture whiteSpriteFor(CombatantPanel panel, boolean playerSide) {
+        return playerSide ? null : assets.whiteSilhouette(panel.spriteTexture());
+    }
+
     private void syncOnlineBattlefield(
         List<CharacterState> players,
         List<CharacterState> enemies
@@ -3303,13 +3503,13 @@ public class BattleScreen implements Screen, BattleView {
         return combatants.size() == 1 ? combatants.get(0) : null;
     }
 
-    private void addOnlineCombatantToField(PlayerSide side, CharacterState combatant) {
-        if (side == null || combatant == null) return;
+    private boolean addOnlineCombatantToField(PlayerSide side, CharacterState combatant) {
+        if (side == null || combatant == null) return false;
         boolean playerSide = side == multiplayerSetup.playerSide();
         List<CharacterState> current = playerSide
             ? renderOnlinePlayerTeam : renderOnlineEnemyTeam;
         List<CharacterState> updated = withOnlineCombatantVisible(current, combatant);
-        if (updated.equals(current)) return;
+        if (updated.equals(current)) return false;
 
         onlineResourceStates.put(onlineKey(side, combatant),
             OnlineResourceState.full(combatant));
@@ -3319,6 +3519,18 @@ public class BattleScreen implements Screen, BattleView {
             syncOnlineBattlefield(renderOnlinePlayerTeam, updated);
         }
         layoutExecutionUi(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        return true;
+    }
+
+    /** Adds the summon's panel and starts its entrance animation (render thread). */
+    private boolean startOnlineSummonEntrance(PlayerSide side, CharacterState combatant) {
+        if (!addOnlineCombatantToField(side, combatant)) return false;
+        CombatantPanel panel = onlinePanelFor(side, combatant);
+        if (panel == null) return false;
+        boolean playerSide = side == multiplayerSetup.playerSide();
+        return startEntranceAnimation(EntranceAnimation.online(
+            onlineKey(side, combatant), playerSide, panel,
+            whiteSpriteFor(panel, playerSide)));
     }
 
     static List<CharacterState> withOnlineCombatantVisible(
@@ -3448,10 +3660,41 @@ public class BattleScreen implements Screen, BattleView {
         }
     }
 
+    /** Rebind in-flight summon entrances to the rebuilt panels after a relayout. */
+    private void remapEntranceAnimationPanels() {
+        for (EntranceAnimation entrance : entranceAnimations) {
+            if (entrance.localCombatant != null) {
+                List<BattleCombatant> combatants = entrance.playerSide
+                    ? renderPlayerTeam : renderEnemyTeam;
+                List<CombatantPanel> panels = entrance.playerSide ? playerPanels : enemyPanels;
+                entrance.panel = null;
+                for (int i = 0; i < Math.min(combatants.size(), panels.size()); i++) {
+                    if (combatants.get(i) == entrance.localCombatant) {
+                        entrance.panel = panels.get(i);
+                        break;
+                    }
+                }
+            } else {
+                List<CharacterState> combatants = entrance.playerSide
+                    ? renderOnlinePlayerTeam : renderOnlineEnemyTeam;
+                List<CombatantPanel> panels = entrance.playerSide ? playerPanels : enemyPanels;
+                entrance.panel = null;
+                for (int i = 0; i < Math.min(combatants.size(), panels.size()); i++) {
+                    if (entrance.onlineCombatant.equals(onlineKey(
+                        entrance.onlineCombatant.side(), combatants.get(i)))) {
+                        entrance.panel = panels.get(i);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     private void clearTransientPanelReferences(CombatantPanel panel) {
         if (panel == null) return;
         if (unleashedMoveTargetPanel == panel) unleashedMoveTargetPanel = null;
         hitFlashes.removeIf(flash -> flash.targetPanel == panel);
+        entranceAnimations.removeIf(entrance -> entrance.panel == panel);
     }
 
     private record OnlineCombatantKey(PlayerSide side, String identity) { }
@@ -3651,6 +3894,7 @@ public class BattleScreen implements Screen, BattleView {
         enemyPanel = enemyPanels.isEmpty() ? null : enemyPanels.get(0);
         playerPanel = playerPanels.isEmpty() ? null : playerPanels.get(0);
         remapFaintAnimationPanels();
+        remapEntranceAnimationPanels();
 
         float miracleSize = Math.min(
             MiraclesMeter.sizeForViewport(height, textGeometryScale),
