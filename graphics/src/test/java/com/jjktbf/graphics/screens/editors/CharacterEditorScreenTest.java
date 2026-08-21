@@ -58,6 +58,28 @@ class CharacterEditorScreenTest {
     }
 
     @Test
+    void characterRecordsOrderByBaseStatTotalThenName() {
+        CharacterData weak = namedCharacter("Zeta the Weak", 10);
+        CharacterData tiedBeta = namedCharacter("Beta", 40);
+        CharacterData tiedAlpha = namedCharacter("Alpha", 40);
+        CharacterData strong = namedCharacter("Alpha the Strong", 90);
+
+        List<CharacterData> ordered = new ArrayList<>(List.of(strong, tiedBeta, weak, tiedAlpha));
+        ordered.sort(CharacterEditorScreen.baseStatOrdering());
+
+        assertEquals(
+            List.of("Zeta the Weak", "Alpha", "Beta", "Alpha the Strong"),
+            ordered.stream().map(c -> c.name).toList());
+    }
+
+    private static CharacterData namedCharacter(String name, int everyStat) {
+        CharacterData character = new CharacterData();
+        character.name = name;
+        for (StatKey stat : StatKey.values()) stat.set(character, everyStat);
+        return character;
+    }
+
+    @Test
     void directSummonReferencesAreFoundBeforeCharacterDeletion() {
         MoveData move = move();
         move.summonCharacterId = "000002";

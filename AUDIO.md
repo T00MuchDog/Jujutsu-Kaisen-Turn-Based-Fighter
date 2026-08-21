@@ -26,7 +26,9 @@ Place immutable audio under the graphics resource root:
 graphics/src/main/resources/assets/audio/
 |-- music/
 |   |-- menu.ogg
-|   `-- battle_aizo.ogg
+|   |-- battle_aizo.ogg
+|   |-- battle_AbodeOfBlue.ogg
+|   `-- battle_specialz.ogg
 `-- sfx/
     |-- ui/
     |   |-- navigate.wav
@@ -81,7 +83,7 @@ of those exact paths is enough to enable it:
 | File | Existing condition |
 |---|---|
 | `music/menu.ogg` | Main menu, selection, multiplayer menus, and editors |
-| `music/battle_aizo.ogg` | Local and multiplayer battles |
+| `music/battle_*.ogg` | Local and multiplayer battles; one battle track is chosen uniformly at random each time a battle starts |
 | `sfx/ui/navigate.wav` | Main-menu, character, and editor keyboard navigation |
 | `sfx/ui/confirm.wav` | Menu actions, selections, shared multiplayer actions, and next round |
 | `sfx/ui/back.wav` | Back, cancel, shared editor dialog dismissal, and battle exit |

@@ -330,6 +330,95 @@ class TransformationEffectTest {
             event.getType() == CombatEvent.Type.CHARACTER_TRANSFORMED));
     }
 
+    @Test
+    void midRoundTransformationInvalidatesLaterPlannedMovesTheFormLacks() {
+        Move transformMove = selfTransformMove("TO_FORM", "FORM");
+        Move sharedMove = move("SHARED_MOVE");
+        Move lostMove = new Move.Builder("LOST_MOVE")
+            .name("LOST_MOVE").category(MoveCategory.UTILITY)
+            .apCost(2).unleashPoint(1)
+            .baseCeCost(10).hasCeCost(true).minCeCost(1).maxCeCost(50)
+            .build();
+        SorcererCharacter original = character("ORIGINAL", "Original", 100,
+            List.of(transformMove, sharedMove, lostMove), List.of());
+        SorcererCharacter form = character("FORM", "Form", 300,
+            List.of(sharedMove), List.of());
+        BattleCombatant owner = new BattleCombatant(original);
+        BattleCombatant enemy = combatant("ENEMY", "Enemy", 100);
+        BattleState state = new BattleState(owner, enemy);
+        int startingCe = owner.getCurrentCe();
+
+        BattlePlan plan = new BattlePlan(owner.getMaxApBar(), owner.getCurrentCe());
+        assertNotNull(plan.place(transformMove, 1, 0));   // transforms on tick 1
+        assertNotNull(plan.place(sharedMove, 4, 0));      // fires tick 4
+        assertNotNull(plan.place(lostMove, 7, 10));       // fires tick 7
+        owner.setTimeline(plan.toLegacyTimeline());
+
+        state.transitionTo(BattleState.Phase.RESOLUTION);
+        List<CombatEvent> events = new CombatResolver(
+            new SeededRandomSource(1L), id -> Optional.of(form)).resolveRound(state);
+
+        assertTrue(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.CHARACTER_TRANSFORMED
+                && "FORM".equals(event.getCharacterId())));
+        assertEquals("FORM", owner.getCharacter().getId());
+        assertTrue(events.stream().anyMatch(event ->
+                event.getType() == CombatEvent.Type.MOVE_FIRED
+                    && event.getMove() == sharedMove),
+            "a later planned move the form shares still fires");
+        CombatEvent blocked = events.stream()
+            .filter(event -> event.getType() == CombatEvent.Type.MOVE_STUNNED
+                && event.getMove() == lostMove)
+            .findFirst().orElseThrow();
+        assertEquals("Form tried to use LOST_MOVE, but it failed!",
+            blocked.getMessage());
+        assertFalse(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.MOVE_FIRED
+                && event.getMove() == lostMove));
+        assertEquals(startingCe, owner.getCurrentCe(),
+            "a planned move invalidated by the transformation must not spend CE");
+    }
+
+    @Test
+    void revertingUnderAFormsPlanInvalidatesMovesOnlyTheFormHad() {
+        Move sharedMove = move("SHARED_MOVE");
+        Move formOnly = move("FORM_ONLY");
+        SorcererCharacter original = character("ORIGINAL", "Original", 100,
+            List.of(sharedMove), List.of());
+        SorcererCharacter form = character("FORM", "Form", 300,
+            List.of(sharedMove, formOnly), List.of());
+        BattleCombatant owner = new BattleCombatant(original);
+        BattleCombatant enemy = combatant("ENEMY", "Enemy", 100);
+        BattleState state = new BattleState(owner, enemy);
+
+        // The round was planned while transformed (the plan is the form's);
+        // a return condition then reverts the combatant before resolution.
+        assertTrue(owner.transformInto(form, TransformationHpMode.FULL, null).changed());
+        BattlePlan plan = new BattlePlan(owner.getMaxApBar(), owner.getCurrentCe());
+        assertNotNull(plan.place(formOnly, 1, 0));
+        assertNotNull(plan.place(sharedMove, 4, 0));
+        owner.setTimeline(plan.toLegacyTimeline());
+        assertTrue(owner.returnToOriginalForm().changed());
+
+        state.transitionTo(BattleState.Phase.RESOLUTION);
+        List<CombatEvent> events = new CombatResolver(
+            new SeededRandomSource(1L), id -> Optional.of(form)).resolveRound(state);
+
+        assertEquals("ORIGINAL", owner.getCharacter().getId());
+        assertTrue(events.stream().anyMatch(event ->
+                event.getType() == CombatEvent.Type.MOVE_FIRED
+                    && event.getMove() == sharedMove),
+            "a planned move the original form shares still fires after the revert");
+        assertTrue(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.MOVE_STUNNED
+                && event.getMove() == formOnly
+                && event.getMessage().contains("tried to use FORM_ONLY")),
+            "the form's leftover placement fails once the original returns");
+        assertFalse(events.stream().anyMatch(event ->
+            event.getType() == CombatEvent.Type.MOVE_FIRED
+                && event.getMove() == formOnly));
+    }
+
     private static BattleCombatant combatantWithTransformation(
         TransformationHpMode mode,
         AbilityConditionData returnCondition
@@ -410,6 +499,18 @@ class TransformationEffectTest {
     private static Move move(String id) {
         return new Move.Builder(id).name(id).category(MoveCategory.UTILITY)
             .apCost(1).unleashPoint(1).build();
+    }
+
+    /** A unified-effects utility move whose ON_FIRE row transforms its caster. */
+    private static Move selfTransformMove(String id, String destinationId) {
+        MoveEffectData effect = AbilityEffectType.TRANSFORM_CHARACTER.createDefaultMoveEffect();
+        effect.characterId = destinationId;
+        effect.target = "SELF";
+        effect.transformationHpMode = TransformationHpMode.FULL.name();
+        effect.trigger = MoveEffectTrigger.ON_FIRE.name();
+        effect.condition = AbilityConditionData.always();
+        return new Move.Builder(id).name(id).category(MoveCategory.UTILITY)
+            .apCost(2).unleashPoint(1).effects(List.of(effect)).build();
     }
 
     private static BattleCombatant combatant(String id, String name, int vitality) {

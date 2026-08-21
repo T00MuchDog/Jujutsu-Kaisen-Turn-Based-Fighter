@@ -32,6 +32,14 @@ class AudioCatalogTest {
     }
 
     @Test
+    void randomBattleTrackAlwaysPicksABattleTrack() {
+        for (int i = 0; i < 100; i++) {
+            assertTrue(MusicTrack.randomBattleTrack().assetPath()
+                .startsWith("assets/audio/music/battle_"));
+        }
+    }
+
+    @Test
     void everyRegisteredSoundEffectIsPackaged() {
         ClassLoader loader = AudioCatalogTest.class.getClassLoader();
         for (SoundCue cue : SoundCue.values()) {

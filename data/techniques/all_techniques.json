@@ -123,6 +123,50 @@
     "x" : 47.0,
     "y" : 221.0,
     "prerequisites" : [ ]
+  }, {
+    "id" : "node-000003",
+    "contentType" : "MOVE",
+    "contentId" : "000093",
+    "x" : 760.0,
+    "y" : 336.00003,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000001",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 55
+    }, {
+      "type" : "STAT",
+      "stat" : "combatAbility",
+      "minimum" : 60
+    }, {
+      "type" : "STAT",
+      "stat" : "strength",
+      "minimum" : 55
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyOutput",
+      "minimum" : 45
+    } ]
+  }, {
+    "id" : "node-000004",
+    "contentType" : "ABILITY",
+    "contentId" : "000045",
+    "x" : 760.0,
+    "y" : 110.0,
+    "prerequisites" : [ {
+      "type" : "NODE",
+      "nodeId" : "node-000002",
+      "attached" : true
+    }, {
+      "type" : "MASTERY",
+      "minimum" : 60
+    }, {
+      "type" : "STAT",
+      "stat" : "jujutsuSkill",
+      "minimum" : 50
+    } ]
   } ]
 }, {
   "id" : "000002",

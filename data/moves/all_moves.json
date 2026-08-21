@@ -5209,4 +5209,86 @@
   "isFreeMove" : true,
   "moveCap" : 1,
   "mustBeGranted" : true
+}, {
+  "id" : "000093",
+  "name" : "Overhead Ratio Cleave",
+  "description" : "Bring the blunt cursed blade down on the target's 7:3 line: a HEAVY REINFORCEMENT SWORD strike that drives RATIO into the hit, bypassing BLOCK and resolving against reduced DEFENSE.",
+  "tags" : [ "PHYSICAL", "CURSED_ENERGY", "INNATE_TECHNIQUE", "ATTACK", "MELEE", "SWORD", "HEAVY" ],
+  "basePower" : 70,
+  "baseAccuracy" : 0.86,
+  "neverMiss" : false,
+  "guardBreak" : false,
+  "heavy" : true,
+  "potency" : 1,
+  "weaponRequired" : true,
+  "apCost" : 20,
+  "unleashPoint" : 14,
+  "baseCeCost" : 26,
+  "hasCeCost" : true,
+  "minCeCost" : 6,
+  "maxCeCost" : 160,
+  "defenseType" : "NONE",
+  "blockStyle" : "PERCENTAGE",
+  "blockDuration" : 0,
+  "blockDamageReduction" : 100,
+  "blockFlatReduction" : 0,
+  "dodgeChance" : 0,
+  "dodgeScope" : "BOTH",
+  "parryStaggerTicks" : 0,
+  "onHitEffects" : [ ],
+  "selfEffects" : [ ],
+  "onBlockEffects" : [ ],
+  "onParryEffects" : [ ],
+  "onDodgeEffects" : [ ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "CODED_MOVE_ACTION",
+    "codedAbilityKey" : "RATIO",
+    "codedAction" : "RATIO_EFFECT",
+    "codedTarget" : "APPLY_TO_MOVE",
+    "codedParameters" : {
+      "triggerChancePercent" : 100,
+      "defensePercent" : 30
+    },
+    "masteryProgression" : {
+      "defensePercent" : {
+        "mode" : "BENCHMARKS",
+        "benchmarks" : [ {
+          "mastery" : 0,
+          "value" : 30
+        }, {
+          "mastery" : 150,
+          "value" : 26
+        }, {
+          "mastery" : 250,
+          "value" : 22
+        } ]
+      }
+    },
+    "target" : "ENEMY",
+    "trigger" : "ON_HIT",
+    "condition" : {
+      "type" : "ALWAYS"
+    }
+  } ],
+  "prerequisites" : {
+    "cursedTechniqueMastery" : 55,
+    "combatAbility" : 60,
+    "strength" : 55,
+    "cursedEnergyOutput" : 45,
+    "cursedEnergyEfficiency" : 40,
+    "jujutsuSkill" : 50
+  },
+  "requiredTechniqueId" : "Ratio",
+  "isFreeMove" : false,
+  "moveCap" : 0,
+  "aoeTargetCount" : 2,
+  "defenseTargeting" : "SELF",
+  "defenseTargetCount" : 2,
+  "mustBeGranted" : false,
+  "anyBlock" : false,
+  "parry" : false,
+  "dodge" : false,
+  "percentageBlock" : false,
+  "flatBlock" : false
 } ]

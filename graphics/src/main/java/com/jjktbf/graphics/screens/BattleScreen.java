@@ -132,13 +132,12 @@ public class BattleScreen implements Screen, BattleView {
     /** Fast classic monster-battle sink used when a combatant is defeated. */
     private static final float FAINT_SLIDE_DURATION_SECONDS = 0.42f;
     /**
-     * Summon entrances. Back sprites (allies) rise from the bottom of the
-     * screen for exactly as long as the defeat slide runs; front sprites
-     * (enemies) flash-grow from tiny to full size, fading a white silhouette
-     * overlay into the true palette as they arrive.
+     * The one entrance animation played whenever a combatant arrives or
+     * changes on the field — summoned or transformed, ally or enemy: the
+     * sprite starts tiny and pure white, then grows to full size while the
+     * white overlay fades into its true palette.
      */
-    private static final float SUMMON_SLIDE_DURATION_SECONDS = FAINT_SLIDE_DURATION_SECONDS;
-    private static final float SUMMON_GROW_DURATION_SECONDS  = 0.5f;
+    private static final float ENTRANCE_GROW_DURATION_SECONDS = 0.5f;
     /** Chars revealed per second when typing a log line out letter-by-letter. */
     private static final float LOG_TYPE_RATE_CPS       = 40f;
     /**
@@ -733,13 +732,8 @@ public class BattleScreen implements Screen, BattleView {
             if (faint != null) {
                 panel.drawFaintingSprite(batch, faintSlideRatio(faint.progress()));
             } else if (entrance != null) {
-                if (entrance.playerSide) {
-                    panel.drawEnteringSpriteSlide(
-                        batch, faintSlideRatio(entrance.progress()));
-                } else {
-                    panel.drawEnteringSpriteGrow(
-                        batch, entrance.progress(), entrance.whiteSprite);
-                }
+                panel.drawEnteringSpriteGrow(
+                    batch, entrance.progress(), entrance.whiteSprite);
             } else {
                 panel.drawSprite(batch, frameDelta);
             }
@@ -1267,9 +1261,9 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     /**
-     * A summon arrival in progress. Back sprites (player side) slide up from
-     * the bottom of the screen; front sprites (enemy side) grow in with a
-     * white flash that settles into the true palette. Unlike a faint there is
+     * An arrival animation in progress — a summon joining or a form changing.
+     * The sprite grows in from a white flash (see
+     * {@link CombatantPanel#drawEnteringSpriteGrow}). Unlike a faint there is
      * no completion callback — the panel simply keeps drawing afterwards.
      */
     private static final class EntranceAnimation {
@@ -1313,8 +1307,7 @@ public class BattleScreen implements Screen, BattleView {
         }
 
         float durationSeconds() {
-            return playerSide
-                ? SUMMON_SLIDE_DURATION_SECONDS : SUMMON_GROW_DURATION_SECONDS;
+            return ENTRANCE_GROW_DURATION_SECONDS;
         }
 
         float progress() {
@@ -1803,7 +1796,17 @@ public class BattleScreen implements Screen, BattleView {
             }
             if (e.getType() == CombatEvent.Type.CHARACTER_TRANSFORMED
                 || e.getType() == CombatEvent.Type.CHARACTER_REVERTED) {
-                postLocal(() -> refreshLocalFormSprite(e));
+                final CombatEvent formEvent = e;
+                postLocal(() -> {
+                    refreshLocalFormSprite(formEvent);
+                    // The new form arrives with the same grow-from-white
+                    // entrance as a summon; a skipped round just swaps.
+                    if (!skipRoundRequested && formEvent.getTarget() != null) {
+                        startLocalPanelEntrance(
+                            formEvent.getTarget(),
+                            localSummonIsOnPlayerSide(state, formEvent.getTarget()));
+                    }
+                });
             }
             // A summon joins the field the instant its join broadcast plays —
             // sprite, HUD, and entrance animation all land on the summon tick.
@@ -2732,6 +2735,13 @@ public class BattleScreen implements Screen, BattleView {
         if (event.type() == BattleEventType.CHARACTER_TRANSFORMED
             || event.type() == BattleEventType.CHARACTER_REVERTED) {
             refreshOnlineFormSprite(event.targetSide(), target, event.targetCharacterId());
+            // Panels capture their texture at build time — relayout so the new
+            // form shows on the transform broadcast, then play the shared
+            // grow-from-white entrance (a skipped round just swaps).
+            layoutExecutionUi(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+            if (!skipRoundRequested && target != null) {
+                startedEntrance = startOnlinePanelEntrance(event.targetSide(), target);
+            }
         }
         if (value != null && (event.type() == BattleEventType.CE_DRAINED
             || event.type() == BattleEventType.CE_RESTORED)) {
@@ -3247,15 +3257,15 @@ public class BattleScreen implements Screen, BattleView {
     /** Adds the summon's panel and starts its entrance animation (render thread). */
     private boolean startLocalSummonEntrance(BattleCombatant summon, boolean playerSide) {
         addLocalCombatantToField(summon, playerSide);
-        CombatantPanel panel = panelForCombatant(summon);
-        if (panel == null) return false;
-        return startEntranceAnimation(EntranceAnimation.local(
-            summon, playerSide, panel, whiteSpriteFor(panel, playerSide)));
+        return startLocalPanelEntrance(summon, playerSide);
     }
 
-    /** Front sprites flash white while growing in; back sprites slide up as-is. */
-    private Texture whiteSpriteFor(CombatantPanel panel, boolean playerSide) {
-        return playerSide ? null : assets.whiteSilhouette(panel.spriteTexture());
+    /** Starts the shared grow-in entrance on an already-displayed combatant. */
+    private boolean startLocalPanelEntrance(BattleCombatant combatant, boolean playerSide) {
+        CombatantPanel panel = panelForCombatant(combatant);
+        if (panel == null) return false;
+        return startEntranceAnimation(EntranceAnimation.local(
+            combatant, playerSide, panel, assets.whiteSilhouette(panel.spriteTexture())));
     }
 
     private void syncOnlineBattlefield(
@@ -3525,12 +3535,17 @@ public class BattleScreen implements Screen, BattleView {
     /** Adds the summon's panel and starts its entrance animation (render thread). */
     private boolean startOnlineSummonEntrance(PlayerSide side, CharacterState combatant) {
         if (!addOnlineCombatantToField(side, combatant)) return false;
+        return startOnlinePanelEntrance(side, combatant);
+    }
+
+    /** Starts the shared grow-in entrance on an already-displayed combatant. */
+    private boolean startOnlinePanelEntrance(PlayerSide side, CharacterState combatant) {
         CombatantPanel panel = onlinePanelFor(side, combatant);
         if (panel == null) return false;
         boolean playerSide = side == multiplayerSetup.playerSide();
         return startEntranceAnimation(EntranceAnimation.online(
             onlineKey(side, combatant), playerSide, panel,
-            whiteSpriteFor(panel, playerSide)));
+            assets.whiteSilhouette(panel.spriteTexture())));
     }
 
     static List<CharacterState> withOnlineCombatantVisible(
@@ -4215,6 +4230,9 @@ public class BattleScreen implements Screen, BattleView {
             enemyTeamSprites = List.copyOf(sprites);
             if (!sprites.isEmpty()) enemySprite = sprites.get(0);
         }
+        // Panels capture their texture at build time, so the swap only shows
+        // once the field is relaid out — on the transform broadcast's tick.
+        layoutExecutionUi(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
     }
 
     private record LocalHpState(int hp, int maxHp) { }

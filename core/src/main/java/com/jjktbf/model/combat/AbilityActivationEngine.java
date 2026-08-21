@@ -951,8 +951,13 @@ public final class AbilityActivationEngine {
                 for (BattleCombatant target : targets) {
                     BattleCombatant.TransformationAttempt attempt = target.transformInto(
                         form.get(), hpMode, effect.returnCondition);
+                    // A row naming the origin form of an already-transformed
+                    // combatant is a revert — broadcast it as one.
+                    boolean reverted = attempt.changed() && target.getOriginCharacter() != null
+                        && attempt.change().characterId()
+                            .equals(target.getOriginCharacter().getId());
                     appendTransformationAttemptEvents(
-                        owner, target, form.get(), attempt, false,
+                        owner, target, form.get(), attempt, reverted,
                         move, effectComponentIndex, tick, events);
                 }
             }

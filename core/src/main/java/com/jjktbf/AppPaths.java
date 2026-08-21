@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -95,6 +96,7 @@ public final class AppPaths {
     private static final String BUNDLED_KEYWORD_DESCRIPTIONS = "data/keyword_descriptions.json";
     private static final String BUNDLED_VERSION = "jjktbf-version.properties";
     private static final String DATA_VERSION_FILE = "data-release-version";
+    private static final String FIRST_INSTALL_FILE = "first-install";
     private static final List<String> BUNDLED_DATA_FILES = List.of(
         BUNDLED_MOVES,
         BUNDLED_ABILITIES,
@@ -181,6 +183,15 @@ public final class AppPaths {
     /** Directory holding the editable game-data JSON ({@code data/...}). */
     public static Path dataDir() {
         return root().resolve("data");
+    }
+
+    /**
+     * Whether this profile was created by a first-time installation after this
+     * marker was introduced. Existing profiles are deliberately left unmarked
+     * so new defaults never alter them during an upgrade.
+     */
+    public static boolean isFirstInstallProfile() {
+        return Files.isRegularFile(root().resolve(FIRST_INSTALL_FILE));
     }
 
     /**
@@ -337,10 +348,12 @@ public final class AppPaths {
      */
     public static void seedDataIfAbsent() {
         if (isAuthoringMode()) return;
+        Path profileRoot = root();
+        boolean firstInstall = isEmptyDirectory(profileRoot);
         ClassLoader cl = loader();
         try {
             String bundledVersion = bundledGameVersion(cl);
-            if (bundledVersion.equals(savedDataVersion())) {
+            if (bundledVersion.equals(savedDataVersion(profileRoot))) {
                 if (!Files.isRegularFile(dataDir().resolve(
                     BUNDLED_KEYWORD_DESCRIPTIONS.substring("data/".length())))) {
                     refreshBundledMechanicalDescriptions(cl);
@@ -348,7 +361,10 @@ public final class AppPaths {
                 copyBundledData(cl, false);
             } else {
                 copyBundledData(cl, true);
-                Files.writeString(root().resolve(DATA_VERSION_FILE), bundledVersion);
+                Files.writeString(profileRoot.resolve(DATA_VERSION_FILE), bundledVersion);
+                if (firstInstall) {
+                    Files.writeString(profileRoot.resolve(FIRST_INSTALL_FILE), bundledVersion);
+                }
             }
         } catch (IOException e) {
             writeSeedError("bundled game data", e);
@@ -370,10 +386,18 @@ public final class AppPaths {
         return version.trim();
     }
 
-    private static String savedDataVersion() throws IOException {
-        Path versionFile = root().resolve(DATA_VERSION_FILE);
+    private static String savedDataVersion(Path profileRoot) throws IOException {
+        Path versionFile = profileRoot.resolve(DATA_VERSION_FILE);
         if (!Files.isRegularFile(versionFile)) return "";
         return Files.readString(versionFile).trim();
+    }
+
+    private static boolean isEmptyDirectory(Path directory) {
+        try (DirectoryStream<Path> entries = Files.newDirectoryStream(directory)) {
+            return !entries.iterator().hasNext();
+        } catch (IOException ignored) {
+            return false;
+        }
     }
 
     private static void copyBundledData(ClassLoader cl, boolean replaceExisting) throws IOException {

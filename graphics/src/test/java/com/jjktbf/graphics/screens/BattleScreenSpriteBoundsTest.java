@@ -156,16 +156,7 @@ class BattleScreenSpriteBoundsTest {
     }
 
     @Test
-    void summonEntranceRiseStartsFullyBelowTheScreenBottom() {
-        // Final footing y=40 with a 100px sprite: 140px of travel.
-        assertEquals(140f, CombatantPanel.entranceRiseOffset(40f, 100f, 0f), 0.0001f);
-        assertEquals(35f, CombatantPanel.entranceRiseOffset(40f, 100f, 0.75f), 0.0001f);
-        assertEquals(0f, CombatantPanel.entranceRiseOffset(40f, 100f, 1f), 0.0001f);
-        assertEquals(0f, CombatantPanel.entranceRiseOffset(40f, 100f, 2f), 0.0001f);
-    }
-
-    @Test
-    void summonEntranceGrowsFromTinyToFullScale() {
+    void entranceGrowsFromTinyToFullScale() {
         assertEquals(0.1f, CombatantPanel.entranceGrowScale(0f), 0.0001f);
         assertEquals(0.55f, CombatantPanel.entranceGrowScale(0.5f), 0.0001f);
         assertEquals(1f, CombatantPanel.entranceGrowScale(1f), 0.0001f);

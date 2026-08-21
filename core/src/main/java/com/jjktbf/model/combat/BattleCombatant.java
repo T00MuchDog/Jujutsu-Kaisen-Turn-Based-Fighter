@@ -12,6 +12,7 @@ import com.jjktbf.model.character.coded.CodedAbilities;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 // Explicit import to avoid ambiguity with java.lang.Character
 import com.jjktbf.model.character.Character;
+import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.StatusEffect;
 import com.jjktbf.model.move.StatusEffectType;
 
@@ -132,6 +133,14 @@ public class BattleCombatant {
 
     // --- Round's action timeline ---
     private Timeline timeline;
+
+    /**
+     * Character id of the form whose plan is attached to {@link #timeline}.
+     * Placements are only re-validated against the current form when the form
+     * has changed since this stamp was taken (see
+     * {@link #plannedMoveExecutableInCurrentForm(Move)}).
+     */
+    private String plannedFormCharacterId;
 
     // --- Round's two-board battle plan (offensive + defensive) ---
     private BattlePlan plan;
@@ -1199,6 +1208,9 @@ public class BattleCombatant {
 
     public void setTimeline(Timeline timeline) {
         this.timeline = timeline;
+        // Stamp the drafting form: a placement is only re-validated against the
+        // current form when the combatant has transformed since this attach.
+        this.plannedFormCharacterId = timeline == null ? null : character.getId();
     }
 
     public Timeline getTimeline() {
@@ -1298,6 +1310,35 @@ public class BattleCombatant {
     public Character getCharacter()                        { return character; }
     public Character getOriginCharacter()                  { return originCharacter; }
     public BattleStatMode getStatMode()                    { return statMode; }
+
+    /**
+     * True while the combatant's <em>current</em> form (post-transformation, if
+     * any) still knows the given move, matched by move id.
+     */
+    public boolean currentFormKnowsMove(Move move) {
+        if (move == null) return true;
+        for (Move known : character.getKnownMoves()) {
+            if (known.getId().equals(move.getId())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Whether a planned timeline placement may still execute in the combatant's
+     * current form. A plan is drafted against the form the combatant wore when
+     * its timeline was attached; if that form is still current the placement
+     * always stands. If the form has changed since planning (a mid-round
+     * transformation, or a revert under a form's plan), the placement only
+     * executes while the current form knows the move.
+     */
+    public boolean plannedMoveExecutableInCurrentForm(Move move) {
+        if (move == null) return true;
+        if (plannedFormCharacterId == null
+            || plannedFormCharacterId.equals(character.getId())) {
+            return true;
+        }
+        return currentFormKnowsMove(move);
+    }
     public CharacterStats getEffectiveStats() {
         List<AbilityEffectData> modifiers = runtimeAbilityEffects.stream()
             .map(runtime -> runtime.effect)

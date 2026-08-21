@@ -171,28 +171,11 @@ public class CombatantPanel {
     }
 
     /**
-     * Summon entrance for back sprites: the fighter rises from below the bottom
-     * of the screen to its final footing. {@code riseRatio} eases 0 → 1.
-     */
-    public void drawEnteringSpriteSlide(Batch batch, float riseRatio) {
-        float clamped = Math.max(0f, Math.min(1f, riseRatio));
-        float rise = entranceRiseOffset(spriteBounds.y, spriteBounds.height, clamped);
-        batch.setColor(Color.WHITE);
-        batch.draw(sprite,
-            spriteBounds.x, spriteBounds.y - rise,
-            spriteBounds.width, spriteBounds.height);
-    }
-
-    /** Distance left to rise so the sprite starts fully below the screen bottom. */
-    public static float entranceRiseOffset(float finalY, float spriteHeight, float riseRatio) {
-        return (1f - Math.max(0f, Math.min(1f, riseRatio))) * (finalY + spriteHeight);
-    }
-
-    /**
-     * Summon entrance for front sprites: the fighter grows from tiny to full
-     * size anchored at its foot line while a white silhouette overlay fades
-     * out, glowing into its true palette as it arrives. {@code progress} is
-     * the raw 0 → 1 entrance progress.
+     * The shared entrance animation for anyone arriving or changing on the
+     * field — summoned or transformed, front or back sprite: the fighter
+     * grows from tiny to full size anchored at its foot line while a white
+     * silhouette overlay fades out, glowing into its true palette as it
+     * arrives. {@code progress} is the raw 0 → 1 entrance progress.
      */
     public void drawEnteringSpriteGrow(Batch batch, float progress, Texture whiteSprite) {
         float clamped = Math.max(0f, Math.min(1f, progress));

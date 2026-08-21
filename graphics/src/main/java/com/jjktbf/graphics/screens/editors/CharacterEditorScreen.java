@@ -56,6 +56,7 @@ import com.jjktbf.model.technique.TechniqueSkillTree;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -212,14 +213,29 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         return TIER_SECTIONS;
     }
 
+    /** Records read lowest-BST-first, alphabetical on equal totals. */
+    @Override protected Comparator<CharacterData> recordListComparator() {
+        return baseStatOrdering();
+    }
+
+    static Comparator<CharacterData> baseStatOrdering() {
+        return Comparator
+            .comparingInt(CharacterEditorScreen::baseStatTotal)
+            .thenComparing(r -> r.name, String.CASE_INSENSITIVE_ORDER);
+    }
+
     @Override protected String recordSection(CharacterData record) {
         return characterTierSection(record);
     }
 
-    static String characterTierSection(CharacterData record) {
+    static int baseStatTotal(CharacterData record) {
         int total = 0;
         for (StatKey stat : STAT_ORDER) total += stat.get(record);
-        return tierSectionName(StatTier.forBaseStatTotal(total));
+        return total;
+    }
+
+    static String characterTierSection(CharacterData record) {
+        return tierSectionName(StatTier.forBaseStatTotal(baseStatTotal(record)));
     }
 
     private static String tierSectionName(StatTier tier) {
@@ -968,8 +984,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
     private void refreshBaseStatTotalLabel(CharacterData cd) {
         if (baseStatTotalLabel == null) return;
-        int total = 0;
-        for (StatKey stat : STAT_ORDER) total += stat.get(cd);
+        int total = baseStatTotal(cd);
         baseStatTotalLabel.setText("Base Stat Total: " + total);
         baseStatTierLabel.setText(StatTier.forBaseStatTotal(total).displayName());
     }

@@ -555,6 +555,10 @@ public class CombatResolver {
                     state, combatant, segment.getMove(), segment, tick, events)) {
                     continue;
                 }
+                if (stopPlannedMoveUnknownToCurrentForm(
+                        combatant, segment, tick, events)) {
+                    continue;
+                }
                 if (combatant.consumeMoveCancellation()) {
                     segment.stun();
                     events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
@@ -1090,6 +1094,7 @@ public class CombatResolver {
 
         if (stopMoveUnavailableForActiveSummon(
             state, attacker, move, segment, tick, events)) return;
+        if (stopPlannedMoveUnknownToCurrentForm(attacker, segment, tick, events)) return;
 
         // This segment's move is now actually executing. Recording it as fired
         // makes it immune to retro-stunning for the rest of the round — a stun
@@ -1209,6 +1214,31 @@ public class CombatResolver {
     private static String moveFailedMessage(BattleCombatant attacker, Move move) {
         return attacker.getCharacter().getName()
             + " tried to use " + move.getName() + ", but it failed!";
+    }
+
+    /**
+     * A planned move only executes while the combatant's form still allows it.
+     * Transforming mid-round takes effect on the transformation tick: later
+     * planned placements the new form does not have fail with the default
+     * failure message, while moves the form shares still fire; a revert under a
+     * form's plan does the same in reverse. Runtime-launched moves (reactions,
+     * counters, referenced attacks, conferred defenses) are exempt — they
+     * execute as part of an already-validated action.
+     */
+    private boolean stopPlannedMoveUnknownToCurrentForm(
+        BattleCombatant attacker,
+        ActionSegment segment,
+        int tick,
+        List<CombatEvent> events
+    ) {
+        if (segment == null || !segment.isPlanned()) return false;
+        if (attacker.plannedMoveExecutableInCurrentForm(segment.getMove())) return false;
+        segment.stun();
+        events.add(CombatEvent.of(CombatEvent.Type.MOVE_STUNNED)
+            .source(attacker).target(attacker).move(segment.getMove()).tick(tick)
+            .message(moveFailedMessage(attacker, segment.getMove()))
+            .build());
+        return true;
     }
 
     private void scheduleComponents(MoveExecution execution) {

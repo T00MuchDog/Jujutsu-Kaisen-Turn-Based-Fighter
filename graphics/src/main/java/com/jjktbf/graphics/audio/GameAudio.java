@@ -29,6 +29,7 @@ public final class GameAudio implements Disposable {
     private static final String UI_VOLUME_KEY = "uiSfxVolume";
     private static final String BATTLE_VOLUME_KEY = "battleSfxVolume";
     private static final String MUTED_KEY = "muted";
+    private static final float FIRST_INSTALL_MUSIC_VOLUME = 0.6f;
 
     private final Map<MusicTrack, Music> music = new EnumMap<>(MusicTrack.class);
     private final Map<SoundCue, Sound> sounds = new EnumMap<>(SoundCue.class);
@@ -42,7 +43,7 @@ public final class GameAudio implements Disposable {
 
     public GameAudio() {
         preferences = openPreferences();
-        settings = loadSettings(preferences);
+        settings = loadSettings(preferences, AppPaths.isFirstInstallProfile());
         loadAssets();
     }
 
@@ -256,8 +257,11 @@ public final class GameAudio implements Disposable {
         }
     }
 
-    private static AudioSettings loadSettings(Preferences preferences) {
+    static AudioSettings loadSettings(Preferences preferences, boolean firstInstallProfile) {
         AudioSettings defaults = AudioSettings.defaults();
+        if (firstInstallProfile) {
+            defaults = defaults.withChannelVolume(AudioChannel.MUSIC, FIRST_INSTALL_MUSIC_VOLUME);
+        }
         if (preferences == null) return defaults;
         try {
             return new AudioSettings(

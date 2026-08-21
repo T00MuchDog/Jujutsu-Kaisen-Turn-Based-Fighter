@@ -37,6 +37,7 @@ import com.jjktbf.graphics.ui.profile.UiProfile;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -215,6 +216,15 @@ public abstract class EditorScreenBase<D> implements Screen {
 
     /** Ordered record sections. An empty list keeps the traditional flat master list. */
     protected List<String> recordSections() { return List.of(); }
+
+    /**
+     * Ordering applied to the master list before sectioning (and therefore
+     * within each section). Defaults to case-insensitive alphabetical by
+     * display label; subclasses override for content-specific orderings.
+     */
+    protected Comparator<D> recordListComparator() {
+        return (a, b) -> String.CASE_INSENSITIVE_ORDER.compare(listLabel(a), listLabel(b));
+    }
 
     /** Section name for a record when {@link #recordSections()} is non-empty. */
     protected String recordSection(D record) { return null; }
@@ -602,7 +612,7 @@ public abstract class EditorScreenBase<D> implements Screen {
     /**
      * Rebuild the master list from {@link #records}, honouring the search box.
      *
-     * Items are sorted alphabetically by their display label within each section
+     * Items are ordered by {@link #recordListComparator()} within each section
      * after applying an optional search query.
      */
     protected void refreshMasterList() {
@@ -614,8 +624,7 @@ public abstract class EditorScreenBase<D> implements Screen {
                 visibleRecords.add(r);
             }
         }
-        visibleRecords.sort((a, b) ->
-            String.CASE_INSENSITIVE_ORDER.compare(listLabel(a), listLabel(b)));
+        visibleRecords.sort(recordListComparator());
 
         String selectedId = selectedIndex >= 0 && selectedIndex < records.size()
             ? idOf(records.get(selectedIndex)) : null;
@@ -891,7 +900,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         return false;
     }
 
-    /** Accumulates headers at the top once their original rows scroll past. */
+    /** Accumulates top-level headers once their original rows scroll past. */
     private void updateStickySectionHeaders() {
         if (masterSectionViews.isEmpty()) {
             if (!renderedStickySections.isEmpty()) stickySectionHeaders.clearChildren();
@@ -915,6 +924,7 @@ public abstract class EditorScreenBase<D> implements Screen {
         float stackedHeight = 0f;
         List<String> sticky = new ArrayList<>();
         for (MasterSectionView section : masterSectionViews) {
+            if (recordSectionParent(section.name()) != null) continue;
             Table header = section.header();
             float topFromContentTop = masterListContent.getHeight()
                 - header.getY() - header.getHeight();
@@ -935,6 +945,7 @@ public abstract class EditorScreenBase<D> implements Screen {
     private float stickySectionHeightAt(float scrollY) {
         float stackedHeight = 0f;
         for (MasterSectionView section : masterSectionViews) {
+            if (recordSectionParent(section.name()) != null) continue;
             Table header = section.header();
             float topFromContentTop = masterListContent.getHeight()
                 - header.getY() - header.getHeight();

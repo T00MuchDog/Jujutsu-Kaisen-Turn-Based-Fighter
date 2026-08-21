@@ -903,4 +903,101 @@
     "transformationHpMode" : "FULL"
   } ],
   "masteryThreshold" : 0
+}, {
+  "id" : "000042",
+  "name" : "Nine-to-Five Binding Vow",
+  "flavourText" : "Nanami vows to hold himself back between nine and five so that, once overtime begins, he can surpass his own limits.",
+  "mechanicText" : "Multiply VITALITY, STRENGTH, DURABILITY, SPEED, CURSED ENERGY RESERVES, and CURSED ENERGY OUTPUT by 0.8. JUJUTSU SKILL, COMBAT ABILITY, CURSED ENERGY EFFICIENCY, and CURSED TECHNIQUE MASTERY are unaffected.",
+  "category" : "PASSIVE",
+  "sourceType" : "CHARACTER",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "STAT_MULTIPLY",
+    "stat" : "vitality",
+    "doubleValue" : 0.8
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "STAT_MULTIPLY",
+    "stat" : "strength",
+    "doubleValue" : 0.8
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "STAT_MULTIPLY",
+    "stat" : "durability",
+    "doubleValue" : 0.8
+  }, {
+    "effectId" : "effect-000003",
+    "type" : "STAT_MULTIPLY",
+    "stat" : "speed",
+    "doubleValue" : 0.8
+  }, {
+    "effectId" : "effect-000004",
+    "type" : "STAT_MULTIPLY",
+    "stat" : "cursedEnergyReserves",
+    "doubleValue" : 0.8
+  }, {
+    "effectId" : "effect-000005",
+    "type" : "STAT_MULTIPLY",
+    "stat" : "cursedEnergyOutput",
+    "doubleValue" : 0.8
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000043",
+  "name" : "Record: Four Consecutive Black Flashes",
+  "flavourText" : "The record for consecutive Black Flashes — four in a single night — still belongs to a first-year salaryman who walked home from the office.",
+  "mechanicText" : "Multiply the odds of landing a BLACK FLASH by 1.5.",
+  "category" : "PASSIVE",
+  "sourceType" : "CHARACTER",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "BATTLE_STAT_ODDS_MULTIPLY",
+    "stringValue" : "BLACK_FLASH_CHANCE",
+    "doubleValue" : 1.5
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000044",
+  "name" : "A Professional Sees It Through",
+  "flavourText" : "Battered and burning, Nanami refuses to fall while the job remains. A professional finishes the work.",
+  "mechanicText" : "At BATTLE START, steel your resolve: once per battle, damage or an effect that would reduce you to 0 HP leaves you at 1 HP instead.",
+  "category" : "ACTIVE",
+  "sourceType" : "CHARACTER",
+  "activationConditions" : [ {
+    "condition" : {
+      "type" : "BATTLE_STARTED"
+    },
+    "targetEffectIds" : [ "effect-000000" ],
+    "matchSameTrigger" : true
+  } ],
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "SURVIVE_FATAL_DAMAGE",
+    "target" : "SELF",
+    "uses" : 1,
+    "durationRounds" : -1,
+    "durationTicks" : 0
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000045",
+  "name" : "Seven-Three Insight",
+  "flavourText" : "Long practice with the Ratio Technique teaches its user to see the seven-to-three line in everything.",
+  "mechanicText" : "Add ACCURACY to your INNATE TECHNIQUE moves: +5, rising to +15 as CURSED TECHNIQUE MASTERY grows.",
+  "category" : "PASSIVE",
+  "sourceType" : "TECHNIQUE",
+  "sourceValue" : "Ratio",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "MOVE_ACCURACY_ADD",
+    "moveTag" : "INNATE_TECHNIQUE",
+    "intValue" : 5,
+    "masteryProgression" : {
+      "intValue" : {
+        "mode" : "FORMULA",
+        "formula" : "min(15, 5 + ctm / 50)"
+      }
+    }
+  } ],
+  "masteryThreshold" : 0
 } ]

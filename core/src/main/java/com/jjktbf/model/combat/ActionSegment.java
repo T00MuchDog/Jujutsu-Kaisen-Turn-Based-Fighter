@@ -36,6 +36,16 @@ public class ActionSegment {
     private boolean      stunned;        // set true when interrupted or hit by a stun effect
     private boolean      fired;          // set true once the resolver actually executes this move
     private boolean      transferred;    // set true when a defensive segment's protection has been conferred onto another combatant's timeline (ally targeting)
+    /**
+     * True when this segment was placed by a plan (player draft or AI) on a
+     * timeline board, rather than synthesized at runtime (a launched attack, a
+     * counter, a conferred/triggered defense copy). Only planned segments are
+     * re-validated against the combatant's current form at execution time — a
+     * mid-round transformation invalidates later placements the new form does
+     * not know, while runtime launches execute as part of an already-validated
+     * action.
+     */
+    private final boolean planned;
 
     /**
      * Set when an armed REACTION defence converts into a triggered window.
@@ -70,19 +80,31 @@ public class ActionSegment {
      */
     private List<CombatantId> targets;
 
+    /** Runtime segment (a launch, counter, or defense copy): not plan-placed. */
     public ActionSegment(Move move, int startTick, int actualCeCost) {
-        this(move, startTick, actualCeCost, List.of());
+        this(move, startTick, actualCeCost, List.of(), false);
     }
 
     public ActionSegment(Move move, int startTick, int actualCeCost, CombatantId target) {
-        this(move, startTick, actualCeCost, target == null ? List.of() : List.of(target));
+        this(move, startTick, actualCeCost, target == null ? List.of() : List.of(target), true);
     }
 
+    /** Planned placement with an explicit target list (see {@link #planned}). */
     public ActionSegment(
         Move move,
         int startTick,
         int actualCeCost,
         List<CombatantId> targets
+    ) {
+        this(move, startTick, actualCeCost, targets, true);
+    }
+
+    private ActionSegment(
+        Move move,
+        int startTick,
+        int actualCeCost,
+        List<CombatantId> targets,
+        boolean planned
     ) {
         this.move          = move;
         this.startTick     = startTick;
@@ -92,6 +114,7 @@ public class ActionSegment {
         this.stunned       = false;
         this.fired         = false;
         this.transferred   = false;
+        this.planned       = planned;
     }
 
     public Move    getMove()          { return move; }
@@ -133,6 +156,9 @@ public class ActionSegment {
 
     /** True once this segment's move has actually resolved this round. */
     public boolean hasFired()         { return fired; }
+
+    /** True when this segment was placed by a plan (see {@link #planned}). */
+    public boolean isPlanned()        { return planned; }
 
     /**
      * Mark this segment as fired. Called by the resolver the moment the move
