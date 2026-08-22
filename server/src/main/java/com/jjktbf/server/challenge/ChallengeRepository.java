@@ -359,6 +359,44 @@ final class ChallengeRepository {
         }
     }
 
+    int selectHostCharacters(
+        Connection connection,
+        String challengeId,
+        String playerId,
+        List<String> characterIds
+    ) throws SQLException {
+        String encoded = RosterCodec.encode(characterIds);
+        try (PreparedStatement statement = connection.prepareStatement(
+            "UPDATE challenge SET host_character_ids = ? "
+                + "WHERE id = ? AND creator_player_id = ? AND status = 'ACCEPTED' "
+                + "AND (host_character_ids = '' OR host_character_ids = ?)")) {
+            statement.setString(1, encoded);
+            statement.setString(2, challengeId);
+            statement.setString(3, playerId);
+            statement.setString(4, encoded);
+            return statement.executeUpdate();
+        }
+    }
+
+    int selectAcceptedCharacters(
+        Connection connection,
+        String challengeId,
+        String playerId,
+        List<String> characterIds
+    ) throws SQLException {
+        String encoded = RosterCodec.encode(characterIds);
+        try (PreparedStatement statement = connection.prepareStatement(
+            "UPDATE challenge SET accepted_character_ids = ? "
+                + "WHERE id = ? AND accepted_player_id = ? AND status = 'ACCEPTED' "
+                + "AND (accepted_character_ids = '' OR accepted_character_ids = ?)")) {
+            statement.setString(1, encoded);
+            statement.setString(2, challengeId);
+            statement.setString(3, playerId);
+            statement.setString(4, encoded);
+            return statement.executeUpdate();
+        }
+    }
+
     Optional<String> findPlayerDisplayName(Connection connection, String playerId)
         throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(

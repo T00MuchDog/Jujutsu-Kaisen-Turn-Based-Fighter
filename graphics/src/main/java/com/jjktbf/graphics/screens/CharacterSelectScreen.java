@@ -31,6 +31,8 @@ import com.jjktbf.model.technique.TechniqueRepository;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Consumer;
 
 /** Master-detail character selection screen for player and CPU choices. */
 public class CharacterSelectScreen implements Screen {
@@ -82,6 +84,9 @@ public class CharacterSelectScreen implements Screen {
         com.jjktbf.model.combat.BattleStatMode.STANDARD;
     private BattleController.ControlMode controlMode =
         BattleController.ControlMode.PLAYER_VS_AI;
+    private boolean multiplayerSelection;
+    private Consumer<List<String>> onMultiplayerSelected;
+    private Runnable onSelectionExit;
 
     private final JJKGame game;
     private final AssetLoader assets;
@@ -139,6 +144,7 @@ public class CharacterSelectScreen implements Screen {
     public CharacterSelectScreen(JJKGame game, AssetLoader assets) {
         this.game = game;
         this.assets = assets;
+        onSelectionExit = game::showMainMenu;
         windowsLayout = game.activeUiProfile() == UiProfile.WINDOWS;
         batch = new SpriteBatch();
         charRepo = new CharacterRepository(CHAR_DATA_DIR);
@@ -178,6 +184,25 @@ public class CharacterSelectScreen implements Screen {
             : com.jjktbf.model.combat.BattleStatMode.STANDARD;
         this.controlMode = controlMode != null ? controlMode
             : BattleController.ControlMode.PLAYER_VS_AI;
+        multiplayerSelection = false;
+        onMultiplayerSelected = null;
+        onSelectionExit = game::showMainMenu;
+    }
+
+    public void prepareMultiplayer(
+        com.jjktbf.model.combat.BattleFormat format,
+        com.jjktbf.model.combat.BattleStatMode statMode,
+        Consumer<List<String>> onSelected,
+        Runnable onExit
+    ) {
+        this.format = format != null ? format
+            : com.jjktbf.model.combat.BattleFormat.ONE_V_ONE;
+        this.statMode = statMode != null ? statMode
+            : com.jjktbf.model.combat.BattleStatMode.STANDARD;
+        this.controlMode = BattleController.ControlMode.PLAYER_VS_AI;
+        multiplayerSelection = true;
+        onMultiplayerSelected = Objects.requireNonNull(onSelected, "onSelected");
+        onSelectionExit = Objects.requireNonNull(onExit, "onExit");
     }
 
     @Override
@@ -259,7 +284,7 @@ public class CharacterSelectScreen implements Screen {
         if (loadError != null) {
             if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
                 game.audio().play(SoundCue.UI_BACK);
-                game.showMainMenu();
+                onSelectionExit.run();
             }
             return;
         }
@@ -283,7 +308,7 @@ public class CharacterSelectScreen implements Screen {
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             game.audio().play(SoundCue.UI_BACK);
             if (!undoLastPick()) {
-                game.showMainMenu();
+                onSelectionExit.run();
             }
         }
     }
@@ -326,7 +351,12 @@ public class CharacterSelectScreen implements Screen {
         }
 
         // This side is full. Move to the other side, or start the battle.
-        if (phase == Phase.PLAYER) {
+        if (multiplayerSelection) {
+            inputSuspended = true;
+            onMultiplayerSelected.accept(playerPicks.stream()
+                .map(character -> character.id)
+                .toList());
+        } else if (phase == Phase.PLAYER) {
             phase = Phase.CPU;
             cursorIndex = 0;
             resetRosterScroll();
@@ -446,14 +476,14 @@ public class CharacterSelectScreen implements Screen {
             ? "ENEMY" : "CPU";
         String title = phase == Phase.PLAYER
             ? (slots == 1 ? "SELECT YOUR CHARACTER"
-                         : "SELECT PLAYER FIGHTER " + slot + "/" + slots)
+                          : "SELECT PLAYER FIGHTER " + slot + "/" + slots)
             : (slots == 1 ? "SELECT " + opposingSide + " CHARACTER"
                          : "SELECT " + opposingSide + " FIGHTER " + slot + "/" + slots);
         assets.fontMedium.setColor(BattleUiAssets.YELLOW);
         assets.fontMedium.draw(batch, title, headerBounds.x + 18f,
             headerBounds.y + (windowsLayout ? 58.5f : 39f));
         assets.fontSmall.setColor(new Color(0.720f, 0.800f, 0.950f, 1f));
-        String state = phase == Phase.CPU && !playerPicks.isEmpty()
+        String state = !multiplayerSelection && phase == Phase.CPU && !playerPicks.isEmpty()
             ? picksSummary("PLAYER", playerPicks) + "  |  " + statMode + "  |  ENTER: START"
             : "UP/DOWN: SELECT  |  ENTER: CONFIRM  |  " + statMode;
         assets.fontSmall.draw(batch, state, headerBounds.x + 20f,

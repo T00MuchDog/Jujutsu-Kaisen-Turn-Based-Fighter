@@ -11,6 +11,7 @@ import com.jjktbf.multiplayer.protocol.ErrorResponse;
 import com.jjktbf.multiplayer.protocol.GuestCreateRequest;
 import com.jjktbf.multiplayer.protocol.GuestCreateResponse;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
+import com.jjktbf.multiplayer.protocol.MatchCharacterSelectionRequest;
 import com.jjktbf.multiplayer.protocol.SessionIdentity;
 
 import java.io.IOException;
@@ -180,6 +181,20 @@ public final class HttpApiClient implements MultiplayerApi, AutoCloseable {
     @Override
     public CompletableFuture<MatchSetup> getMatchSetup(String token, String matchId) {
         return get("/api/matches/" + pathSegment(matchId), token, MatchSetup.class);
+    }
+
+    @Override
+    public CompletableFuture<MatchSetup> selectMatchCharacters(
+        String token,
+        String matchId,
+        MatchCharacterSelectionRequest request
+    ) {
+        return post(
+            "/api/matches/" + pathSegment(matchId) + "/characters",
+            token,
+            Objects.requireNonNull(request, "request"),
+            MatchSetup.class
+        );
     }
 
     private <T> CompletableFuture<T> get(String path, String token, Class<T> type) {

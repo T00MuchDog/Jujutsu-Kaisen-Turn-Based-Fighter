@@ -24,14 +24,11 @@ public record AcceptedMatchParticipant(
         Objects.requireNonNull(playerId, "playerId");
         Objects.requireNonNull(displayName, "displayName");
         Objects.requireNonNull(side, "side");
-        if (characterIds == null || characterIds.isEmpty()) {
-            throw new IllegalArgumentException("characterIds cannot be empty");
+        characterIds = characterIds == null ? List.of() : List.copyOf(characterIds);
+        characters = characters == null ? List.of() : List.copyOf(characters);
+        if (characterIds.size() != characters.size()) {
+            throw new IllegalArgumentException("character ids and definitions must align");
         }
-        if (characters == null || characters.isEmpty()) {
-            throw new IllegalArgumentException("characters cannot be empty");
-        }
-        characterIds = List.copyOf(characterIds);
-        characters = List.copyOf(characters);
     }
 
     /** Legacy single-fighter constructor. */
@@ -55,5 +52,9 @@ public record AcceptedMatchParticipant(
     /** The first (primary) fighter. */
     public Character primaryCharacter() {
         return characters.get(0);
+    }
+
+    public boolean charactersSelected() {
+        return !characterIds.isEmpty();
     }
 }

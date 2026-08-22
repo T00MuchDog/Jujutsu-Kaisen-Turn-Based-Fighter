@@ -50,6 +50,7 @@ public final class BattleFormatScreen implements Screen {
     private final List<Cell<FormatButton>> formatButtonCells = new ArrayList<>();
 
     private Consumer<BattleConfiguration> onFormatSelected;
+    private Runnable onBack;
     private BattleStatMode statMode = BattleStatMode.STANDARD;
     private int selectedButtonIndex = -1;
     private int hoveredButtonIndex = -1;
@@ -59,6 +60,7 @@ public final class BattleFormatScreen implements Screen {
     public BattleFormatScreen(JJKGame game, AssetLoader assets) {
         this.game = game;
         this.assets = assets;
+        this.onBack = game::showMainMenu;
         windowsLayout = game.activeUiProfile() == UiProfile.WINDOWS;
         stage = new HoverScrollStage(new ScreenViewport());
 
@@ -138,7 +140,7 @@ public final class BattleFormatScreen implements Screen {
                     toggleStatMode();
                 } else if (keycode == Input.Keys.ESCAPE || keycode == Input.Keys.BACK) {
                     game.audio().play(SoundCue.UI_BACK);
-                    game.showMainMenu();
+                    onBack.run();
                 } else {
                     return false;
                 }
@@ -152,7 +154,15 @@ public final class BattleFormatScreen implements Screen {
 
     /** Sets the local battle route to run after a format is chosen. */
     public void prepare(Consumer<BattleConfiguration> onFormatSelected) {
+        prepare(onFormatSelected, game::showMainMenu);
+    }
+
+    public void prepare(
+        Consumer<BattleConfiguration> onFormatSelected,
+        Runnable onBack
+    ) {
         this.onFormatSelected = Objects.requireNonNull(onFormatSelected, "onFormatSelected");
+        this.onBack = Objects.requireNonNull(onBack, "onBack");
         statMode = BattleStatMode.STANDARD;
         updateStatModeText();
     }

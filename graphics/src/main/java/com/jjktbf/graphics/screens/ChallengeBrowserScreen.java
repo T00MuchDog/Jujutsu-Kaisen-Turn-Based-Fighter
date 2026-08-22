@@ -59,8 +59,6 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
     private boolean fetchingMatch;
     private String localPlayerId;
     private String requestedChallengeId;
-    private com.jjktbf.model.combat.BattleFormat requestedFormat;
-    private List<String> requestedCharacterIds;
     private ChallengeSummary requestedChallenge;
     private boolean requestConfirmed;
     private ScheduledFuture<?> pollTask;
@@ -139,8 +137,6 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
                 ChallengeSummary recoverable = challengeService.currentChallenge().orElse(null);
                 if (requestedChallengeId == null && isOwnPendingRequest(recoverable)) {
                     requestedChallengeId = recoverable.challengeId();
-                    requestedFormat = recoverable.format();
-                    requestedCharacterIds = List.copyOf(recoverable.requestedCharacterIds());
                     requestedChallenge = recoverable;
                     requestConfirmed = true;
                 }
@@ -182,8 +178,6 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
                 challengeService.rememberChallenge(recoverable);
                 requestedChallenge = recoverable;
                 requestedChallengeId = recoverable.challengeId();
-                requestedFormat = recoverable.format();
-                requestedCharacterIds = List.copyOf(recoverable.requestedCharacterIds());
                 requestConfirmed = recoverable.status() == ChallengeStatus.OPEN;
                 joining = true;
                 loading = false;
@@ -271,18 +265,18 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
         card.pad(14f);
 
         Table info = new Table(assets.editorSkin);
-        Label host = new Label(
-            challenge.hostDisplayName() + "  [" + challenge.format() + "]",
-            assets.editorSkin);
-        Label fighter = wrappedLabel(hostFighterLine(challenge), "small");
+        Label host = new Label(challenge.hostDisplayName(), assets.editorSkin);
+        Label format = wrappedLabel(
+            "FORMAT: " + challenge.format()
+                + "  |  STAT MODE: " + BattleStatMode.fromRuleset(challenge.ruleset()),
+            "small");
         Label metadata = wrappedLabel(
-            "STAT MODE: " + BattleStatMode.fromRuleset(challenge.ruleset())
-                + "  |  CREATED: " + CREATED_TIME.format(Instant.ofEpochMilli(challenge.createdAt()))
+            "CREATED: " + CREATED_TIME.format(Instant.ofEpochMilli(challenge.createdAt()))
                 + "\nGAME: " + challenge.gameVersion()
                 + "  |  PROTOCOL: " + challenge.protocolVersion(),
             "small");
         info.add(host).growX().left().padBottom(5f).row();
-        info.add(fighter).growX().left().padBottom(4f).row();
+        info.add(format).growX().left().padBottom(4f).row();
         info.add(metadata).growX().left().row();
 
         TextButton join = button("JOIN", "primary", () -> joinChallenge(challenge));
@@ -302,43 +296,19 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
                 challenge.gameVersion(), challenge.protocolVersion(), challenge.ruleset())) {
             return;
         }
-        // The joiner must field the same format as the host. If the local format
-        // does not match, nudge the player back to the multiplayer menu rather
-        // than sending a request the server would reject.
-        com.jjktbf.model.combat.BattleFormat localFormat = game.getSelectedMultiplayerFormat();
-        if (localFormat != challenge.format()) {
-            setStatus(statusLabel,
-                "That challenge is " + challenge.format()
-                    + ". Switch to " + challenge.format()
-                    + " on the multiplayer menu to join it.",
-                StatusTone.ERROR);
-            return;
-        }
-        BattleStatMode localStatMode = game.getSelectedMultiplayerStatMode();
-        BattleStatMode challengeStatMode = BattleStatMode.fromRuleset(challenge.ruleset());
-        if (localStatMode != challengeStatMode) {
-            setStatus(statusLabel,
-                "That challenge uses " + challengeStatMode
-                    + ". Switch stat mode on the multiplayer menu to join it.",
-                StatusTone.ERROR);
-            return;
-        }
+        com.jjktbf.model.combat.BattleFormat localFormat = challenge.format();
+        BattleStatMode localStatMode = BattleStatMode.fromRuleset(challenge.ruleset());
         long expectedGeneration = generation();
         requestedChallengeId = challenge.challengeId();
-        requestedFormat = localFormat;
-        requestedCharacterIds = List.copyOf(game.getSelectedMultiplayerCharacterIds());
         requestedChallenge = null;
         requestConfirmed = false;
         joining = true;
         requestingJoin = true;
-        setStatus(statusLabel,
-            "Sending join request with " + joinerRosterSummary(requestedCharacterIds) + "...",
-            StatusTone.NORMAL);
+        setStatus(statusLabel, "Sending join request...", StatusTone.NORMAL);
         refreshActions();
 
-        challengeService.requestJoin(
-            requestedChallengeId, localFormat, localStatMode, requestedCharacterIds
-        ).whenComplete((requested, failure) -> postIfCurrent(expectedGeneration, () -> {
+        challengeService.requestJoin(requestedChallengeId, localFormat, localStatMode)
+            .whenComplete((requested, failure) -> postIfCurrent(expectedGeneration, () -> {
             requestingJoin = false;
             if (failure != null) {
                 if (isAmbiguousFailure(failure)) {
@@ -348,8 +318,6 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
                     return;
                 }
                 requestedChallengeId = null;
-                requestedFormat = null;
-                requestedCharacterIds = null;
                 requestedChallenge = null;
                 joining = false;
                 logFailure("request challenge join", failure);
@@ -454,11 +422,9 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
                 fetchingMatch = false;
                 if (failure == null) {
                     requestedChallengeId = null;
-                    requestedFormat = null;
-                    requestedCharacterIds = null;
                     requestedChallenge = null;
                     joining = false;
-                    game.showMultiplayerBattle(setup);
+                    game.showMultiplayerMatchSetup(setup);
                     return;
                 }
                 logFailure("load requested match", failure);
@@ -486,8 +452,6 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
     ) {
         stopPolling();
         requestedChallengeId = null;
-        requestedFormat = null;
-        requestedCharacterIds = null;
         requestedChallenge = null;
         requestConfirmed = false;
         joining = false;
@@ -499,9 +463,7 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
         return current != null
             && current.status() == ChallengeStatus.OPEN
             && localPlayerId != null
-            && localPlayerId.equals(current.requestedPlayerId())
-            && (requestedCharacterIds == null
-                || requestedCharacterIds.equals(current.requestedCharacterIds()));
+            && localPlayerId.equals(current.requestedPlayerId());
     }
 
     private String closedChallengeMessageForStatus(ChallengeStatus status) {
@@ -527,30 +489,6 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
                 "Another request reached that host first. The list is being refreshed.";
             default -> "That challenge is no longer open. The list is being refreshed.";
         };
-    }
-
-    /** One-line host roster display for a challenge card, e.g. "FIGHTERS: A, B [1, 2]". */
-    private String hostFighterLine(ChallengeSummary challenge) {
-        List<String> ids = challenge.hostCharacterIds();
-        List<String> parts = new ArrayList<>();
-        for (String id : ids) {
-            parts.add(game.multiplayerFighterName(id) + " [" + id + "]");
-        }
-        if (parts.isEmpty()) {
-            parts.add("--");
-        }
-        String label = challenge.format() == com.jjktbf.model.combat.BattleFormat.TWO_V_TWO
-            ? "FIGHTERS: " : "FIGHTER: ";
-        return label + String.join(", ", parts);
-    }
-
-    /** Compact summary of the joiner's own roster for status messages. */
-    private String joinerRosterSummary(List<String> characterIds) {
-        List<String> names = new ArrayList<>();
-        for (String id : characterIds) {
-            names.add(game.multiplayerFighterName(id));
-        }
-        return String.join(" + ", names);
     }
 
     private void showCenteredMessage(String message) {
@@ -622,8 +560,6 @@ public final class ChallengeBrowserScreen extends MultiplayerScreenBase {
                         return;
                     }
                     requestedChallengeId = null;
-                    requestedFormat = null;
-                    requestedCharacterIds = null;
                     requestedChallenge = null;
                     joining = false;
                     game.showMultiplayerMenu();

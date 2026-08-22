@@ -7,11 +7,11 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Request to host a challenge with an ordered canonical-character roster.
+ * Request to host a challenge with a battle format and optional legacy roster.
  *
- * <p>{@code format} fixes how many fighters each side fields; {@code characterIds}
- * must carry exactly {@link BattleFormat#fightersPerSide()} selectable canonical
- * ids in team order. The server re-validates both.
+ * <p>New clients leave {@code characterIds} empty and select fighters after the
+ * host accepts a requester. A non-empty roster is retained for persisted and
+ * older protocol flows and is validated against {@code format}.
  */
 public record ChallengeCreateRequest(
     List<String> characterIds,
@@ -58,5 +58,13 @@ public record ChallengeCreateRequest(
             ProtocolVersion.PROTOCOL_VERSION,
             Objects.requireNonNull(statMode, "statMode").rulesetId()
         );
+    }
+
+    /** New challenge flow: publish rules now and select fighters after pairing. */
+    public static ChallengeCreateRequest open(
+        BattleFormat format,
+        BattleStatMode statMode
+    ) {
+        return forBattle(format, statMode, List.of());
     }
 }

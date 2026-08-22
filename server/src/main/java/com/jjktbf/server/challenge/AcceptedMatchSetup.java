@@ -34,4 +34,8 @@ public record AcceptedMatchSetup(
     public List<AcceptedMatchParticipant> participants() {
         return List.of(playerOne, playerTwo);
     }
+
+    public boolean charactersSelected() {
+        return playerOne.charactersSelected() && playerTwo.charactersSelected();
+    }
 }

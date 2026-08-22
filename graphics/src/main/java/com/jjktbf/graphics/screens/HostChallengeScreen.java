@@ -16,8 +16,6 @@ import com.jjktbf.multiplayer.protocol.ChallengeStatus;
 import com.jjktbf.multiplayer.protocol.ChallengeSummary;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -48,7 +46,6 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
     private ChallengeSummary challenge;
     private BattleFormat selectedFormat;
     private BattleStatMode selectedStatMode;
-    private List<String> selectedCharacterIds;
     private boolean ensuringGuest;
     private boolean creating;
     private boolean cancelling;
@@ -115,7 +112,6 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         challenge = null;
         selectedFormat = game.getSelectedMultiplayerFormat();
         selectedStatMode = game.getSelectedMultiplayerStatMode();
-        selectedCharacterIds = List.copyOf(game.getSelectedMultiplayerCharacterIds());
         ensuringGuest = true;
         creating = false;
         cancelling = false;
@@ -124,8 +120,7 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         fetchingMatch = false;
 
         guestLabel.setText("GUEST: CONNECTING");
-        fighterLabel.setText(fighterSummary(
-            selectedFormat, selectedStatMode, selectedCharacterIds));
+        fighterLabel.setText(formatSummary(selectedFormat, selectedStatMode));
         challengeLabel.setText("CHALLENGE: --");
         challengeStatusLabel.setText("STATUS: PREPARING");
         setStatus(messageLabel, "Validating guest identity...", StatusTone.NORMAL);
@@ -156,7 +151,8 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
                 }
                 if (recoverable != null
                     && recoverable.status() == ChallengeStatus.OPEN
-                    && credentials.identity().playerId().equals(recoverable.hostPlayerId())) {
+                    && credentials.identity().playerId().equals(recoverable.hostPlayerId())
+                    && matchesSelectedConfiguration(recoverable)) {
                     showChallenge(recoverable);
                     startPolling(generation, recoverable.challengeId());
                     return;
@@ -180,6 +176,28 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
                     refreshButtons();
                     return;
                 }
+                if (recoverable.status() == ChallengeStatus.OPEN
+                    && !matchesSelectedConfiguration(recoverable)) {
+                    cancelling = true;
+                    setStatus(messageLabel,
+                        "Replacing the previous challenge with the selected format...",
+                        StatusTone.NORMAL);
+                    refreshButtons();
+                    challengeService.cancelChallenge(recoverable.challengeId())
+                        .whenComplete((ignored, cancelFailure) ->
+                            postIfCurrent(expectedGeneration, () -> {
+                                cancelling = false;
+                                if (cancelFailure != null) {
+                                    logFailure("replace hosted challenge", cancelFailure);
+                                    setStatus(messageLabel, userError(cancelFailure), StatusTone.ERROR);
+                                    retryButton.setVisible(true);
+                                    refreshButtons();
+                                    return;
+                                }
+                                createChallenge(expectedGeneration);
+                            }));
+                    return;
+                }
                 showChallenge(recoverable);
                 if (recoverable.status() == ChallengeStatus.ACCEPTED) {
                     fetchMatch(expectedGeneration, recoverable);
@@ -199,8 +217,7 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         setStatus(messageLabel, "Publishing challenge to the server...", StatusTone.NORMAL);
         refreshButtons();
 
-        challengeService.createChallenge(
-            selectedFormat, selectedStatMode, selectedCharacterIds)
+        challengeService.createChallenge(selectedFormat, selectedStatMode)
             .whenComplete((created, failure) ->
             postIfCurrentOrElse(expectedGeneration, () -> {
                 creating = false;
@@ -230,9 +247,7 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         challengeService.rememberChallenge(current);
         selectedFormat = current.format();
         selectedStatMode = BattleStatMode.fromRuleset(current.ruleset());
-        selectedCharacterIds = List.copyOf(current.hostCharacterIds());
-        fighterLabel.setText(fighterSummary(
-            selectedFormat, selectedStatMode, selectedCharacterIds));
+        fighterLabel.setText(formatSummary(selectedFormat, selectedStatMode));
         challengeLabel.setText("CHALLENGE: " + current.challengeId());
         challengeStatusLabel.setText("STATUS: " + current.status());
         switch (current.status()) {
@@ -317,7 +332,7 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
                     startPolling(expectedGeneration, challenge.challengeId());
                     return;
                 }
-                game.showMultiplayerBattle(setup);
+                game.showMultiplayerMatchSetup(setup);
             }));
     }
 
@@ -379,7 +394,7 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
                     refreshButtons();
                     return;
                 }
-                game.showMultiplayerBattle(setup);
+                game.showMultiplayerMatchSetup(setup);
             }));
     }
 
@@ -450,26 +465,16 @@ public final class HostChallengeScreen extends MultiplayerScreenBase {
         return current != null
             && current.status() == ChallengeStatus.OPEN
             && current.requestedPlayerId() != null
-            && !current.requestedCharacterIds().isEmpty()
             && current.requestedAt() != null;
     }
 
-    /** Format the fighter roster for the header label, e.g. "FIGHTERS: A, B [1, 2]". */
-    private String fighterSummary(
-        BattleFormat format,
-        BattleStatMode statMode,
-        List<String> characterIds
-    ) {
-        List<String> names = new ArrayList<>();
-        List<String> ids = characterIds == null ? List.of() : characterIds;
-        for (String id : ids) {
-            names.add(game.multiplayerFighterName(id) + " [" + id + "]");
-        }
-        if (names.isEmpty()) {
-            names.add("--");
-        }
-        String label = (format == BattleFormat.TWO_V_TWO ? "FIGHTERS: " : "FIGHTER: ");
-        return label + String.join(", ", names) + "  |  " + statMode;
+    private boolean matchesSelectedConfiguration(ChallengeSummary current) {
+        return current.format() == selectedFormat
+            && BattleStatMode.fromRuleset(current.ruleset()) == selectedStatMode;
+    }
+
+    private static String formatSummary(BattleFormat format, BattleStatMode statMode) {
+        return "FORMAT: " + format + "  |  STAT MODE: " + statMode;
     }
 
     private void stopPolling() {

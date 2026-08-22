@@ -9,6 +9,7 @@ import com.jjktbf.multiplayer.protocol.ChallengeListResponse;
 import com.jjktbf.multiplayer.protocol.ChallengeStatus;
 import com.jjktbf.multiplayer.protocol.ChallengeSummary;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
+import com.jjktbf.multiplayer.protocol.MatchCharacterSelectionRequest;
 
 import java.util.List;
 import java.util.Objects;
@@ -50,6 +51,13 @@ public final class ChallengeService {
     ) {
         return withToken(token -> api.createChallenge(
             token, ChallengeCreateRequest.forBattle(format, statMode, characterIds)));
+    }
+
+    public CompletableFuture<ChallengeSummary> createChallenge(
+        BattleFormat format,
+        BattleStatMode statMode
+    ) {
+        return createChallenge(format, statMode, List.of());
     }
 
     public CompletableFuture<ChallengeListResponse> listChallenges() {
@@ -111,6 +119,14 @@ public final class ChallengeService {
         }).thenCompose(Function.identity());
     }
 
+    public CompletableFuture<ChallengeSummary> requestJoin(
+        String challengeId,
+        BattleFormat format,
+        BattleStatMode statMode
+    ) {
+        return requestJoin(challengeId, format, statMode, List.of());
+    }
+
     public CompletableFuture<MatchSetup> acceptChallenge(ChallengeSummary challenge) {
         Objects.requireNonNull(challenge, "challenge");
         String challengeId = challenge.challengeId();
@@ -164,6 +180,14 @@ public final class ChallengeService {
 
     public CompletableFuture<MatchSetup> getMatchSetup(String matchId) {
         return withToken(token -> api.getMatchSetup(token, matchId));
+    }
+
+    public CompletableFuture<MatchSetup> selectMatchCharacters(
+        String matchId,
+        List<String> characterIds
+    ) {
+        return withToken(token -> api.selectMatchCharacters(
+            token, matchId, new MatchCharacterSelectionRequest(characterIds)));
     }
 
     private <T> CompletableFuture<T> withToken(

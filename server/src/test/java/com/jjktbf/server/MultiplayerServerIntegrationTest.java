@@ -15,6 +15,7 @@ import com.jjktbf.multiplayer.protocol.ErrorResponse;
 import com.jjktbf.multiplayer.protocol.GuestCreateRequest;
 import com.jjktbf.multiplayer.protocol.GuestCreateResponse;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
+import com.jjktbf.multiplayer.protocol.MatchCharacterSelectionRequest;
 import com.jjktbf.multiplayer.protocol.MatchState;
 import com.jjktbf.multiplayer.protocol.MatchStatus;
 import com.jjktbf.multiplayer.protocol.MessageType;
@@ -106,6 +107,71 @@ class MultiplayerServerIntegrationTest {
             clientExecutor.shutdownNow();
             assertTrue(clientExecutor.awaitTermination(5, TimeUnit.SECONDS));
         }
+    }
+
+    @Test
+    void acceptedPlayersSelectCharactersBeforeBattleCreation() throws Exception {
+        GuestCreateResponse host = createGuest("Roster Host");
+        GuestCreateResponse guest = createGuest("Roster Guest");
+        List<String> characterIds = catalog.characterSummaries().stream()
+            .map(summary -> summary.characterId())
+            .limit(2)
+            .toList();
+
+        ChallengeSummary challenge = read(postJson(
+            "/api/challenges",
+            host.token(),
+            ChallengeCreateRequest.open(
+                com.jjktbf.model.combat.BattleFormat.TWO_V_TWO,
+                com.jjktbf.model.combat.BattleStatMode.EQUALIZED)
+        ), ChallengeSummary.class);
+        assertTrue(challenge.hostCharacterIds().isEmpty());
+
+        ChallengeSummary pending = read(postJson(
+            "/api/challenges/" + challenge.challengeId() + "/join",
+            guest.token(),
+            ChallengeAcceptRequest.join(
+                com.jjktbf.model.combat.BattleFormat.TWO_V_TWO,
+                com.jjktbf.model.combat.BattleStatMode.EQUALIZED)
+        ), ChallengeSummary.class);
+        assertTrue(pending.requestedCharacterIds().isEmpty());
+
+        MatchSetup hostPending = read(postJson(
+            "/api/challenges/" + challenge.challengeId() + "/accept",
+            host.token(),
+            ChallengeDecisionRequest.forChallenge(pending)
+        ), MatchSetup.class);
+        assertNull(hostPending.state());
+        assertTrue(hostPending.playerCharacterIds().isEmpty());
+
+        MatchSetup guestPending = read(get(
+            "/api/matches/" + hostPending.matchId(), guest.token()), MatchSetup.class);
+        assertNull(guestPending.state());
+        assertEquals(PlayerSide.PLAYER_TWO, guestPending.playerSide());
+
+        MatchSetup hostSelected = read(postJson(
+            "/api/matches/" + hostPending.matchId() + "/characters",
+            host.token(),
+            new MatchCharacterSelectionRequest(characterIds)
+        ), MatchSetup.class);
+        assertNull(hostSelected.state());
+        assertEquals(characterIds, hostSelected.playerCharacterIds());
+
+        List<String> guestRoster = List.of(characterIds.get(1), characterIds.get(0));
+        MatchSetup guestReady = read(postJson(
+            "/api/matches/" + hostPending.matchId() + "/characters",
+            guest.token(),
+            new MatchCharacterSelectionRequest(guestRoster)
+        ), MatchSetup.class);
+        assertNotNull(guestReady.state());
+        assertEquals(guestRoster, guestReady.playerCharacterIds());
+        assertEquals(characterIds, guestReady.opponentCharacterIds());
+
+        MatchSetup hostReady = read(get(
+            "/api/matches/" + hostPending.matchId(), host.token()), MatchSetup.class);
+        assertNotNull(hostReady.state());
+        assertEquals(characterIds, hostReady.playerCharacterIds());
+        assertEquals(guestRoster, hostReady.opponentCharacterIds());
     }
 
     @Test

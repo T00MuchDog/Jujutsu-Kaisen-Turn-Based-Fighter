@@ -8,7 +8,8 @@ import java.util.List;
 /**
  * Public challenge listing and host polling representation.
  *
- * <p>Character ids are ordered rosters (one entry for 1v1, two for 2v2). The
+ * <p>Character ids are empty until post-acceptance selection in the current
+ * flow. When present they are ordered rosters (one entry for 1v1, two for 2v2). The
  * singular {@code hostCharacterName} is the first fighter's name for compact
  * display; {@code hostCharacterNames} carries every fighter's name.
  */

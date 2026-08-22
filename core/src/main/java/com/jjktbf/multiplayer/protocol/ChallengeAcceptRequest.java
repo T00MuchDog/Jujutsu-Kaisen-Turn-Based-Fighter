@@ -7,11 +7,11 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Request to join a challenge with an ordered canonical-character roster.
+ * Request to join a challenge before character selection.
  *
- * <p>{@code format} must match the host challenge's format; {@code characterIds}
- * must carry exactly {@link BattleFormat#fightersPerSide()} selectable canonical
- * ids in team order. The server re-validates both.
+ * <p>{@code format} must match the host challenge's format. New clients leave
+ * {@code characterIds} empty and select fighters after host approval; non-empty
+ * legacy rosters are still validated against the format.
  */
 public record ChallengeAcceptRequest(
     List<String> characterIds,
@@ -56,5 +56,13 @@ public record ChallengeAcceptRequest(
             ProtocolVersion.PROTOCOL_VERSION,
             Objects.requireNonNull(statMode, "statMode").rulesetId()
         );
+    }
+
+    /** New challenge flow: request the seat before selecting a fighter roster. */
+    public static ChallengeAcceptRequest join(
+        BattleFormat format,
+        BattleStatMode statMode
+    ) {
+        return forBattle(format, statMode, List.of());
     }
 }

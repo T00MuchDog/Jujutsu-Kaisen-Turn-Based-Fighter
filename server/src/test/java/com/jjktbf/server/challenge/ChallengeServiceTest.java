@@ -8,6 +8,7 @@ import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeStatus;
 import com.jjktbf.multiplayer.protocol.ChallengeSummary;
 import com.jjktbf.multiplayer.protocol.MatchStatus;
+import com.jjktbf.multiplayer.protocol.MatchCharacterSelectionRequest;
 import com.jjktbf.multiplayer.protocol.PlayerSide;
 import com.jjktbf.multiplayer.protocol.ProtocolVersion;
 import com.jjktbf.multiplayer.protocol.SessionIdentity;
@@ -22,6 +23,7 @@ import java.time.Duration;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -114,6 +116,49 @@ class ChallengeServiceTest {
         ChallengeSummary recovered = fixture.challengeService().getHostedChallenge(host);
         assertEquals(challenge.challengeId(), recovered.challengeId());
         assertEquals(BattleStatMode.EQUALIZED.rulesetId(), recovered.ruleset());
+    }
+
+    @Test
+    void newFlowSelectsCharactersOnlyAfterHostAccepts() {
+        SessionIdentity host = fixture.createGuest("Selection Host");
+        SessionIdentity requester = fixture.createGuest("Selection Requester");
+        List<String> hostRoster = List.of(firstCharacter, secondCharacter);
+        List<String> requesterRoster = List.of(secondCharacter, firstCharacter);
+
+        ChallengeSummary challenge = fixture.challengeService().createChallenge(
+            host,
+            ChallengeCreateRequest.open(
+                BattleFormat.TWO_V_TWO, BattleStatMode.EQUALIZED));
+        assertTrue(challenge.hostCharacterIds().isEmpty());
+
+        ChallengeSummary pending = fixture.challengeService().requestJoin(
+            requester,
+            challenge.challengeId(),
+            ChallengeAcceptRequest.join(
+                BattleFormat.TWO_V_TWO, BattleStatMode.EQUALIZED));
+        assertTrue(pending.requestedCharacterIds().isEmpty());
+
+        AcceptedMatchSetup accepted = fixture.challengeService().acceptChallenge(
+            host, challenge.challengeId(), ChallengeDecisionRequest.forChallenge(pending));
+        assertFalse(accepted.charactersSelected());
+        assertTrue(accepted.playerOne().characterIds().isEmpty());
+        assertTrue(accepted.playerTwo().characterIds().isEmpty());
+
+        AcceptedMatchSetup hostSelected = fixture.challengeService().selectMatchCharacters(
+            host,
+            accepted.matchId(),
+            new MatchCharacterSelectionRequest(hostRoster));
+        assertFalse(hostSelected.charactersSelected());
+        assertEquals(hostRoster, hostSelected.playerOne().characterIds());
+        assertTrue(hostSelected.playerTwo().characterIds().isEmpty());
+
+        AcceptedMatchSetup ready = fixture.challengeService().selectMatchCharacters(
+            requester,
+            accepted.matchId(),
+            new MatchCharacterSelectionRequest(requesterRoster));
+        assertTrue(ready.charactersSelected());
+        assertEquals(hostRoster, ready.playerOne().characterIds());
+        assertEquals(requesterRoster, ready.playerTwo().characterIds());
     }
 
     @Test

@@ -9,6 +9,7 @@ import com.jjktbf.multiplayer.protocol.ErrorResponse;
 import com.jjktbf.multiplayer.protocol.GuestCreateRequest;
 import com.jjktbf.multiplayer.protocol.GuestCreateResponse;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
+import com.jjktbf.multiplayer.protocol.MatchCharacterSelectionRequest;
 import com.jjktbf.multiplayer.protocol.ProtocolVersion;
 import com.jjktbf.multiplayer.protocol.SessionIdentity;
 import com.sun.net.httpserver.HttpExchange;
@@ -125,6 +126,7 @@ class HttpApiClientTest {
         AtomicReference<String> acceptBody = new AtomicReference<>();
         AtomicReference<String> rejectBody = new AtomicReference<>();
         AtomicReference<String> withdrawBody = new AtomicReference<>();
+        AtomicReference<String> characterBody = new AtomicReference<>();
         server.createContext("/api/challenges/" + challengeId + "/join", exchange -> {
             joinBody.set(new String(
                 exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
@@ -145,10 +147,17 @@ class HttpApiClientTest {
                 exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             respond(exchange, 200, mapper.writeValueAsBytes(pending));
         });
+        server.createContext("/api/matches/" + setup.matchId() + "/characters", exchange -> {
+            characterBody.set(new String(
+                exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, 200, mapper.writeValueAsBytes(setup));
+        });
 
         ChallengeAcceptRequest request = ChallengeAcceptRequest.standard("character-two");
         ChallengeDecisionRequest decision = new ChallengeDecisionRequest(
             "request-one", MultiplayerTestData.PLAYER_ID, 1_100L);
+        MatchCharacterSelectionRequest selection =
+            new MatchCharacterSelectionRequest(java.util.List.of("character-two"));
         assertEquals(pending,
             client.requestJoin("private-token", challengeId, request)
                 .get(5, TimeUnit.SECONDS));
@@ -161,6 +170,9 @@ class HttpApiClientTest {
         assertEquals(pending,
             client.withdrawJoinRequest("private-token", challengeId, decision)
                 .get(5, TimeUnit.SECONDS));
+        assertEquals(setup,
+            client.selectMatchCharacters("private-token", setup.matchId(), selection)
+                .get(5, TimeUnit.SECONDS));
 
         assertEquals(request,
             mapper.readValue(joinBody.get(), ChallengeAcceptRequest.class));
@@ -170,6 +182,8 @@ class HttpApiClientTest {
             mapper.readValue(rejectBody.get(), ChallengeDecisionRequest.class));
         assertEquals(decision,
             mapper.readValue(withdrawBody.get(), ChallengeDecisionRequest.class));
+        assertEquals(selection,
+            mapper.readValue(characterBody.get(), MatchCharacterSelectionRequest.class));
     }
 
     @Test

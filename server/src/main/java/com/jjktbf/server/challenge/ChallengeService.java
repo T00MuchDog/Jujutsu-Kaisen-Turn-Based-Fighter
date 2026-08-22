@@ -9,6 +9,7 @@ import com.jjktbf.multiplayer.protocol.ChallengeListResponse;
 import com.jjktbf.multiplayer.protocol.ChallengeStatus;
 import com.jjktbf.multiplayer.protocol.ChallengeSummary;
 import com.jjktbf.multiplayer.protocol.MatchStatus;
+import com.jjktbf.multiplayer.protocol.MatchCharacterSelectionRequest;
 import com.jjktbf.multiplayer.protocol.PlayerSide;
 import com.jjktbf.multiplayer.protocol.ProtocolVersion;
 import com.jjktbf.multiplayer.protocol.SessionIdentity;
@@ -83,7 +84,8 @@ public final class ChallengeService {
         validateCompatibility(
             request.gameVersion(), request.protocolVersion(), request.ruleset());
         BattleFormat format = request.format();
-        List<String> characterIds = validateRoster(format, request.characterIds());
+        List<String> characterIds = request.characterIds().isEmpty()
+            ? List.of() : validateRoster(format, request.characterIds());
 
         long now = clock.millis();
         long expiresAt = Math.addExact(
@@ -290,7 +292,8 @@ public final class ChallengeService {
             if (!Objects.equals(challenge.ruleset(), request.ruleset())) {
                 throw rulesetMismatch(challenge.ruleset(), request.ruleset());
             }
-            List<String> characterIds = validateRoster(challenge.format(), request.characterIds());
+            List<String> characterIds = request.characterIds().isEmpty()
+                ? List.of() : validateRoster(challenge.format(), request.characterIds());
             if (challenge.creatorPlayerId().equals(requester.playerId())) {
                 throw new ServiceException(
                     ServiceErrorCode.CANNOT_ACCEPT_OWN_CHALLENGE,
@@ -457,6 +460,59 @@ public final class ChallengeService {
         return accepted;
     }
 
+    public AcceptedMatchSetup selectMatchCharacters(
+        SessionIdentity player,
+        String matchId,
+        MatchCharacterSelectionRequest request
+    ) {
+        requireIdentity(player);
+        if (matchId == null || matchId.isBlank()) {
+            throw matchNotFound();
+        }
+        if (request == null) {
+            throw new ServiceException(
+                ServiceErrorCode.MALFORMED_REQUEST,
+                "A fighter roster is required.");
+        }
+
+        AcceptedMatchSetup selected = database.transaction(connection -> {
+            ChallengeRecord challenge = challengeRepository.findByMatchId(connection, matchId)
+                .orElseThrow(ChallengeService::matchNotFound);
+            boolean host = player.playerId().equals(challenge.creatorPlayerId());
+            boolean requester = player.playerId().equals(challenge.acceptedPlayerId());
+            if (!host && !requester) {
+                throw new ServiceException(
+                    ServiceErrorCode.PLAYER_NOT_IN_MATCH,
+                    "The player is not a participant in this match.");
+            }
+            List<String> characterIds = validateRoster(
+                challenge.format(), request.characterIds());
+            int challengeUpdated = host
+                ? challengeRepository.selectHostCharacters(
+                    connection, challenge.challengeId(), player.playerId(), characterIds)
+                : challengeRepository.selectAcceptedCharacters(
+                    connection, challenge.challengeId(), player.playerId(), characterIds);
+            int participantUpdated = matchRepository.selectParticipantCharacters(
+                connection, matchId, player.playerId(), characterIds);
+            if (challengeUpdated != 1 || participantUpdated != 1) {
+                throw new ServiceException(
+                    ServiceErrorCode.INVALID_CHARACTER,
+                    "The fighter roster for this match has already been locked.");
+            }
+            ChallengeRecord current = challengeRepository.findById(
+                    connection, challenge.challengeId())
+                .orElseThrow(ChallengeService::challengeNotFound);
+            return acceptedSetup(connection, current);
+        });
+        LOGGER.info(
+            "Match characters selected matchId={} playerId={} ready={}",
+            matchId,
+            player.playerId(),
+            selected.charactersSelected()
+        );
+        return selected;
+    }
+
     public ChallengeSummary rejectJoinRequest(
         SessionIdentity host,
         String challengeId,
@@ -557,9 +613,7 @@ public final class ChallengeService {
         ChallengeRecord challenge
     ) throws SQLException {
         if (challenge.status() != ChallengeStatus.ACCEPTED
-            || challenge.acceptedPlayerId() == null
-            || challenge.acceptedCharacterIds() == null
-            || challenge.acceptedCharacterIds().isEmpty()) {
+            || challenge.acceptedPlayerId() == null) {
             throw new IllegalStateException("Accepted challenge data is incomplete");
         }
         MatchRepository.PersistedMatch match = matchRepository

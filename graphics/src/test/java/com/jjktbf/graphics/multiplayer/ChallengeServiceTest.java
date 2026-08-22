@@ -11,6 +11,7 @@ import com.jjktbf.multiplayer.protocol.ChallengeSummary;
 import com.jjktbf.multiplayer.protocol.GuestCreateRequest;
 import com.jjktbf.multiplayer.protocol.GuestCreateResponse;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
+import com.jjktbf.multiplayer.protocol.MatchCharacterSelectionRequest;
 import com.jjktbf.multiplayer.protocol.ProtocolVersion;
 import com.jjktbf.multiplayer.protocol.SessionIdentity;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,6 +80,36 @@ class ChallengeServiceTest {
         assertEquals(BattleStatMode.EQUALIZED.rulesetId(), api.lastCreateRequest.ruleset());
         assertEquals(List.of("fighter-one", "fighter-two"),
             api.lastCreateRequest.characterIds());
+    }
+
+    @Test
+    void newFlowDefersRostersUntilMatchSelection() throws Exception {
+        ChallengeSummary open = summary(ChallengeStatus.OPEN, null, null, null, null);
+        ChallengeSummary pending = summary(
+            ChallengeStatus.OPEN,
+            MultiplayerTestData.PLAYER_ID,
+            null,
+            1_100L,
+            null
+        );
+        MatchSetup setup = MultiplayerTestData.setup(11L);
+        api.createResult = CompletableFuture.completedFuture(open);
+        api.joinResult = CompletableFuture.completedFuture(pending);
+        api.selectionResult = CompletableFuture.completedFuture(setup);
+
+        assertSame(open, service.createChallenge(
+            BattleFormat.TWO_V_TWO, BattleStatMode.EQUALIZED).get(5, TimeUnit.SECONDS));
+        assertEquals(List.of(), api.lastCreateRequest.characterIds());
+
+        assertSame(pending, service.requestJoin(
+            open.challengeId(), BattleFormat.TWO_V_TWO, BattleStatMode.EQUALIZED)
+            .get(5, TimeUnit.SECONDS));
+        assertEquals(List.of(), api.lastJoinRequest.characterIds());
+
+        List<String> roster = List.of("fighter-one", "fighter-two");
+        assertSame(setup, service.selectMatchCharacters(setup.matchId(), roster)
+            .get(5, TimeUnit.SECONDS));
+        assertEquals(roster, api.lastSelectionRequest.characterIds());
     }
 
     @Test
@@ -214,6 +245,7 @@ class ChallengeServiceTest {
         private CompletableFuture<ChallengeSummary> rejectResult = unexpected();
         private CompletableFuture<ChallengeSummary> challengeResult = unexpected();
         private CompletableFuture<MatchSetup> matchResult = unexpected();
+        private CompletableFuture<MatchSetup> selectionResult = unexpected();
         private final Queue<CompletableFuture<ChallengeSummary>> challengeResults =
             new ArrayDeque<>();
         private int acceptCalls;
@@ -222,6 +254,7 @@ class ChallengeServiceTest {
         private String lastChallengeId;
         private ChallengeAcceptRequest lastJoinRequest;
         private ChallengeCreateRequest lastCreateRequest;
+        private MatchCharacterSelectionRequest lastSelectionRequest;
 
         @Override
         public CompletableFuture<GuestCreateResponse> createGuest(GuestCreateRequest request) {
@@ -318,6 +351,16 @@ class ChallengeServiceTest {
         @Override
         public CompletableFuture<MatchSetup> getMatchSetup(String token, String matchId) {
             return matchResult;
+        }
+
+        @Override
+        public CompletableFuture<MatchSetup> selectMatchCharacters(
+            String token,
+            String matchId,
+            MatchCharacterSelectionRequest request
+        ) {
+            lastSelectionRequest = request;
+            return selectionResult;
         }
 
         private static <T> CompletableFuture<T> unexpected() {

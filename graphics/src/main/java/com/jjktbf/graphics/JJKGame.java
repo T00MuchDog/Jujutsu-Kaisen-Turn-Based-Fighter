@@ -35,6 +35,7 @@ import com.jjktbf.graphics.screens.HostChallengeScreen;
 import com.jjktbf.graphics.screens.MainMenuScreen;
 import com.jjktbf.graphics.screens.MultiplayerDisconnectedScreen;
 import com.jjktbf.graphics.screens.MultiplayerMenuScreen;
+import com.jjktbf.graphics.screens.MultiplayerRosterWaitingScreen;
 import com.jjktbf.graphics.screens.editors.AbilityEditorScreen;
 import com.jjktbf.graphics.screens.editors.CharacterEditorScreen;
 import com.jjktbf.graphics.screens.editors.CursedToolEditorScreen;
@@ -148,6 +149,7 @@ public class JJKGame extends Game {
     private MultiplayerMenuScreen multiplayerMenuScreen;
     private HostChallengeScreen hostChallengeScreen;
     private ChallengeBrowserScreen challengeBrowserScreen;
+    private MultiplayerRosterWaitingScreen multiplayerRosterWaitingScreen;
     private MultiplayerDisconnectedScreen multiplayerDisconnectedScreen;
 
     public JJKGame() {
@@ -222,6 +224,8 @@ public class JJKGame extends Game {
             this, assets, guestAccountService, challengeService);
         challengeBrowserScreen = new ChallengeBrowserScreen(
             this, assets, guestAccountService, challengeService);
+        multiplayerRosterWaitingScreen = new MultiplayerRosterWaitingScreen(
+            this, assets, challengeService);
         multiplayerDisconnectedScreen = new MultiplayerDisconnectedScreen(
             this,
             assets,
@@ -313,6 +317,7 @@ public class JJKGame extends Game {
         if (multiplayerMenuScreen != null) multiplayerMenuScreen.dispose();
         if (hostChallengeScreen != null) hostChallengeScreen.dispose();
         if (challengeBrowserScreen != null) challengeBrowserScreen.dispose();
+        if (multiplayerRosterWaitingScreen != null) multiplayerRosterWaitingScreen.dispose();
         if (multiplayerDisconnectedScreen != null) multiplayerDisconnectedScreen.dispose();
         if (audio != null) audio.dispose();
         if (assets != null) assets.dispose();
@@ -366,12 +371,49 @@ public class JJKGame extends Game {
         showScreen(multiplayerMenuScreen, MusicTrack.MENU);
     }
 
+    public void showMultiplayerHostFormatSelection() {
+        battleFormatScreen.prepare(configuration -> {
+            setSelectedMultiplayerFormat(configuration.format());
+            setSelectedMultiplayerStatMode(configuration.statMode());
+            showHostChallenge();
+        }, this::showMultiplayerMenu);
+        showScreen(battleFormatScreen, MusicTrack.MENU);
+    }
+
     public void showHostChallenge() {
         showScreen(hostChallengeScreen, MusicTrack.MENU);
     }
 
     public void showChallengeBrowser() {
         showScreen(challengeBrowserScreen, MusicTrack.MENU);
+    }
+
+    public void showMultiplayerMatchSetup(MatchSetup setup) {
+        if (setup.state() != null) {
+            showMultiplayerBattle(setup);
+            return;
+        }
+        setSelectedMultiplayerFormat(setup.format());
+        setSelectedMultiplayerStatMode(BattleStatMode.fromRuleset(setup.ruleset()));
+        if (!setup.playerCharacterIds().isEmpty()) {
+            showMultiplayerRosterWaiting(setup, null);
+            return;
+        }
+        characterSelectScreen.prepareMultiplayer(
+            setup.format(),
+            BattleStatMode.fromRuleset(setup.ruleset()),
+            characterIds -> showMultiplayerRosterWaiting(setup, characterIds),
+            this::showMultiplayerMenu
+        );
+        showScreen(characterSelectScreen, MusicTrack.MENU);
+    }
+
+    private void showMultiplayerRosterWaiting(
+        MatchSetup setup,
+        List<String> characterIds
+    ) {
+        multiplayerRosterWaitingScreen.prepare(setup, characterIds);
+        showScreen(multiplayerRosterWaitingScreen, MusicTrack.MENU);
     }
 
     public void showMultiplayerBattle(MatchSetup setup) {

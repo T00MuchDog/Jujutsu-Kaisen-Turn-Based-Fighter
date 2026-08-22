@@ -10,7 +10,9 @@ import com.jjktbf.multiplayer.protocol.ChallengeDecisionRequest;
 import com.jjktbf.multiplayer.protocol.ErrorResponse;
 import com.jjktbf.multiplayer.protocol.GuestCreateRequest;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
+import com.jjktbf.multiplayer.protocol.MatchCharacterSelectionRequest;
 import com.jjktbf.multiplayer.protocol.MessageType;
+import com.jjktbf.multiplayer.protocol.PlayerSide;
 import com.jjktbf.multiplayer.protocol.SessionIdentity;
 import com.jjktbf.multiplayer.protocol.SocketMessage;
 import com.jjktbf.server.auth.GuestAuthService;
@@ -223,8 +225,7 @@ public final class MultiplayerServer implements AutoCloseable {
                 context, ChallengeDecisionRequest.class);
             AcceptedMatchSetup accepted = challengeService.acceptChallenge(
                 identity, challengeId, request);
-            matchManager.createMatch(accepted);
-            MatchSetup setup = matchManager.getMatchSetup(identity, accepted.matchId());
+            MatchSetup setup = prepareMatchSetup(identity, accepted);
             writeJson(context, 200, setup);
         });
         app.post("/api/challenges/{challengeId}/reject", context -> {
@@ -258,10 +259,19 @@ public final class MultiplayerServer implements AutoCloseable {
                 if (!ServiceErrorCode.MATCH_NOT_FOUND.name().equals(failure.code())) {
                     throw failure;
                 }
-                restorePersistedMatch(identity, matchId);
-                setup = matchManager.getMatchSetup(identity, matchId);
+                AcceptedMatchSetup accepted = challengeService.getAcceptedMatch(identity, matchId);
+                setup = prepareMatchSetup(identity, accepted);
             }
             writeJson(context, 200, setup);
+        });
+        app.post("/api/matches/{matchId}/characters", context -> {
+            SessionIdentity identity = authenticate(context);
+            String matchId = requireUuidPath(context, "matchId");
+            MatchCharacterSelectionRequest request = readRequiredJson(
+                context, MatchCharacterSelectionRequest.class);
+            AcceptedMatchSetup accepted = challengeService.selectMatchCharacters(
+                identity, matchId, request);
+            writeJson(context, 200, prepareMatchSetup(identity, accepted));
         });
     }
 
@@ -453,7 +463,44 @@ public final class MultiplayerServer implements AutoCloseable {
     }
 
     private void restorePersistedMatch(SessionIdentity identity, String matchId) {
-        matchManager.createMatch(challengeService.getAcceptedMatch(identity, matchId));
+        AcceptedMatchSetup accepted = challengeService.getAcceptedMatch(identity, matchId);
+        if (!accepted.charactersSelected()) {
+            throw new ServiceException(
+                ServiceErrorCode.MATCH_NOT_READY,
+                "Both players must select their fighters before joining the match.");
+        }
+        matchManager.createMatch(accepted);
+    }
+
+    private MatchSetup prepareMatchSetup(
+        SessionIdentity identity,
+        AcceptedMatchSetup accepted
+    ) {
+        if (accepted.charactersSelected()) {
+            matchManager.createMatch(accepted);
+            return matchManager.getMatchSetup(identity, accepted.matchId());
+        }
+        var player = identity.playerId().equals(accepted.playerOne().playerId())
+            ? accepted.playerOne() : accepted.playerTwo();
+        var opponent = player.side() == PlayerSide.PLAYER_ONE
+            ? accepted.playerTwo() : accepted.playerOne();
+        return new MatchSetup(
+            accepted.matchId(),
+            accepted.challengeId(),
+            accepted.status(),
+            player.side(),
+            player.playerId(),
+            opponent.playerId(),
+            opponent.displayName(),
+            player.characterIds(),
+            List.of(),
+            accepted.format(),
+            accepted.gameVersion(),
+            accepted.protocolVersion(),
+            accepted.ruleset(),
+            null,
+            System.currentTimeMillis()
+        );
     }
 
     private void submitSocketAction(SocketContext socket, SocketMessage message) {

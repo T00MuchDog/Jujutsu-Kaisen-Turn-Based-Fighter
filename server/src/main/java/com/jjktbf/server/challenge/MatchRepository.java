@@ -61,6 +61,25 @@ final class MatchRepository {
         }
     }
 
+    int selectParticipantCharacters(
+        Connection connection,
+        String matchId,
+        String playerId,
+        List<String> characterIds
+    ) throws SQLException {
+        String encoded = RosterCodec.encode(characterIds);
+        try (PreparedStatement statement = connection.prepareStatement(
+            "UPDATE match_participant SET character_ids = ? "
+                + "WHERE match_id = ? AND player_id = ? "
+                + "AND (character_ids = '' OR character_ids = ?)")) {
+            statement.setString(1, encoded);
+            statement.setString(2, matchId);
+            statement.setString(3, playerId);
+            statement.setString(4, encoded);
+            return statement.executeUpdate();
+        }
+    }
+
     Optional<PersistedMatch> findByChallenge(Connection connection, String challengeId)
         throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(

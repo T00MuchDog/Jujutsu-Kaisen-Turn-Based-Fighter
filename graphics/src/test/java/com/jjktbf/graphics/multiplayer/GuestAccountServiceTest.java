@@ -8,6 +8,7 @@ import com.jjktbf.multiplayer.protocol.ChallengeSummary;
 import com.jjktbf.multiplayer.protocol.GuestCreateRequest;
 import com.jjktbf.multiplayer.protocol.GuestCreateResponse;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
+import com.jjktbf.multiplayer.protocol.MatchCharacterSelectionRequest;
 import com.jjktbf.multiplayer.protocol.SessionIdentity;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -223,6 +224,15 @@ class GuestAccountServiceTest {
 
         @Override
         public CompletableFuture<MatchSetup> getMatchSetup(String token, String matchId) {
+            return unexpected();
+        }
+
+        @Override
+        public CompletableFuture<MatchSetup> selectMatchCharacters(
+            String token,
+            String matchId,
+            MatchCharacterSelectionRequest request
+        ) {
             return unexpected();
         }
 

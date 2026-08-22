@@ -8,6 +8,7 @@ import com.jjktbf.multiplayer.protocol.ChallengeSummary;
 import com.jjktbf.multiplayer.protocol.GuestCreateRequest;
 import com.jjktbf.multiplayer.protocol.GuestCreateResponse;
 import com.jjktbf.multiplayer.protocol.MatchSetup;
+import com.jjktbf.multiplayer.protocol.MatchCharacterSelectionRequest;
 import com.jjktbf.multiplayer.protocol.SessionIdentity;
 
 import java.util.concurrent.CompletableFuture;
@@ -58,4 +59,10 @@ public interface MultiplayerApi {
     CompletableFuture<ChallengeSummary> cancelChallenge(String token, String challengeId);
 
     CompletableFuture<MatchSetup> getMatchSetup(String token, String matchId);
+
+    CompletableFuture<MatchSetup> selectMatchCharacters(
+        String token,
+        String matchId,
+        MatchCharacterSelectionRequest request
+    );
 }
