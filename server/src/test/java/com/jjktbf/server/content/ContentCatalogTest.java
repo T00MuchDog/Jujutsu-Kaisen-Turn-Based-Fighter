@@ -42,7 +42,7 @@ class ContentCatalogTest {
         assertTrue(panda.getKnownMoves().stream()
             .allMatch(move -> move.getMoveType() == MoveType.SORCERER));
         assertEquals(MoveType.SHIKIGAMI, gorilla.getKnownMoves().stream()
-            .filter(move -> "000091".equals(move.getId()))
+            .filter(move -> "000087".equals(move.getId()))
             .findFirst().orElseThrow().getMoveType());
         assertTrue(gorilla.getAbilities().stream()
             .anyMatch(ability -> "000038".equals(ability.getId())));
