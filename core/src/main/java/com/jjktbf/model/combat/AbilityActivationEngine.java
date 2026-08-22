@@ -1129,7 +1129,7 @@ public final class AbilityActivationEngine {
                 && trigger.move() != null && trigger.move().hasTag(condition.moveTag);
             case MOVE_WEAPON_REQUIRED -> trigger.type() == AbilityTrigger.Type.MOVE_USED
                 && eventActorMatches(condition, owner, state, trigger.actor())
-                && trigger.move() != null && trigger.move().isWeaponRequired();
+                && trigger.move() != null && trigger.move().hasWeaponTag();
             case MOVE_TYPE_TAGS_EXACTLY -> trigger.type() == AbilityTrigger.Type.MOVE_USED
                 && eventActorMatches(condition, owner, state, trigger.actor())
                 && AbilityConditionType.moveHasExactTypeTags(trigger.move(), condition.moveTags);

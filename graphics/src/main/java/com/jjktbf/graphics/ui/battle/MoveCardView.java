@@ -230,7 +230,7 @@ public class MoveCardView {
     private static boolean isCursedTool(Move move) {
         return hasNatureTag(move, MoveTag.PHYSICAL)
             && hasNatureTag(move, MoveTag.CURSED_ENERGY)
-            && move.isWeaponRequired();
+            && move.hasWeaponTag();
     }
 
     public void draw(Batch batch, BitmapFont font, BitmapFont statFont,

@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
 class AoeTagTest {
 
@@ -180,7 +181,7 @@ class AoeTagTest {
     private static BattleCombatant fighter(String name) {
         CharacterStats stats = new CharacterStats.Builder().vitality(300).speed(100).build();
         SorcererCharacter character = new SorcererCharacter(
-            name.toLowerCase(), name, stats, null, List.of(), List.of(), false);
+            name.toLowerCase(), name, stats, null, List.of(), List.of(), Equipment.NONE);
         return new BattleCombatant(character, List.of());
     }
 

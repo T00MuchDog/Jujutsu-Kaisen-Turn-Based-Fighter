@@ -176,8 +176,28 @@
     "description": "An immediate effect that cancels the target's active non-Heavy action segment."
   },
   {
-    "term": "SWORD",
-    "description": "A move tag for sword and sword-like weapon techniques."
+    "term": "KATANA",
+    "description": "A weapon-type move tag: the move is performed with an equipped katana."
+  },
+  {
+    "term": "BOW",
+    "description": "A weapon-type move tag: the move is performed with an equipped bow."
+  },
+  {
+    "term": "GREAT_AXE",
+    "description": "A weapon-type move tag: the move is performed with an equipped great axe."
+  },
+  {
+    "term": "POLEARM",
+    "description": "A weapon-type move tag: the move is performed with an equipped polearm."
+  },
+  {
+    "term": "STAFF",
+    "description": "A weapon-type move tag: the move is performed with an equipped staff."
+  },
+  {
+    "term": "CURSED TOOL",
+    "description": "A named weapon a character equips; its weapon type's moves cost no cursed energy, and it may grant extra moves and abilities."
   },
   {
     "term": "UTILITY",

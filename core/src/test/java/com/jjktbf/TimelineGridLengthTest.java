@@ -17,6 +17,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
 /**
  * Verifies the tier → timeline grid-length mapping and that a {@link BattlePlan}
@@ -75,12 +76,12 @@ class TimelineGridLengthTest {
             .cursedEnergyOutput(300)
             .build();
         BattleCombatant summoner = new BattleCombatant(new SorcererCharacter(
-            "summoner", "Summoner", summonerStats, null, List.of(), List.of(), false),
+            "summoner", "Summoner", summonerStats, null, List.of(), List.of(), Equipment.NONE),
             List.of());
         BattleCombatant enemy = new BattleCombatant(new SorcererCharacter(
             "enemy", "Enemy", new CharacterStats.Builder()
                 .vitality(100).speed(10).combatAbility(10).build(),
-            null, List.of(), List.of(), false), List.of());
+            null, List.of(), List.of(), Equipment.NONE), List.of());
         BattleState state = new BattleState(
             BattleState.teamOfFighters(BattleTeamId.PLAYER, List.of(summoner)),
             BattleState.teamOfFighters(BattleTeamId.ENEMY, List.of(enemy)));
@@ -92,7 +93,7 @@ class TimelineGridLengthTest {
         ShikigamiCharacter fastShikigami = new ShikigamiCharacter(
             "fast", "Fast Shikigami", new CharacterStats.Builder()
                 .vitality(100).speed(300).combatAbility(300).build(),
-            null, List.of(), List.of(), false);
+            null, List.of(), List.of(), Equipment.NONE);
         state.enqueueSummon(summoner, fastShikigami.getId());
         BattleCombatant summon = state.drainPendingSummons(
             id -> java.util.Optional.of(fastShikigami)).get(0);

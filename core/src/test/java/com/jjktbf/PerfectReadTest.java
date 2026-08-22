@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
+import com.jjktbf.model.character.Equipment;
+import com.jjktbf.model.weapon.WeaponType;
 
 /**
  * Perfect reads: a FIXED-timing defence whose fire tick exactly matches the
@@ -124,7 +126,7 @@ public class PerfectReadTest {
         BattleCombatant defender = new BattleCombatant(new SorcererCharacter(
             "D", "Defender",
             new CharacterStats.Builder().vitality(300).speed(120).build(),
-            null, List.of(PARRY), List.of(), true));
+            null, List.of(PARRY), List.of(), Equipment.base(WeaponType.KATANA)));
         Timeline timeline = new Timeline(10);
         assertNotNull(timeline.placeAt(PARRY, 1, 0));
         timeline.getSegments().forEach(ActionSegment::markFired);
@@ -167,7 +169,8 @@ public class PerfectReadTest {
         BattleCombatant defender = new BattleCombatant(new SorcererCharacter(
             "D", "Defender",
             new CharacterStats.Builder().vitality(300).speed(120).build(),
-            null, List.of(defense), List.of(), defense.isParry()));
+            null, List.of(defense), List.of(),
+            defense.isParry() ? Equipment.base(WeaponType.KATANA) : Equipment.NONE));
 
         Timeline attackerTimeline = new Timeline(10);
         assertNotNull(attackerTimeline.placeAt(ATTACK, attackStart, 0));

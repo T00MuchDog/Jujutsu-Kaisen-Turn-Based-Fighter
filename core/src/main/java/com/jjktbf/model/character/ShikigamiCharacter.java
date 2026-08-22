@@ -46,9 +46,9 @@ public class ShikigamiCharacter extends Character {
     }
 
     /**
-     * Full construction including weapon state and an explicit accessible-technique
-     * set. Used by {@link CharacterData#toCharacter} so {@code hasWeapon} from the
-     * data file flows into move validation (gates {@code weaponRequired} moves).
+     * Full construction including equipment and an explicit accessible-technique
+     * set. Used by {@link CharacterData#toCharacter} so equipment from the
+     * data file flows into move validation (gates weapon-tagged moves).
      */
     public ShikigamiCharacter(
         String         id,
@@ -58,10 +58,10 @@ public class ShikigamiCharacter extends Character {
         List<Move>     knownMoves,
         List<Ability>  abilities,
         java.util.Set<String> accessibleTechniques,
-        boolean        hasWeapon
+        Equipment      equipment
     ) {
         this(id, name, baseStats, innateTechniqueName, knownMoves, abilities,
-            accessibleTechniques, hasWeapon, 0.0);
+            accessibleTechniques, equipment, 0.0);
     }
 
     public ShikigamiCharacter(
@@ -72,11 +72,11 @@ public class ShikigamiCharacter extends Character {
         List<Move>     knownMoves,
         List<Ability>  abilities,
         java.util.Set<String> accessibleTechniques,
-        boolean        hasWeapon,
+        Equipment      equipment,
         double         baseCeDrainPerTick
     ) {
         super(id, name, CharacterType.SHIKIGAMI, baseStats, innateTechniqueName,
-              knownMoves, abilities, accessibleTechniques, hasWeapon);
+              knownMoves, abilities, accessibleTechniques, equipment);
         if (!Double.isFinite(baseCeDrainPerTick) || baseCeDrainPerTick < 0.0) {
             throw new IllegalArgumentException("Base CE drain per tick cannot be negative or non-finite");
         }
@@ -84,7 +84,7 @@ public class ShikigamiCharacter extends Character {
     }
 
     /**
-     * Construction with weapon state, computing the accessible-technique set from
+     * Construction with equipment, computing the accessible-technique set from
      * the innate name + abilities (mirrors the default behaviour of the
      * abilities-only constructor). Convenience overload for {@link CharacterData#toCharacter}.
      */
@@ -95,10 +95,10 @@ public class ShikigamiCharacter extends Character {
         String         innateTechniqueName,
         List<Move>     knownMoves,
         List<Ability>  abilities,
-        boolean        hasWeapon
+        Equipment      equipment
     ) {
         this(id, name, baseStats, innateTechniqueName, knownMoves, abilities,
-            hasWeapon, 0.0);
+            equipment, 0.0);
     }
 
     public ShikigamiCharacter(
@@ -108,11 +108,11 @@ public class ShikigamiCharacter extends Character {
         String         innateTechniqueName,
         List<Move>     knownMoves,
         List<Ability>  abilities,
-        boolean        hasWeapon,
+        Equipment      equipment,
         double         baseCeDrainPerTick
     ) {
         this(id, name, baseStats, innateTechniqueName, knownMoves, abilities,
-             accessibleTechniquesOf(innateTechniqueName, abilities), hasWeapon,
+             accessibleTechniquesOf(innateTechniqueName, abilities), equipment,
              baseCeDrainPerTick);
     }
 

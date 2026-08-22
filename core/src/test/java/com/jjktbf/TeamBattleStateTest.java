@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
 /**
  * Phase 2 coverage for the team and runtime-identity model: deterministic
@@ -388,7 +389,7 @@ class TeamBattleStateTest {
     private static BattleCombatant fighter(String name) {
         SorcererCharacter c = new SorcererCharacter(
             name.toLowerCase(), name, new CharacterStats.Builder().build(),
-            null, List.of(), List.of(), false);
+            null, List.of(), List.of(), Equipment.NONE);
         return new BattleCombatant(c, List.of());
     }
 
@@ -407,6 +408,6 @@ class TeamBattleStateTest {
     private static ShikigamiCharacter shikigami(String name) {
         return new ShikigamiCharacter(
             name.toLowerCase(), name, new CharacterStats.Builder().build(),
-            null, List.of(), List.of(), false);
+            null, List.of(), List.of(), Equipment.NONE);
     }
 }

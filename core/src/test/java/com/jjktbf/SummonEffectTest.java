@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
 /**
  * Phase 5 coverage for summon effects and authoring: move-based summons,
@@ -237,7 +238,7 @@ class SummonEffectTest {
         CharacterStats stats = new CharacterStats.Builder()
             .vitality(300).speed(100).build();
         SorcererCharacter c = new SorcererCharacter(
-            name.toLowerCase(), name, stats, null, List.of(), abilities, false);
+            name.toLowerCase(), name, stats, null, List.of(), abilities, Equipment.NONE);
         return new BattleCombatant(c, abilities);
     }
 
@@ -258,6 +259,6 @@ class SummonEffectTest {
         CharacterStats stats = new CharacterStats.Builder()
             .vitality(300).speed(100).build();
         return new ShikigamiCharacter(
-            name.toLowerCase(), name, stats, null, List.of(), List.of(), false);
+            name.toLowerCase(), name, stats, null, List.of(), List.of(), Equipment.NONE);
     }
 }

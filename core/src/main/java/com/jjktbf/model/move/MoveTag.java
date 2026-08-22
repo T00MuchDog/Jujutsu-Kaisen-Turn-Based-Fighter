@@ -122,8 +122,42 @@ public enum MoveTag {
      */
     FRIENDLY_FIRE,
 
-    /** Sword or sword-like weapon modifier used by move-scoped abilities. */
-    SWORD,
+    /**
+     * Katana weapon-type modifier — the move is performed with an equipped
+     * katana (or katana-like blade). A character must have a katana equipped
+     * (base weapon or cursed tool) to learn this move.
+     *
+     * A modifier tag like {@link #ATTACK}: it does not affect the Power formula,
+     * is not part of any {@link MoveCategory}'s tag set, and does not change
+     * Black Flash eligibility. A move carries at most one weapon-type tag;
+     * the equipped-weapon gate keys off it (see {@link #WEAPON_TAGS}).
+     */
+    KATANA,
+
+    /**
+     * Bow weapon-type modifier — the move is performed with an equipped bow.
+     * See {@link #KATANA} for the weapon-tag semantics.
+     */
+    BOW,
+
+    /**
+     * Great axe weapon-type modifier — the move is performed with an equipped
+     * great axe. See {@link #KATANA} for the weapon-tag semantics.
+     */
+    GREAT_AXE,
+
+    /**
+     * Polearm weapon-type modifier — the move is performed with an equipped
+     * polearm (spear, staff-blade, three-section pole, etc.).
+     * See {@link #KATANA} for the weapon-tag semantics.
+     */
+    POLEARM,
+
+    /**
+     * Staff weapon-type modifier — the move is performed with an equipped
+     * staff. See {@link #KATANA} for the weapon-tag semantics.
+     */
+    STAFF,
 
     /**
      * Guard break modifier — a successful hit from this move ignores the defender's
@@ -173,4 +207,25 @@ public enum MoveTag {
 
     /** Range tags — only meaningful on ATTACK moves. */
     public static final Set<MoveTag> RANGE_TAGS = Set.of(MELEE, RANGED);
+
+    /**
+     * Weapon-type tags — a move carries at most one of these, and a character
+     * must have the corresponding weapon equipped (base weapon or cursed tool)
+     * to learn the move. Maps 1:1 onto {@link com.jjktbf.model.weapon.WeaponType}.
+     */
+    public static final Set<MoveTag> WEAPON_TAGS = Set.of(
+        KATANA, BOW, GREAT_AXE, POLEARM, STAFF);
+
+    /**
+     * The weapon-type tag present in the given set, or {@code null} when the
+     * tag set carries no weapon. A well-formed move holds at most one weapon
+     * tag; when several are present the first match wins.
+     */
+    public static MoveTag weaponTagIn(Set<MoveTag> tags) {
+        if (tags == null) return null;
+        for (MoveTag tag : WEAPON_TAGS) {
+            if (tags.contains(tag)) return tag;
+        }
+        return null;
+    }
 }

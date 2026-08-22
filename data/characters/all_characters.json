@@ -4,7 +4,7 @@
   "description" : "An opportunistic curse user who relies on a hand-shaped cursed tool and attacks distracted opponents. Haruta is quick enough to pressure a weaker target, but lacks the durability and skill to stand against a true grade 1 sorcerer.",
   "spriteAsset" : "assets/sprites/characters/haruta_frontsprite.png",
   "innateTechniqueName" : "Miracles",
-  "hasWeapon" : true,
+  "equippedWeaponTypes" : [ "KATANA" ],
   "vitality" : 55,
   "strength" : 45,
   "durability" : 40,
@@ -25,7 +25,7 @@
   "description" : "A grade 1 sorcerer and former salaryman who fights the nine-to-five on a binding vow holding him to 80% output. He is the yardstick of grade 1, yet while the vow holds he fights beneath that bar with a blunt cursed blade, peerless cursed-energy efficiency, and the Ratio Technique's seven-to-three weak point.",
   "spriteAsset" : "assets/sprites/characters/nanami_frontsprite.png",
   "innateTechniqueName" : "Ratio",
-  "hasWeapon" : true,
+  "equippedWeaponTypes" : [ "KATANA" ],
   "vitality" : 100,
   "strength" : 110,
   "durability" : 110,
@@ -38,14 +38,13 @@
   "cursedTechniqueMastery" : 75,
   "moveIds" : [ "000000", "000001", "000008", "000010", "000023", "000036", "000025", "000026", "000011", "000019", "000029", "000030", "000020", "000021" ],
   "availableMoveIds" : [ "000025", "000026" ],
-  "abilityIds" : [ "000004", "000042", "000043", "000044" ],
-  "availableAbilityIds" : [ "000004", "000042", "000043", "000044" ]
+  "abilityIds" : [ "000004", "000040", "000041", "000042" ],
+  "availableAbilityIds" : [ "000004", "000040", "000041", "000042" ]
 }, {
   "id" : "000002",
   "name" : "Miwa Kasumi",
   "description" : "A diligent swordswoman without an innate cursed technique. Miwa combines disciplined sword combat with New Shadow Style, holding Simple Domain until an opponent commits to an attack.",
   "spriteAsset" : "assets/sprites/characters/miwa_frontsprite.png",
-  "hasWeapon" : true,
   "vitality" : 50,
   "strength" : 40,
   "durability" : 40,
@@ -58,13 +57,13 @@
   "cursedTechniqueMastery" : 0,
   "moveIds" : [ "000000", "000001", "000020", "000011", "000021", "000028", "000010", "000023", "000024", "000027", "000030", "000029" ],
   "availableMoveIds" : [ "000000", "000001", "000013", "000014", "000020", "000023", "000027", "000028" ],
-  "abilityIds" : [ "000005", "000006", "000007" ]
+  "abilityIds" : [ "000005", "000006", "000007" ],
+  "equippedWeaponTypes" : [ "KATANA" ]
 }, {
   "id" : "000003",
   "name" : "Yuji Itadori (Vs. Mahito)",
   "description" : "After surviving his first battle with Mahito, Yuji overwhelms opponents with exceptional physical ability while his immature cursed-energy control produces a delayed second impact.",
   "spriteAsset" : "assets/sprites/characters/yuji_frontsprite.png",
-  "hasWeapon" : false,
   "vitality" : 95,
   "strength" : 90,
   "durability" : 85,
@@ -85,7 +84,6 @@
   "description" : "A first-year sorcerer beginning to wield the Ten Shadows Technique, summoning shikigami through shadows and directing them alongside his own attacks.",
   "spriteAsset" : "assets/sprites/characters/megumi_frontsprite.png",
   "innateTechniqueName" : "Ten Shadows",
-  "hasWeapon" : false,
   "vitality" : 45,
   "strength" : 18,
   "durability" : 30,
@@ -98,14 +96,13 @@
   "cursedTechniqueMastery" : 45,
   "moveIds" : [ "000000", "000001", "000033", "000034", "000039", "000040", "000041", "000045", "000046", "000047", "000048", "000008", "000019", "000021" ],
   "availableMoveIds" : [ "000000", "000001", "000033", "000034", "000039", "000040", "000041", "000045", "000046", "000047", "000048" ],
-  "abilityIds" : [ "000013", "000014", "000021" ],
-  "availableAbilityIds" : [ "000013", "000014", "000021" ]
+  "abilityIds" : [ "000013", "000014", "000020" ],
+  "availableAbilityIds" : [ "000013", "000014", "000020" ]
 }, {
   "id" : "000005",
   "name" : "Maki Zenin (Pre-Awakened)",
   "description" : "Before fully realising her Heavenly Restriction, Maki fights through exceptional weapon training, speed, durability, and relentless discipline despite possessing almost no talent for jujutsu.",
   "spriteAsset" : "assets/sprites/characters/maki_frontsprite.png",
-  "hasWeapon" : true,
   "vitality" : 75,
   "strength" : 80,
   "durability" : 84,
@@ -116,17 +113,17 @@
   "jujutsuSkill" : 10,
   "combatAbility" : 135,
   "cursedTechniqueMastery" : 0,
-  "moveIds" : [ "000000", "000001", "000023", "000024", "000029", "000030", "000031", "000035", "000036", "000037", "000038" ],
+  "moveIds" : [ "000000", "000001", "000023", "000024", "000029", "000030", "000031", "000035", "000037", "000038" ],
   "availableMoveIds" : [ "000000", "000001", "000023", "000024", "000029", "000030", "000031", "000035", "000036", "000037", "000038" ],
-  "abilityIds" : [ "000015", "000009", "000016", "000017", "000018", "000007", "000019", "000033" ],
-  "availableAbilityIds" : [ "000015", "000007" ]
+  "abilityIds" : [ "000015", "000009", "000016", "000017", "000018", "000007", "000044" ],
+  "availableAbilityIds" : [ "000015", "000007" ],
+  "equippedCursedToolIds" : [ "000000" ]
 }, {
   "id" : "000006",
   "name" : "Megumi Fushiguro (Kyoto Goodwill Event)",
   "description" : "A more experienced Megumi who combines close combat, fluid shadow movement, stronger shikigami, and both Totality and Well's Unknown Abyss to pressure opponents from every range.",
   "spriteAsset" : "assets/sprites/characters/megumi_frontsprite.png",
   "innateTechniqueName" : "Ten Shadows",
-  "hasWeapon" : false,
   "vitality" : 55,
   "strength" : 28,
   "durability" : 42,
@@ -139,8 +136,8 @@
   "cursedTechniqueMastery" : 72,
   "moveIds" : [ "000000", "000001", "000002", "000003", "000029", "000042", "000039", "000040", "000044", "000043", "000049", "000046", "000047", "000051", "000050", "000052", "000021", "000020" ],
   "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000029", "000033", "000034", "000039", "000040", "000041", "000042", "000043", "000044", "000045", "000046", "000047", "000048", "000049", "000050", "000051", "000052" ],
-  "abilityIds" : [ "000013", "000014", "000020", "000021", "000034" ],
-  "availableAbilityIds" : [ "000013", "000014", "000020", "000021", "000034" ]
+  "abilityIds" : [ "000013", "000014", "000019", "000020", "000032" ],
+  "availableAbilityIds" : [ "000013", "000014", "000019", "000020", "000032" ]
 }, {
   "id" : "000007",
   "name" : "Divine Dog White",
@@ -149,7 +146,6 @@
   "type" : "SHIKIGAMI",
   "directlySelectable" : false,
   "baseCeDrainPerTick" : 0.2,
-  "hasWeapon" : false,
   "vitality" : 35,
   "strength" : 45,
   "durability" : 40,
@@ -162,8 +158,8 @@
   "cursedTechniqueMastery" : 0,
   "moveIds" : [ "000000", "000001", "000053", "000054", "000055" ],
   "availableMoveIds" : [ "000000", "000001", "000053", "000054", "000055" ],
-  "abilityIds" : [ "000022", "000023" ],
-  "availableAbilityIds" : [ "000022", "000023" ]
+  "abilityIds" : [ "000021", "000022" ],
+  "availableAbilityIds" : [ "000021", "000022" ]
 }, {
   "id" : "000008",
   "name" : "Divine Dog Black",
@@ -172,7 +168,6 @@
   "type" : "SHIKIGAMI",
   "directlySelectable" : false,
   "baseCeDrainPerTick" : 0.2,
-  "hasWeapon" : false,
   "vitality" : 35,
   "strength" : 45,
   "durability" : 40,
@@ -185,8 +180,8 @@
   "cursedTechniqueMastery" : 0,
   "moveIds" : [ "000000", "000001", "000053", "000054", "000056" ],
   "availableMoveIds" : [ "000000", "000001", "000053", "000054", "000056" ],
-  "abilityIds" : [ "000022", "000024" ],
-  "availableAbilityIds" : [ "000022", "000024" ]
+  "abilityIds" : [ "000021", "000023" ],
+  "availableAbilityIds" : [ "000021", "000023" ]
 }, {
   "id" : "000009",
   "name" : "Nue",
@@ -195,7 +190,6 @@
   "type" : "SHIKIGAMI",
   "directlySelectable" : false,
   "baseCeDrainPerTick" : 0.35,
-  "hasWeapon" : false,
   "vitality" : 50,
   "strength" : 35,
   "durability" : 40,
@@ -208,8 +202,8 @@
   "cursedTechniqueMastery" : 0,
   "moveIds" : [ "000000", "000001", "000053", "000057", "000058", "000085", "000021" ],
   "availableMoveIds" : [ "000000", "000001", "000053", "000057", "000058", "000085" ],
-  "abilityIds" : [ "000022", "000025" ],
-  "availableAbilityIds" : [ "000022", "000025" ]
+  "abilityIds" : [ "000021", "000024" ],
+  "availableAbilityIds" : [ "000021", "000024" ]
 }, {
   "id" : "000010",
   "name" : "Toad Gamma",
@@ -218,7 +212,6 @@
   "type" : "SHIKIGAMI",
   "directlySelectable" : false,
   "baseCeDrainPerTick" : 0.2,
-  "hasWeapon" : false,
   "vitality" : 55,
   "strength" : 40,
   "durability" : 45,
@@ -231,8 +224,8 @@
   "cursedTechniqueMastery" : 0,
   "moveIds" : [ "000000", "000001", "000053", "000059", "000060", "000088" ],
   "availableMoveIds" : [ "000000", "000001", "000053", "000059", "000060", "000088" ],
-  "abilityIds" : [ "000022", "000026" ],
-  "availableAbilityIds" : [ "000022", "000026" ]
+  "abilityIds" : [ "000021", "000025" ],
+  "availableAbilityIds" : [ "000021", "000025" ]
 }, {
   "id" : "000011",
   "name" : "Great Serpent Orochi",
@@ -241,7 +234,6 @@
   "type" : "SHIKIGAMI",
   "directlySelectable" : false,
   "baseCeDrainPerTick" : 0.5,
-  "hasWeapon" : false,
   "vitality" : 80,
   "strength" : 80,
   "durability" : 40,
@@ -254,8 +246,8 @@
   "cursedTechniqueMastery" : 0,
   "moveIds" : [ "000000", "000001", "000053", "000061", "000062", "000086" ],
   "availableMoveIds" : [ "000000", "000001", "000053", "000061", "000062", "000086" ],
-  "abilityIds" : [ "000022", "000027" ],
-  "availableAbilityIds" : [ "000022", "000027" ]
+  "abilityIds" : [ "000021", "000026" ],
+  "availableAbilityIds" : [ "000021", "000026" ]
 }, {
   "id" : "000012",
   "name" : "Divine Dog Totality",
@@ -264,7 +256,6 @@
   "type" : "SHIKIGAMI",
   "directlySelectable" : false,
   "baseCeDrainPerTick" : 0.4,
-  "hasWeapon" : false,
   "vitality" : 65,
   "strength" : 100,
   "durability" : 50,
@@ -277,8 +268,8 @@
   "cursedTechniqueMastery" : 0,
   "moveIds" : [ "000000", "000001", "000053", "000063", "000064", "000087", "000029", "000031" ],
   "availableMoveIds" : [ "000000", "000001", "000053", "000063", "000064", "000087" ],
-  "abilityIds" : [ "000022", "000028" ],
-  "availableAbilityIds" : [ "000022", "000028" ]
+  "abilityIds" : [ "000021", "000027" ],
+  "availableAbilityIds" : [ "000021", "000027" ]
 }, {
   "id" : "000013",
   "name" : "Max Elephant",
@@ -287,7 +278,6 @@
   "type" : "SHIKIGAMI",
   "directlySelectable" : false,
   "baseCeDrainPerTick" : 0.8,
-  "hasWeapon" : false,
   "vitality" : 95,
   "strength" : 75,
   "durability" : 98,
@@ -300,8 +290,8 @@
   "cursedTechniqueMastery" : 0,
   "moveIds" : [ "000000", "000001", "000053", "000065", "000066" ],
   "availableMoveIds" : [ "000000", "000001", "000053", "000065", "000066" ],
-  "abilityIds" : [ "000022", "000029" ],
-  "availableAbilityIds" : [ "000022", "000029" ]
+  "abilityIds" : [ "000021", "000028" ],
+  "availableAbilityIds" : [ "000021", "000028" ]
 }, {
   "id" : "000014",
   "name" : "Toad/Nue Fusion",
@@ -310,7 +300,6 @@
   "type" : "SHIKIGAMI",
   "directlySelectable" : false,
   "baseCeDrainPerTick" : 0.45,
-  "hasWeapon" : false,
   "vitality" : 80,
   "strength" : 30,
   "durability" : 25,
@@ -323,15 +312,14 @@
   "cursedTechniqueMastery" : 0,
   "moveIds" : [ "000000", "000001", "000053", "000067", "000068" ],
   "availableMoveIds" : [ "000000", "000001", "000053", "000067", "000068" ],
-  "abilityIds" : [ "000022", "000030" ],
-  "availableAbilityIds" : [ "000022", "000030" ]
+  "abilityIds" : [ "000021", "000029" ],
+  "availableAbilityIds" : [ "000021", "000029" ]
 }, {
   "id" : "000015",
   "name" : "Toge Inumaki",
   "description" : "A second-year sorcerer who channels Cursed Speech through the markings around his mouth, forcing commands upon everyone who hears him while enduring the technique's recoil.",
   "spriteAsset" : "assets/sprites/characters/inumaki_frontsprite.png",
   "innateTechniqueName" : "Cursed Speech",
-  "hasWeapon" : false,
   "vitality" : 50,
   "strength" : 35,
   "durability" : 55,
@@ -344,14 +332,13 @@
   "cursedTechniqueMastery" : 120,
   "moveIds" : [ "000000", "000001", "000069", "000070", "000071", "000072", "000073", "000004", "000008", "000010", "000014", "000016", "000031" ],
   "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000008", "000009", "000010", "000014", "000069", "000070", "000071", "000072", "000073", "000074" ],
-  "abilityIds" : [ "000031", "000032" ],
-  "availableAbilityIds" : [ "000031", "000032" ]
+  "abilityIds" : [ "000030", "000031" ],
+  "availableAbilityIds" : [ "000030", "000031" ]
 }, {
   "id" : "000016",
   "name" : "Yuji Itadori (Kyoto Goodwill Event)",
   "description" : "After learning to control the flow of his cursed energy, Yuji reinforces his extraordinary close-quarters combat and stands poised to call forth the sparks of Black Flash.",
   "spriteAsset" : "assets/sprites/characters/yuji_frontsprite.png",
-  "hasWeapon" : false,
   "vitality" : 95,
   "strength" : 90,
   "durability" : 85,
@@ -364,8 +351,8 @@
   "cursedTechniqueMastery" : 0,
   "moveIds" : [ "000000", "000001", "000077", "000019", "000008", "000081", "000082", "000018", "000021", "000029", "000032" ],
   "availableMoveIds" : [ "000000", "000001", "000008", "000014", "000016", "000018", "000019", "000029", "000032", "000077", "000078", "000079", "000080", "000081", "000082" ],
-  "abilityIds" : [ "000008", "000010", "000011", "000012", "000009", "000035" ],
-  "availableAbilityIds" : [ "000008", "000035" ]
+  "abilityIds" : [ "000008", "000010", "000011", "000012", "000009", "000033" ],
+  "availableAbilityIds" : [ "000008", "000033" ]
 }, {
   "id" : "000017",
   "name" : "Panda (Kyoto Goodwill Event)",
@@ -373,7 +360,6 @@
   "spriteAsset" : "assets/sprites/characters/panda_frontsprite.png",
   "type" : "CURSED_CORPSE",
   "directlySelectable" : true,
-  "hasWeapon" : false,
   "vitality" : 65,
   "strength" : 75,
   "durability" : 90,
@@ -386,8 +372,8 @@
   "cursedTechniqueMastery" : 0,
   "moveIds" : [ "000000", "000001", "000077", "000078", "000082", "000083", "000084", "000089" ],
   "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000004", "000007", "000014", "000019", "000021", "000029", "000032", "000077", "000078", "000079", "000080", "000081", "000082", "000083", "000084", "000089" ],
-  "abilityIds" : [ "000036", "000037", "000038", "000039" ],
-  "availableAbilityIds" : [ "000036", "000037", "000038", "000039", "000040", "000041" ]
+  "abilityIds" : [ "000034", "000035", "000036", "000037" ],
+  "availableAbilityIds" : [ "000034", "000035", "000036", "000037", "000038", "000039" ]
 }, {
   "id" : "000018",
   "name" : "Panda (Gorilla Core)",
@@ -395,7 +381,6 @@
   "spriteAsset" : "assets/sprites/characters/pandaGorilla_frontsprite.png",
   "type" : "CURSED_CORPSE",
   "directlySelectable" : false,
-  "hasWeapon" : false,
   "vitality" : 70,
   "strength" : 115,
   "durability" : 105,
@@ -408,6 +393,6 @@
   "cursedTechniqueMastery" : 0,
   "moveIds" : [ "000000", "000001", "000004", "000077", "000082", "000090", "000091", "000092" ],
   "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000004", "000007", "000014", "000019", "000021", "000029", "000032", "000077", "000078", "000079", "000080", "000081", "000082", "000090", "000091", "000092" ],
-  "abilityIds" : [ "000036", "000037", "000040", "000041" ],
-  "availableAbilityIds" : [ "000036", "000037", "000038", "000039", "000040", "000041" ]
+  "abilityIds" : [ "000034", "000035", "000038", "000039" ],
+  "availableAbilityIds" : [ "000034", "000035", "000036", "000037", "000038", "000039" ]
 } ]

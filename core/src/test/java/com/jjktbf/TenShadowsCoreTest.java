@@ -48,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
 class TenShadowsCoreTest {
 
@@ -441,7 +442,7 @@ class TenShadowsCoreTest {
             .vitality(100).cursedEnergyReserves(100).speed(100)
             .build();
         BattleCombatant peakSummoner = new BattleCombatant(new SorcererCharacter(
-            "PEAK", "PEAK", peak, "Ten Shadows", List.of(), List.of(), false), List.of());
+            "PEAK", "PEAK", peak, "Ten Shadows", List.of(), List.of(), Equipment.NONE), List.of());
         BattleState peakState = state(peakSummoner, fighter("ENEMY", List.of()));
         BattleCombatant peakDog = summon(peakState, peakSummoner, "DOG");
         assertEquals(200, peakDog.getEffectiveStats().getVitality(),
@@ -502,7 +503,7 @@ class TenShadowsCoreTest {
         CharacterStats stats = new CharacterStats.Builder()
             .vitality(100).cursedEnergyReserves(100).speed(100).build();
         return new BattleCombatant(new SorcererCharacter(
-            id, id, stats, "Ten Shadows", List.of(), abilities, false), abilities);
+            id, id, stats, "Ten Shadows", List.of(), abilities, Equipment.NONE), abilities);
     }
 
     private static BattleCombatant fighter(String id, int ceEfficiency, List<Ability> abilities) {
@@ -510,7 +511,7 @@ class TenShadowsCoreTest {
             .vitality(100).cursedEnergyReserves(100).speed(100)
             .cursedEnergyEfficiency(ceEfficiency).build();
         return new BattleCombatant(new SorcererCharacter(
-            id, id, stats, "Ten Shadows", List.of(), abilities, false), abilities);
+            id, id, stats, "Ten Shadows", List.of(), abilities, Equipment.NONE), abilities);
     }
 
     private static ShikigamiCharacter shikigami(
@@ -530,7 +531,7 @@ class TenShadowsCoreTest {
         CharacterStats stats = new CharacterStats.Builder()
             .vitality(100).cursedEnergyReserves(100).speed(100).build();
         return new ShikigamiCharacter(
-            id, id, stats, null, moves, abilities, false, baseCeDrainPerTick);
+            id, id, stats, null, moves, abilities, Equipment.NONE, baseCeDrainPerTick);
     }
 
     private static Ability capAbility(int cap) {

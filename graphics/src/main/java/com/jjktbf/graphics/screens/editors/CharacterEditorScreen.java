@@ -52,6 +52,9 @@ import com.jjktbf.model.technique.InnateTechniqueData;
 import com.jjktbf.model.technique.SkillTreeNodeData;
 import com.jjktbf.model.technique.TechniqueRepository;
 import com.jjktbf.model.technique.TechniqueSkillTree;
+import com.jjktbf.model.weapon.CursedToolData;
+import com.jjktbf.model.weapon.CursedToolRepository;
+import com.jjktbf.model.weapon.WeaponType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -97,6 +100,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private final MoveRepository       moveRepo;
     private final AbilityRepository   abilityRepo;
     private final TechniqueRepository techniqueRepo;
+    private final CursedToolRepository cursedToolRepo;
 
     // Form handles (refreshed on selection change)
     private StatField[] statFields;
@@ -120,6 +124,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         moveRepo    = new MoveRepository("data/moves");
         abilityRepo = new AbilityRepository("data/abilities");
         techniqueRepo = new TechniqueRepository("data/techniques");
+        cursedToolRepo = new CursedToolRepository("data/tools");
         wireStatKeyInput();
     }
 
@@ -168,6 +173,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         cd.spriteAsset = null;
         cd.innateTechniqueName = null;
         cd.cursedTechniqueMastery = 0;
+        cd.equippedWeaponTypes = new ArrayList<>();
+        cd.equippedCursedToolIds = new ArrayList<>();
         cd.moveIds    = new ArrayList<>();
         cd.availableMoveIds = new ArrayList<>();
         cd.abilityIds = new ArrayList<>();
@@ -186,7 +193,10 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         d.directlySelectable  = stored.directlySelectable;
         d.baseCeDrainPerTick  = stored.baseCeDrainPerTick;
         d.innateTechniqueName = stored.innateTechniqueName;
-        d.hasWeapon           = stored.hasWeapon;
+        d.equippedWeaponTypes = stored.equippedWeaponTypes != null
+            ? new ArrayList<>(stored.equippedWeaponTypes) : new ArrayList<>();
+        d.equippedCursedToolIds = stored.equippedCursedToolIds != null
+            ? new ArrayList<>(stored.equippedCursedToolIds) : new ArrayList<>();
         for (StatKey sk : STAT_ORDER) sk.set(d, sk.get(stored));
         if (d.innateTechniqueName == null) d.cursedTechniqueMastery = 0;
         d.moveIds    = stored.moveIds    != null ? new ArrayList<>(stored.moveIds)    : new ArrayList<>();
@@ -253,6 +263,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         moveRepo.load();
         abilityRepo.load();
         techniqueRepo.load();
+        cursedToolRepo.load();
         records.clear();
         records.addAll(charRepo.getAll());
     }
@@ -304,6 +315,17 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                         + " before saving.");
             }
         }
+        if (d.equippedCursedToolIds != null) {
+            String missingTool = d.equippedCursedToolIds.stream()
+                .filter(toolId -> toolId == null || cursedToolRepo.findById(toolId).isEmpty())
+                .map(String::valueOf)
+                .findFirst().orElse(null);
+            if (missingTool != null) {
+                return ValidationResult.error(
+                    "Remove missing equipped cursed tool reference " + missingTool
+                        + " before saving.");
+            }
+        }
         String lockedTreeNode = firstActiveLockedTreeNode(d);
         if (lockedTreeNode != null) {
             return ValidationResult.error(
@@ -333,7 +355,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             d.id = charRepo.nextId();
         }
         try {
-            d.toCharacter(moveRepo, abilityRepo, techniqueRepo);
+            d.toCharacter(moveRepo, abilityRepo, techniqueRepo, cursedToolRepo);
         } catch (Exception e) {
             return ValidationResult.error("Invalid character: " + e.getMessage());
         }
@@ -698,19 +720,45 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         derived.add(derivedPreview).growX().row();
         refreshDerivedPreview(cd);
 
+        // ── Equipment ─────────────────────────────────────────────────────────
+        // Base weapons are ticked per type; cursed tools are assigned from the
+        // tool catalog. Both count towards the weapon gate for moves carrying
+        // the matching weapon-type tag, and cursed tools also make those moves
+        // cost no cursed energy.
+        Table equipmentSection = formSection(form, "EQUIPMENT");
+        Table weaponToggles = new Table(skin);
+        for (WeaponType type : WeaponType.values()) {
+            CheckBox weaponToggle = new CheckBox(" " + type.displayName(), skin);
+            weaponToggle.setChecked(cd.equippedWeaponTypes != null
+                && cd.equippedWeaponTypes.contains(type.name()));
+            weaponToggle.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    game.audio().play(SoundCue.UI_TOGGLE);
+                    if (cd.equippedWeaponTypes == null) cd.equippedWeaponTypes = new ArrayList<>();
+                    if (weaponToggle.isChecked()) {
+                        if (!cd.equippedWeaponTypes.contains(type.name())) {
+                            cd.equippedWeaponTypes.add(type.name());
+                        }
+                    } else {
+                        cd.equippedWeaponTypes.remove(type.name());
+                    }
+                    rebuildMoveAssignment(cd);
+                    markDirty();
+                }
+            });
+            weaponToggles.add(weaponToggle).left().padRight(18f);
+        }
+        equipmentSection.add(weaponToggles).growX().row();
+        equipmentSection.add(formHint(
+            "Equipping a weapon allows learning moves of its type. Cursed tools below also count, and their weapon type's moves cost no cursed energy."))
+            .left().row();
+        Container<Actor> toolAssignmentContainer = new Container<>();
+        toolAssignmentContainer.fillX();
+        equipmentSection.add(toolAssignmentContainer).growX().row();
+        toolAssignmentContainer.setActor(buildCursedToolAssignmentPanel(cd));
+
         // ── Move assignment ────────────────────────────────────────────────────
         Table movesSection = formSection(form, "MOVE ASSIGNMENT");
-        CheckBox hasWeaponToggle = new CheckBox(" has a weapon", skin);
-        hasWeaponToggle.setChecked(cd.hasWeapon);
-        hasWeaponToggle.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
-                game.audio().play(SoundCue.UI_TOGGLE);
-                cd.hasWeapon = hasWeaponToggle.isChecked();
-                rebuildMoveAssignment(cd);
-                markDirty();
-            }
-        });
-        movesSection.add(hasWeaponToggle).left().row();
         moveAssignmentContainer = new Container<>();
         moveAssignmentContainer.fillX();
         movesSection.add(moveAssignmentContainer).growX().row();
@@ -1284,8 +1332,10 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         // still subject to every check below.
         boolean bypass = abilities.grantedMoveIds().contains(move.id);
         if (bypass) return null;
-        if (built.isWeaponRequired() && !character.hasWeapon) {
-            return "Requires a weapon.";
+        MoveTag weaponTag = built.weaponTag();
+        if (weaponTag != null
+                && !effectiveEquippedTypes(character).contains(WeaponType.fromMoveTag(weaponTag))) {
+            return "Requires an equipped " + WeaponType.fromMoveTag(weaponTag).displayName() + ".";
         }
         String lockedTag = lockingTag(abilities, move);
         if (lockedTag != null) return "Locked by ability: " + lockedTag;
@@ -1346,6 +1396,95 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (error == null) return new AssignmentPanel.Item(move.id, move.name, sublabel);
         return noAvailableSlotsError(pool).equals(error)
             ? new AssignmentPanel.Item(move.id, move.name, sublabel, true, error) : null;
+    }
+
+    // =========================================================================
+    // Equipment
+    // =========================================================================
+
+    /** Two-column panel equipping/unequipping cursed tools from the catalog. */
+    private AssignmentPanel buildCursedToolAssignmentPanel(CharacterData cd) {
+        if (cd.equippedCursedToolIds == null) cd.equippedCursedToolIds = new ArrayList<>();
+        return new AssignmentPanel(new AssignmentPanel.Controller() {
+            @Override public List<AssignmentPanel.Item> availableItems() {
+                List<AssignmentPanel.Item> items = new ArrayList<>();
+                for (CursedToolData tool : cursedToolRepo.getAll()) {
+                    if (equippedToolIds(cd).contains(tool.id)) continue;
+                    items.add(new AssignmentPanel.Item(tool.id, tool.name,
+                        toolSublabel(tool)));
+                }
+                return items;
+            }
+
+            @Override public List<AssignmentPanel.Item> assignedItems() {
+                List<AssignmentPanel.Item> items = new ArrayList<>();
+                for (String toolId : equippedToolIds(cd)) {
+                    CursedToolData tool = cursedToolRepo.findById(toolId).orElse(null);
+                    if (tool == null) continue;
+                    items.add(new AssignmentPanel.Item(tool.id, tool.name,
+                        toolSublabel(tool)));
+                }
+                return items;
+            }
+
+            @Override public boolean canAssign(String id) {
+                return true;
+            }
+
+            @Override public void onAssign(String id) {
+                game.audio().play(SoundCue.UI_TOGGLE);
+                cd.equippedCursedToolIds.add(id);
+                rebuildMoveAssignment(cd);
+                markDirty();
+            }
+
+            @Override public void onUnassign(String id) {
+                game.audio().play(SoundCue.UI_TOGGLE);
+                cd.equippedCursedToolIds.remove(id);
+                rebuildMoveAssignment(cd);
+                markDirty();
+            }
+
+            @Override public String budgetSummary() {
+                return "CURSED TOOLS — equip to grant the weapon type and free-CE use of its moves";
+            }
+        }, game.audio()::play, uiProfile, skin);
+    }
+
+    private static String toolSublabel(CursedToolData tool) {
+        String type = tool.weaponType == null ? "?" : tool.weaponType;
+        String imbued = tool.imbuedTechniqueName == null || tool.imbuedTechniqueName.isBlank()
+            ? "" : " • " + tool.imbuedTechniqueName;
+        return type + imbued;
+    }
+
+    private static List<String> equippedToolIds(CharacterData cd) {
+        return cd.equippedCursedToolIds == null ? List.of() : cd.equippedCursedToolIds;
+    }
+
+    /**
+     * Every weapon type this character wields — base weapons plus the types of
+     * every equipped cursed tool. Mirrors {@code Equipment.weaponTypes()}.
+     */
+    private Set<WeaponType> effectiveEquippedTypes(CharacterData cd) {
+        Set<WeaponType> types = new LinkedHashSet<>();
+        if (cd.equippedWeaponTypes != null) {
+            for (String stored : cd.equippedWeaponTypes) {
+                WeaponType type = WeaponType.fromStoredValue(stored);
+                if (type != null) types.add(type);
+            }
+        }
+        for (String toolId : equippedToolIds(cd)) {
+            CursedToolData tool = cursedToolRepo.findById(toolId).orElse(null);
+            if (tool != null) {
+                try {
+                    types.add(tool.effectiveWeaponType());
+                } catch (IllegalArgumentException ignored) {
+                    // Invalid tool data is reported at save time.
+                }
+            }
+        }
+        return types;
     }
 
     // =========================================================================
@@ -1512,7 +1651,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (!probe.abilityIds.contains(abilityId)) probe.abilityIds.add(abilityId);
         try {
             clampAllocationsToBounds(probe);
-            probe.toCharacter(moveRepo, abilityRepo, techniqueRepo);
+            probe.toCharacter(moveRepo, abilityRepo, techniqueRepo, cursedToolRepo);
             return null;
         } catch (Exception ex) {
             return "Cannot assign: " + ex.getMessage();

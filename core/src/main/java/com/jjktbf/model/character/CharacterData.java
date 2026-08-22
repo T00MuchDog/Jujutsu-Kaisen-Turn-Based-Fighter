@@ -2,6 +2,7 @@ package com.jjktbf.model.character;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveRepository;
@@ -9,6 +10,8 @@ import com.jjktbf.model.technique.InnateTechniqueData;
 import com.jjktbf.model.technique.SkillTreeNodeData;
 import com.jjktbf.model.technique.TechniqueRepository;
 import com.jjktbf.model.technique.TechniqueSkillTree;
+import com.jjktbf.model.weapon.CursedToolData;
+import com.jjktbf.model.weapon.CursedToolRepository;
 
 import java.util.*;
 
@@ -68,10 +71,31 @@ public class CharacterData {
     public String innateTechniqueName;
 
     /**
-     * Whether this character wields a weapon. Gates {@code weaponRequired} moves
-     * (notably parries). Defaults to false.
+     * {@link com.jjktbf.model.weapon.WeaponType} names of the base (non-cursed-tool)
+     * weapons this character has equipped. A move carrying a weapon-type tag can
+     * only be learned while the matching weapon type is equipped from this list
+     * or via an equipped cursed tool. A character may equip multiple weapons.
      */
-    public boolean hasWeapon = false;
+    public List<String> equippedWeaponTypes;
+
+    /**
+     * 6-digit {@link CursedToolData} ids of the cursed tools this character has
+     * equipped. Cursed tools satisfy the weapon gate for their weapon type AND
+     * make that type's moves cost no cursed energy. May be null/empty.
+     */
+    public List<String> equippedCursedToolIds;
+
+    /**
+     * Compat reader: the legacy single "has a weapon" boolean became the
+     * multi-weapon equipment lists. Legacy weapon wielders are all katana
+     * users, so the old flag translates to an equipped Katana.
+     */
+    @JsonProperty("hasWeapon")
+    private void readHasWeapon(boolean hasWeapon) {
+        if (hasWeapon && (equippedWeaponTypes == null || equippedWeaponTypes.isEmpty())) {
+            equippedWeaponTypes = new ArrayList<>(List.of("KATANA"));
+        }
+    }
 
     // --- Stats (all integers, range 10–300, baseline 80) ---
     public int vitality               = 80;
@@ -171,6 +195,20 @@ public class CharacterData {
         AbilityRepository abilityRepo,
         TechniqueRepository techniqueRepo
     ) {
+        return toCharacter(moveRepo, abilityRepo, techniqueRepo, null);
+    }
+
+    /**
+     * Full domain build, additionally resolving equipped weapons and cursed
+     * tools from {@code cursedToolRepo}. Pass {@code null} to ignore equipment
+     * (tool references are then skipped entirely, which suits unit tests).
+     */
+    public Character toCharacter(
+        MoveRepository moveRepo,
+        AbilityRepository abilityRepo,
+        TechniqueRepository techniqueRepo,
+        CursedToolRepository cursedToolRepo
+    ) {
         CharacterStats stats = toCharacterStats();
         List<Move> moves = new ArrayList<>();
         List<InnateTechniqueData> techniques = techniqueRepo == null ? null : techniqueRepo.getAll();
@@ -217,7 +255,32 @@ public class CharacterData {
                 }
         }
 
-        return constructTypedCharacter(stats, moves, abilities);
+        Equipment equipment = resolveEquipment(moveRepo, abilityRepo, cursedToolRepo);
+        return constructTypedCharacter(stats, moves, abilities, equipment);
+    }
+
+    /**
+     * Resolve this character's {@link Equipment} (base weapons plus cursed
+     * tools). Fails loudly on unknown weapon types, unknown tool ids, and
+     * unresolvable tool-granted content so bad references surface at load.
+     */
+    public Equipment resolveEquipment(
+        MoveRepository moveRepo,
+        AbilityRepository abilityRepo,
+        CursedToolRepository cursedToolRepo
+    ) {
+        return Equipment.resolve(
+            equippedWeaponTypes,
+            equippedCursedToolIds,
+            cursedToolRepo == null ? List.of() : cursedToolRepo.getAll(),
+            toolMoveId -> moveRepo.findById(toolMoveId)
+                .map(move -> move.toMoveResolved(
+                    launchId -> moveRepo.findById(launchId).orElse(null)))
+                .orElse(null),
+            toolAbilityId -> abilityRepo == null ? null
+                : abilityRepo.findById(toolAbilityId)
+                    .map(Ability::new)
+                    .orElse(null));
     }
 
     /**
@@ -226,6 +289,19 @@ public class CharacterData {
      * server-side {@code ContentCatalog} build the same subclass for a given type.
      */
     public Character constructTypedCharacter(CharacterStats stats, List<Move> moves, List<Ability> abilities) {
+        return constructTypedCharacter(stats, moves, abilities, Equipment.NONE);
+    }
+
+    /**
+     * As {@link #constructTypedCharacter(CharacterStats, List, List)}, with the
+     * character's resolved {@link Equipment} (weapons and cursed tools).
+     */
+    public Character constructTypedCharacter(
+        CharacterStats stats,
+        List<Move> moves,
+        List<Ability> abilities,
+        Equipment equipment
+    ) {
         CharacterType resolved = effectiveType();
         return switch (resolved) {
             case SHIKIGAMI -> {
@@ -235,14 +311,14 @@ public class CharacterData {
                         "Shikigami base CE drain per tick must be greater than 0");
                 }
                 yield new ShikigamiCharacter(id, name, stats, innateTechniqueName,
-                    moves, abilities, hasWeapon, baseCeDrainPerTick);
+                    moves, abilities, equipment, baseCeDrainPerTick);
             }
             case CURSED_SPIRIT -> new CursedSpiritCharacter(
-                id, name, stats, innateTechniqueName, moves, abilities, hasWeapon);
+                id, name, stats, innateTechniqueName, moves, abilities, equipment);
             case CURSED_CORPSE -> new CursedCorpseCharacter(
-                id, name, stats, innateTechniqueName, moves, abilities, hasWeapon);
+                id, name, stats, innateTechniqueName, moves, abilities, equipment);
             case SORCERER -> new SorcererCharacter(
-                id, name, stats, innateTechniqueName, moves, abilities, hasWeapon);
+                id, name, stats, innateTechniqueName, moves, abilities, equipment);
         };
     }
 
@@ -343,7 +419,12 @@ public class CharacterData {
             d.baseCeDrainPerTick = character.getBaseCeDrainPerTick();
         }
         d.innateTechniqueName   = character.getInnateTechniqueName();
-        d.hasWeapon             = character.hasWeapon();
+        Equipment equipment     = character.getEquipment();
+        d.equippedWeaponTypes   = equipment.baseTypes().isEmpty()
+            ? null : new ArrayList<>(equipment.baseTypes().stream()
+                .map(Enum::name).toList());
+        d.equippedCursedToolIds = equipment.cursedToolIds().isEmpty()
+            ? null : new ArrayList<>(equipment.cursedToolIds());
 
         CharacterStats cs = character.getBaseStats();
         d.vitality               = cs.getVitality();

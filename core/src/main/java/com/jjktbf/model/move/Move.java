@@ -97,13 +97,6 @@ public class Move {
     private final int potency;
 
     /**
-     * If true, this move can only be used by a character who has a weapon
-     * ({@code CharacterData.hasWeapon}). Forced on for {@link DefenseType#PARRY}
-     * moves. Backs the {@code weaponRequired} data field.
-     */
-    private final boolean weaponRequired;
-
-    /**
      * If true, an action segment carrying this move cannot be cancelled by a
      * stun-current-action effect. Interrupts are unaffected. Backs the HEAVY move tag.
      */
@@ -333,7 +326,6 @@ public class Move {
         this.guardBreak          = b.guardBreak;
         this.heavy               = b.heavy;
         this.potency             = b.potency;
-        this.weaponRequired      = b.weaponRequired;
         this.apCost              = b.apCost;
         this.unleashPoint        = b.unleashPoint;
         this.baseCeCost          = b.baseCeCost;
@@ -479,7 +471,14 @@ public class Move {
     public boolean isGuardBreak()                 { return guardBreak; }
     public boolean isHeavy()                      { return heavy; }
     public int getPotency()                       { return potency; }
-    public boolean isWeaponRequired()             { return weaponRequired; }
+    /**
+     * The weapon-type tag ({@link MoveTag#WEAPON_TAGS}) this move carries, or
+     * {@code null} for an unarmed move. A character needs the matching weapon
+     * equipped (base weapon or cursed tool) to learn this move.
+     */
+    public MoveTag weaponTag()                    { return MoveTag.weaponTagIn(getTags()); }
+    /** True when this move is performed with a weapon of a specific type. */
+    public boolean hasWeaponTag()                 { return weaponTag() != null; }
     public int getApCost()                        { return apCost; }
     public int getUnleashPoint()                  { return unleashPoint; }
     public int getBaseCeCost()                    { return baseCeCost; }
@@ -904,7 +903,6 @@ public class Move {
         private boolean guardBreak           = false;
         private boolean heavy                = false;
         private int potency                  = 1;
-        private boolean weaponRequired       = false;
         private int apCost                   = 10;
         private int unleashPoint             = 10;
         private int baseCeCost               = 0;
@@ -974,7 +972,6 @@ public class Move {
         public Builder guardBreak(boolean v)               { this.guardBreak = v; return this; }
         public Builder heavy(boolean v)                    { this.heavy = v; return this; }
         public Builder potency(int v)                      { this.potency = v; return this; }
-        public Builder weaponRequired(boolean v)           { this.weaponRequired = v; return this; }
         public Builder apCost(int v)                       { this.apCost = v; return this; }
         public Builder unleashPoint(int v)                 { this.unleashPoint = v; return this; }
         public Builder baseCeCost(int v)                   { this.baseCeCost = v; return this; }
@@ -1100,10 +1097,6 @@ public class Move {
                 potency = 1;
             } else if (potency < 1) {
                 potency = 1;
-            }
-            // A parry requires a weapon by definition.
-            if (defenseType == DefenseType.PARRY) {
-                weaponRequired = true;
             }
 
             // Technique-tag invariant: moves bearing the INNATE_TECHNIQUE or

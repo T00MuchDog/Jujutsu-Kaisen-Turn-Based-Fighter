@@ -32,7 +32,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
+import com.jjktbf.model.weapon.WeaponType;
 class MultiHitMoveTest {
 
     @Test
@@ -536,7 +538,7 @@ class MultiHitMoveTest {
             .speed(speed)
             .build();
         Character character = new SorcererCharacter(
-            id, name, stats, null, moves, List.of(), true);
+            id, name, stats, null, moves, List.of(), Equipment.base(WeaponType.KATANA));
         return new BattleCombatant(character);
     }
 

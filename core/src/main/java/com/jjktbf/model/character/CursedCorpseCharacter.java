@@ -37,10 +37,10 @@ public class CursedCorpseCharacter extends Character {
         List<Move> knownMoves,
         List<Ability> abilities,
         java.util.Set<String> accessibleTechniques,
-        boolean hasWeapon
+        Equipment equipment
     ) {
         super(id, name, CharacterType.CURSED_CORPSE, baseStats, innateTechniqueName,
-            knownMoves, abilities, accessibleTechniques, hasWeapon);
+            knownMoves, abilities, accessibleTechniques, equipment);
     }
 
     public CursedCorpseCharacter(
@@ -50,9 +50,9 @@ public class CursedCorpseCharacter extends Character {
         String innateTechniqueName,
         List<Move> knownMoves,
         List<Ability> abilities,
-        boolean hasWeapon
+        Equipment equipment
     ) {
         this(id, name, baseStats, innateTechniqueName, knownMoves, abilities,
-            accessibleTechniquesOf(innateTechniqueName, abilities), hasWeapon);
+            accessibleTechniquesOf(innateTechniqueName, abilities), equipment);
     }
 }

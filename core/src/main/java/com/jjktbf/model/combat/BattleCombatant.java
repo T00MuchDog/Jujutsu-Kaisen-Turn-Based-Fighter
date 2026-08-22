@@ -1056,7 +1056,17 @@ public class BattleCombatant {
             getEffectiveStats().getCursedEnergyOutput(),
             flags,
             statMode);
-        return Math.max(0, (int) Math.round(modifyBattleStat(BattleStatKey.CE_COST, cost)));
+        cost = Math.max(0, (int) Math.round(modifyBattleStat(BattleStatKey.CE_COST, cost)));
+        // An equipped cursed tool channels its own cursed energy: moves of its
+        // weapon type cost the wielder nothing. Applied last so the free-CE
+        // rule is absolute.
+        return isCoveredByCursedTool(move) ? 0 : cost;
+    }
+
+    private boolean isCoveredByCursedTool(com.jjktbf.model.move.Move move) {
+        if (character == null) return false;
+        com.jjktbf.model.move.MoveTag weaponTag = move.weaponTag();
+        return weaponTag != null && character.getEquipment().coversWeaponTag(weaponTag);
     }
 
     public boolean wasAbilityConditionTrue(String key) {

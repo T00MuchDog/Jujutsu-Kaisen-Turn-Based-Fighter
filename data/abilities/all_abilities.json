@@ -199,7 +199,7 @@
   "id" : "000005",
   "name" : "New Shadow Style",
   "flavourText" : "A learned school of swordsmanship and barrier techniques developed so sorcerers without inherited techniques can defend themselves against superior jujutsu.",
-  "mechanicText" : "Make BATTO SWORD DRAWING and SIMPLE DOMAIN AVAILABLE to learn.",
+  "mechanicText" : "Make BATTO KATANA DRAWING and SIMPLE DOMAIN AVAILABLE to learn.",
   "category" : "PASSIVE",
   "sourceType" : "CHARACTER",
   "effects" : [ {
@@ -230,14 +230,14 @@
   "id" : "000007",
   "name" : "Earnest Swordswoman",
   "flavourText" : "Miwa's diligent practice gives every measured draw more force than her unassuming presence suggests.",
-  "mechanicText" : "Increase BASE POWER of SWORD moves by 10%.",
+  "mechanicText" : "Increase BASE POWER of KATANA moves by 10%.",
   "category" : "PASSIVE",
   "sourceType" : "CHARACTER",
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "MOVE_BASE_POWER_MULTIPLY",
     "doubleValue" : 1.1,
-    "moveTag" : "SWORD"
+    "moveTag" : "KATANA"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -465,19 +465,6 @@
   "masteryThreshold" : 0
 }, {
   "id" : "000019",
-  "name" : "Cursed Tool Access",
-  "flavourText" : "Granted access to a variety of Cursed Tools, they do not need to reinforce weapons with their own Cursed Energy",
-  "mechanicText" : "Allows the user to use CURSED TOOL moves without their requirements.",
-  "category" : "PASSIVE",
-  "sourceType" : "CHARACTER",
-  "effects" : [ {
-    "effectId" : "effect-000000",
-    "type" : "GRANT_MOVE",
-    "moveId" : "000036"
-  } ],
-  "masteryThreshold" : 0
-}, {
-  "id" : "000020",
   "name" : "Totality",
   "flavourText" : "When a shikigami falls in battle, its essence is not lost — the survivor permanently inherits that power, forging a stronger and lasting fusion that cannot be undone.",
   "mechanicText" : "Unlock TOTALITY shikigami: permanent fusions born from a destroyed shikigami's inherited essence. Stronger than any living fusion.",
@@ -492,7 +479,7 @@
   } ],
   "masteryThreshold" : 50
 }, {
-  "id" : "000021",
+  "id" : "000020",
   "name" : "Shadows Unravel",
   "flavourText" : "When the last of the user's cursed energy fades, every maintained shadow loses its form and returns to darkness.",
   "mechanicText" : "At 0 CE, DESUMMON every owned SHIKIGAMI.",
@@ -514,7 +501,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000022",
+  "id" : "000021",
   "name" : "Ten Shadows Shikigami",
   "flavourText" : "This familiar is sustained through its summoner's shadow and may withdraw into it at will.",
   "mechanicText" : "Unlock DESUMMON.",
@@ -527,7 +514,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000023",
+  "id" : "000022",
   "name" : "White Dog",
   "flavourText" : "The white Divine Dog pursues cursed traces with exceptional speed and precision.",
   "mechanicText" : "Unlock DIVINE DOG BITE and TRACKING POUNCE",
@@ -544,7 +531,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000024",
+  "id" : "000023",
   "name" : "Black Dog",
   "flavourText" : "The black Divine Dog brings greater force to the hunt, ripping apart anything it corners.",
   "mechanicText" : "Unlock DIVINE DOG BITE and RENDING POUNCE",
@@ -561,7 +548,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000025",
+  "id" : "000024",
   "name" : "Nue",
   "flavourText" : "Nue dominates the air and channels cursed lightning through its wings and talons.",
   "mechanicText" : "Unlock SKY RESCUE, ELECTRIFIED TALONS and LIGHTNING DISCHARGE. Drain 0.35 CE from the summoner each active tick.",
@@ -582,7 +569,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000026",
+  "id" : "000025",
   "name" : "Toad",
   "flavourText" : "Toad controls space with a long, powerful tongue suited to striking and binding prey.",
   "mechanicText" : "Unlock TONGUE RESCUE, TONGUE LASH and BINDING TONGUE",
@@ -603,7 +590,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000027",
+  "id" : "000026",
   "name" : "Great Serpent",
   "flavourText" : "Great Serpent overwhelms prey with its immense coils before swallowing the opening whole.",
   "mechanicText" : "Unlock COILING GUARD, SERPENT CONSTRICT and DEVOURING LUNGE",
@@ -624,7 +611,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000028",
+  "id" : "000027",
   "name" : "Divine Dog Totality",
   "flavourText" : "Totality concentrates the Divine Dogs' inherited power into a predator of extraordinary speed and force.",
   "mechanicText" : "Unlock RESCUE SPRINT, TOTALITY CLAW and PREDATOR RUSH",
@@ -645,7 +632,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000029",
+  "id" : "000028",
   "name" : "Max Elephant",
   "flavourText" : "Max Elephant manifests overwhelming mass and a vast volume of water through the user's shadow.",
   "mechanicText" : "Unlock CRUSHING STOMP and WATER DELUGE",
@@ -662,7 +649,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000030",
+  "id" : "000029",
   "name" : "Toad/Nue Fusion",
   "flavourText" : "Through Well's Unknown Abyss, Toad and Nue merge into a winged swarm that binds enemies from above while striking with coordinated tongues and talons.",
   "mechanicText" : "Unlock WINGED TONGUE SNARE and AERIAL SWARM. Drain 0.45 CE from the summoner each active tick.",
@@ -679,7 +666,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000031",
+  "id" : "000030",
   "name" : "Cursed Speech",
   "flavourText" : "The snake-and-fangs seal turns spoken commands into compulsory cursed energy, forcing listeners to obey at a cost to the user's throat.",
   "mechanicText" : "Enable CURSED SPEECH commands. Each selected target independently resists using current CE; every attempt inflicts target-CE-scaled RECOIL even when resisted.",
@@ -694,7 +681,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000032",
+  "id" : "000031",
   "name" : "Refined Commands",
   "flavourText" : "Careful diction and disciplined cursed-energy control make each command harder to resist without increasing its strain.",
   "mechanicText" : "At CTM 60, add min(20, CTM / 12) percentage points to CURSED SPEECH command success chance.",
@@ -718,37 +705,7 @@
   } ],
   "masteryThreshold" : 60
 }, {
-  "id" : "000033",
-  "name" : "Cursed Tool Reinforcement",
-  "flavourText" : "A cursed tool bears the burden of reinforcement itself, letting its wielder strike with cursed energy that is not their own.",
-  "mechanicText" : "When using a weapon-required move with exactly PHYSICAL and CURSED ENERGY damage tags, set its CE cost to 0.",
-  "category" : "ACTIVE",
-  "sourceType" : "ABILITY",
-  "sourceValue" : "000019",
-  "activationConditions" : [ {
-    "condition" : {
-      "type" : "ALL",
-      "children" : [ {
-        "type" : "MOVE_WEAPON_REQUIRED",
-        "actor" : "SELF"
-      }, {
-        "type" : "MOVE_TYPE_TAGS_EXACTLY",
-        "actor" : "SELF",
-        "moveTags" : [ "PHYSICAL", "CURSED_ENERGY" ]
-      } ]
-    },
-    "targetEffectIds" : [ "effect-000000" ],
-    "matchSameTrigger" : true
-  } ],
-  "effects" : [ {
-    "effectId" : "effect-000000",
-    "type" : "CE_COST_ALTER",
-    "intValue" : 0,
-    "doubleValue" : 0.0
-  } ],
-  "masteryThreshold" : 0
-}, {
-  "id" : "000034",
+  "id" : "000032",
   "name" : "Well's Unknown Abyss",
   "flavourText" : "Two living shikigami are drawn together into a single composite shadow — a temporary union weaker than any Totality, but one that may be broken apart and reformed freely, for its components never truly die.",
   "mechanicText" : "Unlock WELLS UNKNOWN ABYSS shikigami: temporary fusions of two living shikigami. Weaker than Totality, but destroyed at no lasting cost.",
@@ -763,7 +720,7 @@
   } ],
   "masteryThreshold" : 50
 }, {
-  "id" : "000035",
+  "id" : "000033",
   "name" : "Blessed by the Sparks of Black",
   "flavourText" : "Yuji's exceptional concentration brings cursed energy and physical impact within a hair's breadth of perfect alignment.",
   "mechanicText" : "Double the ODDS of landing a BLACK FLASH.",
@@ -777,7 +734,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000036",
+  "id" : "000034",
   "name" : "Cursed Corpse Physiology",
   "flavourText" : "A living construct animated by cursed energy has no biological bloodstream for ordinary toxins to corrupt.",
   "mechanicText" : "Become immune to POISON.",
@@ -789,7 +746,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000037",
+  "id" : "000035",
   "name" : "Three Sibling Cores",
   "flavourText" : "Panda was born with three compatible cores: Panda, Gorilla, and an elder sister whose form is not available during the Kyoto Goodwill Event.",
   "mechanicText" : "Grant access to PANDA CORE, PANDA CORE SUCCESSION, GORILLA CORE, and GORILLA CORE SUCCESSION.",
@@ -798,29 +755,29 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "GRANT_ABILITY",
-    "abilityId" : "000038"
+    "abilityId" : "000036"
   }, {
     "effectId" : "effect-000001",
     "type" : "GRANT_ABILITY",
-    "abilityId" : "000039"
+    "abilityId" : "000037"
   }, {
     "effectId" : "effect-000002",
     "type" : "GRANT_ABILITY",
-    "abilityId" : "000040"
+    "abilityId" : "000038"
   }, {
     "effectId" : "effect-000003",
     "type" : "GRANT_ABILITY",
-    "abilityId" : "000041"
+    "abilityId" : "000039"
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000038",
+  "id" : "000036",
   "name" : "Panda Core",
   "flavourText" : "Panda's balanced core combines sharp judgment, resilient defense, and the dexterity to protect his allies.",
   "mechanicText" : "Grant GORILLA MODE.",
   "category" : "PASSIVE",
   "sourceType" : "ABILITY",
-  "sourceValue" : "000037",
+  "sourceValue" : "000035",
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "GRANT_MOVE",
@@ -828,13 +785,13 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000039",
+  "id" : "000037",
   "name" : "Panda Core Succession",
   "flavourText" : "When the Panda core can no longer sustain the body, Panda shifts control to his surviving Gorilla core.",
   "mechanicText" : "At 0 HP, transform into GORILLA MODE at its stored HP, or full HP if it has not yet entered battle.",
   "category" : "ACTIVE",
   "sourceType" : "ABILITY",
-  "sourceValue" : "000038",
+  "sourceValue" : "000036",
   "activationConditions" : [ {
     "condition" : {
       "type" : "HP_VALUE_AT_OR_BELOW",
@@ -853,13 +810,13 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000040",
+  "id" : "000038",
   "name" : "Gorilla Core",
   "flavourText" : "The short-tempered Gorilla core sacrifices efficiency for explosive strength, speed, and the power to send vibrations through an opponent's guard.",
   "mechanicText" : "Grant GORILLA PUMMEL, UNBLOCKABLE DRUMMING BEAT, and RETURN TO PANDA CORE. Pay 40 CE at the start of each round.",
   "category" : "PASSIVE",
   "sourceType" : "ABILITY",
-  "sourceValue" : "000037",
+  "sourceValue" : "000035",
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "GRANT_MOVE",
@@ -879,13 +836,13 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000041",
+  "id" : "000039",
   "name" : "Gorilla Core Succession",
   "flavourText" : "If the Gorilla core is destroyed while the Panda core still lives, control returns to Panda's balanced form.",
   "mechanicText" : "At 0 HP, return to PANDA CORE at its stored HP. The transformation fails if PANDA CORE was already defeated.",
   "category" : "ACTIVE",
   "sourceType" : "ABILITY",
-  "sourceValue" : "000040",
+  "sourceValue" : "000038",
   "activationConditions" : [ {
     "condition" : {
       "type" : "HP_VALUE_AT_OR_BELOW",
@@ -904,7 +861,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000042",
+  "id" : "000040",
   "name" : "Nine-to-Five Binding Vow",
   "flavourText" : "Nanami vows to hold himself back between nine and five so that, once overtime begins, he can surpass his own limits.",
   "mechanicText" : "Multiply VITALITY, STRENGTH, DURABILITY, SPEED, CURSED ENERGY RESERVES, and CURSED ENERGY OUTPUT by 0.8. JUJUTSU SKILL, COMBAT ABILITY, CURSED ENERGY EFFICIENCY, and CURSED TECHNIQUE MASTERY are unaffected.",
@@ -943,7 +900,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000043",
+  "id" : "000041",
   "name" : "Record: Four Consecutive Black Flashes",
   "flavourText" : "The record for consecutive Black Flashes — four in a single night — still belongs to a first-year salaryman who walked home from the office.",
   "mechanicText" : "Multiply the odds of landing a BLACK FLASH by 1.5.",
@@ -957,7 +914,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000044",
+  "id" : "000042",
   "name" : "A Professional Sees It Through",
   "flavourText" : "Battered and burning, Nanami refuses to fall while the job remains. A professional finishes the work.",
   "mechanicText" : "At BATTLE START, steel your resolve: once per battle, damage or an effect that would reduce you to 0 HP leaves you at 1 HP instead.",
@@ -980,7 +937,7 @@
   } ],
   "masteryThreshold" : 0
 }, {
-  "id" : "000045",
+  "id" : "000043",
   "name" : "Seven-Three Insight",
   "flavourText" : "Long practice with the Ratio Technique teaches its user to see the seven-to-three line in everything.",
   "mechanicText" : "Add ACCURACY to your INNATE TECHNIQUE moves: +5, rising to +15 as CURSED TECHNIQUE MASTERY grows.",
@@ -998,6 +955,65 @@
         "formula" : "min(15, 5 + ctm / 50)"
       }
     }
+  } ],
+  "masteryThreshold" : 0
+}, {
+  "id" : "000044",
+  "name" : "Cursed Tools Expert",
+  "flavourText" : "Long training with cursed tools lets the wielder draw out a weapon's full edge, striking truer and harder with any blade they wield.",
+  "mechanicText" : "Weapon-type moves (KATANA, BOW, GREAT_AXE, POLEARM, STAFF) deal 10% more damage and gain 10% accuracy.",
+  "category" : "PASSIVE",
+  "sourceType" : "CHARACTER",
+  "effects" : [ {
+    "effectId" : "effect-000000",
+    "type" : "DAMAGE_MULTIPLY",
+    "doubleValue" : 1.1,
+    "moveTag" : "KATANA"
+  }, {
+    "effectId" : "effect-000001",
+    "type" : "DAMAGE_MULTIPLY",
+    "doubleValue" : 1.1,
+    "moveTag" : "BOW"
+  }, {
+    "effectId" : "effect-000002",
+    "type" : "DAMAGE_MULTIPLY",
+    "doubleValue" : 1.1,
+    "moveTag" : "GREAT_AXE"
+  }, {
+    "effectId" : "effect-000003",
+    "type" : "DAMAGE_MULTIPLY",
+    "doubleValue" : 1.1,
+    "moveTag" : "POLEARM"
+  }, {
+    "effectId" : "effect-000004",
+    "type" : "DAMAGE_MULTIPLY",
+    "doubleValue" : 1.1,
+    "moveTag" : "STAFF"
+  }, {
+    "effectId" : "effect-000005",
+    "type" : "MOVE_ACCURACY_MULTIPLY",
+    "doubleValue" : 1.1,
+    "moveTag" : "KATANA"
+  }, {
+    "effectId" : "effect-000006",
+    "type" : "MOVE_ACCURACY_MULTIPLY",
+    "doubleValue" : 1.1,
+    "moveTag" : "BOW"
+  }, {
+    "effectId" : "effect-000007",
+    "type" : "MOVE_ACCURACY_MULTIPLY",
+    "doubleValue" : 1.1,
+    "moveTag" : "GREAT_AXE"
+  }, {
+    "effectId" : "effect-000008",
+    "type" : "MOVE_ACCURACY_MULTIPLY",
+    "doubleValue" : 1.1,
+    "moveTag" : "POLEARM"
+  }, {
+    "effectId" : "effect-000009",
+    "type" : "MOVE_ACCURACY_MULTIPLY",
+    "doubleValue" : 1.1,
+    "moveTag" : "STAFF"
   } ],
   "masteryThreshold" : 0
 } ]

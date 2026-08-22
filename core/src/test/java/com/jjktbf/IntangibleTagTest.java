@@ -23,6 +23,8 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
+import com.jjktbf.model.weapon.WeaponType;
 
 class IntangibleTagTest {
 
@@ -212,7 +214,8 @@ class IntangibleTagTest {
     private static BattleCombatant combatant(String id, Move move, boolean hasWeapon) {
         CharacterStats stats = new CharacterStats.Builder().build();
         Character character = new SorcererCharacter(
-            id, id, stats, null, List.of(move), List.of(), hasWeapon);
+            id, id, stats, null, List.of(move), List.of(),
+            hasWeapon ? Equipment.base(WeaponType.KATANA) : Equipment.NONE);
         return new BattleCombatant(character);
     }
 

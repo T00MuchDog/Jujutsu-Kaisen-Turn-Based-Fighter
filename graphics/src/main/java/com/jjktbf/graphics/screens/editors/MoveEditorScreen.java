@@ -113,7 +113,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
     private Container<Actor> powerFieldsContainer;
     private Container<Actor> aoeFieldsContainer;
     private Container<Actor> attackLaunchContainer;
-    private CheckBox weaponRequiredCheckbox;
 
     public MoveEditorScreen(JJKGame game, AssetLoader assets) {
         super(game, assets);
@@ -153,7 +152,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         m.dodgeScope = "BOTH";
         m.parryStaggerTicks = 0;
         m.potency = 1;
-        m.weaponRequired = false;
         m.onHitEffects = new ArrayList<>();
         m.selfEffects = new ArrayList<>();
         m.onBlockEffects = new ArrayList<>();
@@ -195,7 +193,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         d.guardBreak            = s.guardBreak;
         d.heavy                 = s.heavy;
         d.potency               = s.potency;
-        d.weaponRequired        = s.weaponRequired;
         d.apCost                = s.apCost;
         d.unleashPoint          = s.unleashPoint;
         d.baseCeCost            = s.baseCeCost;
@@ -883,7 +880,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         ceMinMaxContainer = null;
         powerFieldsContainer = null;
         attackLaunchContainer = null;
-        weaponRequiredCheckbox = null;
 
         if (d.hitComponents != null && hasTag(d, MoveTag.ATTACK)) {
             synchronizeParentDamageTags(d);
@@ -908,11 +904,15 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             }
         }
         Set<MoveTag> previousTypeTags = typeTags(initialTags);
+        // Weapon-type tags are owned by the MISC Weapon Type dropdown, not the
+        // picker — remember the draft's current one so picker updates preserve it.
+        MoveTag equippedWeaponTag = weaponTagOf(d);
         TagPicker tagPicker = new TagPicker(initialTags, tags -> {
             Set<MoveTag> selectedTypeTags = typeTags(tags);
             boolean typeTagsChanged = !selectedTypeTags.equals(previousTypeTags);
             d.tags = tags.stream().map(MoveTag::name)
                 .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+            if (equippedWeaponTag != null) setWeaponTag(d, equippedWeaponTag);
             if (!tags.contains(MoveTag.INNATE_TECHNIQUE)) {
                 clearMasteryProgression(d);
             }
@@ -939,7 +939,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             d.guardBreak = tags.contains(MoveTag.GUARD_BREAK);
             d.heavy = tags.contains(MoveTag.HEAVY);
             ensureTechniqueStatPrerequisites(d, tags);
-            synchronizeWeaponRequirement(d);
             previousTypeTags.clear();
             previousTypeTags.addAll(typeTagsFromNames(d.tags));
             if (d.hitComponents != null) rebuildDetail();
@@ -950,6 +949,7 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         // during build, so this won't mark the record dirty on load.
         d.tags = tagPicker.getSelected().stream().map(MoveTag::name)
             .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        if (equippedWeaponTag != null) setWeaponTag(d, equippedWeaponTag);
         if (d.hitComponents != null && hasTag(d, MoveTag.ATTACK)) {
             synchronizeParentDamageTags(d);
         }
@@ -957,7 +957,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         previousTypeTags.addAll(typeTagsFromNames(d.tags));
         d.guardBreak = tagPicker.getSelected().contains(MoveTag.GUARD_BREAK);
         d.heavy = tagPicker.getSelected().contains(MoveTag.HEAVY);
-        synchronizeWeaponRequirement(d);
         tagsSection.add(tagPicker).growX().row();
         // Derived TIMELINE marker: which battle board this move plans on.
         // Defence wins over attack, so a Defensive+Attack hybrid shows
@@ -1096,21 +1095,35 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
             "Hidden until an ability grants or forces it. A granted move is learned normally."))
             .left().row();
 
-        // Sword-tagged moves and parries always require a weapon, so their
-        // requirement is shown as a fixed-on, disabled checkbox.
-        weaponRequiredCheckbox = new CheckBox(" Requires a weapon", skin);
-        synchronizeWeaponRequirement(d);
-        weaponRequiredCheckbox.addListener(new ChangeListener() {
+        // The weapon-type dropdown owns the weapon-type tags: selecting a type
+        // tags the move with that weapon (and only that weapon).
+        SelectBox<String> weaponTypeSelect = new DynamicSelectBox<>(skin, uiProfile);
+        java.util.List<String> weaponLabels = new ArrayList<>();
+        weaponLabels.add("[None]");
+        for (com.jjktbf.model.weapon.WeaponType type : com.jjktbf.model.weapon.WeaponType.values()) {
+            weaponLabels.add(type.displayName());
+        }
+        weaponTypeSelect.setItems(weaponLabels.toArray(new String[0]));
+        MoveTag currentWeaponTag = weaponTagOf(d);
+        weaponTypeSelect.setSelected(currentWeaponTag == null
+            ? "[None]"
+            : com.jjktbf.model.weapon.WeaponType.fromMoveTag(currentWeaponTag).displayName());
+        weaponTypeSelect.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
-                if (weaponRequiredCheckbox.isDisabled()) return;
                 game.audio().play(SoundCue.UI_TOGGLE);
-                d.weaponRequired = weaponRequiredCheckbox.isChecked();
+                String label = weaponTypeSelect.getSelected();
+                com.jjktbf.model.weapon.WeaponType chosen = null;
+                for (com.jjktbf.model.weapon.WeaponType type
+                        : com.jjktbf.model.weapon.WeaponType.values()) {
+                    if (type.displayName().equals(label)) chosen = type;
+                }
+                setWeaponTag(d, chosen == null ? null : chosen.moveTag());
                 markDirty();
             }
         });
-        misc.add(weaponRequiredCheckbox).left().row();
+        misc.add(labelledRow("Weapon Type", weaponTypeSelect)).growX().row();
         misc.add(formHint(
-            "Only usable by characters with a weapon. Always on for parries and sword-tagged moves."))
+            "Only learnable by characters with that weapon equipped (weapon or cursed tool)."))
             .left().row();
 
         return form;
@@ -1139,7 +1152,6 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
                 DefenseType.class, d.defenseType, false,
                 s -> {
                     d.defenseType = s;
-                    synchronizeWeaponRequirement(d);
                     refreshConditionalFields(d);
                 }, skin, uiProfile))).growX().row();
 
@@ -1954,8 +1966,13 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         Table t = new Table(skin);
         t.defaults().left().pad(4);
 
-        // A parry forces weaponRequired on; show it as a fixed-on indicator.
-        t.add(labelledRow("Weapon Required", new Label("Yes (parries always require a weapon)",
+        // Parries are weapon moves — surface the currently-selected weapon type
+        // (authored via the MISC Weapon Type dropdown) as a read-only reminder.
+        MoveTag parryWeaponTag = weaponTagOf(d);
+        t.add(labelledRow("Weapon Type", new Label(
+            parryWeaponTag == null
+                ? "None (set one in the MISC section — parries are weapon moves)"
+                : com.jjktbf.model.weapon.WeaponType.fromMoveTag(parryWeaponTag).displayName(),
             skin, "small"))).growX().row();
 
         // Duration (parry windows are typically short).
@@ -3171,18 +3188,38 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         return t;
     }
 
-    /** Force and lock the weapon requirement for moves whose semantics require a weapon. */
-    private void synchronizeWeaponRequirement(MoveData d) {
-        boolean locked = weaponRequirementIsLocked(d);
-        if (locked) d.weaponRequired = true;
-        if (weaponRequiredCheckbox != null) {
-            weaponRequiredCheckbox.setDisabled(locked);
-            weaponRequiredCheckbox.setChecked(d.weaponRequired);
+    /**
+     * The draft's weapon-type tag, or {@code null} when the move is unarmed.
+     * A well-formed move carries at most one; the first match wins.
+     */
+    static MoveTag weaponTagOf(MoveData d) {
+        if (d.tags == null) return null;
+        for (String tag : d.tags) {
+            if (tag == null) continue;
+            for (MoveTag weapon : MoveTag.WEAPON_TAGS) {
+                if (weapon.name().equalsIgnoreCase(tag.trim())) return weapon;
+            }
         }
+        return null;
     }
 
-    private static boolean weaponRequirementIsLocked(MoveData d) {
-        return hasTag(d, MoveTag.SWORD) || DefenseType.PARRY.name().equals(d.defenseType);
+    /**
+     * Replace the draft's weapon-type tag. {@code null} clears it. Any other
+     * weapon-type tags present (e.g. from hand-edited data) are removed, so a
+     * move always carries at most one.
+     */
+    static void setWeaponTag(MoveData d, MoveTag weaponTag) {
+        if (d.tags == null) d.tags = new ArrayList<>();
+        d.tags.removeIf(tag -> {
+            if (tag == null) return false;
+            for (MoveTag weapon : MoveTag.WEAPON_TAGS) {
+                if (weapon.name().equalsIgnoreCase(tag.trim())) return true;
+            }
+            return false;
+        });
+        if (weaponTag != null && !d.tags.contains(weaponTag.name())) {
+            d.tags.add(weaponTag.name());
+        }
     }
 
     private static boolean hasTag(MoveData d, MoveTag tag) {
@@ -3230,7 +3267,8 @@ public class MoveEditorScreen extends EditorScreenBase<MoveData> {
         }
         discardInactiveCategoryDetails(copy);
         synchronizeCombinedBasePower(copy);
-        if (weaponRequirementIsLocked(copy)) copy.weaponRequired = true;
+        // A move carries at most one weapon-type tag; keep the first, drop the rest.
+        setWeaponTag(copy, weaponTagOf(copy));
         return copy;
     }
 

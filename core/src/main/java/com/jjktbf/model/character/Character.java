@@ -2,6 +2,8 @@ package com.jjktbf.model.character;
 
 import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MovePool;
+import com.jjktbf.model.move.MoveTag;
+import com.jjktbf.model.weapon.WeaponType;
 
 import java.util.*;
 
@@ -47,11 +49,12 @@ public abstract class Character extends Entity {
     private final List<Ability> abilities;
 
     /**
-     * Whether this character wields a weapon. A move flagged
-     * {@code weaponRequired} (notably every {@link com.jjktbf.model.move.DefenseType#PARRY})
-     * can only be learned/used by a character with a weapon.
+     * Everything this character has equipped: base weapons plus cursed tools.
+     * A move carrying a weapon-type tag
+     * ({@link MoveTag#WEAPON_TAGS}) can only be learned by a character whose
+     * {@link Equipment#weaponTypes()} covers that type.
      */
-    private final boolean hasWeapon;
+    private final Equipment equipment;
 
     // -------------------------------------------------------------------------
     // Construction
@@ -78,11 +81,12 @@ public abstract class Character extends Entity {
         List<Ability>  abilities
     ) {
         this(id, name, type, baseStats, innateTechniqueName, knownMoves, abilities,
-             accessibleTechniquesOf(innateTechniqueName, abilities), false);
+             accessibleTechniquesOf(innateTechniqueName, abilities), Equipment.NONE);
     }
 
     /**
-     * Full construction with an explicit set of accessible technique names.
+     * Full construction with an explicit set of accessible technique names and
+     * equipment.
      *
      * <p>A character "has access to" technique T if it is their
      * {@code innateTechniqueName} OR an applied ability's
@@ -94,8 +98,12 @@ public abstract class Character extends Entity {
      * {@code equalsIgnoreCase} against the innate name — which is what makes
      * UNLOCK_TECHNIQUE (and, by extension, Copy) functional.
      *
-     * @param hasWeapon whether this character wields a weapon (gates
-     *                  {@code weaponRequired} moves such as parries)
+     * <p>Equipped cursed tools contribute their weapon types to the equipped-
+     * weapon gate, their granted moves (which bypass learning requirements,
+     * like {@code GRANT_MOVE}), and their granted abilities.
+     *
+     * @param equipment the character's weapons and cursed tools (may be
+     *                  {@link Equipment#NONE})
      */
     protected Character(
         String         id,
@@ -106,28 +114,67 @@ public abstract class Character extends Entity {
         List<Move>     knownMoves,
         List<Ability>  abilities,
         java.util.Set<String> accessibleTechniques,
-        boolean        hasWeapon
+        Equipment      equipment
     ) {
         super(id, name);
         Objects.requireNonNull(type,      "CharacterType cannot be null");
         Objects.requireNonNull(baseStats, "CharacterStats cannot be null");
 
+        Equipment resolvedEquipment = equipment == null ? Equipment.NONE : equipment;
+        // Tool-bestown abilities are active while the tool stays equipped, so
+        // they flow through every ability pipeline (passive flags, technique
+        // unlocks, locked tags) exactly like assigned abilities.
+        List<Ability> effectiveAbilities = withEquipmentAbilities(abilities, resolvedEquipment);
+
         this.type               = type;
         this.baseStats          = baseStats;
         AbilityApplicator.AbilityFlags passiveFlags =
-            AbilityApplicator.apply(baseStats, abilities).flags;
+            AbilityApplicator.apply(baseStats, effectiveAbilities).flags;
         this.combatStats        = new CombatStats(baseStats, passiveFlags.jujutsuArtSlots);
         this.innateTechniqueName = innateTechniqueName;
-        this.hasWeapon          = hasWeapon;
-        GrantedMoves granted = availableMoveIdsOf(abilities);
+        this.equipment          = resolvedEquipment;
+        GrantedMoves granted = withEquipmentMoves(
+            availableMoveIdsOf(effectiveAbilities), resolvedEquipment);
         List<Move> validatedMoves = validateAndBuildMoveList(
-            knownMoves, type, baseStats, combatStats, accessibleTechniques,
-            granted, lockedMoveTagsOf(abilities), hasWeapon);
-        validatedMoves = filterMovesByAssignedCodedFeatures(validatedMoves, abilities);
+            withEquipmentMoves(knownMoves, resolvedEquipment),
+            type, baseStats, combatStats, accessibleTechniques,
+            granted, lockedMoveTagsOf(effectiveAbilities), resolvedEquipment);
+        validatedMoves = filterMovesByAssignedCodedFeatures(validatedMoves, effectiveAbilities);
         validateCodedMoveReferences(validatedMoves);
         this.knownMoves = Collections.unmodifiableList(validatedMoves);
-        this.abilities          = abilities != null
-            ? Collections.unmodifiableList(new ArrayList<>(abilities)) : List.of();
+        this.abilities          = effectiveAbilities != null
+            ? Collections.unmodifiableList(new ArrayList<>(effectiveAbilities)) : List.of();
+    }
+
+    private static List<Ability> withEquipmentAbilities(
+        List<Ability> abilities, Equipment equipment
+    ) {
+        if (equipment.grantedAbilities().isEmpty()) return abilities;
+        List<Ability> merged = new ArrayList<>();
+        if (abilities != null) merged.addAll(abilities);
+        merged.addAll(equipment.grantedAbilities());
+        return merged;
+    }
+
+    private static List<Move> withEquipmentMoves(List<Move> moves, Equipment equipment) {
+        if (equipment.grantedMoves().isEmpty()) return moves;
+        List<Move> merged = new ArrayList<>();
+        if (moves != null) merged.addAll(moves);
+        merged.addAll(equipment.grantedMoves());
+        return merged;
+    }
+
+    /**
+     * Fold tool-bestown moves into the granted sets: they bypass learning
+     * requirements exactly like {@code GRANT_MOVE}, since the tool bestows
+     * them by being equipped.
+     */
+    private static GrantedMoves withEquipmentMoves(GrantedMoves granted, Equipment equipment) {
+        if (granted == null) granted = GrantedMoves.EMPTY;
+        if (equipment.grantedMoveIds().isEmpty()) return granted;
+        java.util.Set<String> bypass = new java.util.HashSet<>(granted.bypass());
+        bypass.addAll(equipment.grantedMoveIds());
+        return new GrantedMoves(bypass, granted.plain());
     }
 
     private static void validateCodedMoveReferences(List<Move> moves) {
@@ -284,10 +331,11 @@ public abstract class Character extends Entity {
         java.util.Set<String> accessibleTechniques,
         GrantedMoves   granted,
         java.util.Set<String> lockedMoveTags,
-        boolean        hasWeapon
+        Equipment      equipment
     ) {
         if (moves == null) return List.of();
         if (granted == null) granted = GrantedMoves.EMPTY;
+        Equipment resolvedEquipment = equipment == null ? Equipment.NONE : equipment;
 
         Map<MovePool, Integer> slotUsed = new EnumMap<>(MovePool.class);
         List<Move> validated = new ArrayList<>();
@@ -314,13 +362,17 @@ public abstract class Character extends Entity {
             }
 
             // --- 0. Weapon requirement ---
-            // A weaponRequired move (notably every parry) needs a weapon-wielding
-            // character. A GRANT_MOVE-granted move bypasses this like the other
-            // restrictions, so an ability can still bestow a weapon technique.
-            if (!bypass && move.isWeaponRequired() && !hasWeapon) {
+            // A move carrying a weapon-type tag needs the matching weapon
+            // equipped (base weapon or cursed tool). A GRANT_MOVE-granted move
+            // bypasses this like the other restrictions, so an ability can
+            // still bestow a weapon technique.
+            MoveTag requiredWeapon = move.weaponTag();
+            if (!bypass && requiredWeapon != null
+                    && !resolvedEquipment.hasWeaponOfType(WeaponType.fromMoveTag(requiredWeapon))) {
                 throw new IllegalArgumentException(
-                    "Move '" + move.getName() + "' requires a weapon but character '"
-                    + "' does not have one");
+                    "Move '" + move.getName() + "' requires an equipped "
+                        + WeaponType.fromMoveTag(requiredWeapon).displayName()
+                        + ", which this character does not have");
             }
 
             if (!bypass && lockedMoveTags != null
@@ -397,7 +449,8 @@ public abstract class Character extends Entity {
     public List<Move>      getKnownMoves()           { return knownMoves; }
     public List<Ability>   getAbilities()            { return abilities; }
     public boolean         hasInnateTechnique()      { return innateTechniqueName != null; }
-    public boolean         hasWeapon()                { return hasWeapon; }
+    /** The character's weapons and cursed tools (never null). */
+    public Equipment       getEquipment()            { return equipment; }
 
     /** Base CE charged to a summoner per active tick; non-shikigami default to zero. */
     public double          getBaseCeDrainPerTick()     { return 0.0; }

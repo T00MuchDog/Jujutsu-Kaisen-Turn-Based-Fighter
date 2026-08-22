@@ -42,8 +42,9 @@ public enum DefenseType {
 
     /**
      * Parry. A short reactive window that, when an attack lands inside it, negates
-     * the attack's damage entirely (no reduction roll — full negation). Requires
-     * a weapon ({@code weaponRequired} is forced on for parry moves).
+     * the attack's damage entirely (no reduction roll — full negation). A parry
+     * is a weapon move: it carries a weapon-type tag, so the wielder needs the
+     * matching weapon equipped.
      *
      * <p>On a successful parry of a non-GUARD_BREAK attack, the attacker is
      * {@link StatusEffectType#STAGGER staggered} for {@code parryStaggerTicks}

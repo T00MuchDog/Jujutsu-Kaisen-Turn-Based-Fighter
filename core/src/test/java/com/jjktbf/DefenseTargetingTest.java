@@ -34,6 +34,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
 /**
  * Runtime coverage for the defensive targeting system: a defensive move whose
@@ -287,7 +288,7 @@ class DefenseTargetingTest {
     private static BattleCombatant fighter(String name, int speed) {
         CharacterStats stats = new CharacterStats.Builder().vitality(300).speed(speed).build();
         SorcererCharacter character = new SorcererCharacter(
-            name.toLowerCase(), name, stats, null, List.of(), List.of(), false);
+            name.toLowerCase(), name, stats, null, List.of(), List.of(), Equipment.NONE);
         return new BattleCombatant(character, List.of());
     }
 

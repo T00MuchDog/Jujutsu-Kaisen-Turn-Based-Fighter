@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
 /**
  * Coverage for the summon-as-a-move-effect flavour: a move's self / on-hit /
@@ -170,13 +171,13 @@ class MoveSummonEffectTest {
     private static BattleCombatant fighter(String name) {
         CharacterStats stats = new CharacterStats.Builder().vitality(300).speed(100).build();
         SorcererCharacter c = new SorcererCharacter(
-            name.toLowerCase(), name, stats, null, List.of(), List.of(), false);
+            name.toLowerCase(), name, stats, null, List.of(), List.of(), Equipment.NONE);
         return new BattleCombatant(c, List.of());
     }
 
     private static ShikigamiCharacter shikigami(String name) {
         CharacterStats stats = new CharacterStats.Builder().vitality(300).speed(100).build();
         return new ShikigamiCharacter(
-            name.toLowerCase(), name, stats, null, List.of(), List.of(), false);
+            name.toLowerCase(), name, stats, null, List.of(), List.of(), Equipment.NONE);
     }
 }

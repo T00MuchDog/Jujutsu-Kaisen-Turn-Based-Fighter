@@ -37,7 +37,7 @@ public enum AbilityConditionType {
     BLACK_FLASH_STREAK_AT_LEAST("Black Flash streak at least", "The selected combatant has this many consecutive Black Flashes in BFS.", ACTOR, AMOUNT),
     MOVE_USED("Specific move used", "The selected combatant uses the chosen move.", ACTOR, MOVE_ID),
     MOVE_TAG_USED("Move tag used", "The selected combatant uses a move with the chosen tag.", ACTOR, MOVE_TAG),
-    MOVE_WEAPON_REQUIRED("Move requires weapon", "The selected combatant uses a move with Requires a weapon enabled.", ACTOR),
+    MOVE_WEAPON_REQUIRED("Move requires weapon", "The selected combatant uses a move carrying one of the weapon-type tags (Katana, Bow, Great Axe, Polearm, Staff).", ACTOR),
     MOVE_TYPE_TAGS_EXACTLY("Move damage tags match exactly", "The selected combatant uses a move with exactly these damage-type tags. Modifier tags are ignored.", ACTOR, MOVE_TAGS),
     ATTACK_HIT("Attack hit", "The selected combatant lands an attack.", ACTOR),
     ATTACK_MISSED("Attack missed", "The selected combatant misses an attack.", ACTOR),
@@ -306,7 +306,7 @@ public enum AbilityConditionType {
         return switch (type) {
             case MOVE_USED -> move.getId().equals(condition.moveId);
             case MOVE_TAG_USED -> move.hasTag(condition.moveTag);
-            case MOVE_WEAPON_REQUIRED -> move.isWeaponRequired();
+            case MOVE_WEAPON_REQUIRED -> move.hasWeaponTag();
             case MOVE_TYPE_TAGS_EXACTLY -> moveHasExactTypeTags(move, condition.moveTags);
             default -> false;
         };

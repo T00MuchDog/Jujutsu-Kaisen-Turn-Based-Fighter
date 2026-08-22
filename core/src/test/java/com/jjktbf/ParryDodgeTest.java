@@ -2,6 +2,7 @@ package com.jjktbf;
 
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterStats;
+import com.jjktbf.model.character.Equipment;
 import com.jjktbf.model.character.SorcererCharacter;
 import com.jjktbf.model.combat.BattleCombatant;
 import com.jjktbf.model.combat.DamageCalculator;
@@ -12,6 +13,7 @@ import com.jjktbf.model.move.Move;
 import com.jjktbf.model.move.MoveCategory;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.move.MoveTag;
+import com.jjktbf.model.weapon.WeaponType;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -244,40 +246,56 @@ public class ParryDodgeTest {
     }
 
     // -------------------------------------------------------------------------
-    // Parry forces weaponRequired + round-trip
+    // Weapon-tagged moves and equipment gating + round-trip
     // -------------------------------------------------------------------------
 
     @Test
-    void parryForcesWeaponRequired() {
+    void parryKeepsItsAuthoredWeaponTag() {
         Move parry = new Move.Builder("PARRY_MOVE")
             .name("Parry")
             .category(MoveCategory.DEFENSIVE)
+            .tags(java.util.Set.of(MoveTag.DEFENSIVE, MoveTag.PHYSICAL, MoveTag.KATANA))
             .defenseType(DefenseType.PARRY)
             .parryStaggerTicks(2)
             .apCost(10)
             .unleashPoint(1)
             .build();
-        assertTrue(parry.isWeaponRequired(), "A parry move must force weaponRequired on.");
+        assertEquals(MoveTag.KATANA, parry.weaponTag(),
+            "A parry is a weapon move: its authored weapon tag must survive the builder.");
     }
 
     @Test
-    void weaponRequiredMoveRejectedWithoutWeapon() {
+    void weaponTaggedMoveRejectedWithoutMatchingWeapon() {
         Move weaponMove = new Move.Builder("WEAPON_MOVE")
             .name("Sword Strike")
             .category(MoveCategory.PHYSICAL)
+            .tags(java.util.Set.of(MoveTag.PHYSICAL, MoveTag.KATANA))
             .basePower(50).apCost(10).unleashPoint(1)
-            .weaponRequired(true).build();
+            .build();
         CharacterStats stats = new CharacterStats.Builder().build();
-        // Without a weapon → rejected.
+        // No weapon → rejected.
         assertThrows(IllegalArgumentException.class,
             () -> new SorcererCharacter("ID", "No Weapon", stats, null,
-                                        List.of(weaponMove), List.of(), false),
-            "A weaponRequired move must be rejected for a weaponless character.");
-        // With a weapon → accepted.
+                                        List.of(weaponMove), List.of(), Equipment.NONE),
+            "A weapon-tagged move must be rejected for an unarmed character.");
+        // Wrong weapon type → rejected.
+        assertThrows(IllegalArgumentException.class,
+            () -> new SorcererCharacter("ID3", "Archer", stats, null,
+                                        List.of(weaponMove), List.of(),
+                                        Equipment.base(WeaponType.BOW)),
+            "A weapon-tagged move must be rejected without its own weapon type equipped.");
+        // Matching base weapon → accepted.
         assertDoesNotThrow(
             () -> new SorcererCharacter("ID2", "Armed", stats, null,
-                                        List.of(weaponMove), List.of(), true),
-            "A weaponRequired move must be accepted for an armed character.");
+                                        List.of(weaponMove), List.of(),
+                                        Equipment.base(WeaponType.KATANA)),
+            "A weapon-tagged move must be accepted with the matching weapon equipped.");
+        // Matching cursed tool → accepted.
+        assertDoesNotThrow(
+            () -> new SorcererCharacter("ID4", "Tool User", stats, null,
+                                        List.of(weaponMove), List.of(),
+                                        Equipment.cursedTool(WeaponType.KATANA)),
+            "A weapon-tagged move must be accepted with a cursed tool of that type equipped.");
     }
 
     @Test
@@ -285,6 +303,7 @@ public class ParryDodgeTest {
         Move parry = new Move.Builder("PARRY_RT")
             .name("Parry RT")
             .category(MoveCategory.DEFENSIVE)
+            .tags(java.util.Set.of(MoveTag.DEFENSIVE, MoveTag.PHYSICAL, MoveTag.KATANA))
             .defenseType(DefenseType.PARRY)
             .parryStaggerTicks(4)
             .blockAffectedTags(List.of("PHYSICAL", "CURSED_ENERGY"))
@@ -298,14 +317,15 @@ public class ParryDodgeTest {
         assertEquals(4, dto.parryStaggerTicks);
         assertEquals(2, dto.potency);
         assertEquals(List.of("PHYSICAL", "CURSED_ENERGY"), dto.blockAffectedTags);
-        assertTrue(dto.weaponRequired, "weaponRequired should round-trip true for a parry.");
+        assertTrue(dto.tags.contains(MoveTag.KATANA.name()),
+            "The weapon tag should round-trip through MoveData.");
 
         Move restored = dto.toMove();
         assertTrue(restored.isParry());
         assertEquals(4, restored.getParryStaggerTicks());
         assertEquals(2, restored.getPotency());
         assertEquals(List.of("PHYSICAL", "CURSED_ENERGY"), restored.getBlockAffectedTags());
-        assertTrue(restored.isWeaponRequired());
+        assertEquals(MoveTag.KATANA, restored.weaponTag());
     }
 
     @Test
@@ -421,20 +441,18 @@ public class ParryDodgeTest {
     }
 
     private static BattleCombatant combatant(Move move) {
-        return combatant(move, false);
+        return combatant(move, Equipment.NONE);
     }
 
-    private static BattleCombatant combatant(Move move, boolean hasWeapon) {
+    private static BattleCombatant combatant(Move move, Equipment equipment) {
         CharacterStats stats = new CharacterStats.Builder().build();
         Character c = new SorcererCharacter("ID", "Name", stats, null,
-            List.of(move), List.of(), hasWeapon);
+            List.of(move), List.of(), equipment);
         return new BattleCombatant(c);
     }
 
     private static BattleCombatant combatantWithDefense(Move defense) {
-        // A parry forces weaponRequired, so its wielder must have a weapon to
-        // pass move validation at construction.
-        BattleCombatant c = combatant(defense, defense.isParry());
+        BattleCombatant c = combatant(defense);
         Timeline tl = new Timeline(30);
         tl.placeAt(defense, 1, 0);
         c.setTimeline(tl);

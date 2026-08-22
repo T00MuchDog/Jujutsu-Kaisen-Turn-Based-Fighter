@@ -48,6 +48,59 @@ public class MoveData {
      */
     public List<String> tags;
 
+    /** Set by the legacy {@code weaponRequired} compat reader below. */
+    private transient boolean legacyWeaponRequired;
+
+    /**
+     * Compat reader: the old {@code SWORD} weapon tag became the KATANA
+     * weapon-type tag, so legacy saves are translated on load.
+     */
+    @com.fasterxml.jackson.annotation.JsonProperty("tags")
+    private void readTags(List<String> storedTags) {
+        List<String> normalized = new java.util.ArrayList<>();
+        if (storedTags != null) {
+            for (String tag : storedTags) {
+                if (tag == null || tag.isBlank()) continue;
+                normalized.add("SWORD".equalsIgnoreCase(tag.trim())
+                    ? MoveTag.KATANA.name() : tag);
+            }
+        }
+        this.tags = normalized;
+        applyLegacyWeaponTag();
+    }
+
+    /**
+     * Compat reader: the boolean "requires a weapon" toggle was replaced by the
+     * weapon-type tags. Legacy weapon-required moves (parries and sword moves)
+     * are all katana-flavoured, so the old flag translates to a KATANA tag.
+     */
+    @com.fasterxml.jackson.annotation.JsonProperty("weaponRequired")
+    private void readWeaponRequired(boolean weaponRequired) {
+        this.legacyWeaponRequired |= weaponRequired;
+        applyLegacyWeaponTag();
+    }
+
+    private void applyLegacyWeaponTag() {
+        if (!legacyWeaponRequired || hasWeaponTagName(tags)) return;
+        if (tags == null) tags = new java.util.ArrayList<>();
+        tags.add(MoveTag.KATANA.name());
+    }
+
+    private static boolean hasWeaponTagName(List<String> storedTags) {
+        if (storedTags == null) return false;
+        for (String tag : storedTags) {
+            if (tag == null || tag.isBlank()) continue;
+            try {
+                if (MoveTag.WEAPON_TAGS.contains(MoveTag.valueOf(tag.trim().toUpperCase()))) {
+                    return true;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Unknown tags are dropped elsewhere; not a weapon tag.
+            }
+        }
+        return false;
+    }
+
     public int     basePower;
     /** Null in legacy data; when present, this ordered list is authoritative. */
     public List<HitComponentData> hitComponents;
@@ -77,12 +130,6 @@ public class MoveData {
      * attack's). Utility moves ignore it. Defaults to 1.
      */
     public int     potency        = 1;
-
-    /**
-     * If true, this move requires the wielder to have a weapon
-     * (CharacterData.hasWeapon). Forced on for PARRY defence moves.
-     */
-    public boolean weaponRequired = false;
 
     public int     apCost;
     public int     unleashPoint;
@@ -594,7 +641,6 @@ public class MoveData {
             .guardBreak(guardBreak)
             .heavy(heavy)
             .potency(potency)
-            .weaponRequired(weaponRequired)
             .apCost(apCost)
             .unleashPoint(unleashPoint)
             .baseCeCost(baseCeCost)
@@ -936,7 +982,6 @@ public class MoveData {
         d.guardBreak          = move.isGuardBreak();
         d.heavy               = move.isHeavy();
         d.potency             = move.getPotency();
-        d.weaponRequired      = move.isWeaponRequired();
         d.apCost              = move.getApCost();
         d.unleashPoint        = move.getUnleashPoint();
         d.baseCeCost          = move.getBaseCeCost();

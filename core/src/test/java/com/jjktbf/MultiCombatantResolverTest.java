@@ -33,6 +33,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
+import com.jjktbf.model.weapon.WeaponType;
 
 /**
  * Phase 4 coverage for the generalized resolver: multi-combatant firing, AOE
@@ -397,7 +399,7 @@ class MultiCombatantResolverTest {
     private static BattleCombatant fighter(String name) {
         CharacterStats stats = new CharacterStats.Builder().vitality(300).speed(100).build();
         SorcererCharacter ch = new SorcererCharacter(
-            name.toLowerCase(), name, stats, null, List.of(), List.of(), false);
+            name.toLowerCase(), name, stats, null, List.of(), List.of(), Equipment.NONE);
         return new BattleCombatant(ch, List.of());
     }
 
@@ -406,21 +408,21 @@ class MultiCombatantResolverTest {
         CharacterStats stats = new CharacterStats.Builder()
             .vitality(80).speed(100).cursedEnergyOutput(300).cursedTechniqueMastery(300).build();
         SorcererCharacter ch = new SorcererCharacter(
-            name.toLowerCase(), name, stats, null, List.of(), List.of(), false);
+            name.toLowerCase(), name, stats, null, List.of(), List.of(), Equipment.NONE);
         return new BattleCombatant(ch, List.of());
     }
 
     private static BattleCombatant fighterWithDodge(String name) {
         CharacterStats stats = new CharacterStats.Builder().vitality(300).speed(101).build();
         SorcererCharacter ch = new SorcererCharacter(
-            name.toLowerCase(), name, stats, null, List.of(), List.of(), false);
+            name.toLowerCase(), name, stats, null, List.of(), List.of(), Equipment.NONE);
         return new BattleCombatant(ch, List.of());
     }
 
     private static BattleCombatant slowFighter(String name) {
         CharacterStats stats = new CharacterStats.Builder().vitality(300).speed(1).build();
         SorcererCharacter ch = new SorcererCharacter(
-            name.toLowerCase(), name, stats, null, List.of(), List.of(), false);
+            name.toLowerCase(), name, stats, null, List.of(), List.of(), Equipment.NONE);
         return new BattleCombatant(ch, List.of());
     }
 
@@ -428,7 +430,7 @@ class MultiCombatantResolverTest {
         return new ShikigamiCharacter(
             name.toLowerCase(), name,
             new CharacterStats.Builder().vitality(300).speed(100).build(),
-            null, List.of(), List.of(), false);
+            null, List.of(), List.of(), Equipment.NONE);
     }
 
     private static BattleCombatant simpleDomainFighter(String name) {
@@ -437,7 +439,7 @@ class MultiCombatantResolverTest {
             .name(name + " Reaction")
             .category(MoveCategory.PHYSICAL_CURSED_ENERGY)
             .tags(Set.of(MoveTag.PHYSICAL, MoveTag.CURSED_ENERGY, MoveTag.ATTACK,
-                MoveTag.MELEE, MoveTag.SWORD))
+                MoveTag.MELEE, MoveTag.KATANA))
             .effects(List.of(stunEffect()))
             .neverMiss(true).apCost(2).unleashPoint(1)
             .hitComponents(List.of(new HitComponent(10,
@@ -454,7 +456,7 @@ class MultiCombatantResolverTest {
             .build();
         CharacterStats stats = new CharacterStats.Builder().vitality(300).speed(100).build();
         SorcererCharacter character = new SorcererCharacter(
-            name.toLowerCase(), name, stats, null, List.of(reaction, domain), List.of(), true);
+            name.toLowerCase(), name, stats, null, List.of(reaction, domain), List.of(), Equipment.base(WeaponType.KATANA));
         return new BattleCombatant(character, List.of());
     }
 

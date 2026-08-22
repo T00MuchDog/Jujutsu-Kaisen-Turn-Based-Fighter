@@ -152,7 +152,7 @@
   }, {
     "id" : "node-000004",
     "contentType" : "ABILITY",
-    "contentId" : "000045",
+    "contentId" : "000043",
     "x" : 760.0,
     "y" : 110.0,
     "prerequisites" : [ {
@@ -377,7 +377,7 @@
   }, {
     "id" : "node-000008",
     "contentType" : "ABILITY",
-    "contentId" : "000020",
+    "contentId" : "000019",
     "x" : 38.99994,
     "y" : 183.00003,
     "prerequisites" : [ {
@@ -391,7 +391,7 @@
   }, {
     "id" : "node-000020",
     "contentType" : "ABILITY",
-    "contentId" : "000034",
+    "contentId" : "000032",
     "x" : 36.00006,
     "y" : -85.000015,
     "prerequisites" : [ {
@@ -685,7 +685,7 @@
   }, {
     "id" : "node-000019",
     "contentType" : "ABILITY",
-    "contentId" : "000021",
+    "contentId" : "000020",
     "x" : 41.0,
     "y" : 556.99994,
     "prerequisites" : [ {
@@ -701,7 +701,7 @@
   "skillTree" : [ {
     "id" : "node-000000",
     "contentType" : "ABILITY",
-    "contentId" : "000031",
+    "contentId" : "000030",
     "x" : 40.0,
     "y" : 300.0,
     "prerequisites" : [ ]
@@ -828,7 +828,7 @@
   }, {
     "id" : "node-000005",
     "contentType" : "ABILITY",
-    "contentId" : "000032",
+    "contentId" : "000031",
     "x" : 1442.0,
     "y" : 63.0,
     "prerequisites" : [ {

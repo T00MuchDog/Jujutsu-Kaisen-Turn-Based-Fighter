@@ -163,13 +163,14 @@ public class MainMenuScreen implements Screen {
         MenuButton charEd    = makeButton("CHARACTER EDITOR", game::showCharacterEditor);
         MenuButton abilityEd = makeButton("ABILITY EDITOR", game::showAbilityEditor);
         MenuButton techEd    = makeButton("TECHNIQUE EDITOR", game::showTechniqueEditor);
+        MenuButton toolEd    = makeButton("CURSED TOOL EDITOR", game::showCursedToolEditor);
         MenuButton quit      = makeButton("QUIT", this::exitApplication);
 
         List<MenuButton> buttons = new ArrayList<>(List.of(singlePlayer, multiplayer));
         if (authoringMenu) {
             buttons.add(makeButton("AUTHOR BATTLE (CONTROL BOTH SIDES)", game::showAuthorBattle));
         }
-        buttons.addAll(List.of(charEd, moveEd, abilityEd, techEd, quit));
+        buttons.addAll(List.of(charEd, moveEd, abilityEd, techEd, toolEd, quit));
         for (MenuButton button : buttons) {
             menuButtons.add(button);
             menuButtonCells.add(commands.add(button).growX().height(46).pad(4));

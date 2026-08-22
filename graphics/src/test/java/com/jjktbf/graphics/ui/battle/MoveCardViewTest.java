@@ -68,12 +68,12 @@ class MoveCardViewTest {
 
     @Test
     void cursedToolCardsUseTheDarkCrimsonWeaponReinforcementPalette() {
-        Move move = moveWithTags(true, "ATTACK", "PHYSICAL", "CURSED_ENERGY");
-        Move swordMove = moveWithTags("ATTACK", "PHYSICAL", "CURSED_ENERGY", "SWORD");
+        Move move = moveWithTags("ATTACK", "PHYSICAL", "CURSED_ENERGY", "KATANA");
+        Move unarmedReinforcement = moveWithTags("ATTACK", "PHYSICAL", "CURSED_ENERGY");
 
         assertEquals("CURSED TOOL", MoveCardView.typeNameFor(move));
         assertEquals(new Color(0.545f, 0.000f, 0.000f, 1f), MoveCardView.typeColorFor(move));
-        assertEquals("REINFORCEMENT", MoveCardView.typeNameFor(swordMove));
+        assertEquals("REINFORCEMENT", MoveCardView.typeNameFor(unarmedReinforcement));
     }
 
     @Test
@@ -97,9 +97,9 @@ class MoveCardViewTest {
         }
         combinations.add(moveWithTags("DEFENSIVE"));
         combinations.add(moveWithTags("UTILITY"));
-        combinations.add(moveWithTags(true, "ATTACK", "PHYSICAL", "CURSED_ENERGY"));
-        combinations.add(moveWithTags(true, "DEFENSIVE", "PHYSICAL", "CURSED_ENERGY"));
-        combinations.add(moveWithTags(true, "UTILITY", "PHYSICAL", "CURSED_ENERGY"));
+        combinations.add(moveWithTags("ATTACK", "PHYSICAL", "CURSED_ENERGY", "KATANA"));
+        combinations.add(moveWithTags("DEFENSIVE", "PHYSICAL", "CURSED_ENERGY", "KATANA"));
+        combinations.add(moveWithTags("UTILITY", "PHYSICAL", "CURSED_ENERGY", "KATANA"));
 
         Set<Integer> colors = new HashSet<>();
         for (Move move : combinations) {
@@ -137,15 +137,10 @@ class MoveCardViewTest {
     }
 
     private static Move moveWithTags(String... tags) {
-        return moveWithTags(false, tags);
-    }
-
-    private static Move moveWithTags(boolean weaponRequired, String... tags) {
         MoveData data = new MoveData();
         data.id = "CARD_TAG_TEST";
         data.name = "Card Tag Test";
         data.tags = List.of(tags);
-        data.weaponRequired = weaponRequired;
         data.apCost = 10;
         data.unleashPoint = 1;
         Map<String, Integer> prerequisites = new HashMap<>();

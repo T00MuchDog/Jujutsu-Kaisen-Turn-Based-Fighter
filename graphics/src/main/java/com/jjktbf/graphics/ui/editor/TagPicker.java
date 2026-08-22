@@ -263,7 +263,11 @@ public class TagPicker extends Table {
         return new LinkedHashSet<>(selected);
     }
 
-    /** The ordered tag sections rendered top-to-bottom. */
+    /**
+     * The ordered tag sections rendered top-to-bottom. Weapon-type tags are
+     * intentionally absent: a move carries at most one, chosen via the move
+     * editor's Weapon Type dropdown rather than this multi-select grid.
+     */
     private static Map<String, List<MoveTag>> sectionOrder() {
         Map<String, List<MoveTag>> sections = new LinkedHashMap<>();
         sections.put("CATEGORY", List.of(MoveTag.ATTACK, MoveTag.DEFENSIVE, MoveTag.UTILITY));
@@ -273,7 +277,7 @@ public class TagPicker extends Table {
         sections.put("RANGE", List.of(
             MoveTag.MELEE, MoveTag.RANGED, MoveTag.AOE, MoveTag.FRIENDLY_FIRE));
         sections.put("TAGS", List.of(
-            MoveTag.SWORD, MoveTag.GUARD_BREAK, MoveTag.HEAVY,
+            MoveTag.GUARD_BREAK, MoveTag.HEAVY,
             MoveTag.INTANGIBLE));
         return sections;
     }

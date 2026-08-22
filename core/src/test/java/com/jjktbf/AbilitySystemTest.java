@@ -112,8 +112,7 @@ class AbilitySystemTest {
         Move weaponReinforcement = new Move.Builder("WEAPON_REINFORCEMENT")
             .name("Weapon Reinforcement")
             .category(MoveCategory.PHYSICAL_CURSED_ENERGY)
-            .tags(Set.of(MoveTag.PHYSICAL, MoveTag.CURSED_ENERGY, MoveTag.ATTACK, MoveTag.SWORD))
-            .weaponRequired(true)
+            .tags(Set.of(MoveTag.PHYSICAL, MoveTag.CURSED_ENERGY, MoveTag.ATTACK, MoveTag.KATANA))
             .apCost(1).unleashPoint(1)
             .baseCeCost(20).hasCeCost(true).minCeCost(4).maxCeCost(85)
             .build();
@@ -126,7 +125,7 @@ class AbilitySystemTest {
         Move weaponCursedEnergy = new Move.Builder("WEAPON_CE")
             .name("Weapon Cursed Energy")
             .category(MoveCategory.CURSED_ENERGY)
-            .weaponRequired(true)
+            .tags(Set.of(MoveTag.CURSED_ENERGY, MoveTag.KATANA))
             .apCost(1).unleashPoint(1)
             .baseCeCost(20).hasCeCost(true).minCeCost(4).maxCeCost(85)
             .build();

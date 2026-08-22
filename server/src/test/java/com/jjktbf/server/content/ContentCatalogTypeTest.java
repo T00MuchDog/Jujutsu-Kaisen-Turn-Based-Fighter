@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
 /**
  * Phase 1 coverage for the generalized server content catalog: it now stores
@@ -34,7 +35,7 @@ class ContentCatalogTypeTest {
     @Test
     void ofAcceptsAbstractCharactersAndIndexesById() {
         SorcererCharacter sorcerer = new SorcererCharacter(
-            "000001", "Yuji", base(), null, List.of(), List.of(), false);
+            "000001", "Yuji", base(), null, List.of(), List.of(), Equipment.NONE);
         ContentCatalog catalog = ContentCatalog.of(List.of(sorcerer));
 
         assertEquals(1, catalog.characterSummaries().size());
@@ -46,9 +47,9 @@ class ContentCatalogTypeTest {
     @Test
     void selectableCharacterHidesShikigamiButFindCharacterStillResolvesIt() {
         SorcererCharacter sorcerer = new SorcererCharacter(
-            "000001", "Sukuna", base(), null, List.of(), List.of(), false);
+            "000001", "Sukuna", base(), null, List.of(), List.of(), Equipment.NONE);
         ShikigamiCharacter shikigami = new ShikigamiCharacter(
-            "000002", "Divine Dog", base(), null, List.of(), List.of(), false);
+            "000002", "Divine Dog", base(), null, List.of(), List.of(), Equipment.NONE);
         ContentCatalog catalog = ContentCatalog.of(List.of(sorcerer, shikigami));
 
         // Both are resolvable for summon construction...
@@ -67,9 +68,9 @@ class ContentCatalogTypeTest {
     @Test
     void storedSelectabilityOverridesWinOverTypeDefaults() {
         SorcererCharacter hiddenSorcerer = new SorcererCharacter(
-            "000001", "Hidden", base(), null, List.of(), List.of(), false);
+            "000001", "Hidden", base(), null, List.of(), List.of(), Equipment.NONE);
         ShikigamiCharacter selectableShikigami = new ShikigamiCharacter(
-            "000002", "Selectable", base(), null, List.of(), List.of(), false);
+            "000002", "Selectable", base(), null, List.of(), List.of(), Equipment.NONE);
 
         ContentCatalog catalog = ContentCatalog.of(
             List.of(hiddenSorcerer, selectableShikigami),
@@ -85,9 +86,9 @@ class ContentCatalogTypeTest {
     @Test
     void summonReferencesMustResolveToShikigamiDefinitions() {
         SorcererCharacter sorcerer = new SorcererCharacter(
-            "000001", "Sorcerer", base(), null, List.of(), List.of(), false);
+            "000001", "Sorcerer", base(), null, List.of(), List.of(), Equipment.NONE);
         ShikigamiCharacter shikigami = new ShikigamiCharacter(
-            "000002", "Shikigami", base(), null, List.of(), List.of(), false);
+            "000002", "Shikigami", base(), null, List.of(), List.of(), Equipment.NONE);
         Map<String, Character> characters = Map.of(
             sorcerer.getId(), sorcerer, shikigami.getId(), shikigami);
 
@@ -129,9 +130,9 @@ class ContentCatalogTypeTest {
     @Test
     void transformationReferencesMayResolveToAnyCharacterType() {
         SorcererCharacter sorcerer = new SorcererCharacter(
-            "000001", "Sorcerer", base(), null, List.of(), List.of(), false);
+            "000001", "Sorcerer", base(), null, List.of(), List.of(), Equipment.NONE);
         ShikigamiCharacter shikigami = new ShikigamiCharacter(
-            "000002", "Shikigami", base(), null, List.of(), List.of(), false);
+            "000002", "Shikigami", base(), null, List.of(), List.of(), Equipment.NONE);
         Map<String, Character> characters = Map.of(
             sorcerer.getId(), sorcerer, shikigami.getId(), shikigami);
         MoveEffectData transform = AbilityEffectType

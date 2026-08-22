@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
 /**
  * Runtime coverage for the TAUNT effect primitive: while a combatant holds an
@@ -195,7 +196,7 @@ class TauntEffectTest {
     private static BattleCombatant fighter(String name, int speed) {
         CharacterStats stats = new CharacterStats.Builder().vitality(300).speed(speed).build();
         SorcererCharacter character = new SorcererCharacter(
-            name.toLowerCase(), name, stats, null, List.of(), List.of(), false);
+            name.toLowerCase(), name, stats, null, List.of(), List.of(), Equipment.NONE);
         return new BattleCombatant(character, List.of());
     }
 

@@ -663,14 +663,23 @@ class MoveEditorScreenTest {
     }
 
     @Test
-    void saveCopyForcesWeaponRequirementForSwordTaggedMoves() {
-        MoveData swordMove = new MoveData();
-        swordMove.tags = new ArrayList<>(List.of(MoveTag.ATTACK.name(), MoveTag.SWORD.name()));
-        swordMove.weaponRequired = false;
+    void saveCopyKeepsExactlyOneWeaponTag() {
+        MoveData weaponMove = new MoveData();
+        // Hand-edited data can carry several weapon tags; the save copy keeps
+        // the first and drops the rest.
+        weaponMove.tags = new ArrayList<>(List.of(
+            MoveTag.ATTACK.name(), MoveTag.KATANA.name(), MoveTag.BOW.name()));
 
-        MoveData saved = MoveEditorScreen.normalizedCopyForSave(swordMove);
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(weaponMove);
 
-        assertTrue(saved.weaponRequired);
+        assertTrue(saved.tags.contains(MoveTag.KATANA.name()));
+        assertFalse(saved.tags.contains(MoveTag.BOW.name()));
+
+        MoveData unarmed = new MoveData();
+        unarmed.tags = new ArrayList<>(List.of(MoveTag.ATTACK.name()));
+        assertTrue(MoveEditorScreen.normalizedCopyForSave(unarmed).tags.stream()
+            .noneMatch(tag -> MoveTag.WEAPON_TAGS.stream()
+                .anyMatch(weapon -> weapon.name().equals(tag))));
     }
 
     @Test

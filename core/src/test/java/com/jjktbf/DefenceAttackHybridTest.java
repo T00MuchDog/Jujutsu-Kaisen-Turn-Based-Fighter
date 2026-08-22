@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
 /**
  * Runtime coverage for Defensive+Attack hybrid moves: defence wins the
@@ -521,7 +522,7 @@ class DefenceAttackHybridTest {
             .vitality(300).speed(speed).cursedEnergyReserves(ceReserves)
             .build();
         SorcererCharacter character = new SorcererCharacter(
-            name.toLowerCase(), name, stats, null, List.of(), List.of(), false);
+            name.toLowerCase(), name, stats, null, List.of(), List.of(), Equipment.NONE);
         return new BattleCombatant(character, List.of());
     }
 }

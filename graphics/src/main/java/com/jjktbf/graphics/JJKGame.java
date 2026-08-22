@@ -37,6 +37,7 @@ import com.jjktbf.graphics.screens.MultiplayerDisconnectedScreen;
 import com.jjktbf.graphics.screens.MultiplayerMenuScreen;
 import com.jjktbf.graphics.screens.editors.AbilityEditorScreen;
 import com.jjktbf.graphics.screens.editors.CharacterEditorScreen;
+import com.jjktbf.graphics.screens.editors.CursedToolEditorScreen;
 import com.jjktbf.graphics.screens.editors.MoveEditorScreen;
 import com.jjktbf.graphics.screens.editors.TechniqueEditorScreen;
 import com.jjktbf.graphics.ui.profile.BattleUiLayout;
@@ -143,6 +144,7 @@ public class JJKGame extends Game {
     private CharacterEditorScreen  characterEditorScreen;
     private AbilityEditorScreen    abilityEditorScreen;
     private TechniqueEditorScreen  techniqueEditorScreen;
+    private CursedToolEditorScreen cursedToolEditorScreen;
     private MultiplayerMenuScreen multiplayerMenuScreen;
     private HostChallengeScreen hostChallengeScreen;
     private ChallengeBrowserScreen challengeBrowserScreen;
@@ -213,6 +215,7 @@ public class JJKGame extends Game {
         characterEditorScreen = new CharacterEditorScreen(this, assets);
         abilityEditorScreen   = new AbilityEditorScreen(this, assets);
         techniqueEditorScreen = new TechniqueEditorScreen(this, assets);
+        cursedToolEditorScreen = new CursedToolEditorScreen(this, assets);
         multiplayerMenuScreen = new MultiplayerMenuScreen(
             this, assets, guestAccountService);
         hostChallengeScreen = new HostChallengeScreen(
@@ -306,6 +309,7 @@ public class JJKGame extends Game {
         if (characterEditorScreen != null) characterEditorScreen.dispose();
         if (abilityEditorScreen != null) abilityEditorScreen.dispose();
         if (techniqueEditorScreen != null) techniqueEditorScreen.dispose();
+        if (cursedToolEditorScreen != null) cursedToolEditorScreen.dispose();
         if (multiplayerMenuScreen != null) multiplayerMenuScreen.dispose();
         if (hostChallengeScreen != null) hostChallengeScreen.dispose();
         if (challengeBrowserScreen != null) challengeBrowserScreen.dispose();
@@ -405,6 +409,27 @@ public class JJKGame extends Game {
         techniqueEditorScreen.dispose();
         techniqueEditorScreen = new TechniqueEditorScreen(this, assets);
         showScreen(techniqueEditorScreen, MusicTrack.MENU);
+    }
+
+    public void showCursedToolEditor() {
+        cursedToolEditorScreen.dispose();
+        cursedToolEditorScreen = new CursedToolEditorScreen(this, assets);
+        showScreen(cursedToolEditorScreen, MusicTrack.MENU);
+    }
+
+    /**
+     * Loaded fresh per battle so editor changes to the cursed tool catalog
+     * apply immediately without restarting the game.
+     */
+    private static com.jjktbf.model.weapon.CursedToolRepository loadCursedToolRepo() {
+        com.jjktbf.model.weapon.CursedToolRepository repo =
+            new com.jjktbf.model.weapon.CursedToolRepository("data/tools");
+        try {
+            repo.load();
+        } catch (java.io.IOException failure) {
+            throw new IllegalStateException("Could not load cursed tools", failure);
+        }
+        return repo;
     }
 
     /** Shared audio entry point for screens and other presentation-layer code. */
@@ -619,12 +644,17 @@ public class JJKGame extends Game {
 
         Thread battleThread = new Thread(() -> {
             try {
-                Character player = playerData.toCharacter(moveRepo, abilityRepo, techniqueRepo);
-                Character cpu    = cpuData.toCharacter(moveRepo, abilityRepo, techniqueRepo);
+                com.jjktbf.model.weapon.CursedToolRepository cursedToolRepo =
+                    loadCursedToolRepo();
+                Character player = playerData.toCharacter(
+                    moveRepo, abilityRepo, techniqueRepo, cursedToolRepo);
+                Character cpu    = cpuData.toCharacter(
+                    moveRepo, abilityRepo, techniqueRepo, cursedToolRepo);
                 BattleController controller = new BattleController(
                     battleScreen,
                     characterId -> multiplayerCharacterRepository.findById(characterId)
-                        .map(data -> data.toCharacter(moveRepo, abilityRepo, techniqueRepo)),
+                        .map(data -> data.toCharacter(
+                            moveRepo, abilityRepo, techniqueRepo, cursedToolRepo)),
                     controlMode
                 );
                 controller.runBattle(player, cpu, statMode);
@@ -701,12 +731,14 @@ public class JJKGame extends Game {
 
         Thread battleThread = new Thread(() -> {
             try {
+                com.jjktbf.model.weapon.CursedToolRepository cursedToolRepo =
+                    loadCursedToolRepo();
                 java.util.List<BattleCombatant> playerFighters = playerTeam.stream()
-                    .map(d -> d.toCharacter(moveRepo, abilityRepo, techniqueRepo))
+                    .map(d -> d.toCharacter(moveRepo, abilityRepo, techniqueRepo, cursedToolRepo))
                     .map(c -> new BattleCombatant(c, c.getAbilities(), statMode))
                     .toList();
                 java.util.List<BattleCombatant> cpuFighters = cpuTeam.stream()
-                    .map(d -> d.toCharacter(moveRepo, abilityRepo, techniqueRepo))
+                    .map(d -> d.toCharacter(moveRepo, abilityRepo, techniqueRepo, cursedToolRepo))
                     .map(c -> new BattleCombatant(c, c.getAbilities(), statMode))
                     .toList();
                 BattleState state = new BattleState(
@@ -715,7 +747,8 @@ public class JJKGame extends Game {
                 BattleController controller = new BattleController(
                     battleScreen,
                     characterId -> multiplayerCharacterRepository.findById(characterId)
-                        .map(data -> data.toCharacter(moveRepo, abilityRepo, techniqueRepo)),
+                        .map(data -> data.toCharacter(
+                            moveRepo, abilityRepo, techniqueRepo, cursedToolRepo)),
                     controlMode
                 );
                 controller.runTeamBattle(state);

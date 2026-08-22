@@ -14,6 +14,7 @@ import com.jjktbf.model.character.AbilityResolver;
 import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.CharacterType;
+import com.jjktbf.model.character.Equipment;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.character.coded.NewShadowStyleAbility;
 import com.jjktbf.model.move.Move;
@@ -22,6 +23,7 @@ import com.jjktbf.model.move.MoveEffectData;
 import com.jjktbf.model.technique.InnateTechniqueData;
 import com.jjktbf.model.technique.SkillTreeNodeData;
 import com.jjktbf.model.technique.TechniqueSkillTree;
+import com.jjktbf.model.weapon.CursedToolData;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,6 +43,7 @@ public final class ContentCatalog {
     public static final String CHARACTERS_RESOURCE = "/data/characters/all_characters.json";
     public static final String ABILITIES_RESOURCE = "/data/abilities/all_abilities.json";
     public static final String TECHNIQUES_RESOURCE = "/data/techniques/all_techniques.json";
+    public static final String CURSED_TOOLS_RESOURCE = "/data/tools/all_tools.json";
 
     private final Map<String, Character> charactersById;
     private final List<CharacterSummary> characterSummaries;
@@ -70,7 +73,9 @@ public final class ContentCatalog {
             mapper, ABILITIES_RESOURCE, new TypeReference<>() { });
         List<InnateTechniqueData> techniques = read(
             mapper, TECHNIQUES_RESOURCE, new TypeReference<>() { });
-        return build(moves, characters, abilities, techniques);
+        List<CursedToolData> cursedTools = read(
+            mapper, CURSED_TOOLS_RESOURCE, new TypeReference<>() { });
+        return build(moves, characters, abilities, techniques, cursedTools);
     }
 
     /** Creates a minimal catalog for focused service tests and future embedding. */
@@ -146,7 +151,8 @@ public final class ContentCatalog {
         List<MoveData> moveDefinitions,
         List<CharacterData> characterDefinitions,
         List<AbilityData> abilityDefinitions,
-        List<InnateTechniqueData> techniqueDefinitions
+        List<InnateTechniqueData> techniqueDefinitions,
+        List<CursedToolData> cursedToolDefinitions
     ) {
         requireNonEmpty(moveDefinitions, MOVES_RESOURCE);
         requireNonEmpty(characterDefinitions, CHARACTERS_RESOURCE);
@@ -155,6 +161,28 @@ public final class ContentCatalog {
         }
         if (techniqueDefinitions == null) {
             throw invalid(TECHNIQUES_RESOURCE, "top-level JSON value must be an array");
+        }
+        if (cursedToolDefinitions == null) {
+            throw invalid(CURSED_TOOLS_RESOURCE, "top-level JSON value must be an array");
+        }
+        Map<String, AbilityData> abilityDataById = new LinkedHashMap<>();
+        for (AbilityData definition : abilityDefinitions) {
+            if (definition != null) abilityDataById.put(definition.id, definition);
+        }
+        Map<String, CursedToolData> toolsById = new LinkedHashMap<>();
+        for (CursedToolData tool : cursedToolDefinitions) {
+            if (tool == null) continue;
+            requireIdentifier(tool.id, "cursed tool ID");
+            requireText(tool.name, "cursed tool name for " + tool.id);
+            try {
+                tool.effectiveWeaponType();
+            } catch (IllegalArgumentException exception) {
+                throw invalid(CURSED_TOOLS_RESOURCE,
+                    "cursed tool " + tool.id + " has an invalid weapon type", exception);
+            }
+            if (toolsById.put(tool.id, tool) != null) {
+                throw invalid(CURSED_TOOLS_RESOURCE, "duplicate cursed tool ID " + tool.id);
+            }
         }
         techniqueDefinitions.forEach(technique -> TechniqueSkillTree.synchronize(
             technique, moveDefinitions, abilityDefinitions));
@@ -199,11 +227,11 @@ public final class ContentCatalog {
             for (MoveEffectData effect : codedEffectsByMoveId.get(definition.id)) {
                 if (NewShadowStyleAbility.KEY.equalsIgnoreCase(effect.codedAbilityKey)
                     && NewShadowStyleAbility.ACTIVATE_SIMPLE_DOMAIN.equalsIgnoreCase(effect.codedAction)
-                    && !NewShadowStyleAbility.isValidReactionMove(
-                        movesById.get(effect.codedTarget))) {
-                    throw invalid(MOVES_RESOURCE, "Simple Domain move " + definition.id
-                        + " must reference a physical, reinforced, stunning melee SWORD move");
-                }
+                        && !NewShadowStyleAbility.isValidReactionMove(
+                            movesById.get(effect.codedTarget))) {
+                        throw invalid(MOVES_RESOURCE, "Simple Domain move " + definition.id
+                            + " must reference a physical, reinforced, stunning melee KATANA move");
+                    }
             }
             for (MoveEffectData effect : definition.effects == null
                 ? List.<MoveEffectData>of() : definition.effects) {
@@ -307,6 +335,8 @@ public final class ContentCatalog {
             verifyReferences(definition.abilityIds, abilityIds, "ability", definition.id);
             verifyReferences(definition.availableAbilityIds, abilityIds,
                 "available ability", definition.id);
+            verifyReferences(definition.equippedCursedToolIds, toolsById.keySet(),
+                "equipped cursed tool", definition.id);
             AbilityResolver.Result resolved = AbilityResolver.resolve(
                 definition, abilityDefinitions, movesById::containsKey, techniqueDefinitions);
             try {
@@ -359,8 +389,17 @@ public final class ContentCatalog {
             }
             List<Ability> abilities = resolved.toDomainAbilities();
             try {
+                Equipment equipment = Equipment.resolve(
+                    definition.equippedWeaponTypes,
+                    definition.equippedCursedToolIds,
+                    cursedToolDefinitions,
+                    movesById::get,
+                    toolAbilityId -> {
+                        AbilityData data = abilityDataById.get(toolAbilityId);
+                        return data == null ? null : new Ability(data);
+                    });
                 Character character = definition.constructTypedCharacter(
-                    definition.toCharacterStats(), moves, abilities);
+                    definition.toCharacterStats(), moves, abilities, equipment);
                 charactersById.put(definition.id, character);
                 // Only directly-selectable definitions appear in fighter rosters
                 // / multiplayer summaries / challenge create+accept. Hidden

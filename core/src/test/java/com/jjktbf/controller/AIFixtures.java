@@ -27,6 +27,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import com.jjktbf.model.character.Equipment;
+import com.jjktbf.model.weapon.WeaponType;
 
 /**
  * Shared builders for AI-strategy tests: hand-authored moves and combatants so
@@ -159,7 +161,8 @@ final class AIFixtures {
     static BattleCombatant sorcerer(String id, boolean hasWeapon, CharacterStats stats,
                                    String technique, Move... moves) {
         SorcererCharacter c = new SorcererCharacter(
-            id, id, stats, technique, List.of(moves), List.of(), hasWeapon);
+            id, id, stats, technique, List.of(moves), List.of(),
+            hasWeapon ? Equipment.base(WeaponType.KATANA) : Equipment.NONE);
         return new BattleCombatant(c, List.of());
     }
 
@@ -213,7 +216,7 @@ final class AIFixtures {
             .cursedEnergyReserves(160).cursedEnergyEfficiency(160).cursedEnergyOutput(160)
             .jujutsuSkill(120).cursedTechniqueMastery(120).build();
         SorcererCharacter c = new SorcererCharacter(
-            id, id, stats, "Cursed Speech", List.of(moves), List.of(), false);
+            id, id, stats, "Cursed Speech", List.of(moves), List.of(), Equipment.NONE);
         return new BattleCombatant(c, List.of());
     }
 
@@ -224,7 +227,7 @@ final class AIFixtures {
             .cursedEnergyReserves(200).cursedEnergyEfficiency(200).cursedEnergyOutput(200)
             .jujutsuSkill(200).cursedTechniqueMastery(200).build();
         SorcererCharacter c = new SorcererCharacter(
-            id, id, stats, "Ten Shadows", List.of(moves), List.of(), false);
+            id, id, stats, "Ten Shadows", List.of(moves), List.of(), Equipment.NONE);
         return new BattleCombatant(c, List.of());
     }
 
@@ -245,7 +248,7 @@ final class AIFixtures {
             .cursedEnergyReserves(10).cursedEnergyEfficiency(10).cursedEnergyOutput(10)
             .jujutsuSkill(30).cursedTechniqueMastery(0).build();
         SorcererCharacter c = new SorcererCharacter(
-            id, id, stats, null, List.of(), List.of(), true);
+            id, id, stats, null, List.of(), List.of(), Equipment.base(WeaponType.KATANA));
         return new BattleCombatant(c, List.of());
     }
 

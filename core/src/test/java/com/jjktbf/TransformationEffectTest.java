@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
 class TransformationEffectTest {
 
@@ -527,6 +528,6 @@ class TransformationEffectTest {
         CharacterStats stats = new CharacterStats.Builder()
             .strength(80).vitality(vitality).speed(100).build();
         return new SorcererCharacter(
-            id, name, stats, null, moves, abilities, false);
+            id, name, stats, null, moves, abilities, Equipment.NONE);
     }
 }

@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
 /**
  * Summons materialize at the broadcast of the summoning action (Pokemon-style),
@@ -231,13 +232,13 @@ class ImmediateSummonMaterializationTest {
         CharacterStats stats = new CharacterStats.Builder()
             .vitality(100).cursedEnergyReserves(100).speed(100).build();
         return Optional.of(new ShikigamiCharacter(
-            id, id, stats, null, List.of(), List.of(), false, 0.0));
+            id, id, stats, null, List.of(), List.of(), Equipment.NONE, 0.0));
     }
 
     private static BattleCombatant fighter(String id) {
         CharacterStats stats = new CharacterStats.Builder()
             .vitality(100).cursedEnergyReserves(100).speed(100).build();
         return new BattleCombatant(new SorcererCharacter(
-            id, id, stats, "Ten Shadows", List.of(), List.of(), false), List.of());
+            id, id, stats, "Ten Shadows", List.of(), List.of(), Equipment.NONE), List.of());
     }
 }

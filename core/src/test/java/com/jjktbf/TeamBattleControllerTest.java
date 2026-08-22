@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
 /**
  * Phase 7 coverage for the controller and AI: the AI assigns explicit targets to
@@ -132,7 +133,7 @@ class TeamBattleControllerTest {
         CharacterStats strongStats = new CharacterStats.Builder()
             .speed(300).combatAbility(300).vitality(300).build();
         SorcererCharacter strongCharacter = new SorcererCharacter(
-            "strong", "Strong", strongStats, null, List.of(), List.of(), false);
+            "strong", "Strong", strongStats, null, List.of(), List.of(), Equipment.NONE);
         BattleCombatant strongEnemy = new BattleCombatant(strongCharacter, List.of());
         BattleState state = new BattleState(
             BattleState.teamOfFighters(BattleTeamId.PLAYER, List.of(ai)),
@@ -258,7 +259,7 @@ class TeamBattleControllerTest {
         plan.place(lethal, 2, 0, enemy.getInstanceId());
         ShikigamiCharacter dog = new ShikigamiCharacter(
             "dog", "Dog", new CharacterStats.Builder().build(),
-            null, List.of(), List.of(), false);
+            null, List.of(), List.of(), Equipment.NONE);
         BattleController controller = new BattleController(
             new RecordingView(plan),
             new SeededRandomSource(1L),
@@ -279,7 +280,7 @@ class TeamBattleControllerTest {
         CharacterStats stats = new CharacterStats.Builder().vitality(300).speed(100).build();
         SorcererCharacter c = new SorcererCharacter(
             name.toLowerCase(), name, stats,
-            moves.isEmpty() ? null : "Cursed Speech", moves, List.of(), false);
+            moves.isEmpty() ? null : "Cursed Speech", moves, List.of(), Equipment.NONE);
         return new BattleCombatant(c, List.of());
     }
 

@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
 /**
  * Phase 3 coverage for canonical plans and targets: target on ActionSegment,
@@ -220,7 +221,7 @@ class PlanTargetingTest {
         CharacterStats stats = new CharacterStats.Builder()
             .vitality(300).speed(speed).build();
         SorcererCharacter c = new SorcererCharacter(
-            name.toLowerCase(), name, stats, null, List.of(), List.of(), false);
+            name.toLowerCase(), name, stats, null, List.of(), List.of(), Equipment.NONE);
         return new BattleCombatant(c, List.of());
     }
 
@@ -228,14 +229,14 @@ class PlanTargetingTest {
         CharacterStats stats = new CharacterStats.Builder()
             .vitality(300).speed(speed).combatAbility(combatAbility).build();
         SorcererCharacter c = new SorcererCharacter(
-            name.toLowerCase(), name, stats, null, List.of(), List.of(), false);
+            name.toLowerCase(), name, stats, null, List.of(), List.of(), Equipment.NONE);
         return new BattleCombatant(c, List.of());
     }
 
     private static ShikigamiCharacter shikigami(String name) {
         return new ShikigamiCharacter(
             name.toLowerCase(), name, new CharacterStats.Builder().build(),
-            null, List.of(), List.of(), false);
+            null, List.of(), List.of(), Equipment.NONE);
     }
 
     private static Move physicalAttack(String id) {

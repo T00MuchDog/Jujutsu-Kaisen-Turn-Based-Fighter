@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.jjktbf.model.character.Equipment;
 
 class HeadlessBattleSessionTest {
 
@@ -713,7 +714,7 @@ class HeadlessBattleSessionTest {
             List.of(new Ability(abilityData)));
         Character opponent = character("opponent", "Opponent", attack);
         ShikigamiCharacter dog = new ShikigamiCharacter(
-            "dog", "Dog", stats, null, List.of(attack), List.of(), false);
+            "dog", "Dog", stats, null, List.of(attack), List.of(), Equipment.NONE);
 
         HeadlessBattleSession session = new HeadlessBattleSession(
             "match-1",

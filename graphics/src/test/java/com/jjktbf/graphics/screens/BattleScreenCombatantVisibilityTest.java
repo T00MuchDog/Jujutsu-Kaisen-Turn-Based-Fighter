@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import com.jjktbf.model.character.Equipment;
 
 class BattleScreenCombatantVisibilityTest {
 
@@ -154,13 +155,13 @@ class BattleScreenCombatantVisibilityTest {
     private static BattleCombatant fighter(String name) {
         SorcererCharacter character = new SorcererCharacter(
             name.toLowerCase(), name, new CharacterStats.Builder().build(),
-            null, List.of(), List.of(), false);
+            null, List.of(), List.of(), Equipment.NONE);
         return new BattleCombatant(character, List.of());
     }
 
     private static ShikigamiCharacter shikigami(String id, String name) {
         return new ShikigamiCharacter(
             id, name, new CharacterStats.Builder().build(),
-            null, List.of(), List.of(), false);
+            null, List.of(), List.of(), Equipment.NONE);
     }
 }

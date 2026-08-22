@@ -88,6 +88,7 @@ class AppPathsOverrideTest {
 
     private static void writeBundledData(Path resourceRoot) throws Exception {
         writeResource(resourceRoot, "jjktbf-version.properties", "game.version=1.0.1\n");
+        writeResource(resourceRoot, "data/tools/all_tools.json", "[]");
         writeResource(resourceRoot, "data/moves/all_moves.json", "[]");
         writeResource(resourceRoot, "data/abilities/all_abilities.json", "[]");
         writeResource(resourceRoot, "data/techniques/all_techniques.json", "[]");

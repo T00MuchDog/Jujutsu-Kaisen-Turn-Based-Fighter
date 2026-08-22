@@ -91,6 +91,7 @@ public class CharacterSelectScreen implements Screen {
     private final MoveRepository moveRepo;
     private final AbilityRepository abilityRepo;
     private final TechniqueRepository techniqueRepo;
+    private final com.jjktbf.model.weapon.CursedToolRepository cursedToolRepo;
     /** Guards against double-dispose of native batch resources. */
     private boolean disposed;
     private final Rectangle headerBounds = new Rectangle();
@@ -144,6 +145,7 @@ public class CharacterSelectScreen implements Screen {
         moveRepo = new MoveRepository(MOVE_DATA_DIR);
         abilityRepo = new AbilityRepository(ABILITY_DATA_DIR);
         techniqueRepo = new TechniqueRepository(TECHNIQUE_DATA_DIR);
+        cursedToolRepo = new com.jjktbf.model.weapon.CursedToolRepository("data/tools");
     }
 
     /**
@@ -206,6 +208,7 @@ public class CharacterSelectScreen implements Screen {
             abilityRepo.load();
             techniqueRepo.load();
             charRepo.load();
+            cursedToolRepo.load();
             // Battles resolve combatant sprites through JJKGame's shared
             // repository, which is otherwise only loaded at startup — reload it
             // here so editor saves reach battles without an app restart.
@@ -675,7 +678,8 @@ public class CharacterSelectScreen implements Screen {
         resetMoveScroll();
         learnedMovesError = null;
         try {
-            learnedMoves = character.toCharacter(moveRepo, abilityRepo, techniqueRepo).getKnownMoves();
+            learnedMoves = character.toCharacter(
+                moveRepo, abilityRepo, techniqueRepo, cursedToolRepo).getKnownMoves();
         } catch (Exception e) {
             learnedMoves = List.of();
             learnedMovesError = e.getMessage();

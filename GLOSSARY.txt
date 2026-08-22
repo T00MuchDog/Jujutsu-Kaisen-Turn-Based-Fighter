@@ -323,9 +323,11 @@ are the Move/MoveData field names.
     mustBeGranted         If true, the move cannot be assigned directly in the
                           Character Editor; it must be made available through a
                           GRANT_MOVE or UNLOCK_MOVE ability effect.
-    weaponRequired        If true, only a character with a weapon
-                          (CharacterData.hasWeapon) can learn/use the move. Forced
-                          on for PARRY moves.
+    (weapon tag)          A move carrying one of the weapon-type tags (KATANA,
+                          BOW, GREAT_AXE, POLEARM, STAFF) can only be learned by
+                          a character with that weapon type equipped (base weapon
+                          or cursed tool). Authored via the Move Editor's Weapon
+                          Type dropdown.
 
   Modifier flags (back dedicated MoveTag entries; see §5)
     guardBreak  boolean  → Move.isGuardBreak() → GUARD_BREAK tag
@@ -390,9 +392,15 @@ tag names below.
     FRIENDLY_FIRE        On an AOE move, migrates aoeType to ALL_OTHERS so the
                          attack can also hit allies. Lives only in the tag set.
 
-  WEAPON TAG:
-    SWORD                 Sword / sword-like weapon modifier used by move-scoped
-                           abilities (e.g. Earnest Swordswoman). Modifier tag.
+  WEAPON TAGS (a move carries at most one; each pairs with a WeaponType):
+    KATANA                Katana / katana-like blade.
+    BOW                   Bow.
+    GREAT_AXE             Great axe.
+    POLEARM               Spear / polearm / three-section pole.
+    STAFF                 Staff.
+    A weapon-tagged move requires the matching weapon equipped (CharacterData
+    equippedWeaponTypes, or a cursed tool in equippedCursedToolIds). A cursed
+    tool of that type also zeroes the move's CE cost.
 
   COMBAT MODIFIER TAG:
     INTANGIBLE            An attack carrying this tag cannot be parried and ignores
@@ -528,9 +536,9 @@ BLOCK
 
 PARRY
   A short reactive window that negates a hit entirely (outcome PARRIED, no damage
-  roll). Requires a weapon: weaponRequired is forced on for parries, so only a
-  character with a weapon (CharacterData.hasWeapon) can use one. Parries are
-  weapon-based and type-agnostic — any ATTACK can be parried.
+  roll). Parries are weapon moves: they carry a weapon-type tag (e.g. KATANA), so
+  only a character with that weapon equipped (weapon or cursed tool) can use one.
+  Parries are type-agnostic — any ATTACK can be parried.
   On a successful parry of a non-GUARD_BREAK attack, the attacker is STAGGERED
   for parryStaggerTicks AP ticks (0 = no stagger). A GUARD_BREAK attack is still
   negated but is NOT staggered.
@@ -1334,9 +1342,11 @@ reflect HEAD at the time of writing. See the JSON files for full detail.
                            000017 Braced Guard, 000018 Reinforced Braced Guard,
                            000051 Elephant Drop, 000062 Devouring Lunge,
                            000065 Crushing Stomp.
-    SWORD-tagged (5):      000023 Sword Slash, 000024 Sword Throw,
-                           000027 Batto Sword Drawing, 000035 Katana Combination,
-                           000036 Cursed Sword Slash.
+    KATANA-tagged (8):     000023 Sword Slash, 000024 Sword Throw,
+                           000027 Batto Sword Drawing, 000030 Weapon Parry,
+                           000035 Katana Combination, 000036 Cursed Sword Slash,
+                           000037 Cursed Tool Deflection, 000093 Overhead Ratio
+                           Cleave.
     INTANGIBLE-tagged (8): the eight Cursed Speech commands 000069–000076.
     AOE-tagged (12):       ALL_ENEMIES — 000051 Elephant Drop, 000065 Crushing
                            Stomp, 000066 Water Deluge, 000068 Aerial Swarm;
@@ -1361,33 +1371,40 @@ reflect HEAD at the time of writing. See the JSON files for full detail.
              Drawing (000027). 000053 Desummon is a SHIKIGAMI/DESUMMON_SELF move
              carried by every shikigami (voluntary; cooldown to next round).
 
-  ABILITIES — 36 abilities (data/abilities/all_abilities.json), ids 000000–000035.
-    sourceType: TECHNIQUE (11), SHIKIGAMI (9), ABILITY (8 sub-abilities),
-                CHARACTER (7). 30 PASSIVE, 5 ACTIVE.
+  ABILITIES — 45 abilities (data/abilities/all_abilities.json), ids 000000–000044.
+    sourceType: TECHNIQUE (11), SHIKIGAMI (9), ABILITY (7 sub-abilities),
+                CHARACTER (8). 38 PASSIVE, 5 ACTIVE.
     Abilities with editable CODED effect rows (key/feature):
       MIRACLES          000001 Miracle Reservoir, 000002 Fateful Reprieve,
                         000003 Fortune Reclaimed
       RATIO             000004 Ratio Reinforcement
       NEW_SHADOW_STYLE  000006 Simple Domain Binding Vow
-      TEN_SHADOWS       000013 Ten Shadows Technique, 000020 Totality,
-                        000034 Well's Unknown Abyss
-      CURSED_SPEECH     000031 Cursed Speech, 000032 Refined Commands
+      TEN_SHADOWS       000013 Ten Shadows Technique, 000019 Totality,
+                        000032 Well's Unknown Abyss
+      CURSED_SPEECH     000030 Cursed Speech, 000031 Refined Commands
     Other notable:
       000014 Parallel Manifestation  MAX_ACTIVE_SUMMONS 1→2 (CTM 30)→3 (CTM 60)
-      000021 Shadows Unravel         DESUMMON_OWNED_SHIKIGAMI at 0 CE
+      000020 Shadows Unravel         DESUMMON_OWNED_SHIKIGAMI at 0 CE
       000015 Partially Realised Heavenly Restriction (grants 000016–000018)
       000016 Jujutsu Inaptitude      caps CE stats + Jujutsu Skill at 10
       000017 Heavenly Body           DEFENSE_FROM_DURABILITY (Durability-only Defense)
-      000019 Cursed Tool Access      grants move 000036 Cursed Sword Slash
       000005 New Shadow Style        UNLOCK_MOVE 000027 + 000028 (CHARACTER)
-      000007 Earnest Swordswoman     MOVE_BASE_POWER_MULTIPLY on SWORD (CHARACTER)
+      000007 Earnest Swordswoman     MOVE_BASE_POWER_MULTIPLY on KATANA (CHARACTER)
+      000044 Cursed Tools Expert     DAMAGE_MULTIPLY + MOVE_ACCURACY_MULTIPLY
+                                     ×1.1 on all weapon-tagged moves (CHARACTER)
       000008 Vessel of Sukuna        grants 000009–000011 (CHARACTER)
       000000 Iron Constitution       STAT_ADD durability +15 (CHARACTER)
-      000035 Blessed by the Sparks of Black doubles BLACK_FLASH_CHANCE odds
-      000022–000030                  per-shikigami SHIKIGAMI-sourced abilities that
+      000033 Blessed by the Sparks of Black doubles BLACK_FLASH_CHANCE odds
+      000021–000029                  per-shikigami SHIKIGAMI-sourced abilities that
                                      grant each shikigami its attack moves
-    masteryThreshold > 0: 000020 Totality (50), 000032 Refined Commands (60),
-                          000034 Well's Unknown Abyss (50).
+    masteryThreshold > 0: 000019 Totality (50), 000031 Refined Commands (60),
+                          000032 Well's Unknown Abyss (50).
+
+  CURSED TOOLS (data/tools/all_tools.json) — named weapons a character equips
+  (CharacterData.equippedCursedToolIds; base weapons live in
+  equippedWeaponTypes). Equipping a tool grants its WeaponType for the weapon
+  gate AND makes that type's moves cost no cursed energy; optional granted
+  moves/abilities are active while equipped. Edited in the CURSED TOOL EDITOR.
 
   CHARACTERS — 17 (data/characters/all_characters.json): 9 SORCERERS + 8 SHIKIGAMI.
     Sorcerers:

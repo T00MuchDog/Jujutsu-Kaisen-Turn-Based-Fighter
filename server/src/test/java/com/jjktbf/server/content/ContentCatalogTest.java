@@ -45,7 +45,7 @@ class ContentCatalogTest {
             .filter(move -> "000091".equals(move.getId()))
             .findFirst().orElseThrow().getMoveType());
         assertTrue(gorilla.getAbilities().stream()
-            .anyMatch(ability -> "000040".equals(ability.getId())));
+            .anyMatch(ability -> "000038".equals(ability.getId())));
     }
 
     @Test

@@ -1,0 +1,8 @@
+[ {
+  "id" : "000000",
+  "name" : "Split Soul Katana",
+  "weaponType" : "KATANA",
+  "imbuedTechniqueName" : "Split Soul",
+  "grantedMoveIds" : [ "000036" ],
+  "grantedAbilityIds" : [ ]
+} ]
