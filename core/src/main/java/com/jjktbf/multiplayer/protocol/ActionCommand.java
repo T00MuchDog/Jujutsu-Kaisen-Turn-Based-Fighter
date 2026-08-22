@@ -10,6 +10,20 @@ public record ActionCommand(
     CommandType type,
     SubmitPlanPayload payload
 ) {
+    public static ActionCommand readyForBattle(
+        String commandId,
+        String matchId,
+        long expectedStateVersion
+    ) {
+        return new ActionCommand(
+            commandId,
+            matchId,
+            expectedStateVersion,
+            CommandType.READY_FOR_BATTLE,
+            null
+        );
+    }
+
     public static ActionCommand submitPlan(
         String commandId,
         String matchId,

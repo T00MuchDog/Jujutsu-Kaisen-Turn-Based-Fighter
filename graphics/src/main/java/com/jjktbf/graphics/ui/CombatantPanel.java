@@ -201,11 +201,44 @@ public class CombatantPanel {
 
     /** Draws only the resource card so it can be layered above a fighter pair. */
     public void drawHud(Batch batch, BitmapFont nameFont, BitmapFont barFont,
-                        String name, float delta) {
+                         String name, float delta) {
+        drawHud(batch, nameFont, barFont, name, delta, 0f);
+    }
+
+    /** Slides this resource card in from the requested viewport edge. */
+    public void drawEnteringHud(
+        Batch batch,
+        BitmapFont nameFont,
+        BitmapFont barFont,
+        String name,
+        float delta,
+        float progress,
+        boolean fromRight,
+        float viewportWidth
+    ) {
+        drawHud(batch, nameFont, barFont, name, delta,
+            entranceHudOffset(progress, fromRight, viewportWidth, hudBounds.x, hudBounds.width));
+    }
+
+    public static float entranceHudOffset(
+        float progress,
+        boolean fromRight,
+        float viewportWidth,
+        float hudX,
+        float hudWidth
+    ) {
+        float clamped = Math.max(0f, Math.min(1f, progress));
+        float remaining = (1f - clamped) * (1f - clamped);
+        float startOffset = fromRight ? viewportWidth - hudX : -hudX - hudWidth;
+        return startOffset * remaining;
+    }
+
+    private void drawHud(Batch batch, BitmapFont nameFont, BitmapFont barFont,
+                         String name, float delta, float offsetX) {
         // Offset dark frame creates the hard lower-right shadow used by the reference HUD.
-        ui.palette.draw(batch, hudBounds.x + 7f * hudScale, hudBounds.y - 7f * hudScale,
+        ui.palette.draw(batch, hudBounds.x + offsetX + 7f * hudScale, hudBounds.y - 7f * hudScale,
             hudBounds.width, hudBounds.height);
-        ui.card.draw(batch, hudBounds.x, hudBounds.y, hudBounds.width, hudBounds.height);
+        ui.card.draw(batch, hudBounds.x + offsetX, hudBounds.y, hudBounds.width, hudBounds.height);
 
         float originalScaleX = nameFont.getData().scaleX;
         float originalScaleY = nameFont.getData().scaleY;
@@ -223,7 +256,7 @@ public class CombatantPanel {
         float originalNameY = hudBounds.y + hudBounds.height - scaled(10f) * hudScale;
         float currentGap = originalNameY - nameFont.getCapHeight() - hpBarTop;
         float nameY = currentGap > 0f ? originalNameY - currentGap / 2f : originalNameY;
-        nameFont.draw(batch, name, hudBounds.x + scaled(15f) * hudScale, nameY);
+        nameFont.draw(batch, name, hudBounds.x + offsetX + scaled(15f) * hudScale, nameY);
         nameFont.getData().setScale(originalScaleX, originalScaleY);
 
         hpBar.update(delta);
@@ -231,8 +264,8 @@ public class CombatantPanel {
         float originalBarScaleX = barFont.getData().scaleX;
         float originalBarScaleY = barFont.getData().scaleY;
         barFont.getData().setScale(originalBarScaleX * hudScale, originalBarScaleY * hudScale);
-        hpBar.draw(batch, barFont, ui, showResourceValues);
-        ceBar.draw(batch, barFont, ui, showResourceValues);
+        hpBar.draw(batch, barFont, ui, showResourceValues, offsetX);
+        ceBar.draw(batch, barFont, ui, showResourceValues, offsetX);
         barFont.getData().setScale(originalBarScaleX, originalBarScaleY);
     }
 }

@@ -59,6 +59,8 @@ class BattleControllerExecutionTest {
 
         assertEquals(1, view.resolutionStarts);
         assertEquals(List.of(1, 10), view.resolutionTicks);
+        assertTrue(view.battleStartAwaited);
+        assertEquals("The battle between Player and Enemy begins.", view.message);
         assertTrue(view.battleOverShown);
     }
 
@@ -88,11 +90,18 @@ class BattleControllerExecutionTest {
         private final List<Integer> resolutionTicks = new ArrayList<>();
         private int resolutionStarts;
         private boolean battleOverShown;
+        private boolean battleStartAwaited;
+        private String message;
         private boolean abortAfterRoundEnd;
         private boolean aborted;
 
         private RecordingView(BattlePlan plan) {
             this.plan = plan;
+        }
+
+        @Override
+        public void awaitBattleStart(BattleState state) {
+            battleStartAwaited = true;
         }
 
         @Override
@@ -137,6 +146,7 @@ class BattleControllerExecutionTest {
 
         @Override
         public void displayMessage(String message) {
+            this.message = message;
         }
 
         @Override

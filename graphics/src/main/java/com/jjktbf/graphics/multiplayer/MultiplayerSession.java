@@ -185,6 +185,29 @@ public final class MultiplayerSession {
         return new CommandStart(CommandStartStatus.READY, command);
     }
 
+    /** Atomically builds the initial battle-readiness command. */
+    public synchronized CommandStart beginReadyForBattleCommand(String commandId) {
+        if (matchSetup == null || latestState == null) {
+            return new CommandStart(CommandStartStatus.NO_MATCH, null);
+        }
+        if (isTerminal(latestState.status())) {
+            return new CommandStart(CommandStartStatus.MATCH_ENDED, null);
+        }
+        if (connectionState != ConnectionState.CONNECTED) {
+            return new CommandStart(CommandStartStatus.NOT_CONNECTED, null);
+        }
+        if (pendingCommand != null) {
+            return new CommandStart(CommandStartStatus.ALREADY_PENDING, null);
+        }
+        ActionCommand command = ActionCommand.readyForBattle(
+            Objects.requireNonNull(commandId, "commandId"),
+            matchSetup.matchId(),
+            latestState.stateVersion()
+        );
+        pendingCommand = command;
+        return new CommandStart(CommandStartStatus.READY, command);
+    }
+
     /** Atomically builds a versioned next-round readiness command. */
     public synchronized CommandStart beginReadyNextRoundCommand(String commandId) {
         if (matchSetup == null || latestState == null) {

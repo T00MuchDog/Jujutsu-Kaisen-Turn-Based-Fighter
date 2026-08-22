@@ -78,13 +78,25 @@ public class StatusBar {
     }
 
     public void draw(Batch batch, BitmapFont font, BattleUiAssets ui, boolean showValue) {
+        draw(batch, font, ui, showValue, 0f);
+    }
+
+    /** Draws the bar translated horizontally without mutating its layout bounds. */
+    public void draw(
+        Batch batch,
+        BitmapFont font,
+        BattleUiAssets ui,
+        boolean showValue,
+        float offsetX
+    ) {
         float labelWidth = Math.max(scaled(38f), height * 1.55f);
-        float trackX = x + labelWidth;
+        float drawX = x + offsetX;
+        float trackX = drawX + labelWidth;
         float trackWidth = Math.max(1f, width - labelWidth);
         float edge = scaled(3f);
 
         batch.setColor(BattleUiAssets.INK);
-        batch.draw(ui.pixel, x, y, width, height);
+        batch.draw(ui.pixel, drawX, y, width, height);
         batch.setColor(TRACK_COLOR);
         batch.draw(ui.pixel, trackX + edge, y + edge,
             trackWidth - edge * 2f, height - edge * 2f);
@@ -124,11 +136,11 @@ public class StatusBar {
 
         font.setColor(Color.WHITE);
         float textY = y + (height + font.getCapHeight()) / 2f;
-        font.draw(batch, label, x + (labelWidth - labelLayout.width) / 2f, textY);
+        font.draw(batch, label, drawX + (labelWidth - labelLayout.width) / 2f, textY);
         if (showValue) {
             font.setColor(BattleUiAssets.INK);
             font.draw(batch, current + "/" + max,
-                x + width - scaled(7f) - valueLayout.width, textY);
+                drawX + width - scaled(7f) - valueLayout.width, textY);
         }
         font.getData().setScale(originalScaleX, originalScaleY);
         batch.setColor(Color.WHITE);

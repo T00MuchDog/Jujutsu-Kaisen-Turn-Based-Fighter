@@ -81,6 +81,21 @@ class MultiplayerSessionTest {
             session.beginReadyNextRoundCommand("second-ready").status());
     }
 
+    @Test
+    void battleReadinessCommandUsesLatestVersionAndHasNoPlanPayload() {
+        MultiplayerSession session = connectedSession(10);
+
+        MultiplayerSession.CommandStart started =
+            session.beginReadyForBattleCommand("start-command");
+
+        assertTrue(started.ready());
+        assertEquals(CommandType.READY_FOR_BATTLE, started.command().type());
+        assertEquals(10, started.command().expectedStateVersion());
+        assertEquals(null, started.command().payload());
+        assertEquals(MultiplayerSession.CommandStartStatus.ALREADY_PENDING,
+            session.beginPlanCommand("plan", List.of()).status());
+    }
+
     private static MultiplayerSession connectedSession(long version) {
         MultiplayerSession session = new MultiplayerSession();
         session.setGuestCredentials(MultiplayerTestData.credentials("token"));

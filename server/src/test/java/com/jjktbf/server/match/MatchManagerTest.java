@@ -200,6 +200,7 @@ class MatchManagerTest {
     @Test
     void acceptedActionsBroadcastAndDuplicateOrStaleCommandsRejectOnlySender() {
         JoinedConnections joined = joinBoth();
+        startBattle(joined);
         joined.clearMessages();
         MatchState initialState = manager.getLatestState(playerOne, accepted.matchId());
         long initialVersion = initialState.stateVersion();
@@ -270,6 +271,7 @@ class MatchManagerTest {
     void concurrentCommandsAreProcessedSequentiallyAndOnlyAcceptedStateIsBroadcast()
         throws Exception {
         JoinedConnections joined = joinBoth();
+        startBattle(joined);
         joined.clearMessages();
         long version = manager.getLatestState(playerOne, accepted.matchId()).stateVersion();
         CountDownLatch ready = new CountDownLatch(2);
@@ -548,6 +550,23 @@ class MatchManagerTest {
         joinMatch(playerOne, accepted.matchId(), first);
         joinMatch(playerTwo, accepted.matchId(), second);
         return new JoinedConnections(first, second);
+    }
+
+    private void startBattle(JoinedConnections joined) {
+        joined.clearMessages();
+        long sharedVersion = manager.getLatestState(playerOne, accepted.matchId()).stateVersion();
+        assertTrue(manager.submitAction(
+            playerOne,
+            accepted.matchId(),
+            ActionCommand.readyForBattle("start-player-one", accepted.matchId(), sharedVersion)
+        ).accepted());
+        assertTrue(manager.submitAction(
+            playerTwo,
+            accepted.matchId(),
+            ActionCommand.readyForBattle("start-player-two", accepted.matchId(), sharedVersion)
+        ).accepted());
+        assertEquals(2, joined.first.ofType(MessageType.MATCH_STATE).size());
+        assertEquals(2, joined.second.ofType(MessageType.MATCH_STATE).size());
     }
 
     private ActionCommand emptyPlan(String commandId, long stateVersion) {

@@ -51,6 +51,7 @@ class ProtocolJsonTest {
         assertFalse(tree.at(
             "/players/0/combatants/0/plan/queuedSegments/0").has("targetId"));
         assertTrue(restored.players().get(0).readyForNextRound());
+        assertTrue(restored.players().get(0).readyForBattle());
         assertThrows(UnsupportedOperationException.class, () -> restored.players().add(null));
         assertThrows(UnsupportedOperationException.class,
             () -> restored.roundStartCharacterStates().clear());
@@ -141,6 +142,20 @@ class ProtocolJsonTest {
     }
 
     @Test
+    void readyForBattleCommandRoundTripsWithoutPayload() throws Exception {
+        ActionCommand command = ActionCommand.readyForBattle("start-1", "match-1", 42);
+
+        String json = mapper.writeValueAsString(command);
+        ActionCommand restored = mapper.readValue(json, ActionCommand.class);
+        JsonNode tree = mapper.readTree(json);
+
+        assertEquals(command, restored);
+        assertEquals(CommandType.READY_FOR_BATTLE, restored.type());
+        assertNull(restored.payload());
+        assertTrue(tree.get("payload").isNull());
+    }
+
+    @Test
     void challengeSummaryRoundTrips() throws Exception {
         ChallengeSummary summary = new ChallengeSummary(
             "challenge-1",
@@ -212,7 +227,7 @@ class ProtocolJsonTest {
         SocketMessage joined = messages.get(1);
         assertEquals(ProtocolVersion.GAME_VERSION, joined.gameVersion());
         assertEquals(ProtocolVersion.PROTOCOL_VERSION, joined.protocolVersion());
-        assertEquals(16, joined.protocolVersion());
+        assertEquals(17, joined.protocolVersion());
         assertEquals(42L, joined.stateVersion());
         assertEquals(1_700_000_060_000L, messages.get(6).disconnectDeadline());
         assertTrue(ProtocolVersion.isCompatible(
@@ -346,10 +361,10 @@ class ProtocolJsonTest {
         );
         PlayerState playerOne = new PlayerState(
             "player-1", "Guest Mantis", PlayerSide.PLAYER_ONE,
-            true, true, true, null, playerOneCharacter);
+            true, true, true, true, null, playerOneCharacter);
         PlayerState playerTwo = new PlayerState(
             "player-2", "Guest Crane", PlayerSide.PLAYER_TWO,
-            false, false, false, 1_700_000_060_000L, playerTwoCharacter);
+            false, false, false, false, 1_700_000_060_000L, playerTwoCharacter);
         BattleEventState event = new BattleEventState(
             "event-17",
             BattleEventType.DAMAGE_DEALT,

@@ -152,7 +152,6 @@ public class BattleScreen implements Screen, BattleView {
      */
     private static final float LOG_SCROLL_STEP_ROWS    = 1f;
     private static final float COMBATANT_HUD_SCALE     = 1.25f;
-    private static final float COMBATANT_HUD_WIDTH_SCALE = 0.50f;
     private static final float BASE_PLATE_VISIBLE_LEFT_RATIO = 0.06f;
     private static final float BASE_PLATE_VISIBLE_BOTTOM_RATIO = 0.38f;
     private static final float HUD_PLATE_CLEARANCE = 12f;
@@ -234,7 +233,7 @@ public class BattleScreen implements Screen, BattleView {
     private final InputAdapter logScrollInput = new InputAdapter() {
         @Override
         public boolean scrolled(float amountX, float amountY) {
-            if (!awaitingNextRound || typingInProgress()) return false;
+            if ((!awaitingBattleStart && !awaitingNextRound) || typingInProgress()) return false;
             float x = Gdx.input.getX();
             float y = Gdx.graphics.getHeight() - Gdx.input.getY();
             if (!logBounds.contains(x, y)) return false;
@@ -269,12 +268,16 @@ public class BattleScreen implements Screen, BattleView {
 
     // ── Move selection state ──────────────────────────────────────────────────
     private volatile boolean inputConfirmed = false;
+    private volatile boolean awaitingBattleStart = false;
+    private volatile boolean battleStartConfirmed = false;
     private volatile boolean awaitingNextRound = false;
     private volatile boolean nextRoundConfirmed = false;
     /** True while resolution tick calls are streaming; used to pace between ticks. */
     private volatile boolean resolvingTicks = false;
     private volatile boolean playbackControlsOpen = false;
     private boolean nextRoundHovered = false;
+    private boolean battleEntranceStarted = false;
+    private boolean battleIntroLogged = false;
     private volatile boolean fastForwardActive = false;
     private volatile boolean skipRoundRequested = false;
     private boolean fastForwardHovered = false;
@@ -301,10 +304,8 @@ public class BattleScreen implements Screen, BattleView {
     private volatile String          battleResultReason = "";
     private volatile int             currentExecutionTick = 0;
     /**
-     * Latched true the first time the planning panel is created, and stays true
-     * afterwards. Until then we draw nothing — the battle thread hasn't reached
-     * planning yet, so showing the execution HUD would flash it for a frame
-     * before the planning panel appears.
+     * Latched true when the opening execution scene is published and kept true
+     * through the rest of the battle.
      */
     private volatile boolean         executionUiActive = false;
     private volatile Thread          localBattleThread;
@@ -337,7 +338,7 @@ public class BattleScreen implements Screen, BattleView {
     private float playbackTickElapsedMs;
     private boolean playbackComplete;
     private boolean playbackReturnsToPlanning;
-    private int playedPlanningDefeatRound = -1;
+    private int playedPlanningEventsRound = -1;
     private CodedAbilityState onlinePlayerMiracles;
     private CodedAbilityState onlinePlayerRatio;
     /** Multiplayer resource playback for every displayed fighter, not just roster slot zero. */
@@ -454,6 +455,8 @@ public class BattleScreen implements Screen, BattleView {
         typingTailTimer = 0f;
         logScrollOffset = 0f;
         inputConfirmed = false;
+        awaitingBattleStart = false;
+        battleStartConfirmed = false;
         awaitingNextRound = false;
         nextRoundConfirmed = false;
         resolvingTicks = false;
@@ -472,6 +475,7 @@ public class BattleScreen implements Screen, BattleView {
         unleashedMoveElapsed = 0f;
         hitFlashes.clear();
         faintAnimations.clear();
+        entranceAnimations.clear();
         presentedLocalFaints.clear();
         localHpStates.clear();
         onlineResourceStates.clear();
@@ -483,12 +487,14 @@ public class BattleScreen implements Screen, BattleView {
         playbackTickElapsedMs = 0f;
         playbackComplete = false;
         playbackReturnsToPlanning = false;
-        playedPlanningDefeatRound = -1;
+        playedPlanningEventsRound = -1;
         onlinePlanningRound = -1;
         soundedOnlineRound = -1;
         loggedOnlineEventIds.clear();
         soundedOnlineEventIds.clear();
         onlineCommandPending = false;
+        battleEntranceStarted = false;
+        battleIntroLogged = false;
         preserveMultiplayerSession = false;
         multiplayerState = null;
         onlinePlayer = null;
@@ -558,6 +564,7 @@ public class BattleScreen implements Screen, BattleView {
 
         // Unblock whichever controller-thread view call is parked right now.
         inputConfirmed    = true; // promptBattlePlan
+        battleStartConfirmed = true; // awaitBattleStart
         nextRoundConfirmed = true; // awaitNextRound
 
         // If the planning panel holds the input processor, release it so the
@@ -624,7 +631,7 @@ public class BattleScreen implements Screen, BattleView {
             }
         }
 
-        if (awaitingNextRound) {
+        if (awaitingBattleStart || awaitingNextRound) {
             // Install the wheel listener for the duration of this window so the
             // log scrolls on actual scroll-wheel events (LibGDX delivers the
             // wheel only as a `scrolled` event, not via a polled API). The
@@ -633,6 +640,23 @@ public class BattleScreen implements Screen, BattleView {
             if (!logScrollInputAttached) {
                 Gdx.input.setInputProcessor(logScrollInput);
                 logScrollInputAttached = true;
+            }
+
+            if (awaitingBattleStart) {
+                nextRoundHovered = battleStartButtonEnabled() && nextRoundBounds.contains(x, y);
+                if (Gdx.input.justTouched() && nextRoundHovered) {
+                    if (mode == BattleMode.MULTIPLAYER) {
+                        if (submitReadyForBattle()) {
+                            game.audio().play(SoundCue.UI_CONFIRM);
+                        } else {
+                            game.audio().play(SoundCue.UI_DENIED);
+                        }
+                    } else {
+                        game.audio().play(SoundCue.UI_CONFIRM);
+                        battleStartConfirmed = true;
+                    }
+                }
+                return;
             }
 
             nextRoundHovered = nextRoundBounds.contains(x, y);
@@ -700,9 +724,9 @@ public class BattleScreen implements Screen, BattleView {
             ? combatantHuds(true) : List.of();
         drawCombatantField(enemyPanels, enemyHuds.size());
         drawCombatantField(playerPanels, playerHuds.size());
-        drawCombatantHuds(enemyPanels, enemyHuds);
+        drawCombatantHuds(enemyPanels, enemyHuds, false);
         if (!playerHuds.isEmpty()) {
-            drawCombatantHuds(playerPanels, playerHuds);
+            drawCombatantHuds(playerPanels, playerHuds, true);
             if (playerPanel != null && faintAnimationFor(playerPanel) == null) {
                 miraclesMeter.draw(batch, assets.battleUi, assets.fontLarge);
                 ratioMeter.draw(batch, assets.battleUi, assets.fontLarge);
@@ -710,7 +734,7 @@ public class BattleScreen implements Screen, BattleView {
         }
         drawLog(sw, sh);
         if (speedControlsVisible()) drawSpeedControls();
-        drawNextRoundButton();
+        drawBattleActionButton();
         if (SHOW_TICK_COUNTER) drawTickCounter(sw, sh);
         drawMoveUnleashAnimation(sw, sh);
         drawHitFlashes(sw, sh);
@@ -741,14 +765,25 @@ public class BattleScreen implements Screen, BattleView {
     }
 
     /** Draw one side's HUD grid after both teams' battlefield sprites. */
-    private void drawCombatantHuds(List<CombatantPanel> panels, List<CombatantHud> huds) {
+    private void drawCombatantHuds(
+        List<CombatantPanel> panels,
+        List<CombatantHud> huds,
+        boolean playerSide
+    ) {
         int count = Math.min(panels.size(), huds.size());
         for (int i = 0; i < count; i++) {
             CombatantPanel panel = panels.get(i);
             if (faintAnimationFor(panel) == null) {
                 CombatantHud hud = huds.get(i);
-                panel.drawHud(batch, assets.fontMedium, assets.fontSmall,
-                    hud.name(), frameDelta);
+                EntranceAnimation entrance = entranceAnimationFor(panel);
+                if (entrance != null && entrance.animateHud) {
+                    panel.drawEnteringHud(batch, assets.fontMedium, assets.fontSmall,
+                        hud.name(), frameDelta, entrance.progress(), playerSide,
+                        Gdx.graphics.getWidth());
+                } else {
+                    panel.drawHud(batch, assets.fontMedium, assets.fontSmall,
+                        hud.name(), frameDelta);
+                }
             }
         }
     }
@@ -804,7 +839,8 @@ public class BattleScreen implements Screen, BattleView {
             ? logBounds.x + logBounds.width - fastForwardBounds.x
                 + 14f * textGeometryScale : 0f;
         float buttonSpace = Math.max(speedControlSpace,
-            awaitingNextRound ? nextRoundBounds.width + 24f * textGeometryScale : 0f);
+            awaitingBattleStart || awaitingNextRound
+                ? nextRoundBounds.width + 24f * textGeometryScale : 0f);
         float textWidth = Math.max(
             1f, logBounds.width - 28f * textGeometryScale - buttonSpace);
         // Wrap the retained messages to the panel width (fixed font; no scaling).
@@ -905,9 +941,17 @@ public class BattleScreen implements Screen, BattleView {
         return all;
     }
 
-    private void drawNextRoundButton() {
-        if (!awaitingNextRound) return;
-        if (nextRoundHovered) {
+    private void drawBattleActionButton() {
+        if (!awaitingBattleStart && !awaitingNextRound) return;
+        boolean enabled = awaitingBattleStart
+            ? battleStartButtonEnabled()
+            : mode == BattleMode.LOCAL
+                ? !nextRoundConfirmed
+                : !onlineCommandPending && !localReadyForNextRound();
+        if (!enabled) {
+            assets.battleUi.lockButtonDisabled.draw(batch, nextRoundBounds.x, nextRoundBounds.y,
+                nextRoundBounds.width, nextRoundBounds.height);
+        } else if (nextRoundHovered) {
             assets.battleUi.lockButtonOver.draw(batch, nextRoundBounds.x, nextRoundBounds.y,
                 nextRoundBounds.width, nextRoundBounds.height);
         } else {
@@ -915,9 +959,14 @@ public class BattleScreen implements Screen, BattleView {
                 nextRoundBounds.width, nextRoundBounds.height);
         }
         assets.fontMedium.setColor(Color.WHITE);
-        String label = (mode == BattleMode.LOCAL && nextRoundConfirmed)
-            || (mode == BattleMode.MULTIPLAYER && localReadyForNextRound())
-            ? "WAITING..." : "NEXT ROUND";
+        String label;
+        if (awaitingBattleStart) {
+            label = battleStartWaiting() ? "WAITING..." : "START BATTLE";
+        } else {
+            label = (mode == BattleMode.LOCAL && nextRoundConfirmed)
+                || (mode == BattleMode.MULTIPLAYER && localReadyForNextRound())
+                ? "WAITING..." : "NEXT ROUND";
+        }
         GlyphLayout layout = new GlyphLayout(assets.fontMedium, label);
         assets.fontMedium.draw(batch, label,
             nextRoundBounds.x + (nextRoundBounds.width - layout.width) / 2f,
@@ -960,7 +1009,7 @@ public class BattleScreen implements Screen, BattleView {
 
     private boolean speedControlsVisible() {
         return executionUiActive && planningPanel == null && teamPlanningPanel == null
-            && !battleOver;
+            && !awaitingBattleStart && !battleOver;
     }
 
     private void toggleFastForward() {
@@ -1271,6 +1320,7 @@ public class BattleScreen implements Screen, BattleView {
         final OnlineCombatantKey onlineCombatant;
         final boolean playerSide;
         final Texture whiteSprite;
+        final boolean animateHud;
         CombatantPanel panel;
         float elapsed;
 
@@ -1279,13 +1329,15 @@ public class BattleScreen implements Screen, BattleView {
             OnlineCombatantKey onlineCombatant,
             boolean playerSide,
             CombatantPanel panel,
-            Texture whiteSprite
+            Texture whiteSprite,
+            boolean animateHud
         ) {
             this.localCombatant = localCombatant;
             this.onlineCombatant = onlineCombatant;
             this.playerSide = playerSide;
             this.panel = panel;
             this.whiteSprite = whiteSprite;
+            this.animateHud = animateHud;
         }
 
         static EntranceAnimation local(
@@ -1294,7 +1346,18 @@ public class BattleScreen implements Screen, BattleView {
             CombatantPanel panel,
             Texture whiteSprite
         ) {
-            return new EntranceAnimation(combatant, null, playerSide, panel, whiteSprite);
+            return new EntranceAnimation(
+                combatant, null, playerSide, panel, whiteSprite, false);
+        }
+
+        static EntranceAnimation initialLocal(
+            BattleCombatant combatant,
+            boolean playerSide,
+            CombatantPanel panel,
+            Texture whiteSprite
+        ) {
+            return new EntranceAnimation(
+                combatant, null, playerSide, panel, whiteSprite, true);
         }
 
         static EntranceAnimation online(
@@ -1303,7 +1366,18 @@ public class BattleScreen implements Screen, BattleView {
             CombatantPanel panel,
             Texture whiteSprite
         ) {
-            return new EntranceAnimation(null, combatant, playerSide, panel, whiteSprite);
+            return new EntranceAnimation(
+                null, combatant, playerSide, panel, whiteSprite, false);
+        }
+
+        static EntranceAnimation initialOnline(
+            OnlineCombatantKey combatant,
+            boolean playerSide,
+            CombatantPanel panel,
+            Texture whiteSprite
+        ) {
+            return new EntranceAnimation(
+                null, combatant, playerSide, panel, whiteSprite, true);
         }
 
         float durationSeconds() {
@@ -1526,6 +1600,32 @@ public class BattleScreen implements Screen, BattleView {
     // -------------------------------------------------------------------------
 
     @Override
+    public void awaitBattleStart(BattleState state) {
+        if (state == null || abortRequested || !isCurrentLocalBattleThread()) return;
+        battleStartConfirmed = false;
+        postLocal(() -> {
+            syncLocalBattlefield(state);
+            syncLocalHpFromModel();
+            initPanels();
+            updatePanels();
+            resetPlaybackControls();
+            executionUiActive = true;
+            awaitingBattleStart = true;
+            nextRoundHovered = false;
+            for (BattleCombatant combatant : renderPlayerTeam) {
+                startLocalPanelEntrance(combatant, true, true);
+            }
+            for (BattleCombatant combatant : renderEnemyTeam) {
+                startLocalPanelEntrance(combatant, false, true);
+            }
+        });
+
+        while (!battleStartConfirmed && !abortRequested && isCurrentLocalBattleThread()) {
+            sleepMs(16);
+        }
+    }
+
+    @Override
     public void displayRoundStart(BattleState state) {
         if (!isCurrentLocalBattleThread()) return;
         // Publish the battlefield with its planner below so no render boundary
@@ -1602,6 +1702,7 @@ public class BattleScreen implements Screen, BattleView {
                 opponent == null ? List.of() : List.of(opponent));
             syncLocalHpFromModel();
             initPanels();
+            awaitingBattleStart = false;
             awaitingNextRound = false;
             nextRoundHovered = false;
             executionUiActive = true;
@@ -1679,6 +1780,7 @@ public class BattleScreen implements Screen, BattleView {
             syncLocalBattlefield(state);
             syncLocalHpFromModel();
             initPanels();
+            awaitingBattleStart = false;
             awaitingNextRound = false;
             nextRoundHovered = false;
             executionUiActive = true;
@@ -2183,12 +2285,9 @@ public class BattleScreen implements Screen, BattleView {
         // Enqueue on the battle thread so the queue is non-empty when we gate
         // (see displayCombatEvents for why enqueuing inside postLocal races).
         queueLogLine(message);
-        // The only displayMessage call is the opening "BATTLE START" banner,
-        // which runs before the first planning phase flips executionUiActive.
-        // Blocking there would stall the battle thread behind a blank screen
-        // (the execution HUD isn't drawn yet), so skip the gate until the UI
-        // the player reads the log against is actually up. The line still
-        // types out and commits; it just doesn't block here.
+        // The opening line is queued before awaitBattleStart publishes the
+        // execution scene. Its button remains disabled until typing finishes,
+        // so this callback must not block before that scene is visible.
         if (executionUiActive) waitForLogLine();
     }
 
@@ -2255,6 +2354,43 @@ public class BattleScreen implements Screen, BattleView {
         onlineEnemy = opponent;
         initOnlineMoves(local, opponent);
 
+        if (state.phase() == BattlePhase.PRE_BATTLE && !isTerminal(state.status())) {
+            closePlanningPanel();
+            resetPlaybackControls();
+            awaitingBattleStart = true;
+            awaitingNextRound = false;
+            resolvingTicks = false;
+            playbackComplete = false;
+            currentExecutionTick = 0;
+            syncOnlineBattlefield(
+                activeOnlineCombatants(local), activeOnlineCombatants(opponent));
+            seedOnlineResourcesFromCurrentState();
+            CharacterState displayedPlayer = displayedOnlinePrimary(true);
+            onlinePlayerMiracles = displayedPlayer == null
+                ? null : findMiraclesState(displayedPlayer.codedAbilities());
+            onlinePlayerRatio = displayedPlayer == null
+                ? null : findRatioState(displayedPlayer.codedAbilities());
+            initPanels();
+            updatePanels();
+            if (!battleIntroLogged) {
+                battleIntroLogged = true;
+                queueLogLine("The battle between " + onlineTeamName(local)
+                    + " and " + onlineTeamName(opponent) + " begins.");
+            }
+            if (!battleEntranceStarted) {
+                battleEntranceStarted = true;
+                for (CharacterState combatant : renderOnlinePlayerTeam) {
+                    startOnlinePanelEntrance(
+                        multiplayerSetup.playerSide(), combatant, true);
+                }
+                PlayerSide opponentSide = opposite(multiplayerSetup.playerSide());
+                for (CharacterState combatant : renderOnlineEnemyTeam) {
+                    startOnlinePanelEntrance(opponentSide, combatant, true);
+                }
+            }
+            return;
+        }
+
         if (state.phase() == BattlePhase.PLANNING && !isTerminal(state.status())) {
             if (soundedOnlineRound != state.roundNumber()) {
                 soundedOnlineRound = state.roundNumber();
@@ -2264,11 +2400,12 @@ public class BattleScreen implements Screen, BattleView {
                 && playbackRound == state.roundNumber()) {
                 return;
             }
-            if (hasUnplayedPlanningDefeat(state)) {
+            if (hasUnplayedPlanningEvents(state)) {
                 startMultiplayerPlayback(state, true);
                 return;
             }
             resetPlaybackControls();
+            awaitingBattleStart = false;
             awaitingNextRound = false;
             nextRoundHovered = false;
             resolvingTicks = false;
@@ -2318,6 +2455,7 @@ public class BattleScreen implements Screen, BattleView {
         if (multiplayerState == null
             || multiplayerState.status() != MatchStatus.ACTIVE
             || multiplayerConnectionState != MultiplayerSession.ConnectionState.CONNECTED
+            || resolvingTicks
             || onlineCommandPending) {
             return;
         }
@@ -2414,11 +2552,10 @@ public class BattleScreen implements Screen, BattleView {
         return combatant != null && "ACTIVE".equals(combatant.lifecycle());
     }
 
-    private boolean hasUnplayedPlanningDefeat(MatchState state) {
-        return playedPlanningDefeatRound != state.roundNumber()
+    private boolean hasUnplayedPlanningEvents(MatchState state) {
+        return playedPlanningEventsRound != state.roundNumber()
             && state.recentEvents().stream()
-                .anyMatch(event -> event.roundNumber() == state.roundNumber()
-                    && event.type() == BattleEventType.COMBATANT_DEFEATED);
+                .anyMatch(event -> event.roundNumber() == state.roundNumber());
     }
 
     static Move toDisplayMove(MoveState state) {
@@ -2558,7 +2695,7 @@ public class BattleScreen implements Screen, BattleView {
         resetPlaybackControls();
         playbackControlsOpen = true;
         playbackReturnsToPlanning = returnsToPlanning;
-        if (returnsToPlanning) playedPlanningDefeatRound = state.roundNumber();
+        if (returnsToPlanning) playedPlanningEventsRound = state.roundNumber();
         playbackRound = state.roundNumber();
         playbackComplete = false;
         playbackEventIndex = 0;
@@ -2567,6 +2704,7 @@ public class BattleScreen implements Screen, BattleView {
         playbackTickElapsedMs = 0f;
         currentExecutionTick = 0;
         resolvingTicks = true;
+        awaitingBattleStart = false;
         awaitingNextRound = false;
         battleOver = false;
 
@@ -2931,12 +3069,47 @@ public class BattleScreen implements Screen, BattleView {
         return true;
     }
 
+    private boolean battleStartButtonEnabled() {
+        if (!awaitingBattleStart || battleStartWaiting()
+            || typingInProgress() || entranceAnimationInProgress()) {
+            return false;
+        }
+        return mode == BattleMode.LOCAL
+            || (multiplayerState != null
+                && multiplayerState.status() == MatchStatus.ACTIVE
+                && multiplayerState.phase() == BattlePhase.PRE_BATTLE
+                && multiplayerConnectionState == MultiplayerSession.ConnectionState.CONNECTED);
+    }
+
+    private boolean battleStartWaiting() {
+        return mode == BattleMode.LOCAL
+            ? battleStartConfirmed
+            : onlineCommandPending || localReadyForBattle();
+    }
+
+    private boolean submitReadyForBattle() {
+        if (!battleStartButtonEnabled() || multiplayerMatchService == null) return false;
+        MultiplayerMatchService.PlanSubmission submission =
+            multiplayerMatchService.readyForBattle();
+        if (!submission.sent()) {
+            addLogLine(submissionMessage(submission.status()));
+            return false;
+        }
+        onlineCommandPending = true;
+        return true;
+    }
+
+    private boolean localReadyForBattle() {
+        return onlinePlayer != null && onlinePlayer.readyForBattle();
+    }
+
     private boolean localReadyForNextRound() {
         return onlinePlayer != null && onlinePlayer.readyForNextRound();
     }
 
     private void showMultiplayerResult(MatchState state) {
         boolean firstResult = !battleOver;
+        awaitingBattleStart = false;
         awaitingNextRound = false;
         SoundCue resultCue;
         if (state.winnerSide() == null) {
@@ -2960,11 +3133,13 @@ public class BattleScreen implements Screen, BattleView {
         planningPanel = null;
         teamPlanningPanel = null;
         Gdx.input.setInputProcessor(null);
+        logScrollInputAttached = false;
     }
 
     /** Replace a retained locked planner with the execution UI. */
     private void showExecutionUi() {
         closePlanningPanel();
+        awaitingBattleStart = false;
         awaitingNextRound = false;
         nextRoundHovered = false;
         executionUiActive = true;
@@ -3030,6 +3205,21 @@ public class BattleScreen implements Screen, BattleView {
         return side == PlayerSide.PLAYER_ONE ? PlayerSide.PLAYER_TWO : PlayerSide.PLAYER_ONE;
     }
 
+    static String onlineTeamName(PlayerState player) {
+        if (player == null) return "an unknown team";
+        List<String> names = player.combatants().stream()
+            .filter(combatant -> "FIGHTER".equalsIgnoreCase(combatant.role()))
+            .map(CharacterState::name)
+            .toList();
+        if (names.isEmpty()) {
+            names = player.combatants().stream().map(CharacterState::name).toList();
+        }
+        if (names.isEmpty()) return player.displayName();
+        if (names.size() == 1) return names.get(0);
+        return String.join(", ", names.subList(0, names.size() - 1))
+            + " and " + names.get(names.size() - 1);
+    }
+
     /**
      * Battle-wide timeline grid length for the current online round, derived
      * from the stronger fighter's AP tier. Matches the server's authoritative
@@ -3092,7 +3282,10 @@ public class BattleScreen implements Screen, BattleView {
             postMultiplayer(run, () -> {
                 multiplayerConnectionState = state;
                 if (state == MultiplayerSession.ConnectionState.CONNECTED) {
-                    addLogLine("Connected. Both players can now plan their round.");
+                    addLogLine(multiplayerState != null
+                        && multiplayerState.phase() == BattlePhase.PRE_BATTLE
+                        ? "Connected. Both players must start the battle."
+                        : "Connected. Both players can now plan their round.");
                     if (multiplayerState != null && onlinePlayer != null
                         && multiplayerState.phase() == BattlePhase.PLANNING
                         && !onlinePlayer.planSubmitted()) {
@@ -3262,10 +3455,22 @@ public class BattleScreen implements Screen, BattleView {
 
     /** Starts the shared grow-in entrance on an already-displayed combatant. */
     private boolean startLocalPanelEntrance(BattleCombatant combatant, boolean playerSide) {
+        return startLocalPanelEntrance(combatant, playerSide, false);
+    }
+
+    private boolean startLocalPanelEntrance(
+        BattleCombatant combatant,
+        boolean playerSide,
+        boolean animateHud
+    ) {
         CombatantPanel panel = panelForCombatant(combatant);
         if (panel == null) return false;
-        return startEntranceAnimation(EntranceAnimation.local(
-            combatant, playerSide, panel, assets.whiteSilhouette(panel.spriteTexture())));
+        Texture whiteSprite = assets.whiteSilhouette(panel.spriteTexture());
+        return startEntranceAnimation(animateHud
+            ? EntranceAnimation.initialLocal(
+                combatant, playerSide, panel, whiteSprite)
+            : EntranceAnimation.local(
+                combatant, playerSide, panel, whiteSprite));
     }
 
     private void syncOnlineBattlefield(
@@ -3540,12 +3745,23 @@ public class BattleScreen implements Screen, BattleView {
 
     /** Starts the shared grow-in entrance on an already-displayed combatant. */
     private boolean startOnlinePanelEntrance(PlayerSide side, CharacterState combatant) {
+        return startOnlinePanelEntrance(side, combatant, false);
+    }
+
+    private boolean startOnlinePanelEntrance(
+        PlayerSide side,
+        CharacterState combatant,
+        boolean animateHud
+    ) {
         CombatantPanel panel = onlinePanelFor(side, combatant);
         if (panel == null) return false;
         boolean playerSide = side == multiplayerSetup.playerSide();
-        return startEntranceAnimation(EntranceAnimation.online(
-            onlineKey(side, combatant), playerSide, panel,
-            assets.whiteSilhouette(panel.spriteTexture())));
+        Texture whiteSprite = assets.whiteSilhouette(panel.spriteTexture());
+        return startEntranceAnimation(animateHud
+            ? EntranceAnimation.initialOnline(
+                onlineKey(side, combatant), playerSide, panel, whiteSprite)
+            : EntranceAnimation.online(
+                onlineKey(side, combatant), playerSide, panel, whiteSprite));
     }
 
     static List<CharacterState> withOnlineCombatantVisible(
@@ -3902,10 +4118,10 @@ public class BattleScreen implements Screen, BattleView {
 
         enemyPanels = buildCombatantPanels(
             visibleEnemySprites, enemyPlate, enemySpriteY, enemySpriteSize,
-            enemyHud, enemyHudColumnGap, hudRowGap, true);
+            enemyHud, fullHudWidth, enemyHudColumnGap, hudRowGap, true);
         playerPanels = buildCombatantPanels(
             visiblePlayerSprites, playerPlate, playerSpriteY, playerSpriteSize,
-            playerHud, playerHudColumnGap, hudRowGap, false);
+            playerHud, fullHudWidth, playerHudColumnGap, hudRowGap, false);
         enemyPanel = enemyPanels.isEmpty() ? null : enemyPanels.get(0);
         playerPanel = playerPanels.isEmpty() ? null : playerPanels.get(0);
         remapFaintAnimationPanels();
@@ -3983,6 +4199,7 @@ public class BattleScreen implements Screen, BattleView {
         float spriteY,
         float spriteSize,
         Rectangle primaryHud,
+        float fullHudWidth,
         float hudColumnGap,
         float hudRowGap,
         boolean opponent
@@ -3995,13 +4212,9 @@ public class BattleScreen implements Screen, BattleView {
                 + fighterOffset(i, teamSprites.size(), plate.width, opponent);
             Rectangle sprite = spriteBounds(
                 spriteTexture, fighterCenterX, spriteY, spriteSize);
-            int column = i / 2;
-            int row = i % 2;
-            Rectangle hud = new Rectangle(
-                primaryHud.x + column * (primaryHud.width + hudColumnGap),
-                hudRowY(primaryHud.y, row, primaryHud.height, hudRowGap, opponent),
-                primaryHud.width,
-                primaryHud.height);
+            Rectangle hud = combatantHudBounds(
+                i, teamSprites.size(), primaryHud, fullHudWidth,
+                hudColumnGap, hudRowGap, opponent);
             panels.add(new CombatantPanel(spriteTexture,
                 i == 0 ? assets.stoneBasePlate : null,
                 assets.battleUi, plate, sprite, hud, uiLayout.execution.hudScale, !opponent,
@@ -4040,6 +4253,31 @@ public class BattleScreen implements Screen, BattleView {
         return combatantCount > 2 ? hudWidth * 2f + columnGap : hudWidth;
     }
 
+    static Rectangle combatantHudBounds(
+        int fighterIndex,
+        int fighterCount,
+        Rectangle primaryHud,
+        float fullHudWidth,
+        float columnGap,
+        float rowGap,
+        boolean opponent
+    ) {
+        int column = fighterIndex / 2;
+        int row = fighterIndex % 2;
+        // The second row is unpaired only for a three-fighter formation.
+        boolean unpairedHudRow = fighterCount == 3 && row == 1;
+        float hudWidth = unpairedHudRow ? fullHudWidth : primaryHud.width;
+        float hudX = unpairedHudRow
+            ? primaryHud.x + (hudGroupWidth(fighterCount, primaryHud.width, columnGap)
+                - hudWidth) / 2f
+            : primaryHud.x + column * (primaryHud.width + columnGap);
+        return new Rectangle(
+            hudX,
+            hudRowY(primaryHud.y, row, primaryHud.height, rowGap, opponent),
+            hudWidth,
+            primaryHud.height);
+    }
+
     static float halfRightEdgeGap(float screenWidth, float groupX, float groupWidth) {
         return Math.max(0f, screenWidth - groupX - groupWidth) / 2f;
     }
@@ -4062,10 +4300,6 @@ public class BattleScreen implements Screen, BattleView {
     static float plateScale(int combatantCount) {
         if (combatantCount <= 2) return 1f;
         return combatantCount == 3 ? 1.5f : 2f;
-    }
-
-    static float hudWidthScale(int combatantCount) {
-        return combatantCount <= 2 ? 1f : COMBATANT_HUD_WIDTH_SCALE;
     }
 
     static float fighterOffset(

@@ -189,6 +189,23 @@ class MultiplayerMatchServiceTest {
     }
 
     @Test
+    void sendsVersionedReadyForBattleCommand() throws Exception {
+        Fixture fixture = new Fixture(15);
+        try {
+            MultiplayerMatchService.PlanSubmission submission =
+                fixture.service.readyForBattle();
+
+            assertTrue(submission.sent());
+            SocketMessage sent = fixture.socket.sent.get(0);
+            assertEquals(CommandType.READY_FOR_BATTLE, sent.command().type());
+            assertEquals(15, sent.command().expectedStateVersion());
+            assertEquals(null, sent.command().payload());
+        } finally {
+            fixture.close();
+        }
+    }
+
+    @Test
     void connectionFailureClearsPendingAndReportsReconnectState() throws Exception {
         Fixture fixture = new Fixture(2);
         try {

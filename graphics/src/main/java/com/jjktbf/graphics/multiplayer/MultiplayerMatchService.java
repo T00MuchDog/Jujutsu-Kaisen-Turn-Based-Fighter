@@ -207,6 +207,17 @@ public final class MultiplayerMatchService implements AutoCloseable {
         }
     }
 
+    /** Sends the local player's initial battle-readiness acknowledgement. */
+    public PlanSubmission readyForBattle() {
+        synchronized (commandLock) {
+            if (closed.get()) {
+                return notSent(SubmissionStatus.SERVICE_CLOSED);
+            }
+            String commandId = UUID.randomUUID().toString();
+            return send(session.beginReadyForBattleCommand(commandId), commandId);
+        }
+    }
+
     /** Sends the local player's round-end acknowledgement. */
     public PlanSubmission readyNextRound() {
         synchronized (commandLock) {

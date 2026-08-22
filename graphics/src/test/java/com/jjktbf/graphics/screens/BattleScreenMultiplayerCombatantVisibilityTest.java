@@ -74,7 +74,7 @@ class BattleScreenMultiplayerCombatantVisibilityTest {
     private static PlayerState player(CharacterState... combatants) {
         return new PlayerState(
             "player-1", "Player One", PlayerSide.PLAYER_ONE,
-            true, false, false, null, List.of(combatants));
+            true, true, false, false, null, List.of(combatants));
     }
 
     private static RoundStartCharacterState roundStart(CharacterState combatant) {

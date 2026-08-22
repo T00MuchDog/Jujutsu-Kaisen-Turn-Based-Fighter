@@ -117,6 +117,8 @@ public final class HeadlessBattleSession {
     private int wireCurrentTick;
     private List<BattleEventState> recentEvents;
     private List<RoundStartCharacterState> roundStartCharacterStates;
+    private boolean battleStarted;
+    private Long firstBattleReadyBaseVersion;
     private Long firstPlanBaseVersion;
     private Long firstReadyBaseVersion;
 
@@ -294,17 +296,7 @@ public final class HeadlessBattleSession {
         this.wireRoundNumber = battleState.getRoundNumber();
         this.wireCurrentTick = 0;
 
-        List<BattleEventState> initialEvents = new ArrayList<>();
-        initialEvents.add(systemEvent(
-            BattleEventType.ROUND_START,
-            battleState.getRoundNumber(),
-            0,
-            "Round " + battleState.getRoundNumber() + " started."
-        ));
-        List<CombatEvent> initialCombatEvents = resolver.processRoundStart(battleState);
-        initialEvents.addAll(toWireEvents(initialCombatEvents, battleState.getRoundNumber()));
-        if (battleState.isBattleOver()) finishFromBattleState();
-        this.recentEvents = List.copyOf(initialEvents);
+        this.recentEvents = List.of();
         this.roundStartCharacterStates = captureRoundStartCharacterStates();
     }
 
@@ -351,6 +343,20 @@ public final class HeadlessBattleSession {
                 "Commands cannot be accepted while a player is disconnected."
             );
         }
+        if (command.type() == CommandType.READY_FOR_BATTLE && battleStarted) {
+            return reject(
+                commandId,
+                WRONG_PHASE,
+                "Battle readiness can only be submitted before planning begins."
+            );
+        }
+        if (command.type() == CommandType.READY_FOR_BATTLE && participant.readyForBattle) {
+            return reject(
+                commandId,
+                READY_ALREADY_SUBMITTED,
+                "This player is already ready to start the battle."
+            );
+        }
         if (command.type() == CommandType.READY_NEXT_ROUND
             && battleState.getCurrentPhase() != BattleState.Phase.ROUND_END) {
             return reject(
@@ -383,7 +389,10 @@ public final class HeadlessBattleSession {
         if (command.type() == CommandType.READY_NEXT_ROUND) {
             return applyReadyNextRound(participant, command);
         }
-        if (battleState.getCurrentPhase() != BattleState.Phase.PLANNING) {
+        if (command.type() == CommandType.READY_FOR_BATTLE) {
+            return applyReadyForBattle(participant, command);
+        }
+        if (!battleStarted || battleState.getCurrentPhase() != BattleState.Phase.PLANNING) {
             return reject(commandId, WRONG_PHASE, "Plans can only be submitted during planning.");
         }
         if (participant.planSubmitted) {
@@ -961,6 +970,65 @@ public final class HeadlessBattleSession {
         return events;
     }
 
+    private CommandResult applyReadyForBattle(
+        ParticipantRuntime participant,
+        ActionCommand command
+    ) {
+        if (battleStarted) {
+            return reject(
+                command.commandId(),
+                WRONG_PHASE,
+                "Battle readiness can only be submitted before planning begins."
+            );
+        }
+        if (command.payload() != null) {
+            return reject(
+                command.commandId(),
+                MALFORMED_COMMAND,
+                "Battle readiness must not contain a payload."
+            );
+        }
+        if (participant.readyForBattle) {
+            return reject(
+                command.commandId(),
+                READY_ALREADY_SUBMITTED,
+                "This player is already ready to start the battle."
+            );
+        }
+
+        if (participantsBySide.values().stream().noneMatch(runtime -> runtime.readyForBattle)) {
+            firstBattleReadyBaseVersion = command.expectedStateVersion();
+        }
+        participant.readyForBattle = true;
+        acceptedCommandIds.add(command.commandId());
+        stateVersion++;
+
+        if (!allPlayersReadyForBattle()) {
+            return CommandResult.accepted(command.commandId(), List.of(), snapshot());
+        }
+
+        battleStarted = true;
+        firstBattleReadyBaseVersion = null;
+        wireRoundNumber = battleState.getRoundNumber();
+        wireCurrentTick = 0;
+        status = ongoingConnectionStatus();
+
+        List<BattleEventState> startEvents = new ArrayList<>();
+        startEvents.add(systemEvent(
+            BattleEventType.ROUND_START,
+            wireRoundNumber,
+            0,
+            "Round " + wireRoundNumber + " started."
+        ));
+        List<CombatEvent> roundStartEvents = resolver.processRoundStart(battleState);
+        startEvents.addAll(toWireEvents(roundStartEvents, wireRoundNumber));
+        if (battleState.isBattleOver()) finishFromBattleState();
+        recentEvents = List.copyOf(startEvents);
+        roundStartCharacterStates = captureRoundStartCharacterStates();
+        MatchState state = snapshot();
+        return CommandResult.accepted(command.commandId(), recentEvents, state);
+    }
+
     private CommandResult applyReadyNextRound(
         ParticipantRuntime participant,
         ActionCommand command
@@ -1153,6 +1221,7 @@ public final class HeadlessBattleSession {
             participant.participant.displayName(),
             participant.participant.side(),
             participant.connected,
+            participant.readyForBattle,
             participant.planSubmitted,
             participant.readyForNextRound,
             participant.connected ? null : participant.disconnectDeadline,
@@ -1466,11 +1535,31 @@ public final class HeadlessBattleSession {
         ParticipantRuntime participant,
         ActionCommand command
     ) {
+        if (command.type() == CommandType.READY_FOR_BATTLE) {
+            return canUseSharedBattleReadyVersion(
+                participant, command.expectedStateVersion());
+        }
         if (command.type() == CommandType.SUBMIT_PLAN) {
             return canUseSharedPlanningVersion(participant, command.expectedStateVersion());
         }
         return command.type() == CommandType.READY_NEXT_ROUND
             && canUseSharedReadyVersion(participant, command.expectedStateVersion());
+    }
+
+    private boolean canUseSharedBattleReadyVersion(
+        ParticipantRuntime participant,
+        long expectedVersion
+    ) {
+        if (battleStarted
+            || firstBattleReadyBaseVersion == null
+            || participant.readyForBattle
+            || expectedVersion != firstBattleReadyBaseVersion
+            || stateVersion != firstBattleReadyBaseVersion + 1) {
+            return false;
+        }
+        return participantsBySide.values().stream()
+            .filter(runtime -> runtime.readyForBattle)
+            .count() == 1;
     }
 
     private boolean canUseSharedReadyVersion(
@@ -1491,6 +1580,11 @@ public final class HeadlessBattleSession {
 
     private boolean allPlansSubmitted() {
         return participantsBySide.values().stream().allMatch(participant -> participant.planSubmitted);
+    }
+
+    private boolean allPlayersReadyForBattle() {
+        return participantsBySide.values().stream()
+            .allMatch(participant -> participant.readyForBattle);
     }
 
     private boolean allPlayersReadyForNextRound() {
@@ -1538,6 +1632,7 @@ public final class HeadlessBattleSession {
         if (isTerminal()) {
             return BattlePhase.BATTLE_OVER;
         }
+        if (!battleStarted) return BattlePhase.PRE_BATTLE;
         return BattlePhase.valueOf(battleState.getCurrentPhase().name());
     }
 
@@ -1706,6 +1801,7 @@ public final class HeadlessBattleSession {
         private final BattleCombatant primaryCombatant;
         private boolean connected;
         private boolean joined;
+        private boolean readyForBattle;
         private boolean planSubmitted;
         private boolean readyForNextRound;
         private Long disconnectDeadline;

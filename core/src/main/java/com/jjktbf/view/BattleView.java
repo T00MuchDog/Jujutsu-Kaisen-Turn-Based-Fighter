@@ -22,6 +22,12 @@ import java.util.List;
 public interface BattleView {
 
     /**
+     * Show the initial battlefield and hold before round-one planning begins.
+     * Implementations with no interactive presentation may return immediately.
+     */
+    default void awaitBattleStart(BattleState state) {}
+
+    /**
      * Display the full battle state at the start of a round (planning phase).
      * Shows HP, CE, BFS status, and available AP for both combatants.
      */

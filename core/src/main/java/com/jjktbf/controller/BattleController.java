@@ -142,9 +142,6 @@ public class BattleController {
             BattleState.teamOfFighters(com.jjktbf.model.combat.BattleTeamId.PLAYER, List.of(player)),
             BattleState.teamOfFighters(com.jjktbf.model.combat.BattleTeamId.ENEMY, List.of(enemy)));
 
-        view.displayMessage("=== BATTLE START: "
-            + playerCharacter.getName() + " vs " + enemyCharacter.getName() + " ===");
-
         runTeamBattleLoop(state);
     }
 
@@ -159,6 +156,11 @@ public class BattleController {
     }
 
     private void runTeamBattleLoop(BattleState state) {
+        view.displayMessage("The battle between " + teamName(state.playerTeam())
+            + " and " + teamName(state.enemyTeam()) + " begins.");
+        view.awaitBattleStart(state);
+        if (view.isAborted()) return;
+
         while (!state.isBattleOver()) {
             if (view.isAborted()) return;
 
@@ -173,6 +175,16 @@ public class BattleController {
 
         if (view.isAborted()) return;
         view.displayBattleOver(state.getWinner(), state);
+    }
+
+    private static String teamName(BattleTeam team) {
+        List<String> names = team.all().stream()
+            .filter(BattleCombatant::isFighter)
+            .map(combatant -> combatant.getCharacter().getName())
+            .toList();
+        if (names.size() < 2) return names.isEmpty() ? team.id().value() : names.get(0);
+        return String.join(", ", names.subList(0, names.size() - 1))
+            + " and " + names.get(names.size() - 1);
     }
 
     // -------------------------------------------------------------------------

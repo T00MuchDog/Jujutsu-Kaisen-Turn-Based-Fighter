@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jjktbf.multiplayer.protocol.ActionCommand;
+import com.jjktbf.multiplayer.protocol.BattleEventType;
 import com.jjktbf.multiplayer.protocol.BattlePhase;
 import com.jjktbf.multiplayer.protocol.ChallengeAcceptRequest;
 import com.jjktbf.multiplayer.protocol.ChallengeCreateRequest;
@@ -324,7 +325,27 @@ class MultiplayerServerIntegrationTest {
         SocketMessage pong = hostSocket.await(MessageType.PONG);
         assertEquals(heartbeat, pong.heartbeatTimestamp());
 
-        long version = activeState.state().stateVersion();
+        long preBattleVersion = activeState.state().stateVersion();
+        hostSocket.send(SocketMessage.submitAction(ActionCommand.readyForBattle(
+            "transport-start-one", guestSetup.matchId(), preBattleVersion)));
+        SocketMessage hostStartState = hostSocket.await(MessageType.MATCH_STATE);
+        SocketMessage guestObservedStart = guestSocket.await(MessageType.MATCH_STATE);
+        assertEquals("transport-start-one", hostStartState.commandId());
+        assertNull(guestObservedStart.commandId());
+        assertEquals(BattlePhase.PRE_BATTLE, hostStartState.state().phase());
+
+        guestSocket.send(SocketMessage.submitAction(ActionCommand.readyForBattle(
+            "transport-start-two", guestSetup.matchId(), preBattleVersion)));
+        SocketMessage hostPlanningState = hostSocket.await(MessageType.MATCH_STATE);
+        SocketMessage guestPlanningState = guestSocket.await(MessageType.MATCH_STATE);
+        assertNull(hostPlanningState.commandId());
+        assertEquals("transport-start-two", guestPlanningState.commandId());
+        assertEquals(BattlePhase.PLANNING, hostPlanningState.state().phase());
+        assertTrue(hostPlanningState.state().recentEvents().stream().anyMatch(event ->
+            event.type() == BattleEventType.ROUND_START));
+        assertEquals(hostPlanningState.stateVersion(), guestPlanningState.stateVersion());
+
+        long version = hostPlanningState.stateVersion();
         hostSocket.send(SocketMessage.submitAction(ActionCommand.submitPlan(
             "transport-command-one", guestSetup.matchId(), version, List.of())));
         SocketMessage hostFirstState = hostSocket.await(MessageType.MATCH_STATE);

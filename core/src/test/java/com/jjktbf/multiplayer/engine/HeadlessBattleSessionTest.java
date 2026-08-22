@@ -54,6 +54,86 @@ class HeadlessBattleSessionTest {
     );
 
     @Test
+    void connectedSessionStartsInPreBattleUntilPlayersAreReady() {
+        Move attack = physicalAttack("PRE_BATTLE_ATTACK", 1, true);
+        HeadlessBattleSession session = connectedSession(1L, attack, attack,
+            HeadlessBattleSession.DEFAULT_MAX_ROUNDS);
+
+        MatchState initial = session.snapshot();
+
+        assertEquals(MatchStatus.ACTIVE, initial.status());
+        assertEquals(BattlePhase.PRE_BATTLE, initial.phase());
+        assertTrue(initial.players().stream().allMatch(PlayerState::connected));
+        assertTrue(initial.players().stream().noneMatch(PlayerState::readyForBattle));
+    }
+
+    @Test
+    void onePlayerReadinessKeepsTheSessionInPreBattle() {
+        Move attack = physicalAttack("ONE_READY_ATTACK", 1, true);
+        HeadlessBattleSession session = connectedSession(2L, attack, attack,
+            HeadlessBattleSession.DEFAULT_MAX_ROUNDS);
+        long sharedVersion = session.getStateVersion();
+
+        CommandResult result = session.applyCommand(
+            "player-1",
+            ActionCommand.readyForBattle("battle-ready-1", "match-1", sharedVersion)
+        );
+
+        assertTrue(result.accepted());
+        assertEquals(sharedVersion + 1, result.state().stateVersion());
+        assertEquals(BattlePhase.PRE_BATTLE, result.state().phase());
+        assertTrue(result.events().isEmpty());
+        assertTrue(result.state().player(PlayerSide.PLAYER_ONE).orElseThrow()
+            .readyForBattle());
+        assertFalse(result.state().player(PlayerSide.PLAYER_TWO).orElseThrow()
+            .readyForBattle());
+    }
+
+    @Test
+    void secondReadinessFromSharedVersionStartsPlanningAndRoundStartEvents() {
+        Move attack = physicalAttack("SHARED_READY_ATTACK", 1, true);
+        HeadlessBattleSession session = connectedSession(3L, attack, attack,
+            HeadlessBattleSession.DEFAULT_MAX_ROUNDS);
+        long sharedVersion = session.getStateVersion();
+        assertTrue(session.applyCommand(
+            "player-1",
+            ActionCommand.readyForBattle("shared-ready-1", "match-1", sharedVersion)
+        ).accepted());
+
+        CommandResult result = session.applyCommand(
+            "player-2",
+            ActionCommand.readyForBattle("shared-ready-2", "match-1", sharedVersion)
+        );
+
+        assertTrue(result.accepted());
+        assertEquals(sharedVersion + 2, result.state().stateVersion());
+        assertEquals(BattlePhase.PLANNING, result.state().phase());
+        assertTrue(result.state().players().stream().allMatch(PlayerState::readyForBattle));
+        assertEquals(result.events(), result.state().recentEvents());
+        assertTrue(result.events().stream().anyMatch(event ->
+            event.type() == BattleEventType.ROUND_START && event.roundNumber() == 1));
+        assertEquals(2, result.state().roundStartCharacterStates().size());
+    }
+
+    @Test
+    void plansAreRejectedBeforeBothPlayersAreReady() {
+        Move attack = physicalAttack("PRE_BATTLE_PLAN_ATTACK", 1, true);
+        HeadlessBattleSession session = connectedSession(4L, attack, attack,
+            HeadlessBattleSession.DEFAULT_MAX_ROUNDS);
+        MatchState before = session.snapshot();
+
+        CommandResult result = session.applyCommand(
+            "player-1",
+            command(session, "premature-plan", targeted(attack, 1, PlayerSide.PLAYER_ONE))
+        );
+
+        assertFalse(result.accepted());
+        assertEquals("WRONG_PHASE", result.error().code());
+        assertEquals(before, result.state());
+        assertEquals(before, session.snapshot());
+    }
+
+    @Test
     void validPlansResolveServerSideAndHoldRoundEndPlaybackState() {
         Move attack = ceAttack("CE_ATTACK", 1, 40);
         HeadlessBattleSession session = session(10L, attack, attack);
@@ -162,7 +242,7 @@ class HeadlessBattleSessionTest {
         );
         assertFalse(wrongOwner.accepted());
         assertEquals("INVALID_MOVE", wrongOwner.error().code());
-        assertEquals(2, session.getStateVersion());
+        assertEquals(4, session.getStateVersion());
 
         assertTrue(session.applyCommand(
             "player-1",
@@ -175,7 +255,7 @@ class HeadlessBattleSessionTest {
         );
         assertFalse(repeatedPlan.accepted());
         assertEquals("PLAN_ALREADY_SUBMITTED", repeatedPlan.error().code());
-        assertEquals(3, session.getStateVersion());
+        assertEquals(5, session.getStateVersion());
 
         CommandResult outsider = session.applyCommand(
             "outsider",
@@ -614,6 +694,7 @@ class HeadlessBattleSessionTest {
         );
         session.setConnected("player-1", true);
         session.setConnected("player-2", true);
+        startBattle(session, "roster-match");
 
         MatchState state = session.snapshot();
         PlayerState player = state.player(PlayerSide.PLAYER_ONE).orElseThrow();
@@ -724,6 +805,9 @@ class HeadlessBattleSessionTest {
             FIXED_CLOCK,
             id -> "DOG".equals(id) ? Optional.of(dog) : Optional.empty()
         );
+        session.setConnected("player-1", true);
+        session.setConnected("player-2", true);
+        startBattle(session, "match-1");
         MatchState initial = session.snapshot();
         PlayerState player = initial.player(PlayerSide.PLAYER_ONE).orElseThrow();
 
@@ -962,7 +1046,7 @@ class HeadlessBattleSessionTest {
         assertEquals("MAX_ROUNDS_REACHED", state.endReason());
         assertNull(state.winnerPlayerId());
         assertEquals(1, state.roundNumber());
-        assertEquals(4, state.stateVersion());
+        assertEquals(6, state.stateVersion());
         assertTrue(state.players().stream().allMatch(PlayerState::planSubmitted));
         assertTrue(state.players().stream().noneMatch(PlayerState::readyForNextRound));
         assertEquals(2, state.roundStartCharacterStates().size());
@@ -1033,6 +1117,7 @@ class HeadlessBattleSessionTest {
             FIXED_CLOCK);
         session.setConnected("player-1", true);
         session.setConnected("player-2", true);
+        startBattle(session, "match-1");
 
         assertTrue(session.applyCommand(
             "player-1", command(session, "round-end-1",
@@ -1096,10 +1181,35 @@ class HeadlessBattleSessionTest {
     }
 
     private static HeadlessBattleSession session(long seed, Move first, Move second, int maxRounds) {
+        HeadlessBattleSession session = connectedSession(seed, first, second, maxRounds);
+        startBattle(session, "match-1");
+        return session;
+    }
+
+    private static HeadlessBattleSession connectedSession(
+        long seed,
+        Move first,
+        Move second,
+        int maxRounds
+    ) {
         HeadlessBattleSession session = waitingSession(seed, first, second, maxRounds);
         session.setConnected("player-1", true);
         session.setConnected("player-2", true);
         return session;
+    }
+
+    private static CommandResult startBattle(HeadlessBattleSession session, String matchId) {
+        long sharedVersion = session.getStateVersion();
+        assertTrue(session.applyCommand(
+            "player-1",
+            ActionCommand.readyForBattle("battle-ready-1", matchId, sharedVersion)
+        ).accepted());
+        CommandResult started = session.applyCommand(
+            "player-2",
+            ActionCommand.readyForBattle("battle-ready-2", matchId, sharedVersion)
+        );
+        assertTrue(started.accepted());
+        return started;
     }
 
     private static HeadlessBattleSession waitingSession(

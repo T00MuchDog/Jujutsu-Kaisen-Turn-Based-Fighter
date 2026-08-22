@@ -45,16 +45,32 @@ class BattleScreenSpriteBoundsTest {
     }
 
     @Test
-    void plateAndHudScalingOnlyChangeAtThreeAndFourFighters() {
+    void plateScalingOnlyChangesAtThreeAndFourFighters() {
         assertEquals(1f, BattleScreen.plateScale(1), 0.0001f);
         assertEquals(1f, BattleScreen.plateScale(2), 0.0001f);
         assertEquals(1.5f, BattleScreen.plateScale(3), 0.0001f);
         assertEquals(2f, BattleScreen.plateScale(4), 0.0001f);
+    }
 
-        assertEquals(1f, BattleScreen.hudWidthScale(1), 0.0001f);
-        assertEquals(1f, BattleScreen.hudWidthScale(2), 0.0001f);
-        assertEquals(0.5f, BattleScreen.hudWidthScale(3), 0.0001f);
-        assertEquals(0.5f, BattleScreen.hudWidthScale(4), 0.0001f);
+    @Test
+    void threeFighterHudKeepsPairCompactAndCentersTheFullWidthLoneHud() {
+        Rectangle primaryHud = new Rectangle(100f, 200f, 150f, 100f);
+
+        Rectangle first = BattleScreen.combatantHudBounds(
+            0, 3, primaryHud, 300f, 10f, 8f, false);
+        Rectangle second = BattleScreen.combatantHudBounds(
+            2, 3, primaryHud, 300f, 10f, 8f, false);
+        Rectangle lone = BattleScreen.combatantHudBounds(
+            1, 3, primaryHud, 300f, 10f, 8f, false);
+
+        assertEquals(150f, first.width, 0.0001f);
+        assertEquals(150f, second.width, 0.0001f);
+        assertEquals(100f, first.x, 0.0001f);
+        assertEquals(260f, second.x, 0.0001f);
+        assertEquals(300f, lone.width, 0.0001f);
+        assertEquals(105f, lone.x, 0.0001f);
+        assertEquals(255f, lone.x + lone.width / 2f, 0.0001f);
+        assertEquals(255f, (first.x + second.x + second.width) / 2f, 0.0001f);
     }
 
     @Test
@@ -161,6 +177,22 @@ class BattleScreenSpriteBoundsTest {
         assertEquals(0.55f, CombatantPanel.entranceGrowScale(0.5f), 0.0001f);
         assertEquals(1f, CombatantPanel.entranceGrowScale(1f), 0.0001f);
         assertEquals(1f, CombatantPanel.entranceGrowScale(2f), 0.0001f);
+    }
+
+    @Test
+    void entranceHudSlidesFromEachRequestedScreenEdge() {
+        assertEquals(400f,
+            CombatantPanel.entranceHudOffset(0f, true, 1000f, 600f, 200f),
+            0.0001f);
+        assertEquals(-300f,
+            CombatantPanel.entranceHudOffset(0f, false, 1000f, 100f, 200f),
+            0.0001f);
+        assertEquals(100f,
+            CombatantPanel.entranceHudOffset(0.5f, true, 1000f, 600f, 200f),
+            0.0001f);
+        assertEquals(0f,
+            CombatantPanel.entranceHudOffset(1f, false, 1000f, 100f, 200f),
+            0.0001f);
     }
 
 }

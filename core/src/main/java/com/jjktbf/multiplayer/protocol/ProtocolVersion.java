@@ -10,8 +10,8 @@ import java.util.Properties;
 public final class ProtocolVersion {
 
     public static final String GAME_VERSION = loadGameVersion();
-    /** Protocol v16 selects fighter rosters after challenge acceptance. */
-    public static final int PROTOCOL_VERSION = 16;
+    /** Protocol v17 adds the authoritative pre-battle readiness phase. */
+    public static final int PROTOCOL_VERSION = 17;
     public static final String STANDARD_RULESET = BattleStatMode.STANDARD.rulesetId();
     public static final String EQUALIZED_STATS_RULESET = BattleStatMode.EQUALIZED.rulesetId();
 
