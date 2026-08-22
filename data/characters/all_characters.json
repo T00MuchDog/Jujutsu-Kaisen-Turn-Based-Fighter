@@ -4,7 +4,8 @@
   "description" : "An opportunistic curse user who relies on a hand-shaped cursed tool and attacks distracted opponents. Haruta is quick enough to pressure a weaker target, but lacks the durability and skill to stand against a true grade 1 sorcerer.",
   "spriteAsset" : "assets/sprites/characters/haruta_frontsprite.png",
   "innateTechniqueName" : "Miracles",
-  "equippedWeaponTypes" : [ "KATANA" ],
+  "equippedWeaponTypes" : [ ],
+  "equippedCursedToolIds" : [ "000001" ],
   "vitality" : 55,
   "strength" : 45,
   "durability" : 40,
@@ -15,8 +16,8 @@
   "jujutsuSkill" : 25,
   "combatAbility" : 55,
   "cursedTechniqueMastery" : 15,
-  "moveIds" : [ "000000", "000001", "000014", "000023", "000024", "000029" ],
-  "availableMoveIds" : [ "000000", "000001", "000014", "000023" ],
+  "moveIds" : [ "000000", "000001", "000022", "000005", "000013", "000027" ],
+  "availableMoveIds" : [ "000000", "000001", "000013", "000022" ],
   "abilityIds" : [ "000001", "000002", "000003" ],
   "availableAbilityIds" : [ "000001", "000003", "000002" ]
 }, {
@@ -26,6 +27,7 @@
   "spriteAsset" : "assets/sprites/characters/nanami_frontsprite.png",
   "innateTechniqueName" : "Ratio",
   "equippedWeaponTypes" : [ "KATANA" ],
+  "equippedCursedToolIds" : [ ],
   "vitality" : 100,
   "strength" : 110,
   "durability" : 110,
@@ -36,15 +38,17 @@
   "jujutsuSkill" : 125,
   "combatAbility" : 105,
   "cursedTechniqueMastery" : 75,
-  "moveIds" : [ "000000", "000001", "000008", "000010", "000023", "000036", "000025", "000026", "000011", "000019", "000029", "000030", "000020", "000021" ],
-  "availableMoveIds" : [ "000025", "000026" ],
-  "abilityIds" : [ "000004", "000040", "000041", "000042" ],
-  "availableAbilityIds" : [ "000004", "000040", "000041", "000042" ]
+  "moveIds" : [ "000000", "000001", "000008", "000010", "000022", "000011", "000018", "000027", "000019", "000020", "000034", "000023", "000024", "000089" ],
+  "availableMoveIds" : [ "000024", "000023", "000089" ],
+  "abilityIds" : [ "000040", "000041", "000042", "000004", "000043" ],
+  "availableAbilityIds" : [ "000040", "000041", "000042", "000004", "000043" ]
 }, {
   "id" : "000002",
   "name" : "Miwa Kasumi",
   "description" : "A diligent swordswoman without an innate cursed technique. Miwa combines disciplined sword combat with New Shadow Style, holding Simple Domain until an opponent commits to an attack.",
   "spriteAsset" : "assets/sprites/characters/miwa_frontsprite.png",
+  "equippedWeaponTypes" : [ "KATANA" ],
+  "equippedCursedToolIds" : [ ],
   "vitality" : 50,
   "strength" : 40,
   "durability" : 40,
@@ -55,10 +59,9 @@
   "jujutsuSkill" : 80,
   "combatAbility" : 80,
   "cursedTechniqueMastery" : 0,
-  "moveIds" : [ "000000", "000001", "000020", "000011", "000021", "000028", "000010", "000023", "000024", "000027", "000030", "000029" ],
-  "availableMoveIds" : [ "000000", "000001", "000013", "000014", "000020", "000023", "000027", "000028" ],
-  "abilityIds" : [ "000005", "000006", "000007" ],
-  "equippedWeaponTypes" : [ "KATANA" ]
+  "moveIds" : [ "000000", "000001", "000019", "000011", "000020", "000026", "000010", "000025", "000022", "000027", "000033", "000015" ],
+  "availableMoveIds" : [ "000000", "000001", "000012", "000013", "000019", "000022", "000025", "000026" ],
+  "abilityIds" : [ "000005", "000006", "000007" ]
 }, {
   "id" : "000003",
   "name" : "Yuji Itadori (Vs. Mahito)",
@@ -74,8 +77,8 @@
   "jujutsuSkill" : 15,
   "combatAbility" : 95,
   "cursedTechniqueMastery" : 0,
-  "moveIds" : [ "000000", "000001", "000002", "000004", "000007", "000029", "000032", "000017" ],
-  "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000004", "000007", "000029", "000032" ],
+  "moveIds" : [ "000000", "000001", "000002", "000004", "000007", "000027", "000029", "000016" ],
+  "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000004", "000007", "000027", "000029" ],
   "abilityIds" : [ "000008", "000010", "000011", "000012", "000009" ],
   "availableAbilityIds" : [ "000008" ]
 }, {
@@ -94,8 +97,8 @@
   "jujutsuSkill" : 62,
   "combatAbility" : 30,
   "cursedTechniqueMastery" : 45,
-  "moveIds" : [ "000000", "000001", "000033", "000034", "000039", "000040", "000041", "000045", "000046", "000047", "000048", "000008", "000019", "000021" ],
-  "availableMoveIds" : [ "000000", "000001", "000033", "000034", "000039", "000040", "000041", "000045", "000046", "000047", "000048" ],
+  "moveIds" : [ "000000", "000001", "000030", "000031", "000035", "000036", "000037", "000041", "000042", "000043", "000044", "000008", "000018", "000020" ],
+  "availableMoveIds" : [ "000000", "000001", "000030", "000031", "000035", "000036", "000037", "000041", "000042", "000043", "000044" ],
   "abilityIds" : [ "000013", "000014", "000020" ],
   "availableAbilityIds" : [ "000013", "000014", "000020" ]
 }, {
@@ -103,6 +106,8 @@
   "name" : "Maki Zenin (Pre-Awakened)",
   "description" : "Before fully realising her Heavenly Restriction, Maki fights through exceptional weapon training, speed, durability, and relentless discipline despite possessing almost no talent for jujutsu.",
   "spriteAsset" : "assets/sprites/characters/maki_frontsprite.png",
+  "equippedWeaponTypes" : [ ],
+  "equippedCursedToolIds" : [ "000000" ],
   "vitality" : 75,
   "strength" : 80,
   "durability" : 84,
@@ -113,11 +118,10 @@
   "jujutsuSkill" : 10,
   "combatAbility" : 135,
   "cursedTechniqueMastery" : 0,
-  "moveIds" : [ "000000", "000001", "000023", "000024", "000029", "000030", "000031", "000035", "000037", "000038" ],
-  "availableMoveIds" : [ "000000", "000001", "000023", "000024", "000029", "000030", "000031", "000035", "000036", "000037", "000038" ],
+  "moveIds" : [ "000000", "000001", "000027", "000034", "000079" ],
+  "availableMoveIds" : [ "000000", "000001", "000022", "000027", "000028", "000032", "000033", "000034" ],
   "abilityIds" : [ "000015", "000009", "000016", "000017", "000018", "000007", "000044" ],
-  "availableAbilityIds" : [ "000015", "000007" ],
-  "equippedCursedToolIds" : [ "000000" ]
+  "availableAbilityIds" : [ "000015", "000007" ]
 }, {
   "id" : "000006",
   "name" : "Megumi Fushiguro (Kyoto Goodwill Event)",
@@ -134,8 +138,8 @@
   "jujutsuSkill" : 85,
   "combatAbility" : 65,
   "cursedTechniqueMastery" : 72,
-  "moveIds" : [ "000000", "000001", "000002", "000003", "000029", "000042", "000039", "000040", "000044", "000043", "000049", "000046", "000047", "000051", "000050", "000052", "000021", "000020" ],
-  "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000029", "000033", "000034", "000039", "000040", "000041", "000042", "000043", "000044", "000045", "000046", "000047", "000048", "000049", "000050", "000051", "000052" ],
+  "moveIds" : [ "000000", "000001", "000002", "000003", "000027", "000038", "000035", "000036", "000040", "000039", "000045", "000042", "000043", "000047", "000046", "000048", "000020", "000019" ],
+  "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000027", "000030", "000031", "000035", "000036", "000037", "000038", "000039", "000040", "000041", "000042", "000043", "000044", "000045", "000046", "000047", "000048" ],
   "abilityIds" : [ "000013", "000014", "000019", "000020", "000032" ],
   "availableAbilityIds" : [ "000013", "000014", "000019", "000020", "000032" ]
 }, {
@@ -156,8 +160,8 @@
   "jujutsuSkill" : 10,
   "combatAbility" : 50,
   "cursedTechniqueMastery" : 0,
-  "moveIds" : [ "000000", "000001", "000053", "000054", "000055" ],
-  "availableMoveIds" : [ "000000", "000001", "000053", "000054", "000055" ],
+  "moveIds" : [ "000000", "000001", "000049", "000050", "000051" ],
+  "availableMoveIds" : [ "000000", "000001", "000049", "000050", "000051" ],
   "abilityIds" : [ "000021", "000022" ],
   "availableAbilityIds" : [ "000021", "000022" ]
 }, {
@@ -178,8 +182,8 @@
   "jujutsuSkill" : 10,
   "combatAbility" : 55,
   "cursedTechniqueMastery" : 0,
-  "moveIds" : [ "000000", "000001", "000053", "000054", "000056" ],
-  "availableMoveIds" : [ "000000", "000001", "000053", "000054", "000056" ],
+  "moveIds" : [ "000000", "000001", "000049", "000050", "000052" ],
+  "availableMoveIds" : [ "000000", "000001", "000049", "000050", "000052" ],
   "abilityIds" : [ "000021", "000023" ],
   "availableAbilityIds" : [ "000021", "000023" ]
 }, {
@@ -200,8 +204,8 @@
   "jujutsuSkill" : 35,
   "combatAbility" : 60,
   "cursedTechniqueMastery" : 0,
-  "moveIds" : [ "000000", "000001", "000053", "000057", "000058", "000085", "000021" ],
-  "availableMoveIds" : [ "000000", "000001", "000053", "000057", "000058", "000085" ],
+  "moveIds" : [ "000000", "000001", "000049", "000053", "000054", "000081", "000020" ],
+  "availableMoveIds" : [ "000000", "000001", "000049", "000053", "000054", "000081" ],
   "abilityIds" : [ "000021", "000024" ],
   "availableAbilityIds" : [ "000021", "000024" ]
 }, {
@@ -212,18 +216,20 @@
   "type" : "SHIKIGAMI",
   "directlySelectable" : false,
   "baseCeDrainPerTick" : 0.2,
+  "equippedWeaponTypes" : [ ],
+  "equippedCursedToolIds" : [ ],
   "vitality" : 55,
   "strength" : 40,
   "durability" : 45,
   "speed" : 25,
   "cursedEnergyReserves" : 40,
   "cursedEnergyEfficiency" : 25,
-  "cursedEnergyOutput" : 25,
+  "cursedEnergyOutput" : 40,
   "jujutsuSkill" : 10,
   "combatAbility" : 30,
   "cursedTechniqueMastery" : 0,
-  "moveIds" : [ "000000", "000001", "000053", "000059", "000060", "000088" ],
-  "availableMoveIds" : [ "000000", "000001", "000053", "000059", "000060", "000088" ],
+  "moveIds" : [ "000000", "000001", "000049", "000055", "000056", "000084" ],
+  "availableMoveIds" : [ "000000", "000001", "000049", "000055", "000056", "000084" ],
   "abilityIds" : [ "000021", "000025" ],
   "availableAbilityIds" : [ "000021", "000025" ]
 }, {
@@ -244,8 +250,8 @@
   "jujutsuSkill" : 10,
   "combatAbility" : 40,
   "cursedTechniqueMastery" : 0,
-  "moveIds" : [ "000000", "000001", "000053", "000061", "000062", "000086" ],
-  "availableMoveIds" : [ "000000", "000001", "000053", "000061", "000062", "000086" ],
+  "moveIds" : [ "000000", "000001", "000049", "000057", "000058", "000082" ],
+  "availableMoveIds" : [ "000000", "000001", "000049", "000057", "000058", "000082" ],
   "abilityIds" : [ "000021", "000026" ],
   "availableAbilityIds" : [ "000021", "000026" ]
 }, {
@@ -266,8 +272,8 @@
   "jujutsuSkill" : 25,
   "combatAbility" : 90,
   "cursedTechniqueMastery" : 0,
-  "moveIds" : [ "000000", "000001", "000053", "000063", "000064", "000087", "000029", "000031" ],
-  "availableMoveIds" : [ "000000", "000001", "000053", "000063", "000064", "000087" ],
+  "moveIds" : [ "000000", "000001", "000049", "000059", "000060", "000083", "000027", "000028" ],
+  "availableMoveIds" : [ "000000", "000001", "000049", "000059", "000060", "000083" ],
   "abilityIds" : [ "000021", "000027" ],
   "availableAbilityIds" : [ "000021", "000027" ]
 }, {
@@ -288,8 +294,8 @@
   "jujutsuSkill" : 10,
   "combatAbility" : 62,
   "cursedTechniqueMastery" : 0,
-  "moveIds" : [ "000000", "000001", "000053", "000065", "000066" ],
-  "availableMoveIds" : [ "000000", "000001", "000053", "000065", "000066" ],
+  "moveIds" : [ "000000", "000001", "000049", "000061", "000062" ],
+  "availableMoveIds" : [ "000000", "000001", "000049", "000061", "000062" ],
   "abilityIds" : [ "000021", "000028" ],
   "availableAbilityIds" : [ "000021", "000028" ]
 }, {
@@ -300,18 +306,20 @@
   "type" : "SHIKIGAMI",
   "directlySelectable" : false,
   "baseCeDrainPerTick" : 0.45,
-  "vitality" : 80,
-  "strength" : 30,
+  "equippedWeaponTypes" : [ ],
+  "equippedCursedToolIds" : [ ],
+  "vitality" : 40,
+  "strength" : 25,
   "durability" : 25,
-  "speed" : 80,
-  "cursedEnergyReserves" : 60,
-  "cursedEnergyEfficiency" : 66,
-  "cursedEnergyOutput" : 55,
+  "speed" : 70,
+  "cursedEnergyReserves" : 25,
+  "cursedEnergyEfficiency" : 45,
+  "cursedEnergyOutput" : 25,
   "jujutsuSkill" : 10,
-  "combatAbility" : 65,
+  "combatAbility" : 30,
   "cursedTechniqueMastery" : 0,
-  "moveIds" : [ "000000", "000001", "000053", "000067", "000068" ],
-  "availableMoveIds" : [ "000000", "000001", "000053", "000067", "000068" ],
+  "moveIds" : [ "000000", "000001", "000049", "000063", "000064" ],
+  "availableMoveIds" : [ "000000", "000001", "000049", "000063", "000064" ],
   "abilityIds" : [ "000021", "000029" ],
   "availableAbilityIds" : [ "000021", "000029" ]
 }, {
@@ -320,18 +328,20 @@
   "description" : "A second-year sorcerer who channels Cursed Speech through the markings around his mouth, forcing commands upon everyone who hears him while enduring the technique's recoil.",
   "spriteAsset" : "assets/sprites/characters/inumaki_frontsprite.png",
   "innateTechniqueName" : "Cursed Speech",
-  "vitality" : 50,
-  "strength" : 35,
-  "durability" : 55,
-  "speed" : 90,
+  "equippedWeaponTypes" : [ ],
+  "equippedCursedToolIds" : [ ],
+  "vitality" : 55,
+  "strength" : 45,
+  "durability" : 65,
+  "speed" : 95,
   "cursedEnergyReserves" : 55,
-  "cursedEnergyEfficiency" : 80,
-  "cursedEnergyOutput" : 90,
-  "jujutsuSkill" : 80,
-  "combatAbility" : 80,
+  "cursedEnergyEfficiency" : 85,
+  "cursedEnergyOutput" : 110,
+  "jujutsuSkill" : 85,
+  "combatAbility" : 85,
   "cursedTechniqueMastery" : 120,
-  "moveIds" : [ "000000", "000001", "000069", "000070", "000071", "000072", "000073", "000004", "000008", "000010", "000014", "000016", "000031" ],
-  "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000008", "000009", "000010", "000014", "000069", "000070", "000071", "000072", "000073", "000074" ],
+  "moveIds" : [ "000000", "000001", "000065", "000066", "000067", "000068", "000069", "000004", "000008", "000010", "000013", "000015", "000028" ],
+  "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000008", "000009", "000010", "000013", "000065", "000066", "000067", "000068", "000069", "000070" ],
   "abilityIds" : [ "000030", "000031" ],
   "availableAbilityIds" : [ "000030", "000031" ]
 }, {
@@ -349,8 +359,8 @@
   "jujutsuSkill" : 35,
   "combatAbility" : 100,
   "cursedTechniqueMastery" : 0,
-  "moveIds" : [ "000000", "000001", "000077", "000019", "000008", "000081", "000082", "000018", "000021", "000029", "000032" ],
-  "availableMoveIds" : [ "000000", "000001", "000008", "000014", "000016", "000018", "000019", "000029", "000032", "000077", "000078", "000079", "000080", "000081", "000082" ],
+  "moveIds" : [ "000000", "000001", "000073", "000018", "000008", "000077", "000078", "000017", "000020", "000027", "000029" ],
+  "availableMoveIds" : [ "000000", "000001", "000008", "000013", "000015", "000017", "000018", "000027", "000029", "000073", "000074", "000075", "000076", "000077", "000078" ],
   "abilityIds" : [ "000008", "000010", "000011", "000012", "000009", "000033" ],
   "availableAbilityIds" : [ "000008", "000033" ]
 }, {
@@ -370,8 +380,8 @@
   "jujutsuSkill" : 50,
   "combatAbility" : 90,
   "cursedTechniqueMastery" : 0,
-  "moveIds" : [ "000000", "000001", "000077", "000078", "000082", "000083", "000084", "000089" ],
-  "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000004", "000007", "000014", "000019", "000021", "000029", "000032", "000077", "000078", "000079", "000080", "000081", "000082", "000083", "000084", "000089" ],
+  "moveIds" : [ "000000", "000001", "000073", "000074", "000078", "000079", "000080", "000085" ],
+  "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000004", "000007", "000013", "000018", "000020", "000027", "000029", "000073", "000074", "000075", "000076", "000077", "000078", "000079", "000080", "000085" ],
   "abilityIds" : [ "000034", "000035", "000036", "000037" ],
   "availableAbilityIds" : [ "000034", "000035", "000036", "000037", "000038", "000039" ]
 }, {
@@ -391,8 +401,8 @@
   "jujutsuSkill" : 35,
   "combatAbility" : 85,
   "cursedTechniqueMastery" : 0,
-  "moveIds" : [ "000000", "000001", "000004", "000077", "000082", "000090", "000091", "000092" ],
-  "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000004", "000007", "000014", "000019", "000021", "000029", "000032", "000077", "000078", "000079", "000080", "000081", "000082", "000090", "000091", "000092" ],
+  "moveIds" : [ "000000", "000001", "000004", "000073", "000078", "000086", "000087", "000088" ],
+  "availableMoveIds" : [ "000000", "000001", "000002", "000003", "000004", "000007", "000013", "000018", "000020", "000027", "000029", "000073", "000074", "000075", "000076", "000077", "000078", "000086", "000087", "000088" ],
   "abilityIds" : [ "000034", "000035", "000038", "000039" ],
   "availableAbilityIds" : [ "000034", "000035", "000036", "000037", "000038", "000039" ]
 } ]

@@ -5,7 +5,7 @@
   "skillTree" : [ {
     "id" : "node-000000",
     "contentType" : "MOVE",
-    "contentId" : "000022",
+    "contentId" : "000021",
     "x" : 693.99994,
     "y" : 236.0,
     "prerequisites" : [ {
@@ -71,9 +71,9 @@
   "skillTree" : [ {
     "id" : "node-000000",
     "contentType" : "MOVE",
-    "contentId" : "000025",
-    "x" : 397.00006,
-    "y" : 110.000015,
+    "contentId" : "000023",
+    "x" : 395.00006,
+    "y" : 221.00002,
     "prerequisites" : [ {
       "type" : "NODE",
       "nodeId" : "node-000002",
@@ -101,7 +101,7 @@
   }, {
     "id" : "node-000001",
     "contentType" : "MOVE",
-    "contentId" : "000026",
+    "contentId" : "000024",
     "x" : 397.0,
     "y" : 336.00003,
     "prerequisites" : [ {
@@ -115,6 +115,22 @@
       "type" : "STAT",
       "stat" : "combatAbility",
       "minimum" : 50
+    }, {
+      "type" : "STAT",
+      "stat" : "jujutsuSkill",
+      "minimum" : 30
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyOutput",
+      "minimum" : 50
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyEfficiency",
+      "minimum" : 30
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyReserves",
+      "minimum" : 20
     } ]
   }, {
     "id" : "node-000002",
@@ -126,9 +142,9 @@
   }, {
     "id" : "node-000003",
     "contentType" : "MOVE",
-    "contentId" : "000093",
-    "x" : 760.0,
-    "y" : 336.00003,
+    "contentId" : "000089",
+    "x" : 787.0,
+    "y" : 337.00003,
     "prerequisites" : [ {
       "type" : "NODE",
       "nodeId" : "node-000001",
@@ -138,23 +154,39 @@
       "minimum" : 55
     }, {
       "type" : "STAT",
-      "stat" : "combatAbility",
-      "minimum" : 60
-    }, {
-      "type" : "STAT",
       "stat" : "strength",
       "minimum" : 55
     }, {
       "type" : "STAT",
+      "stat" : "speed",
+      "minimum" : 0
+    }, {
+      "type" : "STAT",
+      "stat" : "combatAbility",
+      "minimum" : 70
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyReserves",
+      "minimum" : 0
+    }, {
+      "type" : "STAT",
+      "stat" : "cursedEnergyEfficiency",
+      "minimum" : 50
+    }, {
+      "type" : "STAT",
+      "stat" : "jujutsuSkill",
+      "minimum" : 60
+    }, {
+      "type" : "STAT",
       "stat" : "cursedEnergyOutput",
-      "minimum" : 45
+      "minimum" : 60
     } ]
   }, {
     "id" : "node-000004",
     "contentType" : "ABILITY",
     "contentId" : "000043",
-    "x" : 760.0,
-    "y" : 110.0,
+    "x" : 396.99988,
+    "y" : 104.99994,
     "prerequisites" : [ {
       "type" : "NODE",
       "nodeId" : "node-000002",
@@ -193,7 +225,7 @@
   }, {
     "id" : "node-000002",
     "contentType" : "MOVE",
-    "contentId" : "000033",
+    "contentId" : "000030",
     "x" : 423.99994,
     "y" : 455.0,
     "prerequisites" : [ {
@@ -223,7 +255,7 @@
   }, {
     "id" : "node-000003",
     "contentType" : "MOVE",
-    "contentId" : "000034",
+    "contentId" : "000031",
     "x" : 423.99994,
     "y" : 331.00003,
     "prerequisites" : [ {
@@ -253,7 +285,7 @@
   }, {
     "id" : "node-000004",
     "contentType" : "MOVE",
-    "contentId" : "000039",
+    "contentId" : "000035",
     "x" : 884.0001,
     "y" : 396.00003,
     "prerequisites" : [ {
@@ -287,7 +319,7 @@
   }, {
     "id" : "node-000005",
     "contentType" : "MOVE",
-    "contentId" : "000040",
+    "contentId" : "000036",
     "x" : 1234.0,
     "y" : 397.0,
     "prerequisites" : [ {
@@ -317,7 +349,7 @@
   }, {
     "id" : "node-000006",
     "contentType" : "MOVE",
-    "contentId" : "000041",
+    "contentId" : "000037",
     "x" : 1598.0001,
     "y" : 397.0,
     "prerequisites" : [ {
@@ -347,7 +379,7 @@
   }, {
     "id" : "node-000007",
     "contentType" : "MOVE",
-    "contentId" : "000044",
+    "contentId" : "000040",
     "x" : 1960.9999,
     "y" : 397.0,
     "prerequisites" : [ {
@@ -405,7 +437,7 @@
   }, {
     "id" : "node-000009",
     "contentType" : "MOVE",
-    "contentId" : "000042",
+    "contentId" : "000038",
     "x" : 882.99963,
     "y" : 182.99998,
     "prerequisites" : [ {
@@ -443,7 +475,7 @@
   }, {
     "id" : "node-000010",
     "contentType" : "MOVE",
-    "contentId" : "000043",
+    "contentId" : "000039",
     "x" : 1233.9998,
     "y" : -89.999954,
     "prerequisites" : [ {
@@ -481,7 +513,7 @@
   }, {
     "id" : "node-000011",
     "contentType" : "MOVE",
-    "contentId" : "000045",
+    "contentId" : "000041",
     "x" : 424.0,
     "y" : 602.0,
     "prerequisites" : [ {
@@ -511,7 +543,7 @@
   }, {
     "id" : "node-000012",
     "contentType" : "MOVE",
-    "contentId" : "000046",
+    "contentId" : "000042",
     "x" : 890.9999,
     "y" : 550.0,
     "prerequisites" : [ {
@@ -537,7 +569,7 @@
   }, {
     "id" : "node-000013",
     "contentType" : "MOVE",
-    "contentId" : "000047",
+    "contentId" : "000043",
     "x" : 1233.0,
     "y" : 549.0,
     "prerequisites" : [ {
@@ -563,7 +595,7 @@
   }, {
     "id" : "node-000014",
     "contentType" : "MOVE",
-    "contentId" : "000048",
+    "contentId" : "000044",
     "x" : 1588.0,
     "y" : 548.0,
     "prerequisites" : [ {
@@ -589,7 +621,7 @@
   }, {
     "id" : "node-000015",
     "contentType" : "MOVE",
-    "contentId" : "000049",
+    "contentId" : "000045",
     "x" : 874.99976,
     "y" : 54.000153,
     "prerequisites" : [ {
@@ -615,7 +647,7 @@
   }, {
     "id" : "node-000016",
     "contentType" : "MOVE",
-    "contentId" : "000050",
+    "contentId" : "000046",
     "x" : 1235.0,
     "y" : -230.99994,
     "prerequisites" : [ {
@@ -637,7 +669,7 @@
   }, {
     "id" : "node-000017",
     "contentType" : "MOVE",
-    "contentId" : "000051",
+    "contentId" : "000047",
     "x" : 1961.0,
     "y" : 544.00006,
     "prerequisites" : [ {
@@ -663,7 +695,7 @@
   }, {
     "id" : "node-000018",
     "contentType" : "MOVE",
-    "contentId" : "000052",
+    "contentId" : "000048",
     "x" : 1590.0001,
     "y" : 702.0,
     "prerequisites" : [ {
@@ -708,7 +740,7 @@
   }, {
     "id" : "node-000001",
     "contentType" : "MOVE",
-    "contentId" : "000069",
+    "contentId" : "000065",
     "x" : 390.0,
     "y" : 300.0,
     "prerequisites" : [ {
@@ -738,7 +770,7 @@
   }, {
     "id" : "node-000002",
     "contentType" : "MOVE",
-    "contentId" : "000070",
+    "contentId" : "000066",
     "x" : 745.00006,
     "y" : 300.0,
     "prerequisites" : [ {
@@ -768,7 +800,7 @@
   }, {
     "id" : "node-000003",
     "contentType" : "MOVE",
-    "contentId" : "000071",
+    "contentId" : "000067",
     "x" : 1090.0,
     "y" : 300.0,
     "prerequisites" : [ {
@@ -798,7 +830,7 @@
   }, {
     "id" : "node-000004",
     "contentType" : "MOVE",
-    "contentId" : "000072",
+    "contentId" : "000068",
     "x" : 1440.0,
     "y" : 300.0,
     "prerequisites" : [ {
@@ -842,7 +874,7 @@
   }, {
     "id" : "node-000006",
     "contentType" : "MOVE",
-    "contentId" : "000073",
+    "contentId" : "000069",
     "x" : 1790.0,
     "y" : 300.0,
     "prerequisites" : [ {
@@ -872,7 +904,7 @@
   }, {
     "id" : "node-000007",
     "contentType" : "MOVE",
-    "contentId" : "000074",
+    "contentId" : "000070",
     "x" : 2140.0,
     "y" : 300.0,
     "prerequisites" : [ {
@@ -902,7 +934,7 @@
   }, {
     "id" : "node-000008",
     "contentType" : "MOVE",
-    "contentId" : "000075",
+    "contentId" : "000071",
     "x" : 2490.0,
     "y" : 300.0,
     "prerequisites" : [ {
@@ -932,7 +964,7 @@
   }, {
     "id" : "node-000009",
     "contentType" : "MOVE",
-    "contentId" : "000076",
+    "contentId" : "000072",
     "x" : 2840.0,
     "y" : 300.0,
     "prerequisites" : [ {

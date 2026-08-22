@@ -208,6 +208,13 @@ public class MoveData {
      */
     public String  requiredTechniqueId;
 
+    /**
+     * Optional 6-digit cursed-tool ID that grants this move while equipped.
+     * Unlike {@code GRANT_MOVE}, this assignment does not bypass move
+     * requirements. Weapon-type grants are derived separately from {@link #tags}.
+     */
+    public String requiredCursedToolId;
+
     public boolean isFreeMove = false;
 
     /** Maximum placements per round. 0 means unlimited. */
@@ -659,6 +666,7 @@ public class MoveData {
             .defenseTiming(DefenseTiming.fromName(defenseTiming))
             .defenseUses(defenseUses)
             .requiredTechniqueId(requiredTechniqueId)
+            .requiredCursedToolId(requiredCursedToolId)
             .freeMove(isFreeMove)
             .mustBeGranted(mustBeGranted)
             .moveCap(moveCap)
@@ -770,6 +778,11 @@ public class MoveData {
             }
         }
         return parsed;
+    }
+
+    /** Every weapon-type tag authored on this move definition. */
+    public Set<MoveTag> weaponTags() {
+        return MoveTag.weaponTagsIn(parsedTags());
     }
 
     private void validateProgressionEligibility(Set<MoveTag> rawTags) {
@@ -1001,6 +1014,7 @@ public class MoveData {
         d.defenseTiming         = move.getDefenseTiming().name();
         d.defenseUses           = move.getDefenseUses();
         d.requiredTechniqueId = move.getRequiredTechniqueId();
+        d.requiredCursedToolId = move.getRequiredCursedToolId();
         d.isFreeMove          = move.isFreeMove();
         d.mustBeGranted       = move.mustBeGranted();
         d.moveCap             = move.getMoveCap();

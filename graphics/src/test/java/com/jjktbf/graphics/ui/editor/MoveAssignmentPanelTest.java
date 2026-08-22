@@ -32,6 +32,24 @@ class MoveAssignmentPanelTest {
     }
 
     @Test
+    void filteringLoadedMovesRetainsTheirOriginalIndices() {
+        List<AssignmentPanel.Item> loadedItems = List.of(
+            new AssignmentPanel.Item("first", "Black Flash", "STRIKE"),
+            item,
+            new AssignmentPanel.Item("third", "Ratio Collapse", "FINISHER")
+        );
+
+        assertEquals(
+            List.of(1, 2),
+            MoveAssignmentPanel.matchingItemIndices(loadedItems, "ratio")
+        );
+        assertEquals(
+            List.of(0, 1, 2),
+            MoveAssignmentPanel.matchingItemIndices(loadedItems, " ")
+        );
+    }
+
+    @Test
     void windowsStacksAssignmentGroupsForNarrowEditors() {
         assertEquals(2, MoveAssignmentPanel.columnRowCount(UiProfile.WINDOWS));
         assertEquals(1, MoveAssignmentPanel.columnRowCount(UiProfile.MAC));

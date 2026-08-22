@@ -39,6 +39,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -60,6 +61,7 @@ public class SkillTreeCanvas extends WidgetGroup {
     private final Runnable onChanged;
     private final Consumer<String> onStatus;
     private final Function<SkillTreeNodeData, String> activationError;
+    private final BiPredicate<SkillTreeNodeData, StatKey> prerequisiteWaiver;
     private final Consumer<SoundCue> soundPlayer;
     private final Skin skin;
     private final UiProfile uiProfile;
@@ -91,12 +93,32 @@ public class SkillTreeCanvas extends WidgetGroup {
         UiProfile uiProfile,
         Skin skin
     ) {
+        this(technique, moves, abilities, character, editable, onChanged, onStatus,
+            activationError, (node, stat) -> false, soundPlayer, uiProfile, skin);
+    }
+
+    public SkillTreeCanvas(
+        InnateTechniqueData technique,
+        List<MoveData> moves,
+        List<AbilityData> abilities,
+        CharacterData character,
+        boolean editable,
+        Runnable onChanged,
+        Consumer<String> onStatus,
+        Function<SkillTreeNodeData, String> activationError,
+        BiPredicate<SkillTreeNodeData, StatKey> prerequisiteWaiver,
+        Consumer<SoundCue> soundPlayer,
+        UiProfile uiProfile,
+        Skin skin
+    ) {
         this.technique = Objects.requireNonNull(technique);
         this.character = character;
         this.editable = editable;
         this.onChanged = onChanged == null ? () -> { } : onChanged;
         this.onStatus = onStatus == null ? ignored -> { } : onStatus;
         this.activationError = activationError == null ? ignored -> null : activationError;
+        this.prerequisiteWaiver = prerequisiteWaiver == null
+            ? (node, stat) -> false : prerequisiteWaiver;
         this.soundPlayer = soundPlayer == null ? cue -> { } : soundPlayer;
         this.skin = Objects.requireNonNull(skin);
         this.uiProfile = Objects.requireNonNull(uiProfile);
@@ -280,10 +302,12 @@ public class SkillTreeCanvas extends WidgetGroup {
         if (character == null) return;
         if (TechniqueSkillTree.isActive(node, character)) {
             TechniqueSkillTree.setActive(node, character, false);
-            TechniqueSkillTree.pruneLockedSelections(technique, character);
+            TechniqueSkillTree.pruneLockedSelections(
+                technique, character, prerequisiteWaiver);
             onStatus.accept(contentName(node) + " deactivated.");
         } else {
-            List<String> unmet = TechniqueSkillTree.unmetPrerequisites(technique, node, character);
+            List<String> unmet = TechniqueSkillTree.unmetPrerequisites(
+                technique, node, character, prerequisiteWaiver);
             if (!unmet.isEmpty()) {
                 onStatus.accept(String.join("; ", unmet));
                 soundPlayer.accept(SoundCue.UI_DENIED);
@@ -855,7 +879,8 @@ public class SkillTreeCanvas extends WidgetGroup {
         private void refreshState() {
             boolean active = character != null && TechniqueSkillTree.isActive(node, character);
             boolean locked = character != null && !active
-                && !TechniqueSkillTree.isUnlocked(technique, node, character);
+                && !TechniqueSkillTree.isUnlocked(
+                    technique, node, character, prerequisiteWaiver);
             // Active nodes keep the yellow hover-outline treatment; locked nodes
             // (prerequisites unmet) render with the same dark grey panel used for
             // unavailable moves in the assignment panels, instead of the white of

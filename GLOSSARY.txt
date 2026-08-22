@@ -1402,9 +1402,10 @@ reflect HEAD at the time of writing. See the JSON files for full detail.
 
   CURSED TOOLS (data/tools/all_tools.json) — named weapons a character equips
   (CharacterData.equippedCursedToolIds; base weapons live in
-  equippedWeaponTypes). Equipping a tool grants its WeaponType for the weapon
-  gate AND makes that type's moves cost no cursed energy; optional granted
-  moves/abilities are active while equipped. Edited in the CURSED TOOL EDITOR.
+  equippedWeaponTypes). Equipping a tool unlocks its WeaponType for the weapon
+  gate, waives that type's jujutsu stat prerequisites, and makes those moves cost
+  no cursed energy; optional granted moves/abilities are active while equipped.
+  Edited in the CURSED TOOL EDITOR.
 
   CHARACTERS — 17 (data/characters/all_characters.json): 9 SORCERERS + 8 SHIKIGAMI.
     Sorcerers:

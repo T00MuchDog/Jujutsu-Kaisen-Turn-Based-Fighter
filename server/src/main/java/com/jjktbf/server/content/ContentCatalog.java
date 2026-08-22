@@ -3,7 +3,6 @@ package com.jjktbf.server.content;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.jjktbf.model.character.Ability;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityEffectData;
 import com.jjktbf.model.character.AbilityEffectType;
@@ -15,6 +14,7 @@ import com.jjktbf.model.character.Character;
 import com.jjktbf.model.character.CharacterData;
 import com.jjktbf.model.character.CharacterType;
 import com.jjktbf.model.character.Equipment;
+import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.character.coded.CodedAbilityRegistry;
 import com.jjktbf.model.character.coded.NewShadowStyleAbility;
 import com.jjktbf.model.move.Move;
@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiPredicate;
 
 /** Server-owned canonical content loaded only from immutable classpath resources. */
 public final class ContentCatalog {
@@ -165,10 +166,6 @@ public final class ContentCatalog {
         if (cursedToolDefinitions == null) {
             throw invalid(CURSED_TOOLS_RESOURCE, "top-level JSON value must be an array");
         }
-        Map<String, AbilityData> abilityDataById = new LinkedHashMap<>();
-        for (AbilityData definition : abilityDefinitions) {
-            if (definition != null) abilityDataById.put(definition.id, definition);
-        }
         Map<String, CursedToolData> toolsById = new LinkedHashMap<>();
         for (CursedToolData tool : cursedToolDefinitions) {
             if (tool == null) continue;
@@ -197,6 +194,12 @@ public final class ContentCatalog {
             }
             requireIdentifier(definition.id, "move ID");
             requireText(definition.name, "move name for " + definition.id);
+            if (definition.requiredCursedToolId != null
+                && !definition.requiredCursedToolId.isBlank()
+                && !toolsById.containsKey(definition.requiredCursedToolId)) {
+                throw invalid(MOVES_RESOURCE, "move " + definition.id
+                    + " references unknown cursed tool " + definition.requiredCursedToolId);
+            }
             definition.migrateLegacyEffects();
             // Coded bindings now live on effect rows (self or on-hit), not on the
             // move. Validate every coded effect row against the registry allow-list.
@@ -259,6 +262,12 @@ public final class ContentCatalog {
             }
             requireIdentifier(definition.id, "ability ID");
             requireText(definition.name, "ability name for " + definition.id);
+            if ("CURSED_TOOL".equalsIgnoreCase(definition.sourceType)
+                && (definition.sourceValue == null
+                    || !toolsById.containsKey(definition.sourceValue))) {
+                throw invalid(ABILITIES_RESOURCE, "ability " + definition.id
+                    + " references an unknown cursed tool");
+            }
             definition.migrateActivationData();
             String effectIdError = AbilityConditionRuleData.effectIdValidationError(
                 definition.effects);
@@ -337,8 +346,64 @@ public final class ContentCatalog {
                 "available ability", definition.id);
             verifyReferences(definition.equippedCursedToolIds, toolsById.keySet(),
                 "equipped cursed tool", definition.id);
-            AbilityResolver.Result resolved = AbilityResolver.resolve(
-                definition, abilityDefinitions, movesById::containsKey, techniqueDefinitions);
+            Equipment prerequisiteEquipment;
+            try {
+                prerequisiteEquipment = Equipment.resolve(
+                    definition.equippedWeaponTypes,
+                    definition.equippedCursedToolIds,
+                    cursedToolDefinitions,
+                    new ArrayList<>(movesById.values()));
+            } catch (IllegalArgumentException exception) {
+                throw invalid(CHARACTERS_RESOURCE,
+                    "invalid equipment for character " + definition.id + ": "
+                    + exception.getMessage(), exception);
+            }
+            BiPredicate<SkillTreeNodeData, StatKey> prerequisiteWaiver = (node, stat) -> {
+                if (node == null || stat == null || !stat.isJujutsuPrerequisite()
+                    || !SkillTreeNodeData.MOVE.equalsIgnoreCase(node.contentType)) {
+                    return false;
+                }
+                MoveData move = moveDataById.get(node.contentId);
+                return move != null && prerequisiteEquipment.coversWeaponTags(move.weaponTags());
+            };
+            Equipment equipment = prerequisiteEquipment.filterGrantedMoves(
+                move -> TechniqueSkillTree.allowsMove(
+                    techniqueDefinitions, move.getRequiredTechniqueId(), move.getId(), definition,
+                    prerequisiteWaiver));
+            LinkedHashSet<String> resolvedMoveIds = new LinkedHashSet<>(definition.moveIds);
+            List<Move> moves = new ArrayList<>();
+            for (String moveId : resolvedMoveIds) {
+                Move move = movesById.get(moveId);
+                if (move == null) {
+                    throw invalid(CHARACTERS_RESOURCE,
+                        "character " + definition.id + " references unknown move " + moveId);
+                }
+                if (definition.moveIds.contains(moveId)) {
+                    MoveData moveData = moveDataById.get(moveId);
+                    if (moveData != null && !TechniqueSkillTree.allowsMove(
+                        techniqueDefinitions, moveData.requiredTechniqueId,
+                        moveId, definition, prerequisiteWaiver)) {
+                        throw invalid(CHARACTERS_RESOURCE,
+                        "character " + definition.id
+                                + " does not meet technique-tree prerequisites for move " + moveId);
+                    }
+                }
+                moves.add(move);
+            }
+            CharacterData.ResolvedCharacter resolvedContent;
+            try {
+                resolvedContent = definition.resolveEquipmentContent(
+                    definition.toCharacterStats(), moves, equipment,
+                    learnedToolMoveIds -> AbilityResolver.resolve(
+                        definition, abilityDefinitions, movesById::containsKey,
+                        techniqueDefinitions, learnedToolMoveIds,
+                        equipment.grantedMoveIds()));
+            } catch (IllegalArgumentException exception) {
+                throw invalid(CHARACTERS_RESOURCE,
+                    "invalid character " + definition.id + ": " + exception.getMessage(),
+                    exception);
+            }
+            AbilityResolver.Result resolved = resolvedContent.abilities();
             try {
                 definition.validateStatAllocationMinimums(resolved);
                 definition.validateStatAllocationMaximums(resolved);
@@ -356,66 +421,28 @@ public final class ContentCatalog {
                     }
                 }
             }
-            LinkedHashSet<String> resolvedMoveIds = new LinkedHashSet<>(definition.moveIds);
-            List<Move> moves = new ArrayList<>();
-            for (String moveId : resolvedMoveIds) {
+            for (String moveId : definition.moveIds) {
                 Move move = movesById.get(moveId);
-                if (move == null) {
+                if (move != null && move.mustBeGranted()
+                    && !resolved.availableMoveIds().contains(moveId)
+                    && !equipment.grantedMoveIds().contains(moveId)) {
                     throw invalid(CHARACTERS_RESOURCE,
-                        "character " + definition.id + " references unknown move " + moveId);
-                }
-                if (definition.moveIds.contains(moveId)) {
-                    MoveData moveData = moveDataById.get(moveId);
-                    if (move.mustBeGranted()
-                        && !resolved.availableMoveIds().contains(moveId)) {
-                        throw invalid(CHARACTERS_RESOURCE,
-                            "character " + definition.id
-                                + " learns unavailable grant-only move " + moveId);
-                    }
-                    InnateTechniqueData technique = moveData == null ? null
-                        : TechniqueSkillTree.techniqueByName(
-                            techniqueDefinitions, moveData.requiredTechniqueId);
-                    SkillTreeNodeData node = technique == null ? null
-                        : TechniqueSkillTree.nodeForContent(
-                            technique, SkillTreeNodeData.MOVE, moveId);
-                    if (node != null && (!TechniqueSkillTree.isActive(node, definition)
-                        || !TechniqueSkillTree.isUnlocked(technique, node, definition))) {
-                        throw invalid(CHARACTERS_RESOURCE,
                         "character " + definition.id
-                                + " does not meet technique-tree prerequisites for move " + moveId);
-                    }
+                            + " learns unavailable grant-only move " + moveId);
                 }
-                moves.add(move);
             }
-            List<Ability> abilities = resolved.toDomainAbilities();
-            try {
-                Equipment equipment = Equipment.resolve(
-                    definition.equippedWeaponTypes,
-                    definition.equippedCursedToolIds,
-                    cursedToolDefinitions,
-                    movesById::get,
-                    toolAbilityId -> {
-                        AbilityData data = abilityDataById.get(toolAbilityId);
-                        return data == null ? null : new Ability(data);
-                    });
-                Character character = definition.constructTypedCharacter(
-                    definition.toCharacterStats(), moves, abilities, equipment);
-                charactersById.put(definition.id, character);
-                // Only directly-selectable definitions appear in fighter rosters
-                // / multiplayer summaries / challenge create+accept. Hidden
-                // definitions (e.g. summon-only shikigami) remain resolvable via
-                // findCharacter() but never via characterSummaries().
-                if (definition.effectiveSelectable()) {
-                    summaries.add(new CharacterSummary(
-                        definition.id,
-                        definition.name,
-                        Objects.requireNonNullElse(definition.description, "")
-                    ));
-                }
-            } catch (IllegalArgumentException exception) {
-                throw invalid(CHARACTERS_RESOURCE,
-                    "invalid character " + definition.id + ": " + exception.getMessage(),
-                    exception);
+            Character character = resolvedContent.character();
+            charactersById.put(definition.id, character);
+            // Only directly-selectable definitions appear in fighter rosters
+            // / multiplayer summaries / challenge create+accept. Hidden
+            // definitions (e.g. summon-only shikigami) remain resolvable via
+            // findCharacter() but never via characterSummaries().
+            if (definition.effectiveSelectable()) {
+                summaries.add(new CharacterSummary(
+                    definition.id,
+                    definition.name,
+                    Objects.requireNonNullElse(definition.description, "")
+                ));
             }
         }
 

@@ -28,7 +28,7 @@ class CursedSpeechAIStrategyTest {
 
     @Test
     void opensWithDontMoveInMajorityOfRounds() {
-        BattleCombatant cs = cs(move("000069"), move("000072"), move("000000"), AIFixtures.dodge("dg", "BOTH"));
+        BattleCombatant cs = cs(move("000065"), move("000068"), move("000000"), AIFixtures.dodge("dg", "BOTH"));
         BattleState state = state(cs, AIFixtures.lowCeSorcererEnemy("e"));
         int openedWithDontMove = 0;
         for (long seed = 1; seed <= 20; seed++) {
@@ -61,7 +61,7 @@ class CursedSpeechAIStrategyTest {
 
     @Test
     void damagingCommandsPreferSorcererTargets() {
-        BattleCombatant cs = cs(move("000072"), move("000000"), AIFixtures.dodge("dg", "BOTH")); // Plummet only
+        BattleCombatant cs = cs(move("000068"), move("000000"), AIFixtures.dodge("dg", "BOTH")); // Plummet only
         BattleCombatant sor = AIFixtures.lowCeSorcererEnemy("sor");
         BattleCombatant shi = AIFixtures.shikigamiEnemy("shi");
         BattleState state = state(cs, sor, shi);
@@ -84,7 +84,7 @@ class CursedSpeechAIStrategyTest {
 
     @Test
     void statusCommandsPreferShikigamiTargets() {
-        BattleCombatant cs = cs(move("000069"), move("000000"), AIFixtures.dodge("dg", "BOTH")); // Don't Move only
+        BattleCombatant cs = cs(move("000065"), move("000000"), AIFixtures.dodge("dg", "BOTH")); // Don't Move only
         BattleCombatant sor = AIFixtures.lowCeSorcererEnemy("sor");
         BattleCombatant shi = AIFixtures.shikigamiEnemy("shi");
         BattleState state = state(cs, sor, shi);

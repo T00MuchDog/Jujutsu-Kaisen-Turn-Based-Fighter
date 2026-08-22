@@ -34,6 +34,8 @@ import com.jjktbf.model.move.MoveRepository;
 import com.jjktbf.model.move.StatusEffectType;
 import com.jjktbf.model.technique.InnateTechniqueData;
 import com.jjktbf.model.technique.TechniqueRepository;
+import com.jjktbf.model.weapon.CursedToolData;
+import com.jjktbf.model.weapon.CursedToolRepository;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,6 +50,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
     private static final String SELECT_MOVE = "[select a move]";
     private static final String SELECT_TECHNIQUE = "[select a technique]";
     private static final String SELECT_ABILITY = "[select an ability]";
+    private static final String SELECT_CURSED_TOOL = "[select a cursed tool]";
     private static final String PASSIVE_SECTION = "PASSIVE";
     private static final String ACTIVE_SECTION = "ACTIVE";
     private static final List<String> ABILITY_RECORD_SECTIONS = List.of(
@@ -57,6 +60,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
     private final MoveRepository moveRepo;
     private final TechniqueRepository techniqueRepo;
     private final CharacterRepository charRepo;
+    private final CursedToolRepository cursedToolRepo;
 
     private Container<Actor> sourceValueContainer;
     private Container<Actor> effectsContainer;
@@ -68,6 +72,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         moveRepo = new MoveRepository("data/moves");
         techniqueRepo = new TechniqueRepository("data/techniques");
         charRepo = new CharacterRepository("data/characters");
+        cursedToolRepo = new CursedToolRepository("data/tools");
     }
 
     @Override protected String title() { return "ABILITY EDITOR"; }
@@ -156,6 +161,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         moveRepo.load();
         techniqueRepo.load();
         charRepo.load();
+        cursedToolRepo.load();
         records.clear();
         records.addAll(repo.getAll());
     }
@@ -332,6 +338,9 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
             }
             case MOVE -> validateMoveReference(
                 ability.sourceValue, "Choose an existing move source.");
+            case CURSED_TOOL -> ability.sourceValue == null
+                || cursedToolRepo.findById(ability.sourceValue).isEmpty()
+                    ? "Choose an existing cursed tool source." : null;
             case STAT_THRESHOLD -> AbilityResolver.parseStatRequirement(ability.sourceValue).isEmpty()
                 ? "Choose a stat and a valid minimum value." : null;
             case ABILITY -> {
@@ -658,6 +667,13 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
                 table.add(labelledRow("Known move", move)).growX().row();
                 table.add(formHint("Available while the character knows this move.")).row();
             }
+            case CURSED_TOOL -> {
+                SelectBox<String> tool = cursedToolSelect(ability.sourceValue,
+                    value -> ability.sourceValue = idFromLabel(value));
+                table.add(labelledRow("Cursed Tool", tool)).growX().row();
+                table.add(formHint(
+                    "Automatically active while this cursed tool is equipped.")).row();
+            }
             case STAT_THRESHOLD -> {
                 AbilityResolver.StatRequirement requirement =
                     AbilityResolver.parseStatRequirement(ability.sourceValue)
@@ -831,6 +847,17 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         return select(labels, selected == null ? SELECT_TECHNIQUE : selected, onChange);
     }
 
+    private SelectBox<String> cursedToolSelect(String currentId, Consumer<String> onChange) {
+        List<String> labels = new ArrayList<>();
+        labels.add(SELECT_CURSED_TOOL);
+        labels.addAll(cursedToolRepo.getAll().stream()
+            .map(AbilityEditorScreen::cursedToolLabel)
+            .toList());
+        String selected = cursedToolLabelForId(currentId);
+        if (selected != null && labels.stream().noneMatch(selected::equals)) labels.add(selected);
+        return select(labels, selected == null ? SELECT_CURSED_TOOL : selected, onChange);
+    }
+
     private SelectBox<String> abilitySelect(
         AbilityData draft,
         String currentId,
@@ -881,6 +908,16 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
 
     private static String abilityLabel(AbilityData ability) {
         return ability.id + " - " + ability.name;
+    }
+
+    private static String cursedToolLabel(CursedToolData tool) {
+        return tool.id + " - " + tool.name;
+    }
+
+    private String cursedToolLabelForId(String id) {
+        if (id == null || id.isBlank()) return null;
+        return cursedToolRepo.findById(id).map(AbilityEditorScreen::cursedToolLabel)
+            .orElse(id + " - (missing)");
     }
 
     private String abilityLabelForReference(String reference) {
@@ -979,6 +1016,7 @@ public class AbilityEditorScreen extends EditorScreenBase<AbilityData> {
         CURSED_CORPSE,
         TECHNIQUE,
         MOVE,
+        CURSED_TOOL,
         STAT_THRESHOLD,
         ABILITY;
 

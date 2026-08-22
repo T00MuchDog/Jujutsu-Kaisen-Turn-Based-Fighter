@@ -15,9 +15,11 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class CharacterEditorScreenTest {
 
@@ -51,7 +53,7 @@ class CharacterEditorScreenTest {
     @Test
     void characterRecordSectionsUseTheCanonicalBaseStatTier() {
         CharacterData character = new CharacterData();
-        assertEquals("GRADE 2", CharacterEditorScreen.characterTierSection(character));
+        assertEquals("SEMI-GRADE 1", CharacterEditorScreen.characterTierSection(character));
 
         for (StatKey stat : StatKey.values()) stat.set(character, 300);
         assertEquals("CALAMITY", CharacterEditorScreen.characterTierSection(character));
@@ -123,6 +125,51 @@ class CharacterEditorScreenTest {
             List.of("combat-b", "combat-a")));
 
         assertEquals(List.of("combat-b", "jujutsu-a", "combat-a"), allIds);
+    }
+
+    @Test
+    void evaluationKeyChangesWithDomainRelevantDraftState() {
+        CharacterData character = namedCharacter("Original", 80);
+        character.moveIds = new ArrayList<>(List.of("move-a"));
+        character.abilityIds = new ArrayList<>(List.of("ability-a"));
+        character.equippedCursedToolIds = new ArrayList<>();
+
+        CharacterEditorScreen.CharacterEvaluationKey original =
+            CharacterEditorScreen.evaluationKey(character);
+        assertThrows(UnsupportedOperationException.class,
+            () -> original.moveIds().add("cannot-corrupt-cache-key"));
+        character.description = "Changed editor-only description";
+        assertEquals(original, CharacterEditorScreen.evaluationKey(character));
+
+        character.name = "Renamed";
+        assertNotEquals(original, CharacterEditorScreen.evaluationKey(character));
+        character.name = "Original";
+        character.strength++;
+        assertNotEquals(original, CharacterEditorScreen.evaluationKey(character));
+        character.strength--;
+        character.moveIds.add("move-b");
+        assertNotEquals(original, CharacterEditorScreen.evaluationKey(character));
+        character.moveIds.remove("move-b");
+        character.equippedCursedToolIds.add("tool-a");
+        assertNotEquals(original, CharacterEditorScreen.evaluationKey(character));
+    }
+
+    @Test
+    void evaluationKeyDistinguishesLegacyTreeFallbackFromAnEmptySelection() {
+        CharacterData character = namedCharacter("Tree State", 80);
+        character.moveIds = new ArrayList<>(List.of("move-a"));
+        character.availableMoveIds = null;
+        character.abilityIds = new ArrayList<>(List.of("ability-a"));
+        character.availableAbilityIds = null;
+
+        CharacterEditorScreen.CharacterEvaluationKey legacy =
+            CharacterEditorScreen.evaluationKey(character);
+        character.availableMoveIds = new ArrayList<>();
+        assertNotEquals(legacy, CharacterEditorScreen.evaluationKey(character));
+
+        character.availableMoveIds = null;
+        character.availableAbilityIds = new ArrayList<>();
+        assertNotEquals(legacy, CharacterEditorScreen.evaluationKey(character));
     }
 
     private static MoveData move() {

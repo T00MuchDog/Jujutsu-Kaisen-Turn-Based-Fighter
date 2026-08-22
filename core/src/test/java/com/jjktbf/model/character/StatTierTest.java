@@ -20,14 +20,14 @@ class StatTierTest {
 
     @Test
     void classifiesBaseStatTotalsUsingTenStatMaximums() {
-        assertEquals(StatTier.GRADE_4, StatTier.forBaseStatTotal(300));
-        assertEquals(StatTier.GRADE_3, StatTier.forBaseStatTotal(301));
-        assertEquals(StatTier.GRADE_3, StatTier.forBaseStatTotal(600));
-        assertEquals(StatTier.GRADE_2, StatTier.forBaseStatTotal(800));
-        assertEquals(StatTier.SEMI_GRADE_1, StatTier.forBaseStatTotal(1000));
-        assertEquals(StatTier.GRADE_1, StatTier.forBaseStatTotal(1500));
-        assertEquals(StatTier.HEAVY_HITTER, StatTier.forBaseStatTotal(2000));
-        assertEquals(StatTier.SPECIAL_GRADE, StatTier.forBaseStatTotal(2500));
+        assertEquals(StatTier.GRADE_4, StatTier.forBaseStatTotal(299));
+        assertEquals(StatTier.GRADE_3, StatTier.forBaseStatTotal(300));
+        assertEquals(StatTier.GRADE_2, StatTier.forBaseStatTotal(600));
+        assertEquals(StatTier.SEMI_GRADE_1, StatTier.forBaseStatTotal(800));
+        assertEquals(StatTier.GRADE_1, StatTier.forBaseStatTotal(1000));
+        assertEquals(StatTier.HEAVY_HITTER, StatTier.forBaseStatTotal(1500));
+        assertEquals(StatTier.SPECIAL_GRADE, StatTier.forBaseStatTotal(2000));
+        assertEquals(StatTier.CALAMITY, StatTier.forBaseStatTotal(2500));
         assertEquals(StatTier.CALAMITY, StatTier.forBaseStatTotal(3000));
     }
 

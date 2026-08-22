@@ -244,6 +244,9 @@ public class Move {
      */
     private final String requiredTechniqueId;
 
+    /** Cursed tool that grants this move while equipped, or null. */
+    private final String requiredCursedToolId;
+
     /** If true, this move does not consume a move slot when assigned to a character. */
     private final boolean isFreeMove;
 
@@ -359,6 +362,7 @@ public class Move {
         this.unifiedEffects      = b.moveEffectsExplicit;
         this.prerequisites       = Collections.unmodifiableMap(b.prerequisites);
         this.requiredTechniqueId = b.requiredTechniqueId;
+        this.requiredCursedToolId = b.requiredCursedToolId;
         this.isFreeMove          = b.isFreeMove;
         this.mustBeGranted       = b.mustBeGranted;
         this.moveCap             = b.moveCap;
@@ -472,13 +476,16 @@ public class Move {
     public boolean isHeavy()                      { return heavy; }
     public int getPotency()                       { return potency; }
     /**
-     * The weapon-type tag ({@link MoveTag#WEAPON_TAGS}) this move carries, or
-     * {@code null} for an unarmed move. A character needs the matching weapon
-     * equipped (base weapon or cursed tool) to learn this move.
+     * Every weapon-type tag this move carries. A character needs at least one
+     * matching weapon equipped (base weapon or cursed tool) to learn it.
+     */
+    public Set<MoveTag> weaponTags()               { return MoveTag.weaponTagsIn(getTags()); }
+    /**
+     * First weapon tag, retained for callers that only display one tag.
      */
     public MoveTag weaponTag()                    { return MoveTag.weaponTagIn(getTags()); }
-    /** True when this move is performed with a weapon of a specific type. */
-    public boolean hasWeaponTag()                 { return weaponTag() != null; }
+    /** True when this move can be performed with one or more weapon types. */
+    public boolean hasWeaponTag()                 { return !weaponTags().isEmpty(); }
     public int getApCost()                        { return apCost; }
     public int getUnleashPoint()                  { return unleashPoint; }
     public int getBaseCeCost()                    { return baseCeCost; }
@@ -551,6 +558,7 @@ public class Move {
     }
     public java.util.Map<String, Integer> getPrerequisites() { return prerequisites; }
     public String getRequiredTechniqueId()        { return requiredTechniqueId; }
+    public String getRequiredCursedToolId()       { return requiredCursedToolId; }
     public boolean isFreeMove()                    { return isFreeMove; }
     public boolean mustBeGranted()                 { return mustBeGranted; }
     public int getMoveCap()                        { return moveCap; }
@@ -937,6 +945,7 @@ public class Move {
         private boolean moveEffectsExplicit = false;
         private java.util.Map<String, Integer> prerequisites = java.util.Map.of();
         private String requiredTechniqueId   = null;
+        private String requiredCursedToolId  = null;
         private boolean isFreeMove           = false;
         private boolean mustBeGranted        = false;
         private int moveCap                  = 0;
@@ -1013,6 +1022,7 @@ public class Move {
         }
         public Builder prerequisites(java.util.Map<String, Integer> v) { this.prerequisites = v; return this; }
         public Builder requiredTechniqueId(String v)       { this.requiredTechniqueId = v; return this; }
+        public Builder requiredCursedToolId(String v)      { this.requiredCursedToolId = v; return this; }
         public Builder freeMove(boolean v)                 { this.isFreeMove = v; return this; }
         public Builder mustBeGranted(boolean v)            { this.mustBeGranted = v; return this; }
         public Builder moveCap(int v)                       { this.moveCap = v; return this; }

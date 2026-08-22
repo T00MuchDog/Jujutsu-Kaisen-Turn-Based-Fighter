@@ -76,6 +76,7 @@ public class AssignmentPanel extends Table {
     private final Consumer<SoundCue> soundPlayer;
     private final boolean windowsLayout;
     private final DragAndDrop dnd = new DragAndDrop();
+    private final List<DragAndDrop.Source> dragSources = new ArrayList<>();
 
     private final VerticalGroup availableCol;
     private final VerticalGroup assignedCol;
@@ -180,6 +181,8 @@ public class AssignmentPanel extends Table {
 
     /** Re-read the controller and rebuild both columns. */
     public void refresh() {
+        dragSources.forEach(dnd::removeSource);
+        dragSources.clear();
         budgetLabel.setText(controller.budgetSummary());
         rebuildColumn(availableCol, controller.availableItems(), "available");
         rebuildColumn(assignedCol,  controller.assignedItems(),  "assigned");
@@ -260,7 +263,7 @@ public class AssignmentPanel extends Table {
         });
 
         // Drag source — payload packs {side, id} so targets can read both.
-        dnd.addSource(new DragAndDrop.Source(row) {
+        DragAndDrop.Source dragSource = new DragAndDrop.Source(row) {
             @Override
             public DragAndDrop.Payload dragStart(InputEvent event, float x, float y, int pointer) {
                 soundPlayer.accept(SoundCue.UI_PICKUP);
@@ -284,7 +287,9 @@ public class AssignmentPanel extends Table {
             ) {
                 if (target == null) soundPlayer.accept(SoundCue.UI_DENIED);
             }
-        });
+        };
+        dnd.addSource(dragSource);
+        dragSources.add(dragSource);
 
         return row;
     }

@@ -1,8 +1,9 @@
 [ {
   "id" : "000000",
-  "name" : "Split Soul Katana",
-  "weaponType" : "KATANA",
-  "imbuedTechniqueName" : "Split Soul",
-  "grantedMoveIds" : [ "000036" ],
-  "grantedAbilityIds" : [ ]
+  "name" : "Naginata",
+  "weaponType" : "POLEARM"
+}, {
+  "id" : "000001",
+  "name" : "Hand Sword",
+  "weaponType" : "KATANA"
 } ]

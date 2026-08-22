@@ -2,13 +2,13 @@ package com.jjktbf.graphics.screens.editors;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.SelectBox;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.jjktbf.graphics.AssetLoader;
 import com.jjktbf.graphics.JJKGame;
 import com.jjktbf.graphics.audio.SoundCue;
 import com.jjktbf.graphics.ui.DynamicSelectBox;
-import com.jjktbf.graphics.ui.editor.AssignmentPanel;
 import com.jjktbf.graphics.ui.editor.EditorScreenBase;
 import com.jjktbf.graphics.ui.editor.ValidationResult;
 import com.jjktbf.model.character.AbilityData;
@@ -23,17 +23,18 @@ import com.jjktbf.model.weapon.WeaponType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
 
 /**
  * Graphical CRUD editor for {@link CursedToolData}. Master-detail layout with:
  *   - Name / Weapon Type / optional Imbued Technique fields
- *   - Optional granted moves and granted abilities (bestown while equipped)
+ *   - Read-only flat nodes for moves and abilities assigned from their editors
  *
  * <p>Equipping a tool on a character (character editor's EQUIPMENT section)
- * grants its weapon type — whose moves then cost no cursed energy — plus any
- * granted content authored here.
+ * unlocks matching weapon moves for normal assignment and activates content
+ * explicitly assigned to the tool from the move/ability editors.
  */
 public class CursedToolEditorScreen extends EditorScreenBase<CursedToolData> {
 
@@ -56,8 +57,6 @@ public class CursedToolEditorScreen extends EditorScreenBase<CursedToolData> {
         CursedToolData tool = new CursedToolData();
         tool.name = "New Cursed Tool";
         tool.weaponType = WeaponType.KATANA.name();
-        tool.grantedMoveIds = new ArrayList<>();
-        tool.grantedAbilityIds = new ArrayList<>();
         return tool;
     }
 
@@ -99,27 +98,6 @@ public class CursedToolEditorScreen extends EditorScreenBase<CursedToolData> {
         if (WeaponType.fromStoredValue(tool.weaponType) == null) {
             return ValidationResult.error("Weapon type is required.");
         }
-        if (tool.grantedMoveIds != null) {
-            String missingMove = tool.grantedMoveIds.stream()
-                .filter(moveId -> moveId == null || moveRepo.findById(moveId).isEmpty())
-                .map(String::valueOf)
-                .findFirst().orElse(null);
-            if (missingMove != null) {
-                return ValidationResult.error(
-                    "Remove missing granted move reference " + missingMove + " before saving.");
-            }
-        }
-        if (tool.grantedAbilityIds != null) {
-            String missingAbility = tool.grantedAbilityIds.stream()
-                .filter(abilityId -> abilityId == null || abilityRepo.findById(abilityId).isEmpty())
-                .map(String::valueOf)
-                .findFirst().orElse(null);
-            if (missingAbility != null) {
-                return ValidationResult.error(
-                    "Remove missing granted ability reference " + missingAbility
-                        + " before saving.");
-            }
-        }
         try {
             if (isNewDraft(tool)) {
                 tool.id = null;
@@ -146,9 +124,55 @@ public class CursedToolEditorScreen extends EditorScreenBase<CursedToolData> {
             return ValidationResult.error(
                 "Cannot delete while \"" + wielder.name + "\" has this tool equipped.");
         }
+        MoveData assignedMove = moveRepo.getAll().stream()
+            .filter(move -> id.equals(move.requiredCursedToolId))
+            .findFirst().orElse(null);
+        if (assignedMove != null) {
+            return ValidationResult.error(
+                "Cannot delete while move \"" + assignedMove.name + "\" is assigned to it.");
+        }
+        AbilityData assignedAbility = abilityRepo.getAll().stream()
+            .filter(ability -> "CURSED_TOOL".equalsIgnoreCase(ability.sourceType))
+            .filter(ability -> id.equals(ability.sourceValue))
+            .findFirst().orElse(null);
+        if (assignedAbility != null) {
+            return ValidationResult.error(
+                "Cannot delete while ability \"" + assignedAbility.name + "\" is assigned to it.");
+        }
         try {
+            Map<String, String> remappedIds = new LinkedHashMap<>();
+            int nextIndex = 0;
+            for (CursedToolData candidate : repo.getAll()) {
+                if (id.equals(candidate.id)) continue;
+                remappedIds.put(candidate.id,
+                    com.jjktbf.model.repo.BaseRepository.formatId(nextIndex++));
+            }
+            for (MoveData move : moveRepo.getAll()) {
+                if (move.requiredCursedToolId != null) {
+                    move.requiredCursedToolId = remappedIds.getOrDefault(
+                        move.requiredCursedToolId, move.requiredCursedToolId);
+                }
+            }
+            for (AbilityData ability : abilityRepo.getAll()) {
+                if ("CURSED_TOOL".equalsIgnoreCase(ability.sourceType)
+                    && ability.sourceValue != null) {
+                    ability.sourceValue = remappedIds.getOrDefault(
+                        ability.sourceValue, ability.sourceValue);
+                }
+            }
+            for (CharacterData character : charRepo.getAll()) {
+                if (character.equippedCursedToolIds != null) {
+                    character.equippedCursedToolIds = character.equippedCursedToolIds.stream()
+                        .map(toolId -> remappedIds.getOrDefault(toolId, toolId))
+                        .distinct()
+                        .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+                }
+            }
             repo.delete(id);
             repo.save();
+            moveRepo.save();
+            abilityRepo.save();
+            charRepo.save();
             return ValidationResult.ok("Deleted.");
         } catch (Exception exception) {
             return ValidationResult.error("Delete failed: " + exception.getMessage());
@@ -157,9 +181,6 @@ public class CursedToolEditorScreen extends EditorScreenBase<CursedToolData> {
 
     @Override
     protected Actor buildDetailForm(CursedToolData tool) {
-        if (tool.grantedMoveIds == null) tool.grantedMoveIds = new ArrayList<>();
-        if (tool.grantedAbilityIds == null) tool.grantedAbilityIds = new ArrayList<>();
-
         Table form = formRoot();
 
         Table identity = formSection(form, "NAME");
@@ -189,7 +210,7 @@ public class CursedToolEditorScreen extends EditorScreenBase<CursedToolData> {
         });
         identity.add(labelledRow("Weapon Type", weaponTypeSelect)).growX().row();
         identity.add(formHint(
-            "Equipping this tool lets the wielder use moves of this weapon type at no cursed energy cost."))
+            "Unlocks matching weapon-tagged moves, waives their jujutsu stat prerequisites, and makes them cost no cursed energy."))
             .left().row();
 
         identity.add(labelledField("Imbued Technique (optional)", tool.imbuedTechniqueName,
@@ -197,111 +218,76 @@ public class CursedToolEditorScreen extends EditorScreenBase<CursedToolData> {
                 (value == null || value.isBlank()) ? null : value.trim()))
             .growX().row();
         identity.add(formHint(
-            "Flavour name of the technique sealed into the tool. The technique's moves are granted below."))
+            "Flavour name of the technique sealed into the tool."))
             .left().row();
 
-        Table grantedMoves = formSection(form, "GRANTED MOVES");
-        grantedMoves.add(buildGrantedMovesPanel(tool)).growX().row();
+        Table grantedMoves = formSection(form, "ASSIGNED MOVES");
+        grantedMoves.add(buildMoveNodes(tool)).growX().row();
 
-        Table grantedAbilities = formSection(form, "GRANTED ABILITIES");
-        grantedAbilities.add(buildGrantedAbilitiesPanel(tool)).growX().row();
+        Table grantedAbilities = formSection(form, "ASSIGNED ABILITIES");
+        grantedAbilities.add(buildAbilityNodes(tool)).growX().row();
 
         return form;
     }
 
-    private AssignmentPanel buildGrantedMovesPanel(CursedToolData tool) {
-        return new AssignmentPanel(new AssignmentPanel.Controller() {
-            @Override public List<AssignmentPanel.Item> availableItems() {
-                List<AssignmentPanel.Item> items = new ArrayList<>();
-                for (MoveData move : moveRepo.getAll()) {
-                    if (tool.grantedMoveIds.contains(move.id)) continue;
-                    items.add(new AssignmentPanel.Item(
-                        move.id, move.name, moveSublabel(move)));
-                }
-                return items;
+    private Actor buildMoveNodes(CursedToolData tool) {
+        List<MoveData> moves = moveRepo.getAll().stream()
+            .filter(move -> moveAssignedTo(tool, move))
+            .toList();
+        Table nodes = new Table(skin);
+        nodes.defaults().growX().pad(4f);
+        if (moves.isEmpty()) {
+            nodes.add(formHint("No moves are explicitly assigned from the Move Editor.")).left();
+        } else {
+            for (MoveData move : moves) {
+                nodes.add(contentNode(move.name, "MOVE", move.description)).row();
             }
-
-            @Override public List<AssignmentPanel.Item> assignedItems() {
-                List<AssignmentPanel.Item> items = new ArrayList<>();
-                for (String moveId : tool.grantedMoveIds) {
-                    MoveData move = moveRepo.findById(moveId).orElse(null);
-                    if (move == null) continue;
-                    items.add(new AssignmentPanel.Item(move.id, move.name, moveSublabel(move)));
-                }
-                return items;
-            }
-
-            @Override public boolean canAssign(String id) { return true; }
-
-            @Override public void onAssign(String id) {
-                game.audio().play(SoundCue.UI_TOGGLE);
-                tool.grantedMoveIds.add(id);
-                markDirty();
-            }
-
-            @Override public void onUnassign(String id) {
-                game.audio().play(SoundCue.UI_TOGGLE);
-                tool.grantedMoveIds.remove(id);
-                markDirty();
-            }
-
-            @Override public String budgetSummary() {
-                return "Granted while equipped";
-            }
-        }, game.audio()::play, uiProfile, skin);
+        }
+        return nodes;
     }
 
-    private AssignmentPanel buildGrantedAbilitiesPanel(CursedToolData tool) {
-        return new AssignmentPanel(new AssignmentPanel.Controller() {
-            @Override public List<AssignmentPanel.Item> availableItems() {
-                List<AssignmentPanel.Item> items = new ArrayList<>();
-                for (AbilityData ability : abilityRepo.getAll()) {
-                    if (tool.grantedAbilityIds.contains(ability.id)) continue;
-                    items.add(new AssignmentPanel.Item(
-                        ability.id, ability.name, abilitySublabel(ability)));
-                }
-                return items;
+    private Actor buildAbilityNodes(CursedToolData tool) {
+        List<AbilityData> abilities = abilityRepo.getAll().stream()
+            .filter(ability -> abilityAssignedTo(tool, ability))
+            .toList();
+        Table nodes = new Table(skin);
+        nodes.defaults().growX().pad(4f);
+        if (abilities.isEmpty()) {
+            nodes.add(formHint("No abilities are assigned from the Ability Editor.")).left();
+        } else {
+            for (AbilityData ability : abilities) {
+                nodes.add(contentNode(ability.name, ability.category, ability.mechanicText)).row();
             }
-
-            @Override public List<AssignmentPanel.Item> assignedItems() {
-                List<AssignmentPanel.Item> items = new ArrayList<>();
-                for (String abilityId : tool.grantedAbilityIds) {
-                    AbilityData ability = abilityRepo.findById(abilityId).orElse(null);
-                    if (ability == null) continue;
-                    items.add(new AssignmentPanel.Item(
-                        ability.id, ability.name, abilitySublabel(ability)));
-                }
-                return items;
-            }
-
-            @Override public boolean canAssign(String id) { return true; }
-
-            @Override public void onAssign(String id) {
-                game.audio().play(SoundCue.UI_TOGGLE);
-                tool.grantedAbilityIds.add(id);
-                markDirty();
-            }
-
-            @Override public void onUnassign(String id) {
-                game.audio().play(SoundCue.UI_TOGGLE);
-                tool.grantedAbilityIds.remove(id);
-                markDirty();
-            }
-
-            @Override public String budgetSummary() {
-                return "Granted while equipped";
-            }
-        }, game.audio()::play, uiProfile, skin);
+        }
+        return nodes;
     }
 
-    private static String moveSublabel(MoveData move) {
-        String tags = move.tags == null ? "" : String.join(", ", move.tags);
-        return tags.toLowerCase(Locale.ROOT);
+    static boolean moveAssignedTo(CursedToolData tool, MoveData move) {
+        return tool != null && move != null && tool.id != null
+            && tool.id.equals(move.requiredCursedToolId);
     }
 
-    private static String abilitySublabel(AbilityData ability) {
-        String category = ability.category == null ? "PASSIVE" : ability.category;
-        String source = ability.sourceType == null ? "CHARACTER" : ability.sourceType;
-        return category + " (" + source + ")";
+    static boolean abilityAssignedTo(CursedToolData tool, AbilityData ability) {
+        return tool != null && ability != null && tool.id != null
+            && "CURSED_TOOL".equalsIgnoreCase(ability.sourceType)
+            && tool.id.equals(ability.sourceValue);
+    }
+
+    private Actor contentNode(String name, String type, String description) {
+        Table node = new Table(skin);
+        node.setBackground(skin.getDrawable("white-panel"));
+        node.pad(9f);
+        node.defaults().left().growX();
+        Label typeLabel = new Label(type == null ? "ABILITY" : type.toUpperCase(), skin, "small");
+        typeLabel.setColor(skin.get("text-dim", com.badlogic.gdx.graphics.Color.class));
+        node.add(typeLabel).row();
+        Label nameLabel = new Label(name == null ? "(unnamed)" : name, skin);
+        nameLabel.setColor(skin.get("text-dark", com.badlogic.gdx.graphics.Color.class));
+        node.add(nameLabel).row();
+        Label descriptionLabel = new Label(description == null ? "" : description, skin, "small");
+        descriptionLabel.setColor(skin.get("text-dark", com.badlogic.gdx.graphics.Color.class));
+        descriptionLabel.setWrap(true);
+        node.add(descriptionLabel).growX().row();
+        return node;
     }
 }

@@ -1065,8 +1065,7 @@ public class BattleCombatant {
 
     private boolean isCoveredByCursedTool(com.jjktbf.model.move.Move move) {
         if (character == null) return false;
-        com.jjktbf.model.move.MoveTag weaponTag = move.weaponTag();
-        return weaponTag != null && character.getEquipment().coversWeaponTag(weaponTag);
+        return character.getEquipment().coversWeaponTags(move.weaponTags());
     }
 
     public boolean wasAbilityConditionTrue(String key) {

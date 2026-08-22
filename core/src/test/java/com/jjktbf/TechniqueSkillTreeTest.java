@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jjktbf.model.character.AbilityData;
 import com.jjktbf.model.character.AbilityResolver;
 import com.jjktbf.model.character.CharacterData;
+import com.jjktbf.model.character.StatKey;
 import com.jjktbf.model.move.MoveData;
 import com.jjktbf.model.technique.InnateTechniqueData;
 import com.jjktbf.model.technique.SkillTreeNodeData;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiPredicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -118,6 +120,35 @@ class TechniqueSkillTreeTest {
         assertTrue(TechniqueSkillTree.pruneLockedSelections(technique, character));
         assertFalse(character.moveIds.contains("M1"));
         assertFalse(character.availableMoveIds.contains("M1"));
+    }
+
+    @Test
+    void prerequisiteWaiverPreservesPhysicalRequirementsAndActiveNodes() {
+        InnateTechniqueData technique = technique();
+        MoveData move = move("M1", "Miracles");
+        move.prerequisites = Map.of(
+            "strength", 100,
+            "cursedTechniqueMastery", 100);
+        TechniqueSkillTree.synchronize(technique, List.of(move), List.of());
+        SkillTreeNodeData moveNode = node(technique, SkillTreeNodeData.MOVE, "M1");
+        CharacterData character = new CharacterData();
+        character.strength = 99;
+        character.cursedTechniqueMastery = 0;
+        character.availableMoveIds = new ArrayList<>(List.of("M1"));
+
+        BiPredicate<SkillTreeNodeData, StatKey> waiveJujutsu = (node, stat) ->
+            SkillTreeNodeData.MOVE.equals(node.contentType)
+                && stat.isJujutsuPrerequisite();
+        assertFalse(TechniqueSkillTree.isUnlocked(
+            technique, moveNode, character, waiveJujutsu));
+
+        character.strength = 100;
+        assertFalse(TechniqueSkillTree.isUnlocked(technique, moveNode, character));
+        assertTrue(TechniqueSkillTree.isUnlocked(
+            technique, moveNode, character, waiveJujutsu));
+        assertFalse(TechniqueSkillTree.pruneLockedSelections(
+            technique, character, waiveJujutsu));
+        assertTrue(TechniqueSkillTree.isActive(moveNode, character));
     }
 
     @Test

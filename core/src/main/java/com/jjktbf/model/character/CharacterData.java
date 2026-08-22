@@ -14,6 +14,8 @@ import com.jjktbf.model.weapon.CursedToolData;
 import com.jjktbf.model.weapon.CursedToolRepository;
 
 import java.util.*;
+import java.util.function.BiPredicate;
+import java.util.function.Function;
 
 /**
  * DTO for serialising/deserialising a character to/from JSON.
@@ -81,7 +83,8 @@ public class CharacterData {
     /**
      * 6-digit {@link CursedToolData} ids of the cursed tools this character has
      * equipped. Cursed tools satisfy the weapon gate for their weapon type AND
-     * make that type's moves cost no cursed energy. May be null/empty.
+     * waive that type's jujutsu stat prerequisites and cursed energy costs.
+     * May be null/empty.
      */
     public List<String> equippedCursedToolIds;
 
@@ -216,26 +219,18 @@ public class CharacterData {
             techniques.forEach(technique -> TechniqueSkillTree.synchronize(
                 technique, moveRepo.getAll(), abilityRepo == null ? List.of() : abilityRepo.getAll()));
         }
-        AbilityResolver.Result resolvedAbilities = AbilityResolver.resolve(
-            this, abilityRepo, moveId -> moveId != null && moveRepo.findById(moveId)
-                .map(move -> {
-                    try {
-                        move.toMove();
-                        return true;
-                    } catch (Exception ex) {
-                        return false;
-                    }
-                })
-                .orElse(false), techniqueRepo);
-        validateAbilityAssignments(abilityRepo, resolvedAbilities);
-        validateStatAllocationMinimums(resolvedAbilities);
-        validateStatAllocationMaximums(resolvedAbilities);
-        List<Ability> abilities = resolvedAbilities.toDomainAbilities();
-        validateDirectMoveAssignments(moveRepo, resolvedAbilities.availableMoveIds());
+        Equipment prerequisiteEquipment = resolveEquipment(
+            moveRepo, abilityRepo, cursedToolRepo);
+        BiPredicate<SkillTreeNodeData, StatKey> prerequisiteWaiver =
+            cursedToolPrerequisiteWaiver(moveRepo, prerequisiteEquipment);
+        Equipment equipment = prerequisiteEquipment.filterGrantedMoves(
+            move -> TechniqueSkillTree.allowsMove(
+                techniques, move.getRequiredTechniqueId(), move.getId(), this,
+                prerequisiteWaiver));
         Set<String> resolvedMoveIds = new LinkedHashSet<>();
         if (moveIds != null) resolvedMoveIds.addAll(moveIds);
 
-        validateSelectedMoveNodes(moveRepo, techniques);
+        validateSelectedMoveNodes(moveRepo, techniques, prerequisiteWaiver);
 
         for (String moveId : resolvedMoveIds) {
                 if (moveId == null || moveId.isBlank()) {
@@ -255,32 +250,66 @@ public class CharacterData {
                 }
         }
 
-        Equipment equipment = resolveEquipment(moveRepo, abilityRepo, cursedToolRepo);
-        return constructTypedCharacter(stats, moves, abilities, equipment);
+        ResolvedCharacter resolved = resolveEquipmentContent(
+            stats,
+            moves,
+            equipment,
+            learnedToolMoveIds -> AbilityResolver.resolve(
+                this, abilityRepo, moveId -> moveId != null && moveRepo.findById(moveId)
+                    .map(move -> {
+                        try {
+                            move.toMove();
+                            return true;
+                        } catch (Exception ex) {
+                            return false;
+                        }
+                    })
+                    .orElse(false), techniqueRepo, learnedToolMoveIds,
+                equipment.grantedMoveIds()));
+        AbilityResolver.Result resolvedAbilities = resolved.abilities();
+        validateAbilityAssignments(abilityRepo, resolvedAbilities);
+        validateStatAllocationMinimums(resolvedAbilities);
+        validateStatAllocationMaximums(resolvedAbilities);
+        Set<String> availableMoveIds = new LinkedHashSet<>(resolvedAbilities.availableMoveIds());
+        availableMoveIds.addAll(equipment.grantedMoveIds());
+        validateDirectMoveAssignments(moveRepo, new ArrayList<>(availableMoveIds));
+        return resolved.character();
     }
 
     /**
      * Resolve this character's {@link Equipment} (base weapons plus cursed
-     * tools). Fails loudly on unknown weapon types, unknown tool ids, and
-     * unresolvable tool-granted content so bad references surface at load.
+     * tools). Fails loudly on unknown weapon types and unknown tool ids.
      */
     public Equipment resolveEquipment(
         MoveRepository moveRepo,
         AbilityRepository abilityRepo,
         CursedToolRepository cursedToolRepo
     ) {
+        boolean hasCursedTool = equippedCursedToolIds != null
+            && equippedCursedToolIds.stream()
+                .anyMatch(toolId -> toolId != null && !toolId.isBlank());
+        if (!hasCursedTool) {
+            return Equipment.resolve(
+                equippedWeaponTypes,
+                equippedCursedToolIds,
+                cursedToolRepo == null ? List.of() : cursedToolRepo.getAll(),
+                List.of());
+        }
+        List<Move> allMoves = new ArrayList<>();
+        for (MoveData move : moveRepo.getAll()) {
+            try {
+                allMoves.add(move.toMoveResolved(
+                    launchId -> moveRepo.findById(launchId).orElse(null)));
+            } catch (RuntimeException exception) {
+                System.err.println("[WARN] Invalid move " + move.id
+                    + " cannot be granted by equipment: " + exception.getMessage());
+            }
+        }
         return Equipment.resolve(
             equippedWeaponTypes,
             equippedCursedToolIds,
             cursedToolRepo == null ? List.of() : cursedToolRepo.getAll(),
-            toolMoveId -> moveRepo.findById(toolMoveId)
-                .map(move -> move.toMoveResolved(
-                    launchId -> moveRepo.findById(launchId).orElse(null)))
-                .orElse(null),
-            toolAbilityId -> abilityRepo == null ? null
-                : abilityRepo.findById(toolAbilityId)
-                    .map(Ability::new)
-                    .orElse(null));
+            allMoves);
     }
 
     /**
@@ -322,25 +351,71 @@ public class CharacterData {
         };
     }
 
+    /** Character plus the stable ability result used to construct it. */
+    public record ResolvedCharacter(Character character, AbilityResolver.Result abilities) { }
+
+    /**
+     * Resolve move-sourced abilities and automatic equipment moves to a stable state.
+     * A derived tool move must pass character validation before it can source an ability.
+     */
+    public ResolvedCharacter resolveEquipmentContent(
+        CharacterStats stats,
+        List<Move> selectedMoves,
+        Equipment equipment,
+        Function<Set<String>, AbilityResolver.Result> abilityResolver
+    ) {
+        Objects.requireNonNull(abilityResolver, "Ability resolver cannot be null");
+        Equipment resolvedEquipment = equipment == null ? Equipment.NONE : equipment;
+        Set<String> toolMoveIds = resolvedEquipment.grantedMoveIds();
+        Set<String> learnedToolMoveIds = Set.of();
+        Set<Set<String>> seen = new HashSet<>();
+        while (seen.add(learnedToolMoveIds)) {
+            AbilityResolver.Result abilities = abilityResolver.apply(learnedToolMoveIds);
+            Character character = constructTypedCharacter(
+                stats, selectedMoves, abilities.toDomainAbilities(), resolvedEquipment);
+            Set<String> nextLearnedToolMoveIds = character.getKnownMoves().stream()
+                .map(Move::getId)
+                .filter(toolMoveIds::contains)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            if (nextLearnedToolMoveIds.equals(learnedToolMoveIds)) {
+                return new ResolvedCharacter(character, abilities);
+            }
+            learnedToolMoveIds = Set.copyOf(nextLearnedToolMoveIds);
+        }
+        throw new IllegalArgumentException(
+            "Cursed-tool moves and their move-sourced abilities do not resolve consistently");
+    }
+
     private void validateSelectedMoveNodes(
         MoveRepository moveRepo,
-        List<InnateTechniqueData> techniques
+        List<InnateTechniqueData> techniques,
+        BiPredicate<SkillTreeNodeData, StatKey> prerequisiteWaiver
     ) {
         if (moveIds == null || techniques == null) return;
         for (String moveId : moveIds) {
             MoveData move = moveRepo.findById(moveId).orElse(null);
             if (move == null || move.requiredTechniqueId == null) continue;
-            InnateTechniqueData technique = TechniqueSkillTree.techniqueByName(
-                techniques, move.requiredTechniqueId);
-            if (technique == null) continue;
-            SkillTreeNodeData node = TechniqueSkillTree.nodeForContent(
-                technique, SkillTreeNodeData.MOVE, moveId);
-            if (node != null && (!TechniqueSkillTree.isActive(node, this)
-                || !TechniqueSkillTree.isUnlocked(technique, node, this))) {
+            if (!TechniqueSkillTree.allowsMove(
+                techniques, move.requiredTechniqueId, moveId, this,
+                prerequisiteWaiver)) {
                 throw new IllegalArgumentException(
                     "Technique-tree move is not unlocked for " + move.name);
             }
         }
+    }
+
+    private static BiPredicate<SkillTreeNodeData, StatKey> cursedToolPrerequisiteWaiver(
+        MoveRepository moveRepo,
+        Equipment equipment
+    ) {
+        return (node, stat) -> {
+            if (node == null || stat == null || !stat.isJujutsuPrerequisite()
+                || !SkillTreeNodeData.MOVE.equalsIgnoreCase(node.contentType)) {
+                return false;
+            }
+            MoveData move = moveRepo.findById(node.contentId).orElse(null);
+            return move != null && equipment.coversWeaponTags(move.weaponTags());
+        };
     }
 
     private void validateDirectMoveAssignments(
@@ -438,10 +513,13 @@ public class CharacterData {
         d.combatAbility          = cs.getCombatAbility();
         d.cursedTechniqueMastery = cs.getCursedTechniqueMastery();
 
+        Set<String> automaticMoveIds = equipment.grantedMoveIds();
         d.moveIds = character.getKnownMoves().stream()
+            .filter(move -> !automaticMoveIds.contains(move.getId()))
             .map(Move::getId)
             .toList();
         d.abilityIds = character.getAbilities().stream()
+            .filter(ability -> !"CURSED_TOOL".equalsIgnoreCase(ability.getSourceType()))
             .map(Ability::getId)
             .toList();
 

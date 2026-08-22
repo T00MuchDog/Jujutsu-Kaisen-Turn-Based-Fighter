@@ -40,10 +40,10 @@ public enum StatTier {
         return maximumStat * BASE_STAT_COUNT;
     }
 
-    /** Classify a ten-stat BST against each tier's maximum, clamping at Calamity. */
+    /** Classify a ten-stat BST against exclusive tier ceilings, clamping at Calamity. */
     public static StatTier forBaseStatTotal(int baseStatTotal) {
         for (StatTier tier : values()) {
-            if (baseStatTotal <= tier.maximumBaseStatTotal()) return tier;
+            if (baseStatTotal < tier.maximumBaseStatTotal()) return tier;
         }
         return CALAMITY;
     }

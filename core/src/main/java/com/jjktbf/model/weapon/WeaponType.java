@@ -8,9 +8,9 @@ import java.util.Locale;
  * The kinds of wieldable weapons a character may equip.
  *
  * <p>Each weapon type pairs 1:1 with a weapon-type {@link MoveTag} (see
- * {@link MoveTag#WEAPON_TAGS}). A move carrying that tag can only be learned
- * by a character with the corresponding weapon equipped — either as a base
- * weapon or through a cursed tool ({@link CursedToolData}).
+ * {@link MoveTag#WEAPON_TAGS}). A move carrying one or more weapon tags can
+ * only be learned by a character with at least one corresponding weapon
+ * equipped, either as a base weapon or through a cursed tool.
  */
 public enum WeaponType {
 

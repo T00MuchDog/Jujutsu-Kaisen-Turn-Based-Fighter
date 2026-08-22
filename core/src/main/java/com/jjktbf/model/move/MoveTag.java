@@ -129,8 +129,8 @@ public enum MoveTag {
      *
      * A modifier tag like {@link #ATTACK}: it does not affect the Power formula,
      * is not part of any {@link MoveCategory}'s tag set, and does not change
-     * Black Flash eligibility. A move carries at most one weapon-type tag;
-     * the equipped-weapon gate keys off it (see {@link #WEAPON_TAGS}).
+     * Black Flash eligibility. A move may carry several weapon-type tags and
+     * can be performed with any matching equipped weapon.
      */
     KATANA,
 
@@ -209,23 +209,29 @@ public enum MoveTag {
     public static final Set<MoveTag> RANGE_TAGS = Set.of(MELEE, RANGED);
 
     /**
-     * Weapon-type tags — a move carries at most one of these, and a character
-     * must have the corresponding weapon equipped (base weapon or cursed tool)
-     * to learn the move. Maps 1:1 onto {@link com.jjktbf.model.weapon.WeaponType}.
+     * Weapon-type tags. A character must have at least one corresponding weapon
+     * equipped (base weapon or cursed tool) to learn the move. Each tag maps
+     * 1:1 onto {@link com.jjktbf.model.weapon.WeaponType}.
      */
     public static final Set<MoveTag> WEAPON_TAGS = Set.of(
         KATANA, BOW, GREAT_AXE, POLEARM, STAFF);
 
     /**
-     * The weapon-type tag present in the given set, or {@code null} when the
-     * tag set carries no weapon. A well-formed move holds at most one weapon
-     * tag; when several are present the first match wins.
+     * Every weapon-type tag present in the given set.
+     */
+    public static Set<MoveTag> weaponTagsIn(Set<MoveTag> tags) {
+        if (tags == null || tags.isEmpty()) return Set.of();
+        java.util.EnumSet<MoveTag> matches = java.util.EnumSet.noneOf(MoveTag.class);
+        for (MoveTag tag : WEAPON_TAGS) {
+            if (tags.contains(tag)) matches.add(tag);
+        }
+        return java.util.Collections.unmodifiableSet(matches);
+    }
+
+    /**
+     * First weapon-type tag present, retained for single-weapon compatibility.
      */
     public static MoveTag weaponTagIn(Set<MoveTag> tags) {
-        if (tags == null) return null;
-        for (MoveTag tag : WEAPON_TAGS) {
-            if (tags.contains(tag)) return tag;
-        }
-        return null;
+        return weaponTagsIn(tags).stream().findFirst().orElse(null);
     }
 }

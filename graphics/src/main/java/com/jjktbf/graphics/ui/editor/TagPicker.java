@@ -265,8 +265,8 @@ public class TagPicker extends Table {
 
     /**
      * The ordered tag sections rendered top-to-bottom. Weapon-type tags are
-     * intentionally absent: a move carries at most one, chosen via the move
-     * editor's Weapon Type dropdown rather than this multi-select grid.
+     * intentionally absent because the move editor owns them in a dedicated
+     * multi-select grid.
      */
     private static Map<String, List<MoveTag>> sectionOrder() {
         Map<String, List<MoveTag>> sections = new LinkedHashMap<>();

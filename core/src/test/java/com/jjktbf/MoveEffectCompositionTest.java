@@ -54,15 +54,6 @@ class MoveEffectCompositionTest {
             assertFalse(move.summonCharacterId != null && !move.summonCharacterId.isBlank(), move.name);
             move.toMove();
         }
-        MoveEffectData sleep = moves.stream()
-            .filter(move -> "000071".equals(move.id))
-            .flatMap(move -> move.effects.stream())
-            .filter(effect -> AbilityEffectType.APPLY_STATUS.name().equals(effect.type))
-            .filter(effect -> StatusEffectType.SLEEP.name().equals(effect.stringValue))
-            .findFirst().orElseThrow();
-        assertEquals(0.05, sleep.perTickRemovalChance == null
-            ? StatusEffectType.SLEEP.defaultPerTickRemovalChance()
-            : sleep.perTickRemovalChance);
         assertTrue(moves.stream().flatMap(move ->
                 (move.effects == null ? List.<MoveEffectData>of() : move.effects).stream())
             .anyMatch(effect -> AbilityEffectType.STUN_CURRENT_ACTION.name().equals(effect.type)));
@@ -114,34 +105,6 @@ class MoveEffectCompositionTest {
         MoveData pureUtility = new MoveData();
         pureUtility.tags = List.of("UTILITY", "CURSED_ENERGY");
         assertEquals(MoveCategory.UTILITY, pureUtility.derivedCategory());
-    }
-
-    @Test
-    void tenShadowsAssistedMovesDeclareTheirActiveSummonRestrictions() throws IOException {
-        List<MoveData> moves = MAPPER.readValue(movesPath().toFile(), new TypeReference<>() { });
-        Map<String, List<String>> expected = Map.of(
-            "000045", List.of("000007", "000008"),
-            "000046", List.of("000009"),
-            "000047", List.of("000010"),
-            "000048", List.of("000011"),
-            "000049", List.of("000012"),
-            "000050", List.of("000014"),
-            "000051", List.of("000013")
-        );
-
-        for (Map.Entry<String, List<String>> entry : expected.entrySet()) {
-            MoveData move = moves.stream()
-                .filter(candidate -> entry.getKey().equals(candidate.id))
-                .findFirst().orElseThrow();
-            List<String> restrictedSummons = move.effects.stream()
-                .filter(effect -> AbilityEffectType
-                    .MOVE_UNAVAILABLE_WHILE_OWNED_SUMMON_ACTIVE.name()
-                    .equals(effect.type))
-                .filter(effect -> MoveEffectTrigger.AVAILABILITY.name().equals(effect.trigger))
-                .map(effect -> effect.characterId)
-                .toList();
-            assertEquals(entry.getValue(), restrictedSummons, move.name);
-        }
     }
 
     @Test

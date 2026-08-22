@@ -58,8 +58,8 @@ class TenShadowsAIStrategyTest {
     @Test
     void highDangerPicksStrongestAndLowDangerPicksCheapest() {
         // Fearsome-Womb-style menu: White Dog, Black Dog, Nue, Toad, Great Serpent.
-        Move whiteDog = move("000033"), blackDog = move("000034"), nue = move("000039"),
-            toad = move("000040"), serpent = move("000041");
+        Move whiteDog = move("000030"), blackDog = move("000031"), nue = move("000035"),
+            toad = move("000036"), serpent = move("000037");
         BattleCombatant megumi = AIFixtures.tenShadowsSorcerer("megumi",
             whiteDog, blackDog, nue, toad, serpent, move("000000"));
         BattleState state = state(megumi, AIFixtures.lowCeSorcererEnemy("e"));
@@ -80,8 +80,8 @@ class TenShadowsAIStrategyTest {
 
     @Test
     void pickSummonsPicksTwoDistinctForHighDanger() {
-        Move whiteDog = move("000033"), blackDog = move("000034"), nue = move("000039"),
-            toad = move("000040"), serpent = move("000041");
+        Move whiteDog = move("000030"), blackDog = move("000031"), nue = move("000035"),
+            toad = move("000036"), serpent = move("000037");
         BattleCombatant megumi = AIFixtures.tenShadowsSorcerer("megumi",
             whiteDog, blackDog, nue, toad, serpent, move("000000"));
         BattleState state = state(megumi, AIFixtures.lowCeSorcererEnemy("e"));
@@ -99,7 +99,7 @@ class TenShadowsAIStrategyTest {
     @Test
     void roundOneHighDangerSummonsTwoAndLowDangerSummonsOne() {
         BattleCombatant megumi = AIFixtures.tenShadowsSorcerer("megumi",
-            move("000033"), move("000034"), move("000039"), move("000040"), move("000041"),
+            move("000030"), move("000031"), move("000035"), move("000036"), move("000037"),
             move("000000"), move("000001"));
 
         BattleCombatant highEnemy = AIFixtures.cursedSpeechSorcerer("hi", move("000000")); // very high BST
@@ -114,7 +114,7 @@ class TenShadowsAIStrategyTest {
     @Test
     void roundOneIncludesMixedOffenceAlongsideTheSummon() {
         BattleCombatant megumi = AIFixtures.tenShadowsSorcerer("megumi",
-            move("000039"), move("000045"), move("000046"), move("000000"), move("000001"));
+            move("000035"), move("000045"), move("000046"), move("000000"), move("000001"));
         BattleState state = state(megumi, AIFixtures.cursedSpeechSorcerer("hi", move("000000")));
 
         BattlePlan plan = strategy.buildPlan(state, megumi, new SeededRandomSource(1L));
@@ -130,7 +130,7 @@ class TenShadowsAIStrategyTest {
     void dispatcherRoutesTenShadowsSorcerer() {
         ArchetypeAIStrategy dispatcher = new ArchetypeAIStrategy();
         BattleCombatant megumi = AIFixtures.tenShadowsSorcerer("000004",
-            move("000033"), move("000039"), move("000000"));
+            move("000030"), move("000035"), move("000000"));
         BattleState state = state(megumi, AIFixtures.lowCeSorcererEnemy("e"));
 
         TeamBattlePlan teamPlan = dispatcher.selectTeamPlan(

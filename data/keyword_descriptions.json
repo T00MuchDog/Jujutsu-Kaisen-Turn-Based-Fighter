@@ -197,7 +197,7 @@
   },
   {
     "term": "CURSED TOOL",
-    "description": "A named weapon a character equips; its weapon type's moves cost no cursed energy, and it may grant extra moves and abilities."
+    "description": "A named weapon a character equips; it unlocks its weapon type's moves, waives their jujutsu stat prerequisites, makes them cost no cursed energy, and may grant extra moves or abilities."
   },
   {
     "term": "UTILITY",

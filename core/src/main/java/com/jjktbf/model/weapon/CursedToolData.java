@@ -3,9 +3,6 @@ package com.jjktbf.model.weapon;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * DTO for serialising/deserialising a cursed tool to/from JSON
  * ({@code data/tools/all_tools.json}).
@@ -20,9 +17,9 @@ import java.util.List;
  *   <li>makes those moves cost no cursed energy (the tool channels its own).</li>
  * </ul>
  *
- * <p>The imbued technique name and the granted move/ability lists are optional
- * flavour/authoring hooks: a tool with granted content bestows those moves and
- * abilities on its wielder while equipped, similar to a cursed technique.
+ * <p>Moves and abilities are assigned from their own editors. Weapon-tagged
+ * moves are derived automatically from {@link #weaponType}; explicitly assigned
+ * content references this tool's {@link #id}.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -42,22 +39,9 @@ public class CursedToolData {
 
     /**
      * Optional human-readable name of the technique imbued into the tool
-     * (e.g. "Ratio"). Purely descriptive; matching moves are authored on the
-     * tool via {@link #grantedMoveIds} instead.
+     * (e.g. "Ratio"). Purely descriptive.
      */
     public String imbuedTechniqueName;
-
-    /**
-     * Optional 6-digit move IDs granted to the wielder while the tool is
-     * equipped. Granted moves bypass learning requirements (like GRANT_MOVE).
-     */
-    public List<String> grantedMoveIds;
-
-    /**
-     * Optional 6-digit ability IDs granted to the wielder while the tool is
-     * equipped.
-     */
-    public List<String> grantedAbilityIds;
 
     /** Parsed {@link #weaponType}; fails loudly on an unknown value. */
     public WeaponType effectiveWeaponType() {
@@ -76,10 +60,6 @@ public class CursedToolData {
         d.name                  = name;
         d.weaponType            = weaponType;
         d.imbuedTechniqueName   = imbuedTechniqueName;
-        d.grantedMoveIds        = grantedMoveIds != null
-            ? new ArrayList<>(grantedMoveIds) : new ArrayList<>();
-        d.grantedAbilityIds     = grantedAbilityIds != null
-            ? new ArrayList<>(grantedAbilityIds) : new ArrayList<>();
         return d;
     }
 }

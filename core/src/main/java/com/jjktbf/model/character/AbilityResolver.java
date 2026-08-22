@@ -6,6 +6,7 @@ import com.jjktbf.model.technique.TechniqueRepository;
 import com.jjktbf.model.technique.TechniqueSkillTree;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -44,11 +45,35 @@ public final class AbilityResolver {
         Predicate<String> moveExists,
         TechniqueRepository techniqueRepository
     ) {
+        return resolve(character, repository, moveExists, techniqueRepository, List.of());
+    }
+
+    public static Result resolve(
+        CharacterData character,
+        AbilityRepository repository,
+        Predicate<String> moveExists,
+        TechniqueRepository techniqueRepository,
+        Collection<String> additionalLearnedMoveIds
+    ) {
+        return resolve(character, repository, moveExists, techniqueRepository,
+            additionalLearnedMoveIds, List.of());
+    }
+
+    public static Result resolve(
+        CharacterData character,
+        AbilityRepository repository,
+        Predicate<String> moveExists,
+        TechniqueRepository techniqueRepository,
+        Collection<String> additionalLearnedMoveIds,
+        Collection<String> excludedPersistedMoveIds
+    ) {
         return resolve(
             character,
             repository == null ? List.of() : repository.getAll(),
             moveExists,
-            techniqueRepository == null ? null : techniqueRepository.getAll());
+            techniqueRepository == null ? null : techniqueRepository.getAll(),
+            additionalLearnedMoveIds,
+            excludedPersistedMoveIds);
     }
 
     public static Result resolve(CharacterData character, List<AbilityData> definitions) {
@@ -70,15 +95,60 @@ public final class AbilityResolver {
         Predicate<String> moveExists,
         List<InnateTechniqueData> techniques
     ) {
+        return resolve(character, definitions, moveExists, techniques, List.of());
+    }
+
+    /** Resolve abilities with additional move IDs supplied by derived equipment. */
+    public static Result resolve(
+        CharacterData character,
+        List<AbilityData> definitions,
+        Predicate<String> moveExists,
+        List<InnateTechniqueData> techniques,
+        Collection<String> additionalLearnedMoveIds
+    ) {
+        return resolve(character, definitions, moveExists, techniques,
+            additionalLearnedMoveIds, List.of());
+    }
+
+    /** Resolve abilities while deriving selected equipment candidates separately. */
+    public static Result resolve(
+        CharacterData character,
+        List<AbilityData> definitions,
+        Predicate<String> moveExists,
+        List<InnateTechniqueData> techniques,
+        Collection<String> additionalLearnedMoveIds,
+        Collection<String> excludedPersistedMoveIds
+    ) {
         if (character == null) return Result.empty(null);
 
         List<AbilityData> availableDefinitions = definitions == null ? List.of() : definitions;
         Predicate<String> validMove = moveExists == null ? ignored -> true : moveExists;
         Set<String> assignedAbilityIds = new LinkedHashSet<>(
             character.abilityIds == null ? List.of() : character.abilityIds);
+        Set<String> equippedToolIds = new LinkedHashSet<>(
+            character.equippedCursedToolIds == null
+                ? List.of() : character.equippedCursedToolIds);
+        for (AbilityData definition : availableDefinitions) {
+            if (definition != null && definition.id != null
+                && "CURSED_TOOL".equalsIgnoreCase(definition.sourceType)
+                && equippedToolIds.contains(definition.sourceValue)) {
+                assignedAbilityIds.add(definition.id);
+            }
+        }
         Set<String> learnedMoveIds = new LinkedHashSet<>();
+        Set<String> excludedMoveIds = excludedPersistedMoveIds == null
+            ? Set.of() : new LinkedHashSet<>(excludedPersistedMoveIds);
         if (character.moveIds != null) {
-            character.moveIds.stream().filter(validMove).forEach(learnedMoveIds::add);
+            character.moveIds.stream()
+                .filter(moveId -> !excludedMoveIds.contains(moveId))
+                .filter(validMove)
+                .forEach(learnedMoveIds::add);
+        }
+        if (additionalLearnedMoveIds != null) {
+            additionalLearnedMoveIds.stream()
+                .filter(java.util.Objects::nonNull)
+                .filter(validMove)
+                .forEach(learnedMoveIds::add);
         }
         Set<String> availableMoveIds = new LinkedHashSet<>();
         if (character.availableMoveIds != null) {
@@ -149,6 +219,9 @@ public final class AbilityResolver {
                 .orElse(false);
             case "ABILITY" -> assignedAbilities.stream().anyMatch(ability ->
                 matchesAbilityReference(ability, definition.sourceValue));
+            case "CURSED_TOOL" -> definition.sourceValue != null
+                && character.equippedCursedToolIds != null
+                && character.equippedCursedToolIds.contains(definition.sourceValue);
             case "SHIKIGAMI" -> character.effectiveType() == CharacterType.SHIKIGAMI;
             case "CURSED_CORPSE" -> character.effectiveType() == CharacterType.CURSED_CORPSE;
             default -> false;

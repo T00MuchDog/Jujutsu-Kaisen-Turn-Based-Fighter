@@ -663,23 +663,39 @@ class MoveEditorScreenTest {
     }
 
     @Test
-    void saveCopyKeepsExactlyOneWeaponTag() {
+    void saveCopyKeepsEverySelectedWeaponTag() {
         MoveData weaponMove = new MoveData();
-        // Hand-edited data can carry several weapon tags; the save copy keeps
-        // the first and drops the rest.
         weaponMove.tags = new ArrayList<>(List.of(
             MoveTag.ATTACK.name(), MoveTag.KATANA.name(), MoveTag.BOW.name()));
 
         MoveData saved = MoveEditorScreen.normalizedCopyForSave(weaponMove);
 
         assertTrue(saved.tags.contains(MoveTag.KATANA.name()));
-        assertFalse(saved.tags.contains(MoveTag.BOW.name()));
+        assertTrue(saved.tags.contains(MoveTag.BOW.name()));
+        assertEquals(Set.of(MoveTag.KATANA, MoveTag.BOW),
+            MoveEditorScreen.weaponTagsOf(saved));
+
+        MoveEditorScreen.setWeaponTagSelected(saved, MoveTag.STAFF, true);
+        MoveEditorScreen.setWeaponTagSelected(saved, MoveTag.KATANA, false);
+        assertEquals(Set.of(MoveTag.BOW, MoveTag.STAFF),
+            MoveEditorScreen.weaponTagsOf(saved));
 
         MoveData unarmed = new MoveData();
         unarmed.tags = new ArrayList<>(List.of(MoveTag.ATTACK.name()));
         assertTrue(MoveEditorScreen.normalizedCopyForSave(unarmed).tags.stream()
             .noneMatch(tag -> MoveTag.WEAPON_TAGS.stream()
                 .anyMatch(weapon -> weapon.name().equals(tag))));
+    }
+
+    @Test
+    void saveCopyPreservesCursedToolAssignment() {
+        MoveData move = new MoveData();
+        move.tags = new ArrayList<>(List.of(MoveTag.UTILITY.name()));
+        move.requiredCursedToolId = "000004";
+
+        MoveData saved = MoveEditorScreen.normalizedCopyForSave(move);
+
+        assertEquals("000004", saved.requiredCursedToolId);
     }
 
     @Test

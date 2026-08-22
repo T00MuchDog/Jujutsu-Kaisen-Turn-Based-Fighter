@@ -113,6 +113,16 @@ public enum StatKey {
         return normalise(fieldName).equals(norm);
     }
 
+    /** True for supernatural stats supplied by a matching cursed tool. */
+    public boolean isJujutsuPrerequisite() {
+        return switch (this) {
+            case CURSED_ENERGY_RESERVES, CURSED_ENERGY_EFFICIENCY,
+                 CURSED_ENERGY_OUTPUT, JUJUTSU_SKILL,
+                 CURSED_TECHNIQUE_MASTERY -> true;
+            default -> false;
+        };
+    }
+
     // =========================================================================
     // Read / Write on domain objects
     // =========================================================================

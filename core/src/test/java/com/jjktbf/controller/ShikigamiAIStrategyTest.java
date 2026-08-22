@@ -59,8 +59,8 @@ class ShikigamiAIStrategyTest {
     @Test
     void detectsTheRealDesummonMoveButNotAttacks() throws IOException {
         List<Move> canonical = loadCanonicalMoves();
-        assertTrue(ShikigamiAIStrategy.isDesummonSelf(moveById(canonical, "000053")),
-            "move 000053 is the shikigami self-desummon");
+        assertTrue(ShikigamiAIStrategy.isDesummonSelf(moveById(canonical, "000049")),
+            "move 000049 is the shikigami self-desummon");
         assertFalse(ShikigamiAIStrategy.isDesummonSelf(moveById(canonical, "000054")),
             "a normal shikigami attack is not a desummon");
     }

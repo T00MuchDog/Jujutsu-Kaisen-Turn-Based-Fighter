@@ -205,11 +205,11 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000027"
+    "moveId" : "000025"
   }, {
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000028"
+    "moveId" : "000026"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -510,7 +510,7 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000053"
+    "moveId" : "000049"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -523,11 +523,11 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000054"
+    "moveId" : "000050"
   }, {
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000055"
+    "moveId" : "000051"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -540,11 +540,11 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000054"
+    "moveId" : "000050"
   }, {
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000056"
+    "moveId" : "000052"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -557,15 +557,15 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000085"
+    "moveId" : "000081"
   }, {
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000057"
+    "moveId" : "000053"
   }, {
     "effectId" : "effect-000002",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000058"
+    "moveId" : "000054"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -578,15 +578,15 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000088"
+    "moveId" : "000084"
   }, {
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000059"
+    "moveId" : "000055"
   }, {
     "effectId" : "effect-000002",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000060"
+    "moveId" : "000056"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -599,15 +599,15 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000086"
+    "moveId" : "000082"
   }, {
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000061"
+    "moveId" : "000057"
   }, {
     "effectId" : "effect-000002",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000062"
+    "moveId" : "000058"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -620,15 +620,15 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000087"
+    "moveId" : "000083"
   }, {
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000063"
+    "moveId" : "000059"
   }, {
     "effectId" : "effect-000002",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000064"
+    "moveId" : "000060"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -641,11 +641,11 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000065"
+    "moveId" : "000061"
   }, {
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000066"
+    "moveId" : "000062"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -658,11 +658,11 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000067"
+    "moveId" : "000063"
   }, {
     "effectId" : "effect-000001",
     "type" : "UNLOCK_MOVE",
-    "moveId" : "000068"
+    "moveId" : "000064"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -781,7 +781,7 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "GRANT_MOVE",
-    "moveId" : "000089"
+    "moveId" : "000085"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -805,8 +805,8 @@
     "effectId" : "effect-000000",
     "type" : "TRANSFORM_CHARACTER",
     "characterId" : "000018",
-    "target" : "SELF",
-    "transformationHpMode" : "FULL"
+    "transformationHpMode" : "FULL",
+    "target" : "SELF"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -820,15 +820,15 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "GRANT_MOVE",
-    "moveId" : "000090"
+    "moveId" : "000086"
   }, {
     "effectId" : "effect-000001",
     "type" : "GRANT_MOVE",
-    "moveId" : "000091"
+    "moveId" : "000087"
   }, {
     "effectId" : "effect-000002",
     "type" : "GRANT_MOVE",
-    "moveId" : "000092"
+    "moveId" : "000088"
   }, {
     "effectId" : "effect-000003",
     "type" : "COST_CE_PER_ROUND",
@@ -856,8 +856,8 @@
     "effectId" : "effect-000000",
     "type" : "TRANSFORM_CHARACTER",
     "characterId" : "000017",
-    "target" : "SELF",
-    "transformationHpMode" : "FULL"
+    "transformationHpMode" : "FULL",
+    "target" : "SELF"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -909,8 +909,8 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "BATTLE_STAT_ODDS_MULTIPLY",
-    "stringValue" : "BLACK_FLASH_CHANCE",
-    "doubleValue" : 1.5
+    "doubleValue" : 1.5,
+    "stringValue" : "BLACK_FLASH_CHANCE"
   } ],
   "masteryThreshold" : 0
 }, {
@@ -931,9 +931,9 @@
     "effectId" : "effect-000000",
     "type" : "SURVIVE_FATAL_DAMAGE",
     "target" : "SELF",
-    "uses" : 1,
     "durationRounds" : -1,
-    "durationTicks" : 0
+    "durationTicks" : 0,
+    "uses" : 1
   } ],
   "masteryThreshold" : 0
 }, {
@@ -947,8 +947,8 @@
   "effects" : [ {
     "effectId" : "effect-000000",
     "type" : "MOVE_ACCURACY_ADD",
-    "moveTag" : "INNATE_TECHNIQUE",
     "intValue" : 5,
+    "moveTag" : "INNATE_TECHNIQUE",
     "masteryProgression" : {
       "intValue" : {
         "mode" : "FORMULA",
@@ -956,7 +956,7 @@
       }
     }
   } ],
-  "masteryThreshold" : 0
+  "masteryThreshold" : 60
 }, {
   "id" : "000044",
   "name" : "Cursed Tools Expert",

@@ -36,6 +36,7 @@ import java.util.Set;
  *   ABILITY        — available while another specific ability is assigned (by ID or name)
  *                    e.g. "Precog" is available after assigning "Heavenly Restriction"
  *   SHIKIGAMI      — available to every SHIKIGAMI character definition
+ *   CURSED_TOOL    — active automatically while one specific cursed tool is equipped
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -57,7 +58,7 @@ public class AbilityData {
     /** "PASSIVE" or "ACTIVE" */
     public String category;
 
-    /** "CHARACTER", "TECHNIQUE", "MOVE", "STAT_THRESHOLD", "ABILITY", or "SHIKIGAMI" */
+    /** Source type such as CHARACTER, TECHNIQUE, MOVE, ABILITY, or CURSED_TOOL. */
     public String sourceType;
 
     /**
@@ -66,6 +67,7 @@ public class AbilityData {
      *   MOVE           → move ID (e.g. "000005")
      *   STAT_THRESHOLD → "stat>=value" (e.g. "cursedTechniqueMastery>=200")
      *   ABILITY        → ability ID or ability name (e.g. "000003" or "Heavenly Restriction")
+     *   CURSED_TOOL    → cursed-tool ID (e.g. "000000")
      *   CHARACTER      → null
      */
     public String sourceValue;

@@ -59,12 +59,16 @@ import com.jjktbf.model.weapon.WeaponType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiPredicate;
 
 /**
  * Graphical CRUD editor for {@link CharacterData}. Master-detail layout with:
@@ -95,6 +99,9 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private static final int POINT_BUDGET_WITHOUT_TECHNIQUE = 1080;
     private static final float STAT_KEY_REPEAT_DELAY = 0.25f;
     private static final float STAT_KEY_REPEAT_INTERVAL = 0.04f;
+    private static final float DEPENDENT_REFRESH_DELAY = 0.08f;
+    private static final int EVALUATION_CACHE_SIZE = 32;
+    private static final int CONFLICT_CACHE_SIZE = 64;
 
     private final CharacterRepository  charRepo;
     private final MoveRepository       moveRepo;
@@ -117,6 +124,61 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private int lastEditedStatIndex = -1;
     private int heldStatKey = -1;
     private float statKeyRepeatTimer;
+    private CharacterData pendingDependentRefresh;
+    private float dependentRefreshTimer = -1f;
+    private boolean techniqueTreesSynchronized;
+    private final Map<String, Boolean> validMoveDefinitions = new LinkedHashMap<>();
+    private final Map<CharacterEvaluationKey, CharacterEvaluation> evaluationCache =
+        boundedCache(EVALUATION_CACHE_SIZE);
+    private final Map<AbilityConflictKey, Optional<String>> abilityConflictCache =
+        boundedCache(CONFLICT_CACHE_SIZE);
+
+    record CharacterEvaluationKey(
+        String id,
+        String name,
+        String type,
+        Double baseCeDrainPerTick,
+        String innateTechniqueName,
+        int vitality,
+        int strength,
+        int durability,
+        int speed,
+        int cursedEnergyReserves,
+        int cursedEnergyEfficiency,
+        int cursedEnergyOutput,
+        int jujutsuSkill,
+        int combatAbility,
+        int cursedTechniqueMastery,
+        List<String> equippedWeaponTypes,
+        List<String> equippedCursedToolIds,
+        List<String> moveIds,
+        boolean availableMoveIdsDefined,
+        List<String> availableMoveIds,
+        List<String> abilityIds,
+        boolean availableAbilityIdsDefined,
+        List<String> availableAbilityIds
+    ) { }
+
+    private record CharacterEvaluation(
+        AbilityResolver.Result abilities,
+        AbilityApplicator.ApplicationResult application,
+        Set<String> automaticMoveIds,
+        Set<String> candidateToolMoveIds,
+        Set<WeaponType> cursedToolTypes,
+        Set<WeaponType> equippedTypes,
+        List<MovePool> assignedMovePools,
+        CombatStats combatStats
+    ) { }
+
+    private record AbilityConflictKey(CharacterEvaluationKey character, String abilityId) { }
+
+    private static <K, V> Map<K, V> boundedCache(int maximumSize) {
+        return new LinkedHashMap<>(16, 0.75f, true) {
+            @Override protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+                return size() > maximumSize;
+            }
+        };
+    }
 
     public CharacterEditorScreen(JJKGame game, AssetLoader assets) {
         super(game, assets);
@@ -137,6 +199,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     @Override
     public void render(float delta) {
         repeatHeldStatKey(delta);
+        flushDependentRefresh(delta);
         super.render(delta);
     }
 
@@ -160,6 +223,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 if (keycode != heldStatKey) return false;
                 heldStatKey = -1;
                 statKeyRepeatTimer = 0f;
+                flushDependentRefreshNow();
                 event.cancel();
                 return true;
             }
@@ -259,6 +323,10 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
     @Override
     protected void reloadRecords() throws IOException {
+        evaluationCache.clear();
+        abilityConflictCache.clear();
+        validMoveDefinitions.clear();
+        techniqueTreesSynchronized = false;
         charRepo.load();
         moveRepo.load();
         abilityRepo.load();
@@ -270,6 +338,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
     @Override
     protected ValidationResult validateAndSave(CharacterData d) {
+        if (d == draft) applyPendingStatModelChanges();
         if (d.name == null || d.name.trim().isEmpty()) {
             return ValidationResult.error("Name is required.");
         }
@@ -545,6 +614,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         lastEditedStatIndex = -1;
         heldStatKey = -1;
         statKeyRepeatTimer = 0f;
+        pendingDependentRefresh = null;
+        dependentRefreshTimer = -1f;
         Table form = formRoot();
 
         // ── Identity ───────────────────────────────────────────────────────────
@@ -560,6 +631,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         SelectBox<String> techniqueSelect = techniqueSelect(cd.innateTechniqueName);
         techniqueSelect.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
+                applyPendingStatModelChanges();
                 String previousTechnique = cd.innateTechniqueName;
                 clearTechniqueSelections(cd, previousTechnique);
                 cd.innateTechniqueName = techniqueNameFromLabel(techniqueSelect.getSelected());
@@ -593,6 +665,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         typeSelect.setSelected(labelForType(cd.effectiveType()));
         typeSelect.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
+                applyPendingStatModelChanges();
                 CharacterType chosen = typeFromLabel(typeSelect.getSelected());
                 cd.type = (chosen == CharacterType.SORCERER) ? null : chosen.name();
                 // Reset an explicit override so the new type's default applies.
@@ -644,6 +717,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         pointBuyToggle = new CheckBox(" Point-Buy mode", skin);
         pointBuyToggle.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
+                cancelDependentRefresh();
                 game.audio().play(SoundCue.UI_TOGGLE);
                 if (pointBuyToggle.isChecked()) {
                     applyPointBuy(cd);
@@ -679,10 +753,9 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
         statFields = new StatField[STAT_ORDER.length];
         boolean hasTechnique = cd.innateTechniqueName != null;
-        Map<StatKey, Integer> allocationMinimums =
-            resolvedAbilities(cd).statAllocationMinimums();
-        Map<StatKey, Integer> allocationMaximums =
-            resolvedAbilities(cd).statAllocationMaximums();
+        AbilityResolver.Result resolved = resolvedAbilities(cd);
+        Map<StatKey, Integer> allocationMinimums = resolved.statAllocationMinimums();
+        Map<StatKey, Integer> allocationMaximums = resolved.statAllocationMaximums();
         for (int i = 0; i < STAT_ORDER.length; i++) {
             StatKey sk = STAT_ORDER[i];
             int statIndex = i;
@@ -698,13 +771,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             StatField sf = new StatField(sk.label, val, fieldMinimum, STAT_MAX, v -> {
                 lastEditedStatIndex = statIndex;
                 sk.set(cd, v);
-                pruneLockedTechniqueSelections(cd);
                 refreshBaseStatTotalLabel(cd);
-                refreshDerivedPreview(cd);
-                if (pointBuyToggle.isChecked()) refreshBudgetLabel(cd);
-                rebuildAbilityAssignment(cd);
-                rebuildMoveAssignment(cd);
-                rebuildSkillTree(cd);
+                scheduleDependentRefresh(cd);
                 markDirty();
             }, () -> lastEditedStatIndex = statIndex, locked, windowsLayout, skin);
             sf.setEffectiveMinimum(allocationMinimum);
@@ -733,6 +801,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 && cd.equippedWeaponTypes.contains(type.name()));
             weaponToggle.addListener(new ChangeListener() {
                 @Override public void changed(ChangeEvent event, Actor actor) {
+                    flushDependentRefreshNow();
                     game.audio().play(SoundCue.UI_TOGGLE);
                     if (cd.equippedWeaponTypes == null) cd.equippedWeaponTypes = new ArrayList<>();
                     if (weaponToggle.isChecked()) {
@@ -750,7 +819,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         }
         equipmentSection.add(weaponToggles).growX().row();
         equipmentSection.add(formHint(
-            "Equipping a weapon allows learning moves of its type. Cursed tools below also count, and their weapon type's moves cost no cursed energy."))
+            "Equipping a weapon allows learning moves of its type. Cursed tools also waive matching moves' jujutsu stat requirements and cursed energy costs."))
             .left().row();
         Container<Actor> toolAssignmentContainer = new Container<>();
         toolAssignmentContainer.fillX();
@@ -792,14 +861,54 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private void repeatHeldStatKey(float delta) {
         if (heldStatKey == -1) return;
         statKeyRepeatTimer -= delta;
-        while (statKeyRepeatTimer <= 0f) {
-            int direction = heldStatKey == Input.Keys.LEFT ? -1 : 1;
-            if (!adjustLastEditedStat(direction, false)) {
-                heldStatKey = -1;
-                return;
-            }
-            statKeyRepeatTimer += STAT_KEY_REPEAT_INTERVAL;
+        if (statKeyRepeatTimer > 0f) return;
+        int direction = heldStatKey == Input.Keys.LEFT ? -1 : 1;
+        if (!adjustLastEditedStat(direction, false)) {
+            heldStatKey = -1;
+            return;
         }
+        statKeyRepeatTimer = STAT_KEY_REPEAT_INTERVAL;
+    }
+
+    private void scheduleDependentRefresh(CharacterData character) {
+        pendingDependentRefresh = character;
+        dependentRefreshTimer = DEPENDENT_REFRESH_DELAY;
+    }
+
+    private void cancelDependentRefresh() {
+        pendingDependentRefresh = null;
+        dependentRefreshTimer = -1f;
+    }
+
+    private void applyPendingStatModelChanges() {
+        CharacterData character = pendingDependentRefresh;
+        cancelDependentRefresh();
+        if (character != null && character == draft) {
+            pruneLockedTechniqueSelections(character);
+        }
+    }
+
+    private void flushDependentRefresh(float delta) {
+        if (pendingDependentRefresh == null) return;
+        if (pendingDependentRefresh != draft) {
+            pendingDependentRefresh = null;
+            dependentRefreshTimer = -1f;
+            return;
+        }
+        dependentRefreshTimer -= delta;
+        if (dependentRefreshTimer <= 0f) flushDependentRefreshNow();
+    }
+
+    private void flushDependentRefreshNow() {
+        CharacterData character = pendingDependentRefresh;
+        cancelDependentRefresh();
+        if (character == null || character != draft) return;
+        pruneLockedTechniqueSelections(character);
+        refreshDerivedPreview(character);
+        refreshBudgetLabel(character);
+        rebuildAbilityAssignment(character);
+        rebuildMoveAssignment(character);
+        rebuildSkillTree(character);
     }
 
     // =========================================================================
@@ -834,6 +943,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 () -> onTreeSelectionChanged(character, displayedNames),
                 message -> setStatus(message, false),
                 node -> treeActivationError(character, node),
+                treePrerequisiteWaiver(character),
                 game.audio()::play,
                 uiProfile,
                 skin);
@@ -850,6 +960,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     }
 
     private void onTreeSelectionChanged(CharacterData character, Set<String> displayedNames) {
+        applyPendingStatModelChanges();
         Set<String> accessibleNames = resolvedAbilities(character).accessibleTechniqueNames().stream()
             .map(String::toLowerCase)
             .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
@@ -872,7 +983,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (SkillTreeNodeData.MOVE.equalsIgnoreCase(node.contentType)) {
             MoveData move = moveRepo.findById(node.contentId).orElse(null);
             return move == null ? "This move no longer exists."
-                : moveAssignmentError(character, resolvedAbilities(character), move, false);
+                : moveAssignmentError(character, resolvedAbilities(character), move,
+                    false, false);
         }
         AbilityData ability = abilityRepo.findById(node.contentId).orElse(null);
         return ability == null ? "This ability no longer exists." : null;
@@ -892,7 +1004,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
     private void pruneLockedTechniqueSelections(CharacterData character) {
         for (InnateTechniqueData technique : accessibleTechniques(character)) {
-            TechniqueSkillTree.pruneLockedSelections(technique, character);
+            TechniqueSkillTree.pruneLockedSelections(
+                technique, character, treePrerequisiteWaiver(character));
         }
     }
 
@@ -962,7 +1075,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             if (technique.skillTree == null) continue;
             String locked = technique.skillTree.stream()
                 .filter(node -> TechniqueSkillTree.isActive(node, character))
-                .filter(node -> !TechniqueSkillTree.isUnlocked(technique, node, character))
+                .filter(node -> !TechniqueSkillTree.isUnlocked(
+                    technique, node, character, treePrerequisiteWaiver(character)))
                 .map(this::skillTreeNodeName)
                 .findFirst().orElse(null);
             if (locked != null) return locked;
@@ -985,8 +1099,9 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
     /** Apply point-buy mode: reset all stats to baseline, enforce budget. */
     private void applyPointBuy(CharacterData cd) {
-        Map<StatKey, Integer> minimums = resolvedAbilities(cd).statAllocationMinimums();
-        Map<StatKey, Integer> maximums = resolvedAbilities(cd).statAllocationMaximums();
+        AbilityResolver.Result resolved = resolvedAbilities(cd);
+        Map<StatKey, Integer> minimums = resolved.statAllocationMinimums();
+        Map<StatKey, Integer> maximums = resolved.statAllocationMaximums();
         for (StatKey sk : STAT_ORDER) {
             int value = sk == StatKey.CURSED_TECHNIQUE_MASTERY
                 && cd.innateTechniqueName == null ? 0
@@ -1111,8 +1226,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     private void refreshDerivedPreview(CharacterData cd) {
         if (derivedPreview == null) return;
         try {
-            AbilityApplicator.ApplicationResult application = AbilityApplicator.apply(
-                cd.toCharacterStats(), resolvedAbilities(cd).toDomainAbilities());
+            AbilityApplicator.ApplicationResult application = evaluation(cd).application();
             CombatStats cs = new CombatStats(
                 application.modifiedStats, application.flags.jujutsuArtSlots);
             // Compute slot usage per category.
@@ -1156,6 +1270,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 AbilityResolver.Result abilityResult = resolvedAbilities(cd);
                 for (MoveData md : allMoves) {
                     if (md.derivedPool() != pool) continue;
+                    if (isCursedToolGrantedMove(cd, md)) continue;
                     if (md.mustBeGranted
                         && !abilityResult.availableMoveIds().contains(md.id)) continue;
                     if (isLockedTechniqueMove(cd, md.id)) continue;
@@ -1172,6 +1287,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 List<AssignmentPanel.Item> items = new ArrayList<>();
                 List<String> assigned = cd.moveIds != null ? cd.moveIds : List.of();
                 AbilityResolver.Result resolved = resolvedAbilities(cd);
+                Set<String> automaticMoveIds = eligibleCursedToolMoveIds(cd);
                 for (String mid : assigned) {
                     MoveData md = mid == null ? null : moveRepo.findById(mid).orElse(null);
                     if (md == null) {
@@ -1181,6 +1297,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                             "Click to remove this broken reference"));
                     } else {
                         if (md.derivedPool() != pool) continue;
+                        if (automaticMoveIds.contains(md.id)) continue;
                         String sub = md.tags != null ? String.join(", ", md.tags) : "";
                         String assignmentError = moveAssignmentError(cd, resolved, md, true);
                         if (assignmentError != null) {
@@ -1201,6 +1318,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             }
 
             @Override public void onLearn(String moveId) {
+                applyPendingStatModelChanges();
                 if (cd.moveIds == null) cd.moveIds = new ArrayList<>();
                 if (!cd.moveIds.contains(moveId)) cd.moveIds.add(moveId);
                 markDirty();
@@ -1211,6 +1329,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             }
 
             @Override public void onForget(String moveId) {
+                applyPendingStatModelChanges();
                 if (cd.moveIds != null) cd.moveIds.remove(moveId);
                 markDirty();
                 refreshDerivedPreview(cd);
@@ -1242,11 +1361,12 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         if (cd.moveIds == null) return;
         List<Integer> poolIndexes = new ArrayList<>();
         List<String> currentIds = new ArrayList<>();
+        Set<String> automaticMoveIds = eligibleCursedToolMoveIds(cd);
         for (int index = 0; index < cd.moveIds.size(); index++) {
             String moveId = cd.moveIds.get(index);
             MoveData move = moveId == null ? null : moveRepo.findById(moveId).orElse(null);
             MovePool movePool = move == null ? MovePool.COMBAT_ARTS : move.derivedPool();
-            if (movePool != pool) continue;
+            if (movePool != pool || (move != null && automaticMoveIds.contains(move.id))) continue;
             poolIndexes.add(index);
             currentIds.add(moveId);
         }
@@ -1282,17 +1402,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
     /** Collect the {@link MovePool} of every assigned non-free move. */
     private List<MovePool> getAssignedMovePoolList(CharacterData cd) {
-        List<MovePool> pools = new ArrayList<>();
-        if (cd.moveIds == null) return pools;
-        for (String mid : cd.moveIds) {
-            MoveData md = moveRepo.findById(mid).orElse(null);
-            if (md != null && !md.isFreeMove) {
-                try {
-                    pools.add(md.derivedPool());
-                } catch (Exception ignored) {}
-            }
-        }
-        return pools;
+        return evaluation(cd).assignedMovePools();
     }
 
     private static String lockingTag(AbilityResolver.Result abilities, MoveData move) {
@@ -1313,13 +1423,36 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         MoveData move,
         boolean alreadyAssigned
     ) {
+        return moveAssignmentError(character, abilities, move, alreadyAssigned, true);
+    }
+
+    /**
+     * @param requireActiveTechniqueNode false when validating activation of a
+     * technique-tree node itself: the node cannot be required already active
+     * while it is being activated, and its unlock rules were already checked.
+     */
+    private String moveAssignmentError(
+        CharacterData character,
+        AbilityResolver.Result abilities,
+        MoveData move,
+        boolean alreadyAssigned,
+        boolean requireActiveTechniqueNode
+    ) {
         Move built;
         try {
             built = move.toMove();
         } catch (Exception ex) {
             return "Move configuration is invalid: " + ex.getMessage();
         }
-        if (move.mustBeGranted && !abilities.availableMoveIds().contains(move.id)) {
+        if (requireActiveTechniqueNode) {
+            boolean treeAllowsMove = TechniqueSkillTree.allowsMove(
+                techniqueRepo.getAll(), move.requiredTechniqueId, move.id, character,
+                treePrerequisiteWaiver(character));
+            if (!treeAllowsMove) return "Technique-tree node is not active or unlocked.";
+        }
+        boolean automaticToolGrant = isCursedToolGrantedMove(character, move);
+        if (move.mustBeGranted && !automaticToolGrant
+            && !abilities.availableMoveIds().contains(move.id)) {
             return "This move must be granted by an ability.";
         }
         CharacterType characterType = character.effectiveType();
@@ -1332,10 +1465,14 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
         // still subject to every check below.
         boolean bypass = abilities.grantedMoveIds().contains(move.id);
         if (bypass) return null;
-        MoveTag weaponTag = built.weaponTag();
-        if (weaponTag != null
-                && !effectiveEquippedTypes(character).contains(WeaponType.fromMoveTag(weaponTag))) {
-            return "Requires an equipped " + WeaponType.fromMoveTag(weaponTag).displayName() + ".";
+        Set<MoveTag> weaponTags = built.weaponTags();
+        boolean cursedToolCoversMove = cursedToolCoversWeaponTags(character, weaponTags);
+        if (!weaponTags.isEmpty() && weaponTags.stream()
+            .map(WeaponType::fromMoveTag)
+            .noneMatch(effectiveEquippedTypes(character)::contains)) {
+            return "Requires one of: " + weaponTags.stream()
+                .map(WeaponType::fromMoveTag).map(WeaponType::displayName)
+                .collect(java.util.stream.Collectors.joining(", ")) + ".";
         }
         String lockedTag = lockingTag(abilities, move);
         if (lockedTag != null) return "Locked by ability: " + lockedTag;
@@ -1350,6 +1487,9 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             for (Map.Entry<String, Integer> prerequisite : move.prerequisites.entrySet()) {
                 try {
                     StatKey stat = StatKey.fromString(prerequisite.getKey());
+                    if (cursedToolCoversMove && stat.isJujutsuPrerequisite()) {
+                        continue;
+                    }
                     int actual = stat.get(stats);
                     if (actual < prerequisite.getValue()) {
                         return "Needs " + stat.label + " >= " + prerequisite.getValue()
@@ -1361,7 +1501,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             }
         }
 
-        if (move.isFreeMove) return null;
+        if (move.isFreeMove || automaticToolGrant) return null;
         try {
             MovePool pool = move.derivedPool();
             int budget = SlotBudgetEnforcer.slotBudgetFor(
@@ -1432,21 +1572,33 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             }
 
             @Override public void onAssign(String id) {
+                applyPendingStatModelChanges();
                 game.audio().play(SoundCue.UI_TOGGLE);
                 cd.equippedCursedToolIds.add(id);
+                refreshAllocationBounds(cd, true);
+                refreshDerivedPreview(cd);
+                refreshBudgetLabel(cd);
                 rebuildMoveAssignment(cd);
+                rebuildAbilityAssignment(cd);
+                rebuildSkillTree(cd);
                 markDirty();
             }
 
             @Override public void onUnassign(String id) {
+                applyPendingStatModelChanges();
                 game.audio().play(SoundCue.UI_TOGGLE);
                 cd.equippedCursedToolIds.remove(id);
+                refreshAllocationBounds(cd, false);
+                refreshDerivedPreview(cd);
+                refreshBudgetLabel(cd);
                 rebuildMoveAssignment(cd);
+                rebuildAbilityAssignment(cd);
+                rebuildSkillTree(cd);
                 markDirty();
             }
 
             @Override public String budgetSummary() {
-                return "CURSED TOOLS — equip to grant the weapon type and free-CE use of its moves";
+                return "CURSED TOOLS — unlock type; waive matching jujutsu requirements and CE costs";
             }
         }, game.audio()::play, uiProfile, skin);
     }
@@ -1467,6 +1619,10 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
      * every equipped cursed tool. Mirrors {@code Equipment.weaponTypes()}.
      */
     private Set<WeaponType> effectiveEquippedTypes(CharacterData cd) {
+        return evaluation(cd).equippedTypes();
+    }
+
+    private Set<WeaponType> computeEffectiveEquippedTypes(CharacterData cd) {
         Set<WeaponType> types = new LinkedHashSet<>();
         if (cd.equippedWeaponTypes != null) {
             for (String stored : cd.equippedWeaponTypes) {
@@ -1474,6 +1630,12 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 if (type != null) types.add(type);
             }
         }
+        types.addAll(computeEffectiveCursedToolTypes(cd));
+        return types;
+    }
+
+    private Set<WeaponType> computeEffectiveCursedToolTypes(CharacterData cd) {
+        Set<WeaponType> types = new LinkedHashSet<>();
         for (String toolId : equippedToolIds(cd)) {
             CursedToolData tool = cursedToolRepo.findById(toolId).orElse(null);
             if (tool != null) {
@@ -1485,6 +1647,65 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             }
         }
         return types;
+    }
+
+    private boolean cursedToolCoversWeaponTags(
+        CharacterData character,
+        Set<MoveTag> weaponTags
+    ) {
+        return character != null && weaponTags != null && weaponTags.stream()
+            .map(WeaponType::fromMoveTag)
+            .anyMatch(evaluation(character).cursedToolTypes()::contains);
+    }
+
+    private BiPredicate<SkillTreeNodeData, StatKey> treePrerequisiteWaiver(
+        CharacterData character
+    ) {
+        return (node, stat) -> {
+            if (node == null || stat == null || !stat.isJujutsuPrerequisite()
+                || !SkillTreeNodeData.MOVE.equalsIgnoreCase(node.contentType)) {
+                return false;
+            }
+            MoveData move = moveRepo.findById(node.contentId).orElse(null);
+            return move != null
+                && cursedToolCoversWeaponTags(character, move.weaponTags());
+        };
+    }
+
+    private boolean isCursedToolGrantedMove(CharacterData character, MoveData move) {
+        return character != null && move != null
+            && evaluation(character).candidateToolMoveIds().contains(move.id);
+    }
+
+    private boolean computeCursedToolGrantedMove(CharacterData character, MoveData move) {
+        if (character == null || move == null) return false;
+        for (String toolId : equippedToolIds(character)) {
+            CursedToolData tool = cursedToolRepo.findById(toolId).orElse(null);
+            if (tool == null) continue;
+            if (tool.id.equals(move.requiredCursedToolId)) return true;
+        }
+        return false;
+    }
+
+    private Set<String> eligibleCursedToolMoveIds(CharacterData character) {
+        return character == null ? Set.of() : evaluation(character).automaticMoveIds();
+    }
+
+    private Set<String> computeEligibleCursedToolMoveIds(
+        CharacterData character,
+        Set<String> candidateMoveIds
+    ) {
+        if (character == null) return Set.of();
+        if (candidateMoveIds.isEmpty()) return Set.of();
+        try {
+            return character.toCharacter(moveRepo, abilityRepo, techniqueRepo, cursedToolRepo)
+                .getKnownMoves().stream()
+                .map(Move::getId)
+                .filter(candidateMoveIds::contains)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        } catch (RuntimeException ignored) {
+            return Set.of();
+        }
     }
 
     // =========================================================================
@@ -1504,7 +1725,8 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 AbilityResolver.Result resolved = resolvedAbilities(cd);
                 for (String abilityId : resolved.availableAbilityIds()) {
                     AbilityData ad = abilityRepo.findById(abilityId).orElse(null);
-                    if (ad == null || assigned.contains(ad.id)) continue;
+                    if (ad == null || assigned.contains(ad.id)
+                        || "CURSED_TOOL".equalsIgnoreCase(ad.sourceType)) continue;
                     String sub = abilitySublabel(ad);
                     String conflict = abilityAssignmentConflict(cd, ad.id);
                     items.add(conflict == null
@@ -1517,6 +1739,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             @Override public List<AssignmentPanel.Item> assignedItems() {
                 List<AssignmentPanel.Item> items = new ArrayList<>();
                 List<String> assigned = cd.abilityIds != null ? cd.abilityIds : List.of();
+                AbilityResolver.Result resolved = resolvedAbilities(cd);
                 for (String aid : assigned) {
                     AbilityData ad = aid == null ? null : abilityRepo.findById(aid).orElse(null);
                     if (ad == null) {
@@ -1525,7 +1748,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                             "Click to remove this broken reference"));
                     } else {
                         String sub = abilitySublabel(ad);
-                        if (!resolvedAbilities(cd).availableAbilityIds().contains(ad.id)) {
+                        if (!resolved.availableAbilityIds().contains(ad.id)) {
                             sub += " | UNAVAILABLE: " + sourceRequirement(ad);
                         }
                         items.add(new AssignmentPanel.Item(ad.id, ad.name, sub));
@@ -1542,6 +1765,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             }
 
             @Override public void onAssign(String id) {
+                applyPendingStatModelChanges();
                 if (cd.abilityIds == null) cd.abilityIds = new ArrayList<>();
                 if (!cd.abilityIds.contains(id)) cd.abilityIds.add(id);
                 autoEquipGrantedAbilities(cd);
@@ -1551,18 +1775,17 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                 refreshDerivedPreview(cd);
                 refreshBudgetLabel(cd);
                 rebuildMoveAssignment(cd);
-                rebuildAbilityAssignment(cd);
                 rebuildSkillTree(cd);
             }
 
             @Override public void onUnassign(String id) {
+                applyPendingStatModelChanges();
                 if (cd.abilityIds != null) cd.abilityIds.remove(id);
                 refreshAllocationBounds(cd, false);
                 markDirty();
                 refreshDerivedPreview(cd);
                 refreshBudgetLabel(cd);
                 rebuildMoveAssignment(cd);
-                rebuildAbilityAssignment(cd);
                 rebuildSkillTree(cd);
             }
 
@@ -1573,16 +1796,103 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
     }
 
     private AbilityResolver.Result resolvedAbilities(CharacterData cd) {
-        techniqueRepo.getAll().forEach(technique -> TechniqueSkillTree.synchronize(
-            technique, moveRepo.getAll(), abilityRepo.getAll()));
-        return AbilityResolver.resolve(
-            cd, abilityRepo, this::isValidMoveDefinition, techniqueRepo);
+        return evaluation(cd).abilities();
     }
 
     private CombatStats combatStatsWithAbilitySlots(CharacterData cd) {
+        return evaluation(cd).combatStats();
+    }
+
+    private CharacterEvaluation evaluation(CharacterData character) {
+        CharacterEvaluationKey key = evaluationKey(character);
+        CharacterEvaluation cached = evaluationCache.get(key);
+        if (cached != null) return cached;
+
+        ensureTechniqueTreesSynchronized();
+        Set<String> candidateMoveIds = moveRepo.getAll().stream()
+            .filter(move -> computeCursedToolGrantedMove(character, move))
+            .map(move -> move.id)
+            .filter(id -> id != null)
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        Set<String> automaticMoveIds = computeEligibleCursedToolMoveIds(
+            character, candidateMoveIds);
+        AbilityResolver.Result abilities = AbilityResolver.resolve(
+            character, abilityRepo, this::isValidMoveDefinition, techniqueRepo,
+            automaticMoveIds, candidateMoveIds);
         AbilityApplicator.ApplicationResult application = AbilityApplicator.apply(
-            cd.toCharacterStats(), resolvedAbilities(cd).toDomainAbilities());
-        return new CombatStats(cd.toCharacterStats(), application.flags.jujutsuArtSlots);
+            character.toCharacterStats(), abilities.toDomainAbilities());
+        CombatStats combatStats = new CombatStats(
+            character.toCharacterStats(), application.flags.jujutsuArtSlots);
+        List<MovePool> assignedMovePools = computeAssignedMovePools(
+            character, automaticMoveIds);
+        CharacterEvaluation computed = new CharacterEvaluation(
+            abilities,
+            application,
+            Set.copyOf(automaticMoveIds),
+            Set.copyOf(candidateMoveIds),
+            Set.copyOf(computeEffectiveCursedToolTypes(character)),
+            Set.copyOf(computeEffectiveEquippedTypes(character)),
+            List.copyOf(assignedMovePools),
+            combatStats);
+        evaluationCache.put(key, computed);
+        return computed;
+    }
+
+    private void ensureTechniqueTreesSynchronized() {
+        if (techniqueTreesSynchronized) return;
+        techniqueRepo.getAll().forEach(technique -> TechniqueSkillTree.synchronize(
+            technique, moveRepo.getAll(), abilityRepo.getAll()));
+        techniqueTreesSynchronized = true;
+    }
+
+    private List<MovePool> computeAssignedMovePools(
+        CharacterData character,
+        Set<String> automaticMoveIds
+    ) {
+        List<MovePool> pools = new ArrayList<>();
+        if (character.moveIds == null) return pools;
+        for (String moveId : character.moveIds) {
+            MoveData move = moveRepo.findById(moveId).orElse(null);
+            if (move == null || move.isFreeMove || automaticMoveIds.contains(move.id)) continue;
+            try {
+                pools.add(move.derivedPool());
+            } catch (RuntimeException ignored) {
+                // Invalid move definitions are reported by their assignment row.
+            }
+        }
+        return pools;
+    }
+
+    static CharacterEvaluationKey evaluationKey(CharacterData character) {
+        return new CharacterEvaluationKey(
+            character.id,
+            character.name,
+            character.type,
+            character.baseCeDrainPerTick,
+            character.innateTechniqueName,
+            character.vitality,
+            character.strength,
+            character.durability,
+            character.speed,
+            character.cursedEnergyReserves,
+            character.cursedEnergyEfficiency,
+            character.cursedEnergyOutput,
+            character.jujutsuSkill,
+            character.combatAbility,
+            character.cursedTechniqueMastery,
+            copyForKey(character.equippedWeaponTypes),
+            copyForKey(character.equippedCursedToolIds),
+            copyForKey(character.moveIds),
+            character.availableMoveIds != null,
+            copyForKey(character.availableMoveIds),
+            copyForKey(character.abilityIds),
+            character.availableAbilityIds != null,
+            copyForKey(character.availableAbilityIds));
+    }
+
+    private static List<String> copyForKey(List<String> values) {
+        return values == null ? List.of()
+            : Collections.unmodifiableList(new ArrayList<>(values));
     }
 
     /**
@@ -1633,7 +1943,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
 
     private boolean isValidMoveDefinition(String moveId) {
         if (moveId == null) return false;
-        return moveRepo.findById(moveId)
+        return validMoveDefinitions.computeIfAbsent(moveId, id -> moveRepo.findById(id)
             .map(move -> {
                 try {
                     move.toMove();
@@ -1642,20 +1952,25 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
                     return false;
                 }
             })
-            .orElse(false);
+            .orElse(false));
     }
 
     private String abilityAssignmentConflict(CharacterData cd, String abilityId) {
+        AbilityConflictKey key = new AbilityConflictKey(evaluationKey(cd), abilityId);
+        Optional<String> cached = abilityConflictCache.get(key);
+        if (cached != null) return cached.orElse(null);
         CharacterData probe = draftFromRecord(cd);
         if (probe.abilityIds == null) probe.abilityIds = new ArrayList<>();
         if (!probe.abilityIds.contains(abilityId)) probe.abilityIds.add(abilityId);
+        String conflict = null;
         try {
             clampAllocationsToBounds(probe);
             probe.toCharacter(moveRepo, abilityRepo, techniqueRepo, cursedToolRepo);
-            return null;
         } catch (Exception ex) {
-            return "Cannot assign: " + ex.getMessage();
+            conflict = "Cannot assign: " + ex.getMessage();
         }
+        abilityConflictCache.put(key, Optional.ofNullable(conflict));
+        return conflict;
     }
 
     private static String abilitySublabel(AbilityData ability) {
@@ -1671,6 +1986,7 @@ public class CharacterEditorScreen extends EditorScreenBase<CharacterData> {
             case "MOVE" -> "know move " + ability.sourceValue;
             case "STAT_THRESHOLD" -> ability.sourceValue;
             case "ABILITY" -> "have ability " + ability.sourceValue;
+            case "CURSED_TOOL" -> "equip cursed tool " + ability.sourceValue;
             case "SHIKIGAMI" -> "be a Shikigami";
             case "CURSED_CORPSE" -> "be a Cursed Corpse";
             default -> "assign directly";

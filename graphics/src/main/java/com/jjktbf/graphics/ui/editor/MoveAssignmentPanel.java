@@ -58,6 +58,7 @@ public class MoveAssignmentPanel extends Table {
         private final Table rows;
         private final ScrollPane scroll;
         private final List<DragAndDrop.Source> dragSources = new ArrayList<>();
+        private List<AssignmentPanel.Item> loadedItems = List.of();
 
         private MoveColumn(
             Side side,
@@ -141,7 +142,7 @@ public class MoveAssignmentPanel extends Table {
 
     /** Re-read all move lists and counts without replacing the search fields. */
     public void refresh() {
-        columns.values().forEach(this::refreshColumn);
+        columns.values().forEach(this::reloadColumn);
     }
 
     static boolean matchesSearch(AssignmentPanel.Item item, String query) {
@@ -154,6 +155,16 @@ public class MoveAssignmentPanel extends Table {
 
     static int columnRowCount(UiProfile uiProfile) {
         return uiProfile == UiProfile.WINDOWS ? 2 : 1;
+    }
+
+    static List<Integer> matchingItemIndices(
+        List<AssignmentPanel.Item> loadedItems, String query
+    ) {
+        List<Integer> indices = new ArrayList<>();
+        for (int index = 0; index < loadedItems.size(); index++) {
+            if (matchesSearch(loadedItems.get(index), query)) indices.add(index);
+        }
+        return indices;
     }
 
     static boolean moveToInsertionIndex(List<String> ids, int sourceIndex, int insertionIndex) {
@@ -203,34 +214,36 @@ public class MoveAssignmentPanel extends Table {
         columns.put(new ColumnKey(side, pool), moveColumn);
         search.addListener(new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
-                refreshColumn(moveColumn);
+                rebuildRows(moveColumn);
             }
         });
         return column;
     }
 
-    private void refreshColumn(MoveColumn column) {
+    private void reloadColumn(MoveColumn column) {
         if (column.side == Side.LEARNED) {
             column.heading.setText(poolLabel(column.pool) + "  "
                 + controller.learnedCount(column.pool) + "/"
                 + controller.learnedLimit(column.pool));
         }
 
-        List<AssignmentPanel.Item> items = column.side == Side.AVAILABLE
+        column.loadedItems = List.copyOf(column.side == Side.AVAILABLE
             ? controller.availableItems(column.pool)
-            : controller.learnedItems(column.pool);
+            : controller.learnedItems(column.pool));
+        rebuildRows(column);
+    }
+
+    private void rebuildRows(MoveColumn column) {
         String query = column.search.getText();
         column.dragSources.forEach(dragAndDrop::removeSource);
         column.dragSources.clear();
         column.rows.clearChildren();
-        boolean anyVisible = false;
-        for (int index = 0; index < items.size(); index++) {
-            AssignmentPanel.Item item = items.get(index);
-            if (!matchesSearch(item, query)) continue;
+        List<Integer> matchingIndices = matchingItemIndices(column.loadedItems, query);
+        for (int index : matchingIndices) {
+            AssignmentPanel.Item item = column.loadedItems.get(index);
             column.rows.add(makeMoveCard(item, column, index)).growX().left().row();
-            anyVisible = true;
         }
-        if (!anyVisible) {
+        if (matchingIndices.isEmpty()) {
             Label empty = new Label(query == null || query.isBlank() ? "(empty)" : "(no matches)",
                 skin, "small");
             empty.setColor(skin.get("text-dim", Color.class));

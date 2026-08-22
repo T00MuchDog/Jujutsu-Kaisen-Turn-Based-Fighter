@@ -15,6 +15,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiPredicate;
 
 /** Synchronization and unlock rules shared by both skill-tree editor views. */
 public final class TechniqueSkillTree {
@@ -24,6 +25,8 @@ public final class TechniqueSkillTree {
     private static final float COLUMN_GAP = 320f;
     private static final float ROW_GAP = 150f;
     private static final int ROWS_PER_COLUMN = 3;
+    private static final BiPredicate<SkillTreeNodeData, StatKey> WAIVE_NONE =
+        (node, stat) -> false;
 
     private TechniqueSkillTree() { }
 
@@ -128,7 +131,17 @@ public final class TechniqueSkillTree {
         SkillTreeNodeData node,
         CharacterData character
     ) {
-        return unmetPrerequisites(technique, node, character).isEmpty();
+        return isUnlocked(technique, node, character, WAIVE_NONE);
+    }
+
+    public static boolean isUnlocked(
+        InnateTechniqueData technique,
+        SkillTreeNodeData node,
+        CharacterData character,
+        BiPredicate<SkillTreeNodeData, StatKey> prerequisiteWaiver
+    ) {
+        return unmetPrerequisites(
+            technique, node, character, prerequisiteWaiver).isEmpty();
     }
 
     /** Player-facing reasons why a node cannot currently be activated. */
@@ -137,13 +150,25 @@ public final class TechniqueSkillTree {
         SkillTreeNodeData node,
         CharacterData character
     ) {
-        return unmetPrerequisites(technique, node, character, new HashSet<>());
+        return unmetPrerequisites(technique, node, character, WAIVE_NONE);
+    }
+
+    public static List<String> unmetPrerequisites(
+        InnateTechniqueData technique,
+        SkillTreeNodeData node,
+        CharacterData character,
+        BiPredicate<SkillTreeNodeData, StatKey> prerequisiteWaiver
+    ) {
+        return unmetPrerequisites(technique, node, character,
+            prerequisiteWaiver == null ? WAIVE_NONE : prerequisiteWaiver,
+            new HashSet<>());
     }
 
     private static List<String> unmetPrerequisites(
         InnateTechniqueData technique,
         SkillTreeNodeData node,
         CharacterData character,
+        BiPredicate<SkillTreeNodeData, StatKey> prerequisiteWaiver,
         Set<String> visiting
     ) {
         if (technique == null || node == null || character == null) return List.of("Unavailable");
@@ -155,6 +180,8 @@ public final class TechniqueSkillTree {
         for (SkillTreePrerequisiteData requirement : node.prerequisites) {
             if (requirement == null || requirement.type == null) continue;
             if (SkillTreePrerequisiteData.MASTERY.equalsIgnoreCase(requirement.type)) {
+                if (prerequisiteWaiver.test(
+                    node, StatKey.CURSED_TECHNIQUE_MASTERY)) continue;
                 int minimum = requirement.minimum == null ? 0 : requirement.minimum;
                 if (character.cursedTechniqueMastery < minimum) {
                     unmet.add("Needs Cursed Technique Mastery >= " + minimum);
@@ -162,6 +189,7 @@ public final class TechniqueSkillTree {
             } else if (SkillTreePrerequisiteData.STAT.equalsIgnoreCase(requirement.type)) {
                 try {
                     StatKey stat = StatKey.fromString(requirement.stat);
+                    if (prerequisiteWaiver.test(node, stat)) continue;
                     int minimum = requirement.minimum == null ? 0 : requirement.minimum;
                     if (stat.get(character) < minimum) {
                         unmet.add("Needs " + stat.label + " >= " + minimum);
@@ -173,7 +201,8 @@ public final class TechniqueSkillTree {
                 SkillTreeNodeData prerequisiteNode = nodeById(technique, requirement.nodeId);
                 Set<String> branch = new HashSet<>(visiting);
                 if (prerequisiteNode == null || !isActive(prerequisiteNode, character)
-                    || !unmetPrerequisites(technique, prerequisiteNode, character, branch).isEmpty()) {
+                    || !unmetPrerequisites(technique, prerequisiteNode, character,
+                        prerequisiteWaiver, branch).isEmpty()) {
                     unmet.add("Needs " + nodeLabel(prerequisiteNode, requirement.nodeId));
                 }
             }
@@ -198,6 +227,31 @@ public final class TechniqueSkillTree {
             return false;
         }
         return ids != null && ids.contains(node.contentId);
+    }
+
+    /** True when a move's technique-tree node is active and its prerequisites pass. */
+    public static boolean allowsMove(
+        List<InnateTechniqueData> techniques,
+        String requiredTechnique,
+        String moveId,
+        CharacterData character
+    ) {
+        return allowsMove(techniques, requiredTechnique, moveId, character, WAIVE_NONE);
+    }
+
+    public static boolean allowsMove(
+        List<InnateTechniqueData> techniques,
+        String requiredTechnique,
+        String moveId,
+        CharacterData character,
+        BiPredicate<SkillTreeNodeData, StatKey> prerequisiteWaiver
+    ) {
+        if (techniques == null || requiredTechnique == null || moveId == null) return true;
+        InnateTechniqueData technique = techniqueByName(techniques, requiredTechnique);
+        if (technique == null) return true;
+        SkillTreeNodeData node = nodeForContent(technique, SkillTreeNodeData.MOVE, moveId);
+        return node == null || (isActive(node, character)
+            && isUnlocked(technique, node, character, prerequisiteWaiver));
     }
 
     public static void setActive(SkillTreeNodeData node, CharacterData character, boolean active) {
@@ -238,13 +292,24 @@ public final class TechniqueSkillTree {
         InnateTechniqueData technique,
         CharacterData character
     ) {
+        return pruneLockedSelections(technique, character, WAIVE_NONE);
+    }
+
+    public static boolean pruneLockedSelections(
+        InnateTechniqueData technique,
+        CharacterData character,
+        BiPredicate<SkillTreeNodeData, StatKey> prerequisiteWaiver
+    ) {
         if (technique == null || technique.skillTree == null || character == null) return false;
+        BiPredicate<SkillTreeNodeData, StatKey> waiver = prerequisiteWaiver == null
+            ? WAIVE_NONE : prerequisiteWaiver;
         boolean anyChanged = false;
         boolean changed;
         do {
             changed = false;
             for (SkillTreeNodeData node : technique.skillTree) {
-                if (isActive(node, character) && !isUnlocked(technique, node, character)) {
+                if (isActive(node, character)
+                    && !isUnlocked(technique, node, character, waiver)) {
                     setActive(node, character, false);
                     changed = true;
                     anyChanged = true;
